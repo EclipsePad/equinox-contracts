@@ -1,0 +1,26 @@
+[package]
+name                    = "voter"
+version.workspace       = true
+edition.workspace       = true
+repository.workspace    = true
+authors.workspace       = true
+license.workspace       = true
+description             = "implementation of Eclipse Equinox's vxASTRO holder"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dependencies]
+cosmwasm-schema = { workspace = true }
+cosmwasm-std    = { workspace = true }
+cw-controllers  = { workspace = true }
+cw-storage-plus = { workspace = true }
+cw2             = { workspace = true }
+cw20            = { workspace = true }
+semver          = { workspace = true }
+thiserror       = { workspace = true }
