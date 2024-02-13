@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    entry_point, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{EmbeddedLogo, Logo, LogoInfo, MarketingInfoResponse};

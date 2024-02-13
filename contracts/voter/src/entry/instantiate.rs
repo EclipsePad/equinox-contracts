@@ -18,20 +18,19 @@ pub fn try_instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     CONFIG.save(
-        deps.storage, 
+        deps.storage,
         &Config {
             base_token: deps.api.addr_validate(&msg.base_token)?,
             xtoken: deps.api.addr_validate(&msg.xtoken)?,
             vxtoken: deps.api.addr_validate(&msg.vxtoken)?,
             staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
-            gauge_voter: deps.api.addr_validate(&msg.gauge_voter)?,
+            converter_contract: deps.api.addr_validate(&msg.converter_contract)?,
             gauge_contract: deps.api.addr_validate(&msg.gauge_contract)?,
-            reward_distributor: deps.api.addr_validate(&msg.reward_distributor)?,
-        }
+            astroport_gauge_contract: deps.api.addr_validate(&msg.astroport_gauge_contract)?,
+        },
     )?;
 
     let owner = deps.api.addr_validate(&msg.owner)?;
     OWNER.set(deps.branch(), Some(owner))?;
-    Ok(Response::new()
-        .add_attributes([("action", "instantiate vxASTRO holder")]))
+    Ok(Response::new().add_attributes([("action", "instantiate vxASTRO holder")]))
 }

@@ -2,7 +2,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Uint128;
 use cw20::Cw20ReceiveMsg;
 
-use crate::state::Config;
+use crate::state::Vote;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -12,16 +12,34 @@ pub struct InstantiateMsg {
     pub xtoken: String,
     /// vxASTRO contract
     pub vxtoken: String,
-    /// contract owner for update
-    pub owner: String,
-    /// admin for claim rewards
-    pub reward_distributor: String,
-    /// admin for gauge vote
-    pub gauge_voter: String,
     /// Astroport Staking contract
     pub staking_contract: String,
-    /// Astroport Gauge contract
+    /// contract owner for update
+    pub owner: String,
+    /// Converter contract
+    pub converter_contract: String,
+    /// Gauge contract
     pub gauge_contract: String,
+    /// Astroport Gauge contract
+    pub astroport_gauge_contract: String,
+}
+
+#[cw_serde]
+pub struct UpdateConfig {
+    /// ASTRO token address
+    pub base_token: Option<String>,
+    /// xASTRO token address
+    pub xtoken: Option<String>,
+    /// vxASTRO contract
+    pub vxtoken: Option<String>,
+    /// Astroport Staking contract
+    pub staking_contract: Option<String>,
+    /// Converter contract
+    pub converter_contract: Option<String>,
+    /// Gauge contract
+    pub gauge_contract: Option<String>,
+    /// Astroport Gauge contract
+    pub astroport_gauge_contract: Option<String>,
 }
 
 #[cw_serde]
@@ -29,23 +47,18 @@ pub enum ExecuteMsg {
     /// stake ASTRO from user
     Receive(Cw20ReceiveMsg),
     /// update config
-    UpdateConfig {
-        config: Config
-    },
+    UpdateConfig { config: UpdateConfig },
     /// update owner
-    UpdateOwner {
-        owner: String
-    },
+    UpdateOwner { owner: String },
     /// withdraw xASTRO
-    Withdraw {
-        amount: Uint128,
-    },
+    Withdraw { amount: Uint128, recipient: String },
     /// withdraw bribe rewards
     WithdrawBribeRewards {},
     /// gauge vote
-    Vote {
-        // to do
-    }
+    PlaceVote {
+        gauge: u64,
+        votes: Option<Vec<Vote>>,
+    },
 }
 
 #[cw_serde]
@@ -59,6 +72,8 @@ pub enum QueryMsg {
     Owner {},
     /// query total vxASTRO
     VotingPower {},
+    /// query ASTRO/xASTRO ratio
+    ConvertRatio {},
 }
 
 #[cw_serde]

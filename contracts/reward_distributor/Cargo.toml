@@ -1,0 +1,29 @@
+[package]
+name                    = "reward-distributor"
+version.workspace       = true
+edition.workspace       = true
+repository.workspace    = true
+authors.workspace       = true
+license.workspace       = true
+description             = "eclipASTRO staking reward contract"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+cw2             = { workspace = true }
+cw20            = { workspace = true }
+cw20-base       = { workspace = true }
+cosmwasm-std    = { workspace = true }
+cosmwasm-schema = { workspace = true }
+cw-controllers  = { workspace = true }
+cw-storage-plus = { workspace = true }
+semver          = { workspace = true }
+thiserror       = { workspace = true }
+equinox-msg     = { workspace = true }

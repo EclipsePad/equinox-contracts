@@ -1,7 +1,9 @@
 [workspace]
 members = [
     "contracts/*",
+    "packages/*",
 ]
+resolver = "2"
 
 [workspace.package]
 version    = "0.1.0"
@@ -11,20 +13,25 @@ authors    = ["Tadao Fukuda"]
 license    = "Apache-2.0"
 
 [workspace.dependencies]
-anyhow          = "1"
-cosmwasm-schema = "1.1.0"
-cosmwasm-std    = "1.1"
-cw2             = "1.1.0"
-cw20            = "1.1.0"
-cw20-base       = { version = "1.1.0", features = ["library"] }
-cw-controllers  = "1.0.1"
-cw-multi-test   = "0.16"
-cw-storage-plus = "1.0.1"
-cw-utils        = "1.0.1"
-schemars        = "0.8.1"
-semver          = "1.0.20"
-serde           = { version = "1.0.103", default-features = false, features = ["derive"] }
-thiserror       = "1.0.23"
+anyhow              = "1"
+cosmwasm-schema     = "1.1.0"
+cosmwasm-std        = "1.1"
+cw2                 = "1.1.0"
+cw20                = "1.1.0"
+cw20-base           = { version = "1.1.0", features = ["library"] }
+cw-controllers      = "1.0.1"
+cw-multi-test       = "0.16"
+cw-storage-plus     = "1.0.1"
+cw-utils            = "1.0.1"
+schemars            = "0.8.1"
+semver              = "1.0.20"
+serde               = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror           = "1.0.23"
+token               = { path = "./contracts/token", features = ["library"] }
+voter               = { path = "./contracts/voter", features = ["library"] }
+gauge-contract      = { path = "./contracts/gauge_contract", features = ["library"] }
+astroport-msg       = { path = "./packages/astroport_msg" }
+equinox-msg         = { path = "./packages/equinox_msg" }
 
 [profile.release]
 opt-level = "z"

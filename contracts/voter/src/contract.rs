@@ -1,13 +1,27 @@
 use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult
+    ensure_eq, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use semver::Version;
 
-use crate::{entry::{execute::{receive_cw20, update_config, update_owner, vote, withdraw, withdraw_bribe_rewards}, instantiate::try_instantiate, query::{query_config, query_owner, query_voting_power}}, error::ContractError, msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg}, state::CONTRACT_NAME};
+use crate::{
+    entry::{
+        execute::{
+            handle_stake_reply, place_vote, receive_cw20, update_config, update_owner, withdraw,
+            withdraw_bribe_rewards,
+        },
+        instantiate::try_instantiate,
+        query::{query_config, query_convert_ratio, query_owner, query_voting_power},
+    },
+    error::ContractError,
+    msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
+    state::CONTRACT_NAME,
+};
 
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub const STAKE_TOKEN_REPLY_ID: u64 = 1;
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -32,11 +46,9 @@ pub fn execute(
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
-        ExecuteMsg::Withdraw { amount } => withdraw(deps, env, info, amount),
-        ExecuteMsg::WithdrawBribeRewards { } => withdraw_bribe_rewards(deps, env, info),
-        ExecuteMsg::Vote { 
-            //to do
-         } => vote(deps, env, info),
+        ExecuteMsg::Withdraw { amount, recipient } => withdraw(deps, env, info, amount, recipient),
+        ExecuteMsg::WithdrawBribeRewards {} => withdraw_bribe_rewards(deps, env, info),
+        ExecuteMsg::PlaceVote { gauge, votes } => place_vote(deps, env, info, gauge, votes),
     }
 }
 
@@ -47,6 +59,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::VotingPower {} => Ok(to_json_binary(&query_voting_power(deps, env)?)?),
+        QueryMsg::ConvertRatio {} => Ok(to_json_binary(&query_convert_ratio(deps, env)?)?),
     }
 }
 
@@ -56,14 +69,25 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
     let version: Version = CONTRACT_VERSION.parse()?;
     let storage_version: Version = get_contract_version(deps.storage)?.version.parse()?;
 
+    ensure_eq!(
+        (storage_version < version),
+        true,
+        ContractError::VersionErr(storage_version.to_string())
+    );
+
     if storage_version < version {
         set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-        // If state structure changed in any contract version in the way migration is needed, it
-        // should occur here
     }
 
     Ok(Response::new()
         .add_attribute("new_contract_name", CONTRACT_NAME)
         .add_attribute("new_contract_version", CONTRACT_VERSION))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.id {
+        STAKE_TOKEN_REPLY_ID => handle_stake_reply(deps, env, msg),
+        id => Err(ContractError::UnknownReplyId(id)),
+    }
 }

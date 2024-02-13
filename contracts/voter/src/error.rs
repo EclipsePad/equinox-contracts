@@ -8,18 +8,22 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
-
     #[error("{0}")]
     Admin(#[from] AdminError),
-    
     #[error("Semver parsing error: {0}")]
     SemVer(String),
-
+    #[error("New version must be greater than previous one: {0}")]
+    VersionErr(String),
     #[error("Can't stake this token: {0}")]
     UnknownToken(String),
-
     #[error("Can't handle this message")]
     UnknownMessage(),
+    #[error("Error staking astro")]
+    StakeError {},
+    #[error("Unknown reply id: {0}")]
+    UnknownReplyId(u64),
+    #[error("Unauthorized")]
+    Unauthorized {},
 }
 
 impl From<semver::Error> for ContractError {

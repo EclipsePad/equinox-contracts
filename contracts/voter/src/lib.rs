@@ -6,4 +6,8 @@ pub mod entry {
 }
 pub mod error;
 pub mod msg;
+
+/// state on the blockchain
 pub mod state;
+pub use crate::error::ContractError;
+pub use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};

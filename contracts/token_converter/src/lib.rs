@@ -4,6 +4,12 @@ pub mod entry {
     pub mod instantiate;
     pub mod query;
 }
-pub mod error;
-pub mod msg;
+mod error;
+mod math;
+
+/// state on the blockchain
 pub mod state;
+pub use crate::error::ContractError;
+
+#[cfg(test)]
+mod multitest;
