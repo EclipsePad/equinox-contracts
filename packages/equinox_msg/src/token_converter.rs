@@ -2,26 +2,22 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
 use cw20::Cw20ReceiveMsg;
 
+use crate::token::InstantiateMarketingInfo;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
     pub owner: String,
     /// ASTRO token
     pub token_in: String,
-    /// eclipASTRO token
-    pub token_out: String,
     /// xASTRO token
     pub xtoken: String,
-    /// Eclipse vxASTRO holder contract
-    pub vxtoken_holder: String,
     /// Eclipse treasury
     pub treasury: String,
-    /// eclipASTRO / ASTRO stability pool
-    pub stability_pool: String,
-    /// eclipASTRO staking reward distributor
-    pub staking_reward_distributor: String,
-    /// cosmic essence reward distributor
-    pub ce_reward_distributor: String,
+    /// eclipASTRO token code id
+    pub token_code_id: u64,
+    /// eclipASTRO marketing info
+    pub marketing: Option<InstantiateMarketingInfo>
 }
 
 #[cw_serde]

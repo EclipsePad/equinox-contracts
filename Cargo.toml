@@ -2,6 +2,7 @@
 members = [
     "contracts/*",
     "packages/*",
+    "multitests",
 ]
 resolver = "2"
 
@@ -13,25 +14,34 @@ authors    = ["Tadao Fukuda"]
 license    = "Apache-2.0"
 
 [workspace.dependencies]
-anyhow              = "1"
-cosmwasm-schema     = "1.1.0"
-cosmwasm-std        = "1.1"
-cw2                 = "1.1.0"
-cw20                = "1.1.0"
-cw20-base           = { version = "1.1.0", features = ["library"] }
-cw-controllers      = "1.0.1"
-cw-multi-test       = "0.16"
-cw-storage-plus     = "1.0.1"
-cw-utils            = "1.0.1"
-schemars            = "0.8.1"
-semver              = "1.0.20"
-serde               = { version = "1.0.103", default-features = false, features = ["derive"] }
-thiserror           = "1.0.23"
-token               = { path = "./contracts/token", features = ["library"] }
-voter               = { path = "./contracts/voter", features = ["library"] }
-gauge-contract      = { path = "./contracts/gauge_contract", features = ["library"] }
-astroport-msg       = { path = "./packages/astroport_msg" }
-equinox-msg         = { path = "./packages/equinox_msg" }
+anyhow                  = "1"
+cosmwasm-schema         = "1.1.0"
+cosmwasm-std            = "1.1"
+cw2                     = "1.1.0"
+cw20                    = "1.1.0"
+cw20-base               = { version = "1.1.0", features = ["library"] }
+cw-controllers          = "1.0.1"
+cw-multi-test           = "0.16"
+cw-storage-plus         = "1.0.1"
+cw-utils                = "1.0.1"
+schemars                = "0.8.1"
+semver                  = "1.0.20"
+serde                   = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror               = "1.0.23"
+
+equinox-msg             = { path = "./packages/equinox_msg" }
+eclipastro-token        = { path = "./contracts/token" }
+token-converter         = { path = "./contracts/token_converter" }
+flexible-staking        = { path = "./contracts/flexible_staking" }
+timelock-staking        = { path = "./contracts/timelock_staking" }
+reward-distributor      = { path = "./contracts/reward_distributor" }
+voter                   = { path = "./contracts/voter" }
+# gauge-contract          = { path = "./contracts/gauge_contract", features = ["library"] }
+astroport-token         = { git = "https://github.com/astroport-fi/astroport-core.git", version = "1.1.1" }
+astroport-staking       = { git = "https://github.com/astroport-fi/astroport-core.git", version = "1.1.0" }
+astroport-xastro-token  = { git = "https://github.com/astroport-fi/astroport-core.git", version = "1.1.0" }
+astroport               = { git = "https://github.com/astroport-fi/astroport-core.git", version = "3.10.0" }
+# astroport-governance    = { git = "https://github.com/astroport-fi/astroport-governance.git", version = "1.2.0" }
 
 [profile.release]
 opt-level = "z"

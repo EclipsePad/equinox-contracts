@@ -1,17 +1,30 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{
+    to_json_binary, Addr, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, SubMsg,
+    SubMsgResponse, SubMsgResult, WasmMsg,
+};
 use cw2::set_contract_version;
-use equinox_msg::token_converter::{Config, InstantiateMsg, RewardConfig};
+use cw20::MinterResponse;
+use cw_utils::parse_instantiate_response_data;
+use equinox_msg::{
+    token::InstantiateMsg as TokenInstantiateMsg,
+    token_converter::{Config, InstantiateMsg, RewardConfig},
+};
 
 use crate::{
+    contract::INSTANTIATE_TOKEN_REPLY_ID,
     error::ContractError,
     state::{CONFIG, CONTRACT_NAME, OWNER, REWARD_CONFIG},
 };
 
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// eclipASTRO information.
+const TOKEN_NAME: &str = "eclipASTRO";
+const TOKEN_SYMBOL: &str = "eclipASTRO";
+
 pub fn try_instantiate(
     mut deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
@@ -21,13 +34,13 @@ pub fn try_instantiate(
         deps.storage,
         &Config {
             token_in: deps.api.addr_validate(&msg.token_in)?,
-            token_out: deps.api.addr_validate(&msg.token_out)?,
+            token_out: Addr::unchecked(""),
             xtoken: deps.api.addr_validate(&msg.xtoken)?,
-            vxtoken_holder: deps.api.addr_validate(&msg.vxtoken_holder)?,
+            vxtoken_holder: Addr::unchecked(""),
             treasury: deps.api.addr_validate(&msg.treasury)?,
-            stability_pool: deps.api.addr_validate(&msg.stability_pool)?,
-            staking_reward_distributor: deps.api.addr_validate(&msg.staking_reward_distributor)?,
-            ce_reward_distributor: deps.api.addr_validate(&msg.ce_reward_distributor)?,
+            stability_pool: Addr::unchecked(""),
+            staking_reward_distributor: Addr::unchecked(""),
+            ce_reward_distributor: Addr::unchecked(""),
         },
     )?;
 
@@ -43,5 +56,60 @@ pub fn try_instantiate(
 
     let owner = deps.api.addr_validate(&msg.owner)?;
     OWNER.set(deps.branch(), Some(owner))?;
-    Ok(Response::new().add_attributes([("action", "instantiate token converter")]))
+
+    // Create the eclipASTRO token
+    let sub_msg: Vec<SubMsg> = vec![SubMsg {
+        msg: WasmMsg::Instantiate {
+            admin: Some(msg.owner),
+            code_id: msg.token_code_id,
+            msg: to_json_binary(&TokenInstantiateMsg {
+                name: TOKEN_NAME.to_string(),
+                symbol: TOKEN_SYMBOL.to_string(),
+                decimals: 6,
+                initial_balances: vec![],
+                mint: Some(MinterResponse {
+                    minter: env.contract.address.to_string(),
+                    cap: None,
+                }),
+                marketing: msg.marketing,
+            })?,
+            funds: vec![],
+            label: String::from("Staked Astroport Token"),
+        }
+        .into(),
+        id: INSTANTIATE_TOKEN_REPLY_ID,
+        gas_limit: None,
+        reply_on: ReplyOn::Success,
+    }];
+
+    Ok(Response::new().add_submessages(sub_msg))
+}
+
+pub fn handle_instantiate_reply(
+    deps: DepsMut,
+    _env: Env,
+    msg: Reply,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    match msg.result {
+        SubMsgResult::Ok(SubMsgResponse {
+            data: Some(data), ..
+        }) => {
+            if config.token_out != Addr::unchecked("") {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            let init_response = parse_instantiate_response_data(data.as_slice())
+                .map_err(|e| StdError::generic_err(format!("{e}")))?;
+
+            config.token_out = deps.api.addr_validate(&init_response.contract_address)?;
+
+            CONFIG.save(deps.storage, &config)?;
+
+            Ok(Response::new())
+        }
+        _ => {
+            return Err(ContractError::FailedToParseReply {});
+        }
+    }
 }

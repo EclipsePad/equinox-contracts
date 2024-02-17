@@ -5,8 +5,10 @@ use crate::{
     },
 };
 use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
-use equinox_msg::token_converter::{Config, Reward, RewardConfig, RewardResponse};
-use voter::QueryMsg as VoterQueryMsg;
+use equinox_msg::{
+    token_converter::{Config, Reward, RewardConfig, RewardResponse},
+    voter::QueryMsg as VoterQueryMsg,
+};
 
 /// query owner
 pub fn query_owner(deps: Deps, _env: Env) -> StdResult<Addr> {
@@ -30,7 +32,7 @@ pub fn query_reward_config(deps: Deps, _env: Env) -> StdResult<RewardConfig> {
 pub fn query_rewards(deps: Deps, _env: Env) -> StdResult<RewardResponse> {
     let config = CONFIG.load(deps.storage)?;
     let reward_config = REWARD_CONFIG.load(deps.storage)?;
-    let mut treasury_reward = TREASURY_REWARD.load(deps.storage)?;
+    let mut treasury_reward = TREASURY_REWARD.load(deps.storage).unwrap_or_default();
     let (total_deposit, total_shares): (Uint128, Uint128) = deps.querier.query_wasm_smart(
         &config.vxtoken_holder.to_string(),
         &VoterQueryMsg::ConvertRatio {},
@@ -103,6 +105,6 @@ pub fn query_treasury_reward(deps: Deps, _env: Env) -> StdResult<Uint128> {
 
 /// query treasury reward
 pub fn query_withdrawable_balance(deps: Deps, _env: Env) -> StdResult<Uint128> {
-    let withdrawable_balance = WITHDRAWABLE_BALANCE.load(deps.storage)?;
+    let withdrawable_balance = WITHDRAWABLE_BALANCE.load(deps.storage).unwrap_or_default();
     Ok(withdrawable_balance)
 }

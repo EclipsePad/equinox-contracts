@@ -1,8 +1,6 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
-
-use crate::state::Vote;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -14,14 +12,10 @@ pub struct InstantiateMsg {
     pub vxtoken: String,
     /// Astroport Staking contract
     pub staking_contract: String,
+    /// Converter contact
+    pub converter_contact: String,
     /// contract owner for update
     pub owner: String,
-    /// Converter contract
-    pub converter_contract: String,
-    /// Gauge contract
-    pub gauge_contract: String,
-    /// Astroport Gauge contract
-    pub astroport_gauge_contract: String,
 }
 
 #[cw_serde]
@@ -79,4 +73,12 @@ pub enum QueryMsg {
 #[cw_serde]
 pub enum Cw20HookMsg {
     Stake {},
+}
+
+#[cw_serde]
+pub struct Vote {
+    /// Option voted for.
+    pub option: String,
+    /// The weight of the power given to this vote
+    pub weight: Decimal,
 }

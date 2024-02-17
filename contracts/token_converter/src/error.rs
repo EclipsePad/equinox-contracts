@@ -38,9 +38,12 @@ pub enum ContractError {
 
     #[error("Balance is not enough")]
     NotEnoughBalance {},
-    
+
     #[error("Unauthorized")]
     Unauthorized {},
+
+    #[error("Failed to parse or process reply message")]
+    FailedToParseReply {},
 }
 
 impl From<semver::Error> for ContractError {

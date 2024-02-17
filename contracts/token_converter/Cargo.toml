@@ -16,19 +16,13 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cosmwasm-schema = { workspace = true }
-cosmwasm-std    = { workspace = true }
-cw-controllers  = { workspace = true }
-cw-storage-plus = { workspace = true }
-cw2             = { workspace = true }
-cw20            = { workspace = true }
-semver          = { workspace = true }
-thiserror       = { workspace = true }
-token           = { workspace = true }
-voter           = { workspace = true }
-equinox-msg     = { workspace = true }
-
-[dev-dependencies]
-cw20-base       = { workspace = true }
-anyhow          = { workspace = true }
-cw-multi-test   = { workspace = true }
+cosmwasm-schema         = { workspace = true }
+cosmwasm-std            = { workspace = true }
+cw-controllers          = { workspace = true }
+cw-storage-plus         = { workspace = true }
+cw-utils                = { workspace = true }
+cw2                     = { workspace = true }
+cw20                    = { workspace = true }
+semver                  = { workspace = true }
+thiserror               = { workspace = true }
+equinox-msg             = { workspace = true }

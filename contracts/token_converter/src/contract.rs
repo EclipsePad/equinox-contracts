@@ -12,9 +12,9 @@ use crate::{
             claim, claim_treasury_reward, handle_stake_reply, receive_cw20, update_config,
             update_owner, update_reward_config, withdraw_xtoken,
         },
-        instantiate::try_instantiate,
+        instantiate::{handle_instantiate_reply, try_instantiate},
         query::{
-            query_config, query_owner, query_rewards, query_reward_config,
+            query_config, query_owner, query_reward_config, query_rewards,
             query_withdrawable_balance,
         },
     },
@@ -25,7 +25,8 @@ use crate::{
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub const STAKE_TOKEN_REPLY_ID: u64 = 1;
+pub const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
+pub const STAKE_TOKEN_REPLY_ID: u64 = 2;
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -99,6 +100,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
+        INSTANTIATE_TOKEN_REPLY_ID => handle_instantiate_reply(deps, env, msg),
         STAKE_TOKEN_REPLY_ID => handle_stake_reply(deps, env, msg),
         id => Err(ContractError::UnknownReplyId(id)),
     }

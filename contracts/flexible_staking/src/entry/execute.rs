@@ -31,6 +31,7 @@ pub fn update_config(
         config.reward_contract = deps.api.addr_validate(&reward_contract)?;
         res = res.add_attribute("reward_contract", reward_contract);
     }
+    CONFIG.save(deps.storage, &config)?;
     Ok(res)
 }
 

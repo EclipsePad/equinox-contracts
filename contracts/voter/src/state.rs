@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal};
+use cosmwasm_std::Addr;
 use cw_controllers::Admin;
 use cw_storage_plus::Item;
 
@@ -22,15 +22,7 @@ pub struct Config {
     /// Converter contract
     pub converter_contract: Addr,
     /// Gauge contract
-    pub gauge_contract: Addr,
+    pub gauge_contract: Option<Addr>,
     /// Astroport Gauge contract
-    pub astroport_gauge_contract: Addr,
-}
-
-#[cw_serde]
-pub struct Vote {
-    /// Option voted for.
-    pub option: String,
-    /// The weight of the power given to this vote
-    pub weight: Decimal,
+    pub astroport_gauge_contract: Option<Addr>,
 }

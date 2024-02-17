@@ -10,6 +10,3 @@ mod math;
 /// state on the blockchain
 pub mod state;
 pub use crate::error::ContractError;
-
-#[cfg(test)]
-mod multitest;

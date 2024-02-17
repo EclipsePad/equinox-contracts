@@ -1,18 +1,27 @@
-use std::str::FromStr;
-
-use astroport_msg::staking as AstroMsg;
-use astroport_msg::voting_escrow as AstroVotingEscrowMsg;
+use astroport::staking::Cw20HookMsg as AstroportStakingCw20HookMsg;
+// use astroport_governance::voting_escrow::{
+//     Cw20HookMsg as AstroportVotingEscrowCw20HookMsg, ExecuteMsg as AstroportVotingEscrowExecuteMsg,
+//     QueryMsg as AstroportVotingEscrowQueryMsg,
+// };
 use cosmwasm_std::{
     ensure_eq, from_json, to_json_binary, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response,
     SubMsg, Uint128, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw20::{
+    // BalanceResponse,
+    Cw20ExecuteMsg,
+    Cw20ReceiveMsg,
+};
+use std::str::FromStr;
+
+use equinox_msg::voter::Cw20HookMsg;
+use equinox_msg::voter::UpdateConfig;
+use equinox_msg::voter::Vote;
 
 use crate::{
     contract::STAKE_TOKEN_REPLY_ID,
     error::ContractError,
-    msg::{Cw20HookMsg, UpdateConfig},
-    state::{Vote, CONFIG, OWNER},
+    state::{CONFIG, OWNER},
 };
 
 /// Update config
@@ -22,7 +31,6 @@ pub fn update_config(
     info: MessageInfo,
     new_config: UpdateConfig,
 ) -> Result<Response, ContractError> {
-    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let mut config = CONFIG.load(deps.storage)?;
     let mut res: Response = Response::new().add_attribute("action", "update config");
@@ -47,13 +55,14 @@ pub fn update_config(
         res = res.add_attribute("converter_contract", converter_contract);
     }
     if let Some(gauge_contract) = new_config.gauge_contract {
-        config.gauge_contract = deps.api.addr_validate(&gauge_contract)?;
+        config.gauge_contract = Some(deps.api.addr_validate(&gauge_contract)?);
         res = res.add_attribute("gauge_contract", gauge_contract);
     }
     if let Some(astroport_gauge_contract) = new_config.astroport_gauge_contract {
-        config.astroport_gauge_contract = deps.api.addr_validate(&astroport_gauge_contract)?;
+        config.astroport_gauge_contract = Some(deps.api.addr_validate(&astroport_gauge_contract)?);
         res = res.add_attribute("astroport_gauge_contract", astroport_gauge_contract);
     }
+    CONFIG.save(deps.storage, &config)?;
     Ok(res)
 }
 
@@ -86,12 +95,28 @@ pub fn withdraw(
         config.converter_contract,
         ContractError::Unauthorized {}
     );
+    // let vxtoken_balance: BalanceResponse = deps.querier.query_wasm_smart(
+    //     config.vxtoken.to_string(),
+    //     &AstroportVotingEscrowQueryMsg::Balance {
+    //         address: env.contract.address.to_string(),
+    //     },
+    // )?;
     let msgs = vec![
-        WasmMsg::Execute {
-            contract_addr: config.vxtoken.to_string(),
-            msg: to_json_binary(&AstroVotingEscrowMsg::ExecuteMsg::Withdraw { amount })?,
-            funds: vec![],
-        },
+        // Not implemented
+        // WasmMsg::Execute {
+        //     contract_addr: config.vxtoken.to_string(),
+        //     msg: to_json_binary(&AstroportVotingEscrowExecuteMsg::Withdraw {})?,
+        //     funds: vec![],
+        // },
+        // WasmMsg::Execute {
+        //     contract_addr: config.xtoken.to_string(),
+        //     msg: to_json_binary(&Cw20ExecuteMsg::Send {
+        //         contract: config.vxtoken.to_string(),
+        //         amount: remaining,
+        //         msg: to_json_binary(&AstroportVotingEscrowCw20HookMsg::CreateLock { time: 0u64 })?,
+        //     })?,
+        //     funds: vec![],
+        // },
         WasmMsg::Execute {
             contract_addr: config.xtoken.to_string(),
             msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
@@ -140,20 +165,26 @@ pub fn receive_cw20(
     match from_json(&msg.msg) {
         Ok(Cw20HookMsg::Stake {}) => {
             let config = CONFIG.load(deps.storage)?;
-            // Check sender is ASTRO token
+            // Check token is ASTRO token
             ensure_eq!(
                 info.sender,
                 config.base_token,
                 ContractError::UnknownToken(info.sender.to_string())
+            );
+            // Check sender is converter
+            ensure_eq!(
+                msg.sender,
+                config.converter_contract,
+                ContractError::Unauthorized {}
             );
             let stake_msg = SubMsg {
                 id: STAKE_TOKEN_REPLY_ID,
                 msg: WasmMsg::Execute {
                     contract_addr: config.base_token.to_string(),
                     msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                        contract: config.xtoken.to_string(),
+                        contract: config.staking_contract.to_string(),
                         amount: msg.amount,
-                        msg: to_json_binary(&AstroMsg::Cw20HookMsg::Enter {})?,
+                        msg: to_json_binary(&AstroportStakingCw20HookMsg::Enter {})?,
                     })?,
                     funds: vec![],
                 }
@@ -170,7 +201,11 @@ pub fn receive_cw20(
     }
 }
 
-pub fn handle_stake_reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn handle_stake_reply(
+    _deps: DepsMut,
+    _env: Env,
+    msg: Reply,
+) -> Result<Response, ContractError> {
     if msg.result.is_err() {
         return Err(ContractError::StakeError {});
     }
@@ -182,19 +217,20 @@ pub fn handle_stake_reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Respon
             }
         }
     }
-    let config = CONFIG.load(deps.storage)?;
+    // let config = CONFIG.load(deps.storage)?;
     // lock
-    let lock_msg = WasmMsg::Execute {
-        contract_addr: config.vxtoken.to_string(),
-        msg: to_json_binary(&Cw20ExecuteMsg::Send {
-            contract: config.xtoken.to_string(),
-            amount: xtoken_amount,
-            msg: to_json_binary(&AstroVotingEscrowMsg::Cw20HookMsg::CreateLock {})?,
-        })?,
-        funds: vec![],
-    };
+    // Not implemented
+    // let lock_msg = WasmMsg::Execute {
+    //     contract_addr: config.vxtoken.to_string(),
+    //     msg: to_json_binary(&Cw20ExecuteMsg::Send {
+    //         contract: config.xtoken.to_string(),
+    //         amount: xtoken_amount,
+    //         msg: to_json_binary(&AstroportVotingEscrowCw20HookMsg::CreateLock { time: 0u64 })?,
+    //     })?,
+    //     funds: vec![],
+    // };
     Ok(Response::new()
-        .add_message(lock_msg)
+        // .add_message(lock_msg)
         .add_attribute("action", "lock xASTRO")
         .add_attribute("xASTRO", xtoken_amount.to_string()))
 }

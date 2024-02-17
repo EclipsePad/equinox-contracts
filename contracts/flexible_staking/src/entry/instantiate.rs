@@ -1,4 +1,4 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
 
 use crate::{
@@ -19,11 +19,11 @@ pub fn try_instantiate(
         deps.storage,
         &Config {
             token: deps.api.addr_validate(&msg.token)?,
-            reward_contract: deps.api.addr_validate(&msg.reward_contract)?,
+            reward_contract: Addr::unchecked(""),
         },
     )?;
 
     let owner = deps.api.addr_validate(&msg.owner)?;
     OWNER.set(deps.branch(), Some(owner))?;
-    Ok(Response::new().add_attributes([("action", "instantiate token converter")]))
+    Ok(Response::new())
 }

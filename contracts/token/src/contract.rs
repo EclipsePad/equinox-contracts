@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    entry_point, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{EmbeddedLogo, Logo, LogoInfo, MarketingInfoResponse};
@@ -11,7 +11,7 @@ use semver::Version;
 
 use crate::asset::addr_opt_validate;
 use crate::error::ContractError;
-use crate::token::{InstantiateMsg, MigrateMsg};
+use equinox_msg::token::{InstantiateMsg, MigrateMsg};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "eclipastro-token";
@@ -183,7 +183,7 @@ mod tests {
     use cosmwasm_std::{Addr, StdError};
 
     use super::*;
-    use crate::token::InstantiateMarketingInfo;
+    use equinox_msg::token::InstantiateMarketingInfo;
 
     mod marketing {
         use cw20::DownloadLogoResponse;

@@ -50,6 +50,7 @@ pub fn update_config(
                 .join(","),
         )
     }
+    CONFIG.save(deps.storage, &config)?;
     Ok(res)
 }
 

@@ -1,4 +1,4 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
 
 use crate::{
@@ -19,7 +19,7 @@ pub fn try_instantiate(
         deps.storage,
         &Config {
             token: deps.api.addr_validate(&msg.token)?,
-            reward_contract: deps.api.addr_validate(&msg.reward_contract)?,
+            reward_contract: Addr::unchecked(""),
             timelock_config: msg.timelock_config,
         },
     )?;

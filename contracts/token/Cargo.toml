@@ -1,5 +1,5 @@
 [package]
-name        = "token"
+name        = "eclipastro-token"
 version     = { workspace = true }
 authors     = { workspace = true }
 edition     = { workspace = true }
@@ -23,3 +23,4 @@ cosmwasm-std    = { workspace = true }
 cosmwasm-schema = { workspace = true }
 semver          = { workspace = true }
 thiserror       = { workspace = true }
+equinox-msg     = { workspace = true }

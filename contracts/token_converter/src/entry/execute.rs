@@ -7,14 +7,18 @@ use cosmwasm_std::{
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use equinox_msg::token_converter::{Cw20HookMsg, RewardConfig, UpdateConfig};
-use voter::{
-    msg::Cw20HookMsg as VoterCw20HookMsg, ExecuteMsg as VoterExecuteMsg, QueryMsg as VoterQueryMsg,
+use equinox_msg::voter::{
+    Cw20HookMsg as VoterCw20HookMsg, ExecuteMsg as VoterExecuteMsg, QueryMsg as VoterQueryMsg,
 };
 
 use crate::{
     contract::STAKE_TOKEN_REPLY_ID,
     error::ContractError,
-    math::{calculate_claimable, convert_token}, state::{UserStake, CONFIG, OWNER, REWARD_CONFIG, TOTAL_STAKE_INFO, TREASURY_REWARD, USER_STAKING, WITHDRAWABLE_BALANCE},
+    math::{calculate_claimable, convert_token},
+    state::{
+        UserStake, CONFIG, OWNER, REWARD_CONFIG, TOTAL_STAKE_INFO, TREASURY_REWARD, USER_STAKING,
+        WITHDRAWABLE_BALANCE,
+    },
 };
 
 /// Update config
@@ -59,6 +63,7 @@ pub fn update_config(
         config.ce_reward_distributor = deps.api.addr_validate(&ce_reward_distributor)?;
         res = res.add_attribute("ce_reward_distributor", ce_reward_distributor);
     }
+    CONFIG.save(deps.storage, &config)?;
     Ok(res)
 }
 
@@ -98,15 +103,19 @@ pub fn update_owner(
 pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let reward_config = REWARD_CONFIG.load(deps.storage)?;
-    ensure_eq!(info.sender, config.staking_reward_distributor, ContractError::Unauthorized {});
+    ensure_eq!(
+        info.sender,
+        config.staking_reward_distributor,
+        ContractError::Unauthorized {}
+    );
     // ASTRO / xASTRO
     let (total_deposit, total_shares): (Uint128, Uint128) = deps.querier.query_wasm_smart(
         &config.vxtoken_holder.to_string(),
         &VoterQueryMsg::ConvertRatio {},
     )?;
-    let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage)?;
-    let mut withdrawable = WITHDRAWABLE_BALANCE.load(deps.storage)?;
-    let mut treasury_reward = TREASURY_REWARD.load(deps.storage)?;
+    let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
+    let mut withdrawable = WITHDRAWABLE_BALANCE.load(deps.storage).unwrap_or_default();
+    let mut treasury_reward = TREASURY_REWARD.load(deps.storage).unwrap_or_default();
 
     // calculate user rewards as xASTRO
     let claimable = calculate_claimable(
@@ -203,8 +212,8 @@ pub fn claim_treasury_reward(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let reward_config = REWARD_CONFIG.load(deps.storage)?;
-    let treasury_reward = TREASURY_REWARD.load(deps.storage)?;
-    let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage)?;
+    let treasury_reward = TREASURY_REWARD.load(deps.storage).unwrap_or_default();
+    let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
     // ASTRO / xASTRO
     let (total_deposit, total_shares): (Uint128, Uint128) = deps.querier.query_wasm_smart(
         &config.vxtoken_holder.to_string(),
@@ -268,7 +277,7 @@ pub fn claim_treasury_reward(
         )
         .unwrap();
     ensure!(
-        amount.lt(&treasury_reward_withdrawable),
+        amount.le(&treasury_reward_withdrawable),
         ContractError::NotEnoughBalance {}
     );
     treasury_reward_withdrawable = treasury_reward_withdrawable - amount;
@@ -301,7 +310,7 @@ pub fn withdraw_xtoken(
     let config = CONFIG.load(deps.storage)?;
     let mut withdrawable_balance = WITHDRAWABLE_BALANCE.load(deps.storage)?;
     ensure!(
-        amount.lt(&withdrawable_balance),
+        amount.le(&withdrawable_balance),
         ContractError::NotEnoughBalance {}
     );
     withdrawable_balance = withdrawable_balance - amount;

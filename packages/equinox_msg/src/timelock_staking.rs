@@ -9,8 +9,6 @@ pub struct InstantiateMsg {
     pub owner: String,
     /// eclipASTRO token
     pub token: String,
-    /// reward_contract address
-    pub reward_contract: String,
     /// timelock config
     pub timelock_config: Vec<TimeLockConfig>,
 }

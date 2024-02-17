@@ -1,0 +1,37 @@
+[package]
+name                    = "multitests"
+version.workspace       = true
+edition.workspace       = true
+repository.workspace    = true
+authors.workspace       = true
+license.workspace       = true
+description             = "multitest for equinox contracts"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dev-dependencies]
+anyhow                  = { workspace = true }
+cosmwasm-std            = { workspace = true }
+cw-controllers          = { workspace = true }
+cw-multi-test           = { workspace = true }
+cw20                    = { workspace = true }
+
+equinox-msg             = { workspace = true }
+eclipastro-token        = { workspace = true }
+token-converter         = { workspace = true }
+flexible-staking        = { workspace = true }
+timelock-staking        = { workspace = true }
+reward-distributor      = { workspace = true }
+voter                   = { workspace = true }
+# gauge-contract          = { workspace = true }
+astroport-token         = { workspace = true }
+astroport-staking       = { workspace = true }
+astroport-xastro-token  = { workspace = true }
+astroport               = { workspace = true }
+# astroport-governance    = { workspace = true }

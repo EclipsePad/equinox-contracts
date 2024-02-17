@@ -1,9 +1,9 @@
 use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
+use equinox_msg::voter::InstantiateMsg;
 
 use crate::{
     error::ContractError,
-    msg::InstantiateMsg,
     state::{Config, CONFIG, CONTRACT_NAME, OWNER},
 };
 
@@ -24,9 +24,9 @@ pub fn try_instantiate(
             xtoken: deps.api.addr_validate(&msg.xtoken)?,
             vxtoken: deps.api.addr_validate(&msg.vxtoken)?,
             staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
-            converter_contract: deps.api.addr_validate(&msg.converter_contract)?,
-            gauge_contract: deps.api.addr_validate(&msg.gauge_contract)?,
-            astroport_gauge_contract: deps.api.addr_validate(&msg.astroport_gauge_contract)?,
+            converter_contract: deps.api.addr_validate(&msg.converter_contact)?,
+            gauge_contract: None,
+            astroport_gauge_contract: None,
         },
     )?;
 

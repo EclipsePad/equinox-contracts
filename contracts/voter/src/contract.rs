@@ -1,7 +1,8 @@
 use cosmwasm_std::{
-    ensure_eq, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
+use equinox_msg::voter::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use semver::Version;
 
 use crate::{
@@ -14,7 +15,6 @@ use crate::{
         query::{query_config, query_convert_ratio, query_owner, query_voting_power},
     },
     error::ContractError,
-    msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
     state::CONTRACT_NAME,
 };
 
