@@ -1,10 +1,10 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
-use equinox_msg::voter::InstantiateMsg;
+use equinox_msg::voter::{Config, InstantiateMsg};
 
 use crate::{
     error::ContractError,
-    state::{Config, CONFIG, CONTRACT_NAME, OWNER},
+    state::{CONFIG, CONTRACT_NAME, OWNER},
 };
 
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -25,8 +25,8 @@ pub fn try_instantiate(
             vxtoken: deps.api.addr_validate(&msg.vxtoken)?,
             staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
             converter_contract: deps.api.addr_validate(&msg.converter_contact)?,
-            gauge_contract: None,
-            astroport_gauge_contract: None,
+            gauge_contract: Addr::unchecked(""),
+            astroport_gauge_contract: Addr::unchecked(""),
         },
     )?;
 

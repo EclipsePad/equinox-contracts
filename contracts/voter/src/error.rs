@@ -24,6 +24,8 @@ pub enum ContractError {
     UnknownReplyId(u64),
     #[error("Unauthorized")]
     Unauthorized {},
+    #[error("Zero amount")]
+    ZeroAmount {},
 }
 
 impl From<semver::Error> for ContractError {

@@ -55,11 +55,11 @@ pub fn update_config(
         res = res.add_attribute("converter_contract", converter_contract);
     }
     if let Some(gauge_contract) = new_config.gauge_contract {
-        config.gauge_contract = Some(deps.api.addr_validate(&gauge_contract)?);
+        config.gauge_contract = deps.api.addr_validate(&gauge_contract)?;
         res = res.add_attribute("gauge_contract", gauge_contract);
     }
     if let Some(astroport_gauge_contract) = new_config.astroport_gauge_contract {
-        config.astroport_gauge_contract = Some(deps.api.addr_validate(&astroport_gauge_contract)?);
+        config.astroport_gauge_contract = deps.api.addr_validate(&astroport_gauge_contract)?;
         res = res.add_attribute("astroport_gauge_contract", astroport_gauge_contract);
     }
     CONFIG.save(deps.storage, &config)?;

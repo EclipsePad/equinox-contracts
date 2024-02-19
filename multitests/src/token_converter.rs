@@ -36,7 +36,7 @@ fn instantiate() {
         (NINE_MONTH, 100),
         (ONE_YEAR, 100),
     ];
-    let eclip_daily_reward = Uint128::from(1_000_000u128);
+    let eclip_daily_reward = 1_000_000u128;
     let locking_reward_config = vec![
         (0, 1),
         (ONE_MONTH, 2),
@@ -77,7 +77,7 @@ fn update_config() {
         (NINE_MONTH, 100),
         (ONE_YEAR, 100),
     ];
-    let eclip_daily_reward = Uint128::from(1_000_000u128);
+    let eclip_daily_reward = 1_000_000;
     let locking_reward_config = vec![
         (0, 1),
         (ONE_MONTH, 2),
@@ -167,7 +167,7 @@ fn reward_config() {
         (NINE_MONTH, 100),
         (ONE_YEAR, 100),
     ];
-    let eclip_daily_reward = Uint128::from(1_000_000u128);
+    let eclip_daily_reward = 1_000_000;
     let locking_reward_config = vec![
         (0, 1),
         (ONE_MONTH, 2),
@@ -234,7 +234,7 @@ fn update_owner() {
         (NINE_MONTH, 100),
         (ONE_YEAR, 100),
     ];
-    let eclip_daily_reward = Uint128::from(1_000_000u128);
+    let eclip_daily_reward = 1_000_000;
     let locking_reward_config = vec![
         (0, 1),
         (ONE_MONTH, 2),
@@ -282,7 +282,7 @@ fn convert() {
         (NINE_MONTH, 100),
         (ONE_YEAR, 100),
     ];
-    let eclip_daily_reward = Uint128::from(1_000_000u128);
+    let eclip_daily_reward = 1_000_000;
     let locking_reward_config = vec![
         (0, 1),
         (ONE_MONTH, 2),
@@ -381,7 +381,7 @@ fn claim_treasury_reward() {
         (NINE_MONTH, 100),
         (ONE_YEAR, 100),
     ];
-    let eclip_daily_reward = Uint128::from(1_000_000u128);
+    let eclip_daily_reward = 1_000_000;
     let locking_reward_config = vec![
         (0, 1),
         (ONE_MONTH, 2),
@@ -419,12 +419,16 @@ fn claim_treasury_reward() {
         )
         .unwrap();
 
+    assert_eq!(suite.query_astro_staking_total_deposit().unwrap(), 1_101_000);
+    assert_eq!(suite.query_astro_staking_total_shares().unwrap(), 1_001_000);
+    assert_eq!(suite.query_xastro_balance(suite.voter_contract().as_str()).unwrap(), 1_000);
+
     let reward = suite.query_converter_reward().unwrap();
-    // total_reward = 1000 - 1000 * 1_001_000 / 1_101_000 = 91
-    // user_reward = 91 * 0.8 * 1_001_000 / 1_101_000 = 79
-    // ce_holders_reward = 91 * 0.04 = 3
-    // stability_pool_reward = 91 * 0.025 = 2
-    // treasury_reward = 91 - 72 - 3 - 2 = 14
+    // total_reward = (1000 * 1_101_000 / 1_001_000 - 1000) * 1_001_000 / 1_101_000 = 90
+    // user_reward = 90 * 0.8 * 1_001_000 / 1_101_000 = 79(72)
+    // ce_holders_reward = 90 * 0.04 = 3
+    // stability_pool_reward = 90 * 0.025 = 2
+    // treasury_reward = 90 - 72 - 3 - 2 = 13
     assert_eq!(
         reward,
         RewardResponse {
@@ -442,7 +446,7 @@ fn claim_treasury_reward() {
             },
             treasury_reward: Reward {
                 token: suite.xastro_contract(),
-                amount: Uint128::from(14u128)
+                amount: Uint128::from(13u128)
             },
         }
     );
@@ -493,16 +497,16 @@ fn claim_treasury_reward() {
             },
             treasury_reward: Reward {
                 token: suite.xastro_contract(),
-                amount: Uint128::from(4u128)
+                amount: Uint128::from(3u128)
             },
         }
     );
-    suite.claim_treasury_reward(4).unwrap();
+    suite.claim_treasury_reward(3).unwrap();
     assert_eq!(
         suite
             .query_xastro_balance(&suite.eclipse_treasury())
             .unwrap(),
-        14
+        13
     );
 }
 
@@ -523,7 +527,7 @@ fn claim() {
         (NINE_MONTH, 100),
         (ONE_YEAR, 100),
     ];
-    let eclip_daily_reward = Uint128::from(1_000_000u128);
+    let eclip_daily_reward = 1_000_000;
     let locking_reward_config = vec![
         (0, 1),
         (ONE_MONTH, 2),
@@ -605,7 +609,7 @@ fn withdraw_xtoken() {
         (NINE_MONTH, 100),
         (ONE_YEAR, 100),
     ];
-    let eclip_daily_reward = Uint128::from(1_000_000u128);
+    let eclip_daily_reward = 1_000_000;
     let locking_reward_config = vec![
         (0, 1),
         (ONE_MONTH, 2),

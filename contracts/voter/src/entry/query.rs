@@ -1,6 +1,7 @@
 use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
+use equinox_msg::voter::Config;
 
-use crate::state::{Config, CONFIG, OWNER};
+use crate::state::{CONFIG, OWNER};
 use astroport::staking::QueryMsg as AstroStakingQueryMsg;
 
 /// query owner

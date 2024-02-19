@@ -1,7 +1,7 @@
 /// Main contract logic
 pub mod contract;
 /// custom error handler
-mod error;
+pub mod error;
 /// state on the blockchain
 pub mod state;
 

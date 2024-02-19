@@ -71,7 +71,7 @@ pub fn receive_cw20(
                 }
             );
             let mut user_staking = STAKING
-                .load(deps.storage, &info.sender.to_string())
+                .load(deps.storage, &msg.sender.to_string())
                 .unwrap_or_default();
             user_staking = user_staking.checked_add(msg.amount).unwrap();
             STAKING.save(deps.storage, &msg.sender, &user_staking)?;

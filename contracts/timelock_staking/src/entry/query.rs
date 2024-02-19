@@ -24,38 +24,38 @@ pub fn query_total_staking(deps: Deps, _env: Env) -> StdResult<Uint128> {
     Ok(total_staking)
 }
 
-/// query user staking by specific duration
-pub fn query_staking_by_duration(
-    deps: Deps,
-    _env: Env,
-    user: String,
-    duration: u64,
-    locked_at: Option<u64>,
-) -> StdResult<Vec<UserStakingByDuration>> {
-    match locked_at {
-        Some(l) => {
-            let amount = STAKING
-                .load(deps.storage, (&user, duration, l))
-                .unwrap_or_default();
-            Ok(vec![UserStakingByDuration {
-                amount,
-                locked_at: l,
-            }])
-        }
-        None => {
-            let list = STAKING
-                .prefix((&user, duration))
-                .range(deps.storage, None, None, Order::Ascending)
-                .map(|s| {
-                    let (locked_at, amount) = s?;
-                    Ok(UserStakingByDuration { amount, locked_at })
-                })
-                .collect::<StdResult<Vec<UserStakingByDuration>>>()
-                .unwrap_or(vec![]);
-            Ok(list)
-        }
-    }
-}
+// /// query user staking by specific duration
+// pub fn query_staking_by_duration(
+//     deps: Deps,
+//     _env: Env,
+//     user: String,
+//     duration: u64,
+//     locked_at: Option<u64>,
+// ) -> StdResult<Vec<UserStakingByDuration>> {
+//     match locked_at {
+//         Some(l) => {
+//             let amount = STAKING
+//                 .load(deps.storage, (&user, duration, l))
+//                 .unwrap_or_default();
+//             Ok(vec![UserStakingByDuration {
+//                 amount,
+//                 locked_at: l,
+//             }])
+//         }
+//         None => {
+//             let list = STAKING
+//                 .prefix((&user, duration))
+//                 .range(deps.storage, None, None, Order::Ascending)
+//                 .map(|s| {
+//                     let (locked_at, amount) = s?;
+//                     Ok(UserStakingByDuration { amount, locked_at })
+//                 })
+//                 .collect::<StdResult<Vec<UserStakingByDuration>>>()
+//                 .unwrap_or(vec![]);
+//             Ok(list)
+//         }
+//     }
+// }
 
 /// query user staking
 pub fn query_staking(deps: Deps, _env: Env, user: String) -> StdResult<Vec<UserStaking>> {
@@ -68,18 +68,18 @@ pub fn query_staking(deps: Deps, _env: Env, user: String) -> StdResult<Vec<UserS
     let mut staking_lists = vec![];
     for duration in durations {
         let staking = STAKING
-                .prefix((&user, duration))
-                .range(deps.storage, None, None, Order::Ascending)
-                .map(|s| {
-                    let (locked_at, amount) = s?;
-                    Ok(UserStakingByDuration { locked_at, amount })
-                }).collect::<StdResult<Vec<UserStakingByDuration>>>().unwrap_or(vec![]);
+            .prefix((&user, duration))
+            .range(deps.storage, None, None, Order::Ascending)
+            .map(|s| {
+                let (locked_at, amount) = s?;
+                Ok(UserStakingByDuration { locked_at, amount })
+            })
+            .collect::<StdResult<Vec<UserStakingByDuration>>>()
+            .unwrap_or(vec![]);
         if staking.len() > 0 {
-            staking_lists.push(UserStaking {
-                duration, staking
-            });
+            staking_lists.push(UserStaking { duration, staking });
         }
-    };
+    }
     Ok(staking_lists)
 }
 
@@ -113,7 +113,7 @@ pub fn calculate_penalty(
         .find(|c| c.duration == duration)
     {
         let penalty_amount = amount
-            .multiply_ratio(current_time - locked_at, duration)
+            .multiply_ratio(locked_at + duration - current_time, duration)
             .multiply_ratio(timelock_config.early_unlock_penalty_bps, 10000u128);
         return Ok(penalty_amount);
     } else {

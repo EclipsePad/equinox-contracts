@@ -104,7 +104,7 @@ pub fn receive_cw20(
             let mut user_staking = STAKING
                 .load(
                     deps.storage,
-                    (&info.sender.to_string(), duration, env.block.time.seconds()),
+                    (&msg.sender.to_string(), duration, env.block.time.seconds()),
                 )
                 .unwrap_or_default();
             user_staking = user_staking.checked_add(msg.amount).unwrap();
@@ -174,7 +174,7 @@ pub fn unstake(
     TOTAL_STAKING_BY_DURATION.save(deps.storage, duration, &total_staking_by_duration)?;
     let penalty_amount = calculate_penalty(deps.as_ref(), env, unlock_amount, duration, locked_at)?;
     if penalty_amount.gt(&Uint128::zero()) {
-        let mut penalties = PENALTIES.load(deps.storage)?;
+        let mut penalties = PENALTIES.load(deps.storage).unwrap_or_default();
         penalties = penalties.checked_add(penalties).unwrap();
         PENALTIES.save(deps.storage, &penalties)?;
     }
@@ -203,10 +203,10 @@ pub fn unstake(
 /// increase locking time
 pub fn restake(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     from: u64,
-    locked_at: u64,
+    mut locked_at: u64,
     to: u64,
 ) -> Result<Response, ContractError> {
     let sender = info.sender.to_string();
@@ -219,17 +219,20 @@ pub fn restake(
         ContractError::NoLockedAmount {}
     );
     STAKING.remove(deps.storage, (&sender, from, locked_at));
+    if locked_at + from < env.block.time.seconds() {
+        locked_at = env.block.time.seconds() - from;
+    }
     let mut to_amount = STAKING
         .load(deps.storage, (&sender, to, locked_at))
         .unwrap_or_default();
     to_amount = to_amount.checked_add(restake_amount).unwrap();
     STAKING.save(deps.storage, (&sender, to, locked_at), &to_amount)?;
-    let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION.load(deps.storage, from)?;
+    let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION.load(deps.storage, from).unwrap_or_default();
     total_staking_by_duration = total_staking_by_duration
         .checked_sub(restake_amount)
         .unwrap();
     TOTAL_STAKING_BY_DURATION.save(deps.storage, from, &total_staking_by_duration)?;
-    let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION.load(deps.storage, to)?;
+    let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION.load(deps.storage, to).unwrap_or_default();
     total_staking_by_duration = total_staking_by_duration
         .checked_add(restake_amount)
         .unwrap();

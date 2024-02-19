@@ -46,14 +46,18 @@ pub fn query_rewards(deps: Deps, _env: Env) -> StdResult<RewardResponse> {
         total_staking.claimed,
     );
     let users_reward = total_reward.multiply_ratio(reward_config.users, 10000u32);
+    let dao_reward_point =
+        reward_config.treasury + reward_config.ce_holders + reward_config.stability_pool;
+    let dao_claimable = total_reward.checked_sub(users_reward).unwrap();
     // amount to withdraw for staking pools
-    let ce_holders_reward = total_reward.multiply_ratio(reward_config.ce_holders, 10000u32);
-    let stability_pool_reward = total_reward.multiply_ratio(reward_config.stability_pool, 10000u32);
+    let ce_holders_reward =
+        dao_claimable.multiply_ratio(reward_config.ce_holders, dao_reward_point);
+    let stability_pool_reward =
+        dao_claimable.multiply_ratio(reward_config.stability_pool, dao_reward_point);
+    // amount to withdraw for staking pools
     treasury_reward = treasury_reward
         .checked_add(
-            total_reward
-                .checked_sub(users_reward)
-                .unwrap()
+            dao_claimable
                 .checked_sub(ce_holders_reward)
                 .unwrap()
                 .checked_sub(stability_pool_reward)

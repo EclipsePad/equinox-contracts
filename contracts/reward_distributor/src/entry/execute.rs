@@ -1,20 +1,23 @@
 use std::vec;
 
 use cosmwasm_std::{
-    coins, ensure, to_json_binary, BankMsg, DepsMut, Env, MessageInfo,
-    Response, Uint128, WasmMsg,
+    coins, ensure, to_json_binary, BankMsg, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use equinox_msg::{
     reward_distributor::UpdateConfigMsg,
-    token_converter::ExecuteMsg as ConverterExecuteMsg,
+    token_converter::{
+        ExecuteMsg as ConverterExecuteMsg, QueryMsg as ConverterQueryMsg, RewardResponse,
+    },
 };
 
 use crate::{
-    entry::query::{total_staking_amount_update, total_staking_reward_update, user_reward_update, user_staking_amount_update}, error::ContractError, state::{
-        CONFIG, LAST_UPDATE_TIME, OWNER, TOTAL_STAKING,
-        USER_REWARDS, USER_STAKING,
-    }
+    entry::query::{
+        total_staking_amount_update, total_staking_reward_update, user_reward_update,
+        user_staking_amount_update,
+    },
+    error::ContractError,
+    state::{CONFIG, LAST_UPDATE_TIME, OWNER, TOTAL_STAKING, USER_REWARDS, USER_STAKING},
 };
 
 /// Update config
@@ -101,7 +104,12 @@ pub fn stake(
         info.sender == config.flexible_staking || info.sender == config.timelock_staking,
         ContractError::Unauthorized {}
     );
-    let mut total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone())?;
+    let pending_reward: RewardResponse = deps.querier.query_wasm_smart(
+        config.token_converter.to_string(),
+        &ConverterQueryMsg::Rewards {},
+    )?;
+    let mut total_staking_data =
+        total_staking_reward_update(deps.as_ref(), env.clone(), &pending_reward)?;
     total_staking_data = total_staking_amount_update(total_staking_data, duration, amount, true)?;
     let user_rewards = user_reward_update(deps.as_ref(), &total_staking_data, &user)?;
     let mut user_staking = USER_STAKING.load(deps.storage, &user).unwrap_or(vec![]);
@@ -111,11 +119,18 @@ pub fn stake(
     USER_REWARDS.save(deps.storage, &user, &user_rewards)?;
     USER_STAKING.save(deps.storage, &user, &user_staking)?;
     // claim eclipastro rewards
-    Ok(Response::new().add_message(WasmMsg::Execute {
-        contract_addr: config.token_converter.to_string(),
-        msg: to_json_binary(&ConverterExecuteMsg::Claim {})?,
-        funds: vec![],
-    }))
+    if pending_reward
+        .users_reward
+        .amount
+        .gt(&Uint128::zero())
+    {
+        return Ok(Response::new().add_message(WasmMsg::Execute {
+            contract_addr: config.token_converter.to_string(),
+            msg: to_json_binary(&ConverterExecuteMsg::Claim {})?,
+            funds: vec![],
+        }));
+    }
+    Ok(Response::new())
 }
 
 /// claim rewards
@@ -130,34 +145,51 @@ pub fn claim(
         info.sender == config.flexible_staking || info.sender == config.timelock_staking,
         ContractError::Unauthorized {}
     );
-    let total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone())?;
+    let pending_eclipastro_reward: RewardResponse = deps.querier.query_wasm_smart(
+        config.token_converter.to_string(),
+        &ConverterQueryMsg::Rewards {},
+    )?;
+    let total_staking_data =
+        total_staking_reward_update(deps.as_ref(), env.clone(), &pending_eclipastro_reward)?;
     let mut user_rewards = user_reward_update(deps.as_ref(), &total_staking_data, &user)?;
-    let msgs = vec![
-        WasmMsg::Execute {
+    let mut msgs = vec![];
+    if pending_eclipastro_reward
+        .users_reward
+        .amount
+        .gt(&Uint128::zero())
+    {
+        msgs.push(WasmMsg::Execute {
             contract_addr: config.token_converter.to_string(),
             msg: to_json_binary(&ConverterExecuteMsg::Claim {})?,
             funds: vec![],
-        },
-        WasmMsg::Execute {
+        });
+    }
+    if user_rewards.eclipastro.pending_reward.gt(&Uint128::zero()) {
+        msgs.push(WasmMsg::Execute {
             contract_addr: config.eclipastro.to_string(),
             msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: user.clone(),
                 amount: user_rewards.eclipastro.pending_reward,
             })?,
             funds: vec![],
-        },
-    ];
-    let eclip_msg = BankMsg::Send {
-        to_address: user.clone(),
-        amount: coins(user_rewards.eclip.pending_reward.u128(), config.eclip),
-    };
+        });
+    }
+    let mut bankmsgs = vec![];
+    if user_rewards.eclip.pending_reward.gt(&Uint128::zero()) {
+        bankmsgs.push(
+            BankMsg::Send {
+                to_address: user.clone(),
+                amount: coins(user_rewards.eclip.pending_reward.u128(), config.eclip),
+            }
+        );
+    }
     user_rewards.eclip.pending_reward = Uint128::zero();
     user_rewards.eclipastro.pending_reward = Uint128::zero();
     TOTAL_STAKING.save(deps.storage, &total_staking_data)?;
     LAST_UPDATE_TIME.save(deps.storage, &env.block.time.seconds())?;
     USER_REWARDS.save(deps.storage, &user, &user_rewards)?;
     // claim rewards
-    Ok(Response::new().add_messages(msgs).add_message(eclip_msg))
+    Ok(Response::new().add_messages(msgs).add_messages(bankmsgs))
 }
 
 /// unstaking event
@@ -174,30 +206,46 @@ pub fn unstake(
         info.sender == config.flexible_staking || info.sender == config.timelock_staking,
         ContractError::Unauthorized {}
     );
-    let mut total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone())?;
+    let pending_eclipastro_reward: RewardResponse = deps.querier.query_wasm_smart(
+        config.token_converter.to_string(),
+        &ConverterQueryMsg::Rewards {},
+    )?;
+    let mut total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone(), &pending_eclipastro_reward)?;
     total_staking_data = total_staking_amount_update(total_staking_data, duration, amount, false)?;
     let mut user_rewards = user_reward_update(deps.as_ref(), &total_staking_data, &user)?;
     let mut user_staking = USER_STAKING.load(deps.storage, &user).unwrap_or(vec![]);
     user_staking = user_staking_amount_update(user_staking, duration, amount, false)?;
-    let msgs = vec![
-        WasmMsg::Execute {
-            contract_addr: config.token_converter.to_string(),
-            msg: to_json_binary(&ConverterExecuteMsg::Claim {})?,
-            funds: vec![],
-        },
-        WasmMsg::Execute {
-            contract_addr: config.eclipastro.to_string(),
-            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: user.clone(),
-                amount: user_rewards.eclipastro.pending_reward,
-            })?,
-            funds: vec![],
-        },
-    ];
-    let eclip_msg = BankMsg::Send {
-        to_address: user.clone(),
-        amount: coins(user_rewards.eclip.pending_reward.u128(), config.eclip),
-    };
+    let mut msgs = vec![];
+    if pending_eclipastro_reward.users_reward.amount.gt(&Uint128::zero()) {
+        msgs.push(
+            WasmMsg::Execute {
+                contract_addr: config.token_converter.to_string(),
+                msg: to_json_binary(&ConverterExecuteMsg::Claim {})?,
+                funds: vec![],
+            },
+        );
+    }
+    if user_rewards.eclipastro.pending_reward.gt(&Uint128::zero()) {
+        msgs.push(
+            WasmMsg::Execute {
+                contract_addr: config.eclipastro.to_string(),
+                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: user.clone(),
+                    amount: user_rewards.eclipastro.pending_reward,
+                })?,
+                funds: vec![],
+            },
+        );
+    }
+    let mut bankmsgs = vec![];
+    if user_rewards.eclip.pending_reward.gt(&Uint128::zero()) {
+        bankmsgs.push(
+            BankMsg::Send {
+                to_address: user.clone(),
+                amount: coins(user_rewards.eclip.pending_reward.u128(), config.eclip),
+            }
+        )
+    }
     user_rewards.eclip.pending_reward = Uint128::zero();
     user_rewards.eclipastro.pending_reward = Uint128::zero();
     TOTAL_STAKING.save(deps.storage, &total_staking_data)?;
@@ -205,7 +253,7 @@ pub fn unstake(
     USER_REWARDS.save(deps.storage, &user, &user_rewards)?;
     USER_STAKING.save(deps.storage, &user, &user_staking)?;
     // claim rewards
-    Ok(Response::new().add_messages(msgs).add_message(eclip_msg))
+    Ok(Response::new().add_messages(msgs).add_messages(bankmsgs))
 }
 
 /// restaking event
@@ -223,7 +271,11 @@ pub fn restake(
         info.sender == config.timelock_staking,
         ContractError::Unauthorized {}
     );
-    let mut total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone())?;
+    let pending_eclipastro_reward: RewardResponse = deps.querier.query_wasm_smart(
+        config.token_converter.to_string(),
+        &ConverterQueryMsg::Rewards {},
+    )?;
+    let mut total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone(), &pending_eclipastro_reward)?;
     total_staking_data =
         total_staking_amount_update(total_staking_data, from_duration, amount, false)?;
     total_staking_data =
@@ -232,25 +284,37 @@ pub fn restake(
     let mut user_staking = USER_STAKING.load(deps.storage, &user).unwrap_or(vec![]);
     user_staking = user_staking_amount_update(user_staking, from_duration, amount, false)?;
     user_staking = user_staking_amount_update(user_staking, to_duration, amount, true)?;
-    let msgs = vec![
-        WasmMsg::Execute {
-            contract_addr: config.token_converter.to_string(),
-            msg: to_json_binary(&ConverterExecuteMsg::Claim {})?,
-            funds: vec![],
-        },
-        WasmMsg::Execute {
-            contract_addr: config.eclipastro.to_string(),
-            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: user.clone(),
-                amount: user_rewards.eclipastro.pending_reward,
-            })?,
-            funds: vec![],
-        },
-    ];
-    let eclip_msg = BankMsg::Send {
-        to_address: user.clone(),
-        amount: coins(user_rewards.eclip.pending_reward.u128(), config.eclip),
-    };
+    let mut msgs = vec![];
+    if pending_eclipastro_reward.users_reward.amount.gt(&Uint128::zero()) {
+        msgs.push(
+            WasmMsg::Execute {
+                contract_addr: config.token_converter.to_string(),
+                msg: to_json_binary(&ConverterExecuteMsg::Claim {})?,
+                funds: vec![],
+            },
+        );
+    }
+    if user_rewards.eclipastro.pending_reward.gt(&Uint128::zero()) {
+        msgs.push(
+            WasmMsg::Execute {
+                contract_addr: config.eclipastro.to_string(),
+                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: user.clone(),
+                    amount: user_rewards.eclipastro.pending_reward,
+                })?,
+                funds: vec![],
+            },
+        );
+    }
+    let mut bankmsgs = vec![];
+    if user_rewards.eclip.pending_reward.gt(&Uint128::zero()) {
+        bankmsgs.push(
+            BankMsg::Send {
+                to_address: user.clone(),
+                amount: coins(user_rewards.eclip.pending_reward.u128(), config.eclip),
+            }
+        )
+    }
     user_rewards.eclip.pending_reward = Uint128::zero();
     user_rewards.eclipastro.pending_reward = Uint128::zero();
     TOTAL_STAKING.save(deps.storage, &total_staking_data)?;
@@ -258,5 +322,5 @@ pub fn restake(
     USER_REWARDS.save(deps.storage, &user, &user_rewards)?;
     USER_STAKING.save(deps.storage, &user, &user_staking)?;
     // claim rewards
-    Ok(Response::new().add_messages(msgs).add_message(eclip_msg))
+    Ok(Response::new().add_messages(msgs).add_messages(bankmsgs))
 }

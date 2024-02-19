@@ -18,7 +18,12 @@ pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
 
 /// query user reward
 pub fn query_reward(deps: Deps, env: Env, user: String) -> StdResult<UserRewardResponse> {
-    let total_staking_data = total_staking_reward_update(deps, env)?;
+    let config = CONFIG.load(deps.storage)?;
+    let pending_reward: RewardResponse = deps.querier.query_wasm_smart(
+        config.token_converter.to_string(),
+        &ConverterQueryMsg::Rewards {},
+    )?;
+    let total_staking_data = total_staking_reward_update(deps, env, &pending_reward)?;
     let user_rewards = user_reward_update(deps, &total_staking_data, &user)?;
     Ok(UserRewardResponse {
         eclip: user_rewards.eclip.pending_reward,
@@ -26,55 +31,53 @@ pub fn query_reward(deps: Deps, env: Env, user: String) -> StdResult<UserRewardR
     })
 }
 
-pub fn total_staking_reward_update(deps: Deps, env: Env) -> StdResult<TotalStakingData> {
+pub fn total_staking_reward_update(deps: Deps, env: Env, pending_reward: &RewardResponse) -> StdResult<TotalStakingData> {
     let config = CONFIG.load(deps.storage)?;
     let mut total_staking_data = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
-    let last_update_time = LAST_UPDATE_TIME.load(deps.storage).unwrap_or_default();
-    let pending_eclipastro_reward: RewardResponse = deps.querier.query_wasm_smart(
-        config.token_converter.to_string(),
-        &ConverterQueryMsg::Rewards {},
-    )?;
-    // increase total_staking amount, calculate reward weight of eclipASTRO, update total_staking_data
-    let total_staking = total_staking_data
-        .staking_data
-        .iter()
-        .fold(Uint128::zero(), |acc, cur| {
-            acc.checked_add(cur.amount).unwrap()
-        });
-    let total_staking_with_multiplier =
-        total_staking_data
+    if pending_reward.users_reward.amount.gt(&Uint128::zero()) {
+        let last_update_time = LAST_UPDATE_TIME.load(deps.storage).unwrap_or_default();
+        // increase total_staking amount, calculate reward weight of eclipASTRO, update total_staking_data
+        let total_staking = total_staking_data
             .staking_data
             .iter()
             .fold(Uint128::zero(), |acc, cur| {
-                let multiplier = config
-                    .locking_reward_config
-                    .iter()
-                    .find(|c| c.duration == cur.duration)
-                    .unwrap_or_default()
-                    .multiplier;
-                acc.checked_add(cur.amount.checked_mul(Uint128::from(multiplier)).unwrap())
-                    .unwrap()
+                acc.checked_add(cur.amount).unwrap()
             });
-    if total_staking.gt(&Uint128::zero()) {
-        total_staking_data.reward_weight_eclipastro = total_staking_data
-            .reward_weight_eclipastro
-            .checked_add(Decimal::from_ratio(
-                pending_eclipastro_reward.users_reward.amount,
-                total_staking,
-            ))
-            .unwrap();
-    }
-    if total_staking_with_multiplier.gt(&Uint128::zero()) {
-        let pending_reward = config
-            .eclip_daily_reward
-            .multiply_ratio(env.block.time.seconds() - last_update_time, 86400u64);
-        total_staking_data.reward_weight_astro = total_staking_data
-            .reward_weight_astro
-            .checked_add(Decimal::from_ratio(
-                pending_reward,
-                total_staking_with_multiplier,
-            ))
-            .unwrap();
+        let total_staking_with_multiplier =
+            total_staking_data
+                .staking_data
+                .iter()
+                .fold(Uint128::zero(), |acc, cur| {
+                    let multiplier = config
+                        .locking_reward_config
+                        .iter()
+                        .find(|c| c.duration == cur.duration)
+                        .unwrap_or_default()
+                        .multiplier;
+                    acc.checked_add(cur.amount.checked_mul(Uint128::from(multiplier)).unwrap())
+                        .unwrap()
+                });
+        if total_staking.gt(&Uint128::zero()) {
+            total_staking_data.reward_weight_eclipastro = total_staking_data
+                .reward_weight_eclipastro
+                .checked_add(Decimal::from_ratio(
+                    pending_reward.users_reward.amount,
+                    total_staking,
+                ))
+                .unwrap();
+        }
+        if total_staking_with_multiplier.gt(&Uint128::zero()) {
+            let pending_reward = config
+                .eclip_daily_reward
+                .multiply_ratio(env.block.time.seconds() - last_update_time, 86400u64);
+            total_staking_data.reward_weight_astro = total_staking_data
+                .reward_weight_astro
+                .checked_add(Decimal::from_ratio(
+                    pending_reward,
+                    total_staking_with_multiplier,
+                ))
+                .unwrap();
+        }
     }
     Ok(total_staking_data)
 }

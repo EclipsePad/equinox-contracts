@@ -2,6 +2,8 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
 use cw20::Cw20ReceiveMsg;
 
+use crate::reward_distributor::UserRewardResponse;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
@@ -43,7 +45,7 @@ pub enum QueryMsg {
     #[returns(Uint128)]
     Staking { user: String },
     /// query pending_rewards
-    #[returns(Uint128)]
+    #[returns(UserRewardResponse)]
     Reward { user: String },
 }
 
