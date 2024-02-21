@@ -76,6 +76,9 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
+pub struct MigrateMsg {}
+
+#[cw_serde]
 pub struct LockingRewardConfig {
     pub duration: u64,
     pub multiplier: u64,

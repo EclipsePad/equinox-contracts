@@ -27,6 +27,7 @@ pub fn update_config(
     info: MessageInfo,
     new_config: UpdateConfigMsg,
 ) -> Result<Response, ContractError> {
+    // Only owner can execute
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let mut config = CONFIG.load(deps.storage)?;
     let mut res: Response = Response::new().add_attribute("action", "update config");
@@ -82,6 +83,7 @@ pub fn update_owner(
     info: MessageInfo,
     new_owner: String,
 ) -> Result<Response, ContractError> {
+    // Only owner can execute
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let new_owner_addr = deps.api.addr_validate(&new_owner)?;
     OWNER.set(deps.branch(), Some(new_owner_addr))?;
@@ -100,25 +102,33 @@ pub fn stake(
     duration: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    // only flexible staking and timelock staking contract can execute this function
     ensure!(
         info.sender == config.flexible_staking || info.sender == config.timelock_staking,
         ContractError::Unauthorized {}
     );
+    // calculate xASTRO rewards
     let pending_reward: RewardResponse = deps.querier.query_wasm_smart(
         config.token_converter.to_string(),
         &ConverterQueryMsg::Rewards {},
     )?;
+    // update total staking reward
     let mut total_staking_data =
         total_staking_reward_update(deps.as_ref(), env.clone(), &pending_reward)?;
+    // update total staking balance
     total_staking_data = total_staking_amount_update(total_staking_data, duration, amount, true)?;
+    // update user rewards
     let user_rewards = user_reward_update(deps.as_ref(), &total_staking_data, &user)?;
+    // get user staking balances, if not, blank array is assigned
     let mut user_staking = USER_STAKING.load(deps.storage, &user).unwrap_or(vec![]);
+    // update user staking balances
     user_staking = user_staking_amount_update(user_staking, duration, amount, true)?;
     TOTAL_STAKING.save(deps.storage, &total_staking_data)?;
+    // update last update time as current block time
     LAST_UPDATE_TIME.save(deps.storage, &env.block.time.seconds())?;
     USER_REWARDS.save(deps.storage, &user, &user_rewards)?;
     USER_STAKING.save(deps.storage, &user, &user_staking)?;
-    // claim eclipastro rewards
+    // claim eclipastro rewards if exists
     if pending_reward
         .users_reward
         .amount
@@ -141,18 +151,23 @@ pub fn claim(
     user: String,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    // only flexible staking and timelock staking contracts can execute this function
     ensure!(
         info.sender == config.flexible_staking || info.sender == config.timelock_staking,
         ContractError::Unauthorized {}
     );
+    // calculate xASTRO rewards
     let pending_eclipastro_reward: RewardResponse = deps.querier.query_wasm_smart(
         config.token_converter.to_string(),
         &ConverterQueryMsg::Rewards {},
     )?;
+    // update total staking rewards
     let total_staking_data =
         total_staking_reward_update(deps.as_ref(), env.clone(), &pending_eclipastro_reward)?;
+    // update user staking rewards
     let mut user_rewards = user_reward_update(deps.as_ref(), &total_staking_data, &user)?;
     let mut msgs = vec![];
+    // if there is pending eclipASTRO rewards from xASTRO rewards, claim it
     if pending_eclipastro_reward
         .users_reward
         .amount
@@ -164,6 +179,8 @@ pub fn claim(
             funds: vec![],
         });
     }
+    let mut res = Response::new();
+    // if there is user's eclipASTRO rewards, send it to user
     if user_rewards.eclipastro.pending_reward.gt(&Uint128::zero()) {
         msgs.push(WasmMsg::Execute {
             contract_addr: config.eclipastro.to_string(),
@@ -173,23 +190,27 @@ pub fn claim(
             })?,
             funds: vec![],
         });
+        res = res.add_attribute("recipient", user.clone()).add_attribute("asset", config.eclipastro.to_string()).add_attribute("amount", user_rewards.eclipastro.pending_reward.to_string());
     }
+    // if there is user's ECLIP rewards, send it to user
     let mut bankmsgs = vec![];
     if user_rewards.eclip.pending_reward.gt(&Uint128::zero()) {
         bankmsgs.push(
             BankMsg::Send {
                 to_address: user.clone(),
-                amount: coins(user_rewards.eclip.pending_reward.u128(), config.eclip),
+                amount: coins(user_rewards.eclip.pending_reward.u128(), config.eclip.clone()),
             }
         );
+        res = res.add_attribute("recipient", user.clone()).add_attribute("asset", config.eclip.clone().to_string()).add_attribute("amount", user_rewards.eclip.pending_reward.to_string());
     }
+    // update user's rewards details
     user_rewards.eclip.pending_reward = Uint128::zero();
     user_rewards.eclipastro.pending_reward = Uint128::zero();
     TOTAL_STAKING.save(deps.storage, &total_staking_data)?;
     LAST_UPDATE_TIME.save(deps.storage, &env.block.time.seconds())?;
     USER_REWARDS.save(deps.storage, &user, &user_rewards)?;
     // claim rewards
-    Ok(Response::new().add_messages(msgs).add_messages(bankmsgs))
+    Ok(res.add_messages(msgs).add_messages(bankmsgs))
 }
 
 /// unstaking event
@@ -202,20 +223,28 @@ pub fn unstake(
     duration: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    // only flexible staking and timelock staking contract can call this function
     ensure!(
         info.sender == config.flexible_staking || info.sender == config.timelock_staking,
         ContractError::Unauthorized {}
     );
+    // calculate xASTRO reward
     let pending_eclipastro_reward: RewardResponse = deps.querier.query_wasm_smart(
         config.token_converter.to_string(),
         &ConverterQueryMsg::Rewards {},
     )?;
+    // update total staking reward
     let mut total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone(), &pending_eclipastro_reward)?;
+    // update total staking balance
     total_staking_data = total_staking_amount_update(total_staking_data, duration, amount, false)?;
+    // update user reward data
     let mut user_rewards = user_reward_update(deps.as_ref(), &total_staking_data, &user)?;
-    let mut user_staking = USER_STAKING.load(deps.storage, &user).unwrap_or(vec![]);
+    // get user staking balance, if not, raise error
+    let mut user_staking = USER_STAKING.load(deps.storage, &user)?;
+    // update user staking amount
     user_staking = user_staking_amount_update(user_staking, duration, amount, false)?;
     let mut msgs = vec![];
+    // if there is xASTRO rewards, claim it
     if pending_eclipastro_reward.users_reward.amount.gt(&Uint128::zero()) {
         msgs.push(
             WasmMsg::Execute {
@@ -225,6 +254,7 @@ pub fn unstake(
             },
         );
     }
+    // if there is user's eclipASTRO rewards, send it
     if user_rewards.eclipastro.pending_reward.gt(&Uint128::zero()) {
         msgs.push(
             WasmMsg::Execute {
@@ -237,6 +267,7 @@ pub fn unstake(
             },
         );
     }
+    // if there is user's eclip rewards, send it
     let mut bankmsgs = vec![];
     if user_rewards.eclip.pending_reward.gt(&Uint128::zero()) {
         bankmsgs.push(
@@ -246,9 +277,11 @@ pub fn unstake(
             }
         )
     }
+    // update user's rewards data
     user_rewards.eclip.pending_reward = Uint128::zero();
     user_rewards.eclipastro.pending_reward = Uint128::zero();
     TOTAL_STAKING.save(deps.storage, &total_staking_data)?;
+    // update last update time to current block time
     LAST_UPDATE_TIME.save(deps.storage, &env.block.time.seconds())?;
     USER_REWARDS.save(deps.storage, &user, &user_rewards)?;
     USER_STAKING.save(deps.storage, &user, &user_staking)?;
@@ -267,24 +300,33 @@ pub fn restake(
     to_duration: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    // only timelock staking contract can execute it
     ensure!(
         info.sender == config.timelock_staking,
         ContractError::Unauthorized {}
     );
+    // calculate pending xASTRO rewards
     let pending_eclipastro_reward: RewardResponse = deps.querier.query_wasm_smart(
         config.token_converter.to_string(),
         &ConverterQueryMsg::Rewards {},
     )?;
+    // update total staking rewards info
     let mut total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone(), &pending_eclipastro_reward)?;
+    // update total staking balance from duration
     total_staking_data =
         total_staking_amount_update(total_staking_data, from_duration, amount, false)?;
+    // update total staking balance to duration
     total_staking_data =
         total_staking_amount_update(total_staking_data, to_duration, amount, true)?;
+    // update user rewards
     let mut user_rewards = user_reward_update(deps.as_ref(), &total_staking_data, &user)?;
+    // get user staking balances
     let mut user_staking = USER_STAKING.load(deps.storage, &user).unwrap_or(vec![]);
+    // update user staking balances with both durations
     user_staking = user_staking_amount_update(user_staking, from_duration, amount, false)?;
     user_staking = user_staking_amount_update(user_staking, to_duration, amount, true)?;
     let mut msgs = vec![];
+    // claim pending xASTRO rewards
     if pending_eclipastro_reward.users_reward.amount.gt(&Uint128::zero()) {
         msgs.push(
             WasmMsg::Execute {
@@ -294,6 +336,7 @@ pub fn restake(
             },
         );
     }
+    // send user eclipASTRO rewards
     if user_rewards.eclipastro.pending_reward.gt(&Uint128::zero()) {
         msgs.push(
             WasmMsg::Execute {
@@ -307,6 +350,7 @@ pub fn restake(
         );
     }
     let mut bankmsgs = vec![];
+    // send user ECLIP rewards 
     if user_rewards.eclip.pending_reward.gt(&Uint128::zero()) {
         bankmsgs.push(
             BankMsg::Send {
@@ -315,9 +359,11 @@ pub fn restake(
             }
         )
     }
+    // update user rewards data
     user_rewards.eclip.pending_reward = Uint128::zero();
     user_rewards.eclipastro.pending_reward = Uint128::zero();
     TOTAL_STAKING.save(deps.storage, &total_staking_data)?;
+    // update last update time to current time
     LAST_UPDATE_TIME.save(deps.storage, &env.block.time.seconds())?;
     USER_REWARDS.save(deps.storage, &user, &user_rewards)?;
     USER_STAKING.save(deps.storage, &user, &user_staking)?;

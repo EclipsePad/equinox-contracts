@@ -22,6 +22,7 @@ pub fn update_config(
     info: MessageInfo,
     new_config: UpdateConfigMsg,
 ) -> Result<Response, ContractError> {
+    // only owner can update config
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let mut config = CONFIG.load(deps.storage)?;
     let mut res: Response = Response::new().add_attribute("action", "update config");
@@ -61,6 +62,7 @@ pub fn update_owner(
     info: MessageInfo,
     new_owner: String,
 ) -> Result<Response, ContractError> {
+    // only owner can update owner
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let new_owner_addr = deps.api.addr_validate(&new_owner)?;
     OWNER.set(deps.branch(), Some(new_owner_addr))?;
@@ -97,7 +99,9 @@ pub fn receive_cw20(
                     != None,
                 ContractError::NoLockingPeriodFound(duration)
             );
+            // get total staking, if not, load default
             let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
+            // get total staking by duration lists, if not, load default
             let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION
                 .load(deps.storage, duration)
                 .unwrap_or_default();

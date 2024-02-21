@@ -64,6 +64,9 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
+pub struct MigrateMsg {}
+
+#[cw_serde]
 pub enum Cw20HookMsg {
     /// timelock eclipASTRO token
     Lock {

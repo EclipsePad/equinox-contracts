@@ -10,7 +10,7 @@ use crate::{
     },
     error::ContractError,
 };
-use equinox_msg::flexible_staking::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use equinox_msg::flexible_staking::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -51,4 +51,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
         QueryMsg::Reward { user } => Ok(to_json_binary(&query_reward(deps, env, user)?)?),
     }
+}
+
+/// Used for contract migration
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

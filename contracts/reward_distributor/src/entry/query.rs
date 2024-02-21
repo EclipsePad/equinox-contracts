@@ -36,13 +36,15 @@ pub fn total_staking_reward_update(deps: Deps, env: Env, pending_reward: &Reward
     let mut total_staking_data = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
     if pending_reward.users_reward.amount.gt(&Uint128::zero()) {
         let last_update_time = LAST_UPDATE_TIME.load(deps.storage).unwrap_or_default();
-        // increase total_staking amount, calculate reward weight of eclipASTRO, update total_staking_data
+        // calculate total staking amount
         let total_staking = total_staking_data
             .staking_data
             .iter()
             .fold(Uint128::zero(), |acc, cur| {
                 acc.checked_add(cur.amount).unwrap()
             });
+        // calculate total staking amount with multiplier
+        // as eclip reward is changed by the lock duration
         let total_staking_with_multiplier =
             total_staking_data
                 .staking_data
@@ -57,6 +59,8 @@ pub fn total_staking_reward_update(deps: Deps, env: Env, pending_reward: &Reward
                     acc.checked_add(cur.amount.checked_mul(Uint128::from(multiplier)).unwrap())
                         .unwrap()
                 });
+        // update eclipASTRO reward weight
+        // new_weight = old_weight + (converted eclipASTRO reward from xASTRO reward) / total_staking
         if total_staking.gt(&Uint128::zero()) {
             total_staking_data.reward_weight_eclipastro = total_staking_data
                 .reward_weight_eclipastro
@@ -66,6 +70,8 @@ pub fn total_staking_reward_update(deps: Deps, env: Env, pending_reward: &Reward
                 ))
                 .unwrap();
         }
+        // update ECLIP reward weight
+        // new_weight = old_weight + (current_time - last_update_time) * reward_per_day / total_staking_with_multiplier
         if total_staking_with_multiplier.gt(&Uint128::zero()) {
             let pending_reward = config
                 .eclip_daily_reward
@@ -142,6 +148,7 @@ pub fn user_reward_update(
     user: &String,
 ) -> StdResult<UserRewards> {
     let config = CONFIG.load(deps.storage)?;
+    // get user staking balances and user rewards info
     let user_staking = USER_STAKING.load(deps.storage, &user).unwrap_or(vec![]);
     let mut user_rewards = USER_REWARDS.load(deps.storage, &user).unwrap_or_default();
     // calculate user pending reward and update reward weight to current weight
@@ -159,6 +166,9 @@ pub fn user_reward_update(
             acc.checked_add(cur.amount.checked_mul(Uint128::from(multiplier)).unwrap())
                 .unwrap()
         });
+    // update user eclipASTRO reward info
+    // new_pending_eclipastro_reward = old_pending_eclipastro_reward + (current_total_staking_reward_weight - last_user_claimed_reward_weight) * user_staking
+    // last_user_claimed_reward_weight = current_total_staking_reward_weight
     if total_user_staking.gt(&Uint128::zero()) {
         user_rewards.eclipastro.pending_reward = user_rewards
             .eclipastro
@@ -174,6 +184,8 @@ pub fn user_reward_update(
             )
             .unwrap();
     }
+    // update user ECLIP reward info
+    // same as eclipASTRO reward calculation method
     if total_user_staking_with_multiplier.gt(&Uint128::zero()) {
         user_rewards.eclip.pending_reward = user_rewards
             .eclip

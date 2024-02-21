@@ -28,6 +28,7 @@ pub fn update_config(
     info: MessageInfo,
     new_config: UpdateConfig,
 ) -> Result<Response, ContractError> {
+    // only owner can executable
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let mut config = CONFIG.load(deps.storage)?;
     let mut res: Response = Response::new().add_attribute("action", "update config");
@@ -74,7 +75,9 @@ pub fn update_reward_config(
     info: MessageInfo,
     config: RewardConfig,
 ) -> Result<Response, ContractError> {
+    // only owner can executable
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    // the sum bps should be 10000
     ensure_eq!(
         config.users + config.treasury + config.ce_holders + config.stability_pool,
         10000,
@@ -91,6 +94,7 @@ pub fn update_owner(
     info: MessageInfo,
     new_owner: String,
 ) -> Result<Response, ContractError> {
+    // only owner can executable
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let new_owner_addr = deps.api.addr_validate(&new_owner)?;
     OWNER.set(deps.branch(), Some(new_owner_addr))?;
@@ -103,12 +107,13 @@ pub fn update_owner(
 pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let reward_config = REWARD_CONFIG.load(deps.storage)?;
+    // only staking reward distributor contract can execute this function
     ensure_eq!(
         info.sender,
         config.staking_reward_distributor,
         ContractError::Unauthorized {}
     );
-    // ASTRO / xASTRO
+    // ASTRO / xASTRO rate from voter contract
     let (total_deposit, total_shares): (Uint128, Uint128) = deps.querier.query_wasm_smart(
         &config.vxtoken_holder.to_string(),
         &VoterQueryMsg::ConvertRatio {},
@@ -125,6 +130,7 @@ pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, Co
         total_deposit,
         total_stake_info.claimed,
     );
+    // calculate users reward as xASTRO
     let users_reward = claimable.multiply_ratio(reward_config.users, 10000u32);
     // must exist users reward
     ensure_ne!(
@@ -141,7 +147,7 @@ pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, Co
         })?,
         funds: vec![],
     }];
-    // deduct claimable
+    // withdrawable is withdrawable xASTRO amount that DAO withdraws. equal to staking eclipASTRO rewards part
     withdrawable = withdrawable.checked_add(users_reward).unwrap();
     WITHDRAWABLE_BALANCE.save(deps.storage, &withdrawable)?;
 
@@ -190,7 +196,6 @@ pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, Co
     TREASURY_REWARD.save(deps.storage, &treasury_reward)?;
 
     Ok(Response::new()
-        .add_messages(msgs)
         .add_attribute("action", "claim reward")
         .add_attribute("token", "eclipASTRO")
         .add_attribute("recipient", config.staking_reward_distributor.to_string())
@@ -200,7 +205,8 @@ pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, Co
         .add_attribute("amount", reward_ce_holders.to_string())
         .add_attribute("token", "xASTRO")
         .add_attribute("recipient", config.stability_pool)
-        .add_attribute("amount", reward_stability_pool.to_string()))
+        .add_attribute("amount", reward_stability_pool.to_string())
+        .add_messages(msgs))
 }
 
 /// claim treasury rewards
