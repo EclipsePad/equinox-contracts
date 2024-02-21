@@ -18,7 +18,7 @@ pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
     Ok(config)
 }
 
-/// query total staking
+// query total staking
 pub fn query_total_staking(deps: Deps, _env: Env) -> StdResult<Uint128> {
     let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
     Ok(total_staking)
@@ -94,6 +94,7 @@ pub fn query_reward(deps: Deps, _env: Env, user: String) -> StdResult<UserReward
 }
 
 /// calculate penalty amount
+// penalty bps will be only affected to staking amount, not reward amount
 pub fn calculate_penalty(
     deps: Deps,
     env: Env,

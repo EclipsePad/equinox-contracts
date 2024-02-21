@@ -112,7 +112,7 @@ fn update_config() {
         reward_contract: Some(Addr::unchecked("test").to_string()),
     };
 
-    // attacker
+    // attacker can't change config
     let err = suite
         .update_flexible_stake_config(ATTACKER, test_config.clone())
         .unwrap_err();
@@ -121,9 +121,12 @@ fn update_config() {
         err.downcast().unwrap()
     );
 
+    // admin can change config
     suite
         .update_flexible_stake_config(&suite.admin(), test_config)
         .unwrap();
+
+    // check update config is successed
     assert_eq!(
         suite.query_flexible_stake_config().unwrap(),
         Config {
@@ -169,7 +172,7 @@ fn update_owner() {
 
     suite.update_config();
 
-    // attacker
+    // attacker can't change owner
     let err = suite
         .update_flexible_stake_owner(ATTACKER, ATTACKER)
         .unwrap_err();
@@ -227,40 +230,48 @@ fn stake() {
 
     assert_eq!(suite.query_flexible_staking(ALICE).unwrap(), 0);
     assert_eq!(suite.query_total_staking().unwrap(), 0);
-    // alice converts 1_000 astro
+    // alice converts 1_000 astro and stakes it
     suite.convert_astro(ALICE, 1_000).unwrap();
     suite.flexible_stake(ALICE, 1_000).unwrap();
+    // check alice's staking and total staking
     assert_eq!(suite.query_flexible_staking(ALICE).unwrap(), 1_000);
     assert_eq!(suite.query_total_staking().unwrap(), 1_000);
 
+    // alice converts 1_000 more astro and stakes it
     suite.convert_astro(ALICE, 1_000).unwrap();
     suite.flexible_stake(ALICE, 1_000).unwrap();
     assert_eq!(suite.query_flexible_staking(ALICE).unwrap(), 2_000);
     assert_eq!(suite.query_total_staking().unwrap(), 2_000);
 
+    // bob converts 1_000 astro and stakes it
     suite.convert_astro(BOB, 1_000).unwrap();
     suite.flexible_stake(BOB, 1_000).unwrap();
     assert_eq!(suite.query_flexible_staking(BOB).unwrap(), 1_000);
     assert_eq!(suite.query_total_staking().unwrap(), 3_000);
 
+    // bob converts 3_000 more astro and stakes it
     suite.convert_astro(BOB, 3_000).unwrap();
     suite.flexible_stake(BOB, 3_000).unwrap();
     assert_eq!(suite.query_flexible_staking(BOB).unwrap(), 4_000);
     assert_eq!(suite.query_total_staking().unwrap(), 6_000);
 
+    // bob converts 3_000 more astro and stakes it
     suite.convert_astro(BOB, 3_000).unwrap();
     suite.flexible_stake(BOB, 3_000).unwrap();
     assert_eq!(suite.query_flexible_staking(BOB).unwrap(), 7_000);
     assert_eq!(suite.query_total_staking().unwrap(), 9_000);
 
+    // bob unstakes 1_000 eclipASTRO
     suite.flexible_unstake(BOB, 1_000).unwrap();
     assert_eq!(suite.query_flexible_staking(BOB).unwrap(), 6_000);
     assert_eq!(suite.query_total_staking().unwrap(), 8_000);
 
+    // bob unstakes 2_000 eclipASTRO
     suite.flexible_unstake(BOB, 2_000).unwrap();
     assert_eq!(suite.query_flexible_staking(BOB).unwrap(), 4_000);
     assert_eq!(suite.query_total_staking().unwrap(), 6_000);
 
+    // bob stakes 1_000 eclipASTRO
     suite.flexible_stake(BOB, 1_000).unwrap();
     assert_eq!(suite.query_flexible_staking(BOB).unwrap(), 5_000);
     assert_eq!(suite.query_total_staking().unwrap(), 7_000);
@@ -348,12 +359,18 @@ fn claim() {
         10_000
     );
 
+    // xASTRO rewards = (staked_total_xastro * total_deposit / total_shares - staked_astro) * total_shares / total_deposit - claimed_xASTRO
+    // (10_000 * 1_110_000 / 1_010_000 - 10_000) * 1_010_000 / 1_110_000 - 0 = 900 xASTRO
+    // user's reward = 900 * 0.8 * 1_110_000 / 1_010_000 = 720 * ~ = 791 eclipASTRO
+    // ce_holders_reward = (900 - 720) * 0.2 = 36
+    // stability_pool_reward = (900 - 720) * 0.125 = 22
+    // treasury_reward = 900 - 720 - 36 - 22 = 122
     assert_eq!(
         suite.query_converter_reward().unwrap(),
         RewardResponse {
             users_reward: Reward {
                 token: suite.eclipastro_contract(),
-                amount: Uint128::from(791u128) // 720 * 1_110_000 / 1_010_000
+                amount: Uint128::from(791u128)
             },
             ce_holders_reward: Reward {
                 token: suite.xastro_contract(),
