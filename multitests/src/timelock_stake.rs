@@ -252,6 +252,15 @@ fn stake() {
 
     suite.update_config();
 
+    // mint eclip
+    suite
+        .mint_native(
+            suite.reward_distributor_contract(),
+            suite.eclip(),
+            1_000_000_000,
+        )
+        .unwrap();
+
     // ready astro_staking_pool
     suite
         .stake_astro(astro_staking_initiator, 1_000_000)
