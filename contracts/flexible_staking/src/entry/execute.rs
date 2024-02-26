@@ -106,7 +106,7 @@ pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, Co
     // send claim message to reward contract
     let claim_msg = WasmMsg::Execute {
         contract_addr: config.reward_contract.to_string(),
-        msg: to_json_binary(&RewardDistributorExecuteMsg::Claim {
+        msg: to_json_binary(&RewardDistributorExecuteMsg::FlexibleStakeClaim {
             user: info.sender.to_string(),
         })?,
         funds: vec![],

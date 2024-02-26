@@ -2,7 +2,7 @@ use cosmwasm_std::{Addr, Deps, Env, Order, StdResult, Uint128};
 
 use crate::state::{CONFIG, OWNER, STAKING, TOTAL_STAKING};
 use equinox_msg::{
-    reward_distributor::{QueryMsg as RewardDistributorQueryMsg, UserRewardResponse},
+    reward_distributor::{QueryMsg as RewardDistributorQueryMsg, TimelockReward, UserRewardResponse},
     timelock_staking::{Config, UserStaking, UserStakingByDuration},
 };
 
@@ -84,13 +84,13 @@ pub fn query_staking(deps: Deps, _env: Env, user: String) -> StdResult<Vec<UserS
 }
 
 /// query user reward
-pub fn query_reward(deps: Deps, _env: Env, user: String) -> StdResult<UserRewardResponse> {
+pub fn query_reward(deps: Deps, _env: Env, user: String) -> StdResult<Vec<TimelockReward>> {
     let config = CONFIG.load(deps.storage)?;
-    let user_reward = deps.querier.query_wasm_smart(
+    let user_reward: UserRewardResponse = deps.querier.query_wasm_smart(
         config.reward_contract.to_string(),
         &RewardDistributorQueryMsg::Reward { user },
     )?;
-    Ok(user_reward)
+    Ok(user_reward.timelock)
 }
 
 /// calculate penalty amount

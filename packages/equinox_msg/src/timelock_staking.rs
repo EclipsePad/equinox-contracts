@@ -27,7 +27,11 @@ pub enum ExecuteMsg {
     /// This accepts a properly-encoded ReceiveMsg from a cw20 contract
     Receive(Cw20ReceiveMsg),
     /// Claim rewards of user.
-    Claim {},
+    Claim {
+        duration: u64,
+        locked_at: u64,
+    },
+    ClaimAll {},
     Unstake {
         duration: u64,
         locked_at: u64,
@@ -37,7 +41,7 @@ pub enum ExecuteMsg {
         from_duration: u64,
         locked_at: u64,
         to_duration: u64,
-    }
+    },
 }
 
 #[cw_serde]
@@ -60,7 +64,11 @@ pub enum QueryMsg {
     Reward { user: String },
     /// query calculating penalty
     #[returns(Uint128)]
-    CalculatePenalty { amount: Uint128, duration: u64, locked_at: u64 },
+    CalculatePenalty {
+        amount: Uint128,
+        duration: u64,
+        locked_at: u64,
+    },
 }
 
 #[cw_serde]
@@ -69,9 +77,7 @@ pub struct MigrateMsg {}
 #[cw_serde]
 pub enum Cw20HookMsg {
     /// timelock eclipASTRO token
-    Lock {
-        duration: u64,
-    },
+    Lock { duration: u64 },
 }
 
 #[cw_serde]

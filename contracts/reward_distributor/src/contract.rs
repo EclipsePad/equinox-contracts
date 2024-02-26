@@ -4,7 +4,11 @@ use cosmwasm_std::{
 
 use crate::{
     entry::{
-        execute::{claim, restake, stake, unstake, update_config, update_owner},
+        execute::{
+            flexible_stake, flexible_stake_claim, flexible_unstake, restake, timelock_stake,
+            timelock_stake_claim, timelock_stake_claim_all, timelock_unstake, update_config,
+            update_owner,
+        },
         instantiate::try_instantiate,
         query::{query_config, query_owner, query_reward},
     },
@@ -35,27 +39,33 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
-        ExecuteMsg::FlexibleStake { user, amount } => stake(deps, env, info, user, amount, 0u64),
+        ExecuteMsg::FlexibleStake { user, amount } => flexible_stake(deps, env, info, user, amount),
         ExecuteMsg::TimelockStake {
             user,
             amount,
             duration,
-        } => stake(deps, env, info, user, amount, duration),
-        ExecuteMsg::Claim { user } => claim(deps, env, info, user),
+        } => timelock_stake(deps, env, info, user, amount, duration),
+        ExecuteMsg::FlexibleStakeClaim { user } => flexible_stake_claim(deps, env, info, user),
+        ExecuteMsg::TimelockStakeClaim {
+            user,
+            duration,
+            locked_at,
+        } => timelock_stake_claim(deps, env, info, user, duration, locked_at),
+        ExecuteMsg::TimelockStakeClaimAll { user } => timelock_stake_claim_all(deps, env, info, user),
         ExecuteMsg::FlexibleUnstake { user, amount } => {
-            unstake(deps, env, info, user, amount, 0u64)
+            flexible_unstake(deps, env, info, user, amount)
         }
         ExecuteMsg::TimelockUnstake {
             user,
-            amount,
             duration,
-        } => unstake(deps, env, info, user, amount, duration),
+            locked_at,
+        } => timelock_unstake(deps, env, info, user, duration, locked_at),
         ExecuteMsg::Restake {
             user,
-            amount,
             from,
+            locked_at,
             to,
-        } => restake(deps, env, info, user, amount, from, to),
+        } => restake(deps, env, info, user, from, locked_at, to),
     }
 }
 

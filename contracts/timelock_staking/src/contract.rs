@@ -4,7 +4,7 @@ use cosmwasm_std::{
 
 use crate::{
     entry::{
-        execute::{claim, receive_cw20, restake, unstake, update_config, update_owner},
+        execute::{claim, claim_all, receive_cw20, restake, unstake, update_config, update_owner},
         instantiate::try_instantiate,
         query::{calculate_penalty, query_config, query_owner, query_reward, query_staking, query_total_staking},
     },
@@ -36,7 +36,8 @@ pub fn execute(
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::Claim {} => claim(deps, env, info),
+        ExecuteMsg::Claim {duration, locked_at} => claim(deps, env, info, duration, locked_at),
+        ExecuteMsg::ClaimAll {} => claim_all(deps, env, info),
         ExecuteMsg::Unstake {
             duration,
             locked_at,

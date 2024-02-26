@@ -2,7 +2,7 @@ use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::AdminError;
 use equinox_msg::{
     flexible_staking::{Config, UpdateConfigMsg},
-    reward_distributor::UserRewardResponse as SingleStakingUserRewardResponse,
+    reward_distributor::FlexibleReward,
     token_converter::{Reward, RewardResponse},
 };
 use flexible_staking::error::ContractError;
@@ -319,7 +319,13 @@ fn claim() {
         .unwrap();
 
     // mint eclip
-    suite.mint_native(suite.reward_distributor_contract(), suite.eclip(), 1_000_000_000).unwrap();
+    suite
+        .mint_native(
+            suite.reward_distributor_contract(),
+            suite.eclip(),
+            1_000_000_000,
+        )
+        .unwrap();
 
     // alice converts 3_000 astro and stake it
     suite.convert_astro(ALICE, 3_000).unwrap();
@@ -332,7 +338,7 @@ fn claim() {
     // check initial reward is zero
     assert_eq!(
         suite.query_reward(ALICE).unwrap(),
-        SingleStakingUserRewardResponse {
+        FlexibleReward {
             eclip: Uint128::zero(),
             eclipastro: Uint128::zero(),
         }
@@ -389,18 +395,18 @@ fn claim() {
 
     assert_eq!(
         suite.query_reward(ALICE).unwrap(),
-        SingleStakingUserRewardResponse {
+        FlexibleReward {
             eclip: Uint128::zero(),
             eclipastro: Uint128::from(237u128),
-        }
+        },
     );
 
     assert_eq!(
         suite.query_reward(BOB).unwrap(),
-        SingleStakingUserRewardResponse {
+        FlexibleReward {
             eclip: Uint128::zero(),
             eclipastro: Uint128::from(553u128),
-        }
+        },
     );
 
     // change time and check eclip rewards
@@ -408,18 +414,18 @@ fn claim() {
 
     assert_eq!(
         suite.query_reward(ALICE).unwrap(),
-        SingleStakingUserRewardResponse {
+        FlexibleReward {
             eclip: Uint128::from(150_000u128),
             eclipastro: Uint128::from(237u128),
-        }
+        },
     );
 
     assert_eq!(
         suite.query_reward(BOB).unwrap(),
-        SingleStakingUserRewardResponse {
+        FlexibleReward {
             eclip: Uint128::from(350_000u128),
             eclipastro: Uint128::from(553u128),
-        }
+        },
     );
 
     // check converting
@@ -497,18 +503,18 @@ fn claim() {
 
     assert_eq!(
         suite.query_reward(ALICE).unwrap(),
-        SingleStakingUserRewardResponse {
+        FlexibleReward {
             eclip: Uint128::from(150_000u128),
             eclipastro: Uint128::from(237u128),
-        }
+        },
     );
 
     assert_eq!(
         suite.query_reward(BOB).unwrap(),
-        SingleStakingUserRewardResponse {
+        FlexibleReward {
             eclip: Uint128::from(350_000u128),
             eclipastro: Uint128::from(553u128),
-        }
+        },
     );
 
     // change astro/xastro ratio again and check balances and rewards
@@ -525,7 +531,12 @@ fn claim() {
         1_214_000
     );
     assert_eq!(suite.query_astro_staking_total_shares().unwrap(), 1_013_639);
-    assert_eq!(suite.query_xastro_balance(suite.voter_contract().as_str()).unwrap(), 13581);
+    assert_eq!(
+        suite
+            .query_xastro_balance(suite.voter_contract().as_str())
+            .unwrap(),
+        13581
+    );
 
     assert_eq!(
         suite.query_converter_reward().unwrap(),
@@ -551,18 +562,18 @@ fn claim() {
 
     assert_eq!(
         suite.query_reward(ALICE).unwrap(),
-        SingleStakingUserRewardResponse {
+        FlexibleReward {
             eclip: Uint128::from(150_000u128),
             eclipastro: Uint128::from(738u128),
-        }
+        },
     );
 
     assert_eq!(
         suite.query_reward(BOB).unwrap(),
-        SingleStakingUserRewardResponse {
+        FlexibleReward {
             eclip: Uint128::from(350_000u128),
             eclipastro: Uint128::from(1054u128),
-        }
+        },
     );
 
     // claim alice rewards and check balances and rewards
@@ -617,27 +628,42 @@ fn claim() {
 
     assert_eq!(
         suite.query_reward(ALICE).unwrap(),
-        SingleStakingUserRewardResponse {
+        FlexibleReward {
             eclip: Uint128::from(0u128),
             eclipastro: Uint128::from(0u128),
-        }
+        },
     );
 
     assert_eq!(
         suite.query_reward(BOB).unwrap(),
-        SingleStakingUserRewardResponse {
+        FlexibleReward {
             eclip: Uint128::from(350_000u128),
             eclipastro: Uint128::from(1054u128),
-        }
+        },
     );
 
     assert_eq!(suite.query_eclipastro_balance(ALICE).unwrap(), 738);
-    assert_eq!(suite.balance_native(ALICE.to_string(), suite.eclip()).unwrap(), 150_000);
+    assert_eq!(
+        suite
+            .balance_native(ALICE.to_string(), suite.eclip())
+            .unwrap(),
+        150_000
+    );
 
     assert_eq!(suite.query_eclipastro_balance(BOB).unwrap(), 0);
-    assert_eq!(suite.balance_native(BOB.to_string(), suite.eclip()).unwrap(), 0);
+    assert_eq!(
+        suite
+            .balance_native(BOB.to_string(), suite.eclip())
+            .unwrap(),
+        0
+    );
 
-    assert_eq!(suite.query_xastro_balance(suite.voter_contract().as_str()).unwrap(), 13513);
+    assert_eq!(
+        suite
+            .query_xastro_balance(suite.voter_contract().as_str())
+            .unwrap(),
+        13513
+    );
 
     suite.flexible_unstake(ALICE, 1_000).unwrap();
 

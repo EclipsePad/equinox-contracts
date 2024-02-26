@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::AdminError;
 use equinox_msg::{
-    reward_distributor::UserRewardResponse,
+    reward_distributor::TimelockReward,
     timelock_staking::{
         Config, TimeLockConfig, UpdateConfigMsg, UserStaking, UserStakingByDuration,
     },
@@ -365,14 +365,14 @@ fn stake() {
             duration: ONE_MONTH,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(2_000u128),
-                locked_at: suite.get_time() - THREE_MONTH,
+                locked_at: time - THREE_MONTH,
             }],
         },
         UserStaking {
             duration: THREE_MONTH,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(1_000u128),
-                locked_at: suite.get_time(),
+                locked_at: time,
             }],
         },
     ];
@@ -385,12 +385,10 @@ fn stake() {
     alice_staking = vec![
         UserStaking {
             duration: THREE_MONTH,
-            staking: vec![
-                UserStakingByDuration {
-                    amount: Uint128::from(1_000u128),
-                    locked_at: suite.get_time(),
-                },
-            ],
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: time,
+            }],
         },
         UserStaking {
             duration: SIX_MONTH,
@@ -464,10 +462,12 @@ fn claim() {
     // check initial reward is zero
     assert_eq!(
         suite.query_timelock_staking_reward(ALICE).unwrap(),
-        UserRewardResponse {
+        vec![TimelockReward {
+            duration: ONE_MONTH,
+            locked_at: suite.get_time(),
             eclip: Uint128::zero(),
-            eclipastro: Uint128::zero(),
-        }
+            eclipastro: Uint128::zero()
+        }]
     );
 
     // change astro/xastro ratio and check balances and rewards
@@ -515,37 +515,45 @@ fn claim() {
 
     assert_eq!(
         suite.query_timelock_staking_reward(ALICE).unwrap(),
-        UserRewardResponse {
+        vec![TimelockReward {
+            duration: ONE_MONTH,
+            locked_at: suite.get_time(),
             eclip: Uint128::zero(),
             eclipastro: Uint128::from(237u128),
-        }
+        }]
     );
 
     assert_eq!(
         suite.query_timelock_staking_reward(BOB).unwrap(),
-        UserRewardResponse {
+        vec![TimelockReward {
+            duration: THREE_MONTH,
+            locked_at: suite.get_time(),
             eclip: Uint128::zero(),
             eclipastro: Uint128::from(553u128),
-        }
+        }]
     );
 
     // change time and check eclip rewards
     suite.update_time(43200);
 
     assert_eq!(
-        suite.query_reward(ALICE).unwrap(),
-        UserRewardResponse {
+        suite.query_timelock_staking_reward(ALICE).unwrap(),
+        vec![TimelockReward {
+            duration: ONE_MONTH,
+            locked_at: suite.get_time() - 43200,
             eclip: Uint128::from(111_111u128), // 500_000 * (2 * 3) / (2 * 3 + 3 * 7)
             eclipastro: Uint128::from(237u128),
-        }
+        }]
     );
 
     assert_eq!(
-        suite.query_reward(BOB).unwrap(),
-        UserRewardResponse {
+        suite.query_timelock_staking_reward(BOB).unwrap(),
+        vec![TimelockReward {
+            duration: THREE_MONTH,
+            locked_at: suite.get_time() - 43200,
             eclip: Uint128::from(388_888u128),
             eclipastro: Uint128::from(553u128),
-        }
+        }]
     );
 
     // check converting
@@ -622,19 +630,31 @@ fn claim() {
     );
 
     assert_eq!(
-        suite.query_reward(ALICE).unwrap(),
-        UserRewardResponse {
-            eclip: Uint128::from(111_111u128),
-            eclipastro: Uint128::from(237u128),
-        }
+        suite.query_timelock_staking_reward(ALICE).unwrap(),
+        vec![
+            TimelockReward {
+                duration: ONE_MONTH,
+                locked_at: suite.get_time() - 43200,
+                eclip: Uint128::from(111_111u128),
+                eclipastro: Uint128::from(237u128),
+            },
+            TimelockReward {
+                duration: THREE_MONTH,
+                locked_at: suite.get_time(),
+                eclip: Uint128::zero(),
+                eclipastro: Uint128::zero()
+            }
+        ]
     );
 
     assert_eq!(
-        suite.query_reward(BOB).unwrap(),
-        UserRewardResponse {
+        suite.query_timelock_staking_reward(BOB).unwrap(),
+        vec![TimelockReward {
+            duration: THREE_MONTH,
+            locked_at: suite.get_time() - 43200,
             eclip: Uint128::from(388_888u128),
             eclipastro: Uint128::from(553u128),
-        }
+        }]
     );
 
     // change astro/xastro ratio again and check balances and rewards
@@ -681,23 +701,41 @@ fn claim() {
     );
 
     assert_eq!(
-        suite.query_reward(ALICE).unwrap(),
-        UserRewardResponse {
-            eclip: Uint128::from(111_111u128),
-            eclipastro: Uint128::from(738u128),
-        }
+        suite.query_timelock_staking_reward(ALICE).unwrap(),
+        vec![
+            TimelockReward {
+                duration: ONE_MONTH,
+                locked_at: suite.get_time() - 43200,
+                eclip: Uint128::from(111_111u128),
+                eclipastro: Uint128::from(452u128),
+            },
+            TimelockReward {
+                duration: THREE_MONTH,
+                locked_at: suite.get_time(),
+                eclip: Uint128::zero(),
+                eclipastro: Uint128::from(286u128)
+            }
+        ]
     );
 
     assert_eq!(
-        suite.query_reward(BOB).unwrap(),
-        UserRewardResponse {
+        suite.query_timelock_staking_reward(BOB).unwrap(),
+        vec![TimelockReward {
+            duration: THREE_MONTH,
+            locked_at: suite.get_time() - 43200,
             eclip: Uint128::from(388_888u128),
             eclipastro: Uint128::from(1054u128),
-        }
+        }]
     );
 
     // claim alice rewards and check balances and rewards
-    suite.timelock_claim(ALICE).unwrap();
+    // suite
+    //     .timelock_claim(ALICE, ONE_MONTH, current_time - 43200)
+    //     .unwrap();
+    // suite
+    //     .timelock_claim(ALICE, THREE_MONTH, current_time)
+    //     .unwrap();
+    suite.timelock_claim_all(ALICE).unwrap();
 
     assert_eq!(
         suite.query_converter_reward().unwrap(),
@@ -747,19 +785,31 @@ fn claim() {
     );
 
     assert_eq!(
-        suite.query_reward(ALICE).unwrap(),
-        UserRewardResponse {
-            eclip: Uint128::from(0u128),
-            eclipastro: Uint128::from(0u128),
-        }
+        suite.query_timelock_staking_reward(ALICE).unwrap(),
+        vec![
+            TimelockReward {
+                duration: ONE_MONTH,
+                locked_at: suite.get_time() - 43200,
+                eclip: Uint128::zero(),
+                eclipastro: Uint128::zero(),
+            },
+            TimelockReward {
+                duration: THREE_MONTH,
+                locked_at: suite.get_time(),
+                eclip: Uint128::zero(),
+                eclipastro: Uint128::zero()
+            }
+        ]
     );
 
     assert_eq!(
-        suite.query_reward(BOB).unwrap(),
-        UserRewardResponse {
+        suite.query_timelock_staking_reward(BOB).unwrap(),
+        vec![TimelockReward {
+            duration: THREE_MONTH,
+            locked_at: suite.get_time() - 43200,
             eclip: Uint128::from(388_888u128),
-            eclipastro: Uint128::from(1054u128),
-        }
+            eclipastro: Uint128::from(1054u128)
+        }]
     );
 
     assert_eq!(suite.query_eclipastro_balance(ALICE).unwrap(), 738);

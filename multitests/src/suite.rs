@@ -18,8 +18,8 @@ use equinox_msg::{
         QueryMsg as FlexibleStakingQueryMsg, UpdateConfigMsg as FlexibleStakingUpdateConfig,
     },
     reward_distributor::{
-        InstantiateMsg as RewardDistributorInstantiateMsg, LockingRewardConfig,
-        UserRewardResponse as SingleStakinigUserRewardResponse,
+        FlexibleReward, InstantiateMsg as RewardDistributorInstantiateMsg, LockingRewardConfig,
+        TimelockReward,
     },
     timelock_staking::{
         Config as TimelockStakingConfig, Cw20HookMsg as TimelockCw20HookMsg,
@@ -361,7 +361,7 @@ impl SuiteBuilder {
                     xtoken: xastro_contract.clone().into_string(),
                     vxtoken: vxastro_contract.clone().into_string(),
                     staking_contract: astro_staking_contract.clone().into_string(),
-                    converter_contact: converter_contract.clone().into_string(),
+                    converter_contract: converter_contract.clone().into_string(),
                 },
                 &[],
                 "voter",
@@ -905,8 +905,8 @@ impl Suite {
         Ok(amount.u128())
     }
 
-    pub fn query_reward(&self, user: &str) -> StdResult<SingleStakinigUserRewardResponse> {
-        let rewards: SingleStakinigUserRewardResponse = self.app.wrap().query_wasm_smart(
+    pub fn query_reward(&self, user: &str) -> StdResult<FlexibleReward> {
+        let rewards = self.app.wrap().query_wasm_smart(
             self.flexible_staking_contract.clone(),
             &FlexibleStakingQueryMsg::Reward {
                 user: user.to_string(),
@@ -979,20 +979,47 @@ impl Suite {
         )
     }
 
-    pub fn timelock_claim(&mut self, sender: &str) -> AnyResult<AppResponse> {
+    pub fn timelock_claim(
+        &mut self,
+        sender: &str,
+        duration: u64,
+        locked_at: u64,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::Claim {},
+            &TimelockStakingExecuteMsg::Claim {
+                duration,
+                locked_at,
+            },
             &[],
         )
     }
 
-    pub fn timelock_restake(&mut self, sender: &str, from_duration: u64, locked_at: u64, to_duration: u64) -> AnyResult<AppResponse> {
+    pub fn timelock_claim_all(&mut self, sender: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::Restake { from_duration, locked_at, to_duration },
+            &TimelockStakingExecuteMsg::ClaimAll {},
+            &[],
+        )
+    }
+
+    pub fn timelock_restake(
+        &mut self,
+        sender: &str,
+        from_duration: u64,
+        locked_at: u64,
+        to_duration: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.timelock_staking_contract.clone(),
+            &TimelockStakingExecuteMsg::Restake {
+                from_duration,
+                locked_at,
+                to_duration,
+            },
             &[],
         )
     }
@@ -1031,11 +1058,8 @@ impl Suite {
         Ok(total_staking.u128())
     }
 
-    pub fn query_timelock_staking_reward(
-        &self,
-        user: &str,
-    ) -> StdResult<SingleStakinigUserRewardResponse> {
-        let reward: SingleStakinigUserRewardResponse = self.app.wrap().query_wasm_smart(
+    pub fn query_timelock_staking_reward(&self, user: &str) -> StdResult<Vec<TimelockReward>> {
+        let reward: Vec<TimelockReward> = self.app.wrap().query_wasm_smart(
             self.timelock_staking_contract.clone(),
             &TimelockStakingQueryMsg::Reward {
                 user: user.to_string(),
@@ -1045,11 +1069,18 @@ impl Suite {
     }
 
     pub fn calculate_penalty(
-        &self, amount: u128, duration: u64, locked_at: u64,
+        &self,
+        amount: u128,
+        duration: u64,
+        locked_at: u64,
     ) -> StdResult<u128> {
         let penalty: Uint128 = self.app.wrap().query_wasm_smart(
             self.timelock_staking_contract.clone(),
-            &TimelockStakingQueryMsg::CalculatePenalty { amount: Uint128::from(amount), duration, locked_at },
+            &TimelockStakingQueryMsg::CalculatePenalty {
+                amount: Uint128::from(amount),
+                duration,
+                locked_at,
+            },
         )?;
         Ok(penalty.u128())
     }

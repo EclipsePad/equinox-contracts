@@ -138,11 +138,31 @@ pub fn receive_cw20(
 }
 
 /// Claim user rewards
-pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+pub fn claim(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    duration: u64,
+    locked_at: u64,
+) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let claim_msg = WasmMsg::Execute {
         contract_addr: config.reward_contract.to_string(),
-        msg: to_json_binary(&RewardDistributorExecuteMsg::Claim {
+        msg: to_json_binary(&RewardDistributorExecuteMsg::TimelockStakeClaim {
+            user: info.sender.to_string(),
+            duration,
+            locked_at,
+        })?,
+        funds: vec![],
+    };
+    Ok(Response::new().add_message(claim_msg))
+}
+
+pub fn claim_all(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let claim_msg = WasmMsg::Execute {
+        contract_addr: config.reward_contract.to_string(),
+        msg: to_json_binary(&RewardDistributorExecuteMsg::TimelockStakeClaimAll {
             user: info.sender.to_string(),
         })?,
         funds: vec![],
@@ -195,8 +215,8 @@ pub fn unstake(
             contract_addr: config.reward_contract.to_string(),
             msg: to_json_binary(&RewardDistributorExecuteMsg::TimelockUnstake {
                 user: info.sender.to_string(),
-                amount: unlock_amount,
                 duration,
+                locked_at,
             })?,
             funds: vec![],
         },
@@ -223,20 +243,16 @@ pub fn restake(
         ContractError::NoLockedAmount {}
     );
     STAKING.remove(deps.storage, (&sender, from, locked_at));
-    if locked_at + from < env.block.time.seconds() {
-        locked_at = env.block.time.seconds() - from;
-    }
-    let mut to_amount = STAKING
-        .load(deps.storage, (&sender, to, locked_at))
+    let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION
+        .load(deps.storage, from)
         .unwrap_or_default();
-    to_amount = to_amount.checked_add(restake_amount).unwrap();
-    STAKING.save(deps.storage, (&sender, to, locked_at), &to_amount)?;
-    let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION.load(deps.storage, from).unwrap_or_default();
     total_staking_by_duration = total_staking_by_duration
         .checked_sub(restake_amount)
         .unwrap();
     TOTAL_STAKING_BY_DURATION.save(deps.storage, from, &total_staking_by_duration)?;
-    let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION.load(deps.storage, to).unwrap_or_default();
+    let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION
+        .load(deps.storage, to)
+        .unwrap_or_default();
     total_staking_by_duration = total_staking_by_duration
         .checked_add(restake_amount)
         .unwrap();
@@ -245,11 +261,19 @@ pub fn restake(
         contract_addr: config.reward_contract.to_string(),
         msg: to_json_binary(&RewardDistributorExecuteMsg::Restake {
             user: info.sender.to_string(),
-            amount: restake_amount,
             from,
+            locked_at,
             to,
         })?,
         funds: vec![],
     };
+    if locked_at + from < env.block.time.seconds() {
+        locked_at = env.block.time.seconds() - from;
+    }
+    let mut to_amount = STAKING
+        .load(deps.storage, (&sender, to, locked_at))
+        .unwrap_or_default();
+    to_amount = to_amount.checked_add(restake_amount).unwrap();
+    STAKING.save(deps.storage, (&sender, to, locked_at), &to_amount)?;
     Ok(Response::new().add_message(msg))
 }

@@ -6,8 +6,8 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { InstantiateMsg, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, UserRewardResponse, FlexibleReward, TimelockReward } from "./FlexibleStaking.types";
-export interface FlexibleStakingReadOnlyInterface {
+import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, UserRewardResponse, FlexibleReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration } from "./TimelockStaking.types";
+export interface TimelockStakingReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<Config>;
   owner: () => Promise<Addr>;
@@ -16,14 +16,23 @@ export interface FlexibleStakingReadOnlyInterface {
     user
   }: {
     user: string;
-  }) => Promise<Uint128>;
+  }) => Promise<ArrayOfUserStaking>;
   reward: ({
     user
   }: {
     user: string;
   }) => Promise<UserRewardResponse>;
+  calculatePenalty: ({
+    amount,
+    duration,
+    lockedAt
+  }: {
+    amount: Uint128;
+    duration: number;
+    lockedAt: number;
+  }) => Promise<Uint128>;
 }
-export class FlexibleStakingQueryClient implements FlexibleStakingReadOnlyInterface {
+export class TimelockStakingQueryClient implements TimelockStakingReadOnlyInterface {
   client: CosmWasmClient;
   contractAddress: string;
 
@@ -35,6 +44,7 @@ export class FlexibleStakingQueryClient implements FlexibleStakingReadOnlyInterf
     this.totalStaking = this.totalStaking.bind(this);
     this.staking = this.staking.bind(this);
     this.reward = this.reward.bind(this);
+    this.calculatePenalty = this.calculatePenalty.bind(this);
   }
 
   config = async (): Promise<Config> => {
@@ -56,7 +66,7 @@ export class FlexibleStakingQueryClient implements FlexibleStakingReadOnlyInterf
     user
   }: {
     user: string;
-  }): Promise<Uint128> => {
+  }): Promise<ArrayOfUserStaking> => {
     return this.client.queryContractSmart(this.contractAddress, {
       staking: {
         user
@@ -74,8 +84,25 @@ export class FlexibleStakingQueryClient implements FlexibleStakingReadOnlyInterf
       }
     });
   };
+  calculatePenalty = async ({
+    amount,
+    duration,
+    lockedAt
+  }: {
+    amount: Uint128;
+    duration: number;
+    lockedAt: number;
+  }): Promise<Uint128> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      calculate_penalty: {
+        amount,
+        duration,
+        locked_at: lockedAt
+      }
+    });
+  };
 }
-export interface FlexibleStakingInterface extends FlexibleStakingReadOnlyInterface {
+export interface TimelockStakingInterface extends TimelockStakingReadOnlyInterface {
   contractAddress: string;
   sender: string;
   updateOwner: ({
@@ -97,14 +124,32 @@ export interface FlexibleStakingInterface extends FlexibleStakingReadOnlyInterfa
     msg: Binary;
     sender: string;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
-  claim: (fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
-  unstake: ({
-    amount
+  claim: ({
+    duration,
+    lockedAt
   }: {
-    amount: Uint128;
+    duration: number;
+    lockedAt: number;
+  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  claimAll: (fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  unstake: ({
+    duration,
+    lockedAt
+  }: {
+    duration: number;
+    lockedAt: number;
+  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  restake: ({
+    fromDuration,
+    lockedAt,
+    toDuration
+  }: {
+    fromDuration: number;
+    lockedAt: number;
+    toDuration: number;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
 }
-export class FlexibleStakingClient extends FlexibleStakingQueryClient implements FlexibleStakingInterface {
+export class TimelockStakingClient extends TimelockStakingQueryClient implements TimelockStakingInterface {
   client: SigningCosmWasmClient;
   sender: string;
   contractAddress: string;
@@ -118,7 +163,9 @@ export class FlexibleStakingClient extends FlexibleStakingQueryClient implements
     this.updateConfig = this.updateConfig.bind(this);
     this.receive = this.receive.bind(this);
     this.claim = this.claim.bind(this);
+    this.claimAll = this.claimAll.bind(this);
     this.unstake = this.unstake.bind(this);
+    this.restake = this.restake.bind(this);
   }
 
   updateOwner = async ({
@@ -160,19 +207,53 @@ export class FlexibleStakingClient extends FlexibleStakingQueryClient implements
       }
     }, fee, memo, _funds);
   };
-  claim = async (fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+  claim = async ({
+    duration,
+    lockedAt
+  }: {
+    duration: number;
+    lockedAt: number;
+  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
-      claim: {}
+      claim: {
+        duration,
+        locked_at: lockedAt
+      }
+    }, fee, memo, _funds);
+  };
+  claimAll = async (fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      claim_all: {}
     }, fee, memo, _funds);
   };
   unstake = async ({
-    amount
+    duration,
+    lockedAt
   }: {
-    amount: Uint128;
+    duration: number;
+    lockedAt: number;
   }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
       unstake: {
-        amount
+        duration,
+        locked_at: lockedAt
+      }
+    }, fee, memo, _funds);
+  };
+  restake = async ({
+    fromDuration,
+    lockedAt,
+    toDuration
+  }: {
+    fromDuration: number;
+    lockedAt: number;
+    toDuration: number;
+  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      restake: {
+        from_duration: fromDuration,
+        locked_at: lockedAt,
+        to_duration: toDuration
       }
     }, fee, memo, _funds);
   };

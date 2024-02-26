@@ -2,7 +2,7 @@ use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
 
 use crate::state::{CONFIG, OWNER, STAKING, TOTAL_STAKING};
 use equinox_msg::{
-    flexible_staking::Config, reward_distributor::{QueryMsg as RewardDistributorQueryMsg, UserRewardResponse},
+    flexible_staking::Config, reward_distributor::{FlexibleReward, QueryMsg as RewardDistributorQueryMsg, UserRewardResponse},
 };
 
 /// query owner
@@ -30,11 +30,11 @@ pub fn query_total_staking(deps: Deps, _env: Env) -> StdResult<Uint128> {
 }
 
 /// query user reward
-pub fn query_reward(deps: Deps, _env: Env, user: String) -> StdResult<UserRewardResponse> {
+pub fn query_reward(deps: Deps, _env: Env, user: String) -> StdResult<FlexibleReward> {
     let config = CONFIG.load(deps.storage)?;
-    let user_reward = deps.querier.query_wasm_smart(
+    let user_reward: UserRewardResponse = deps.querier.query_wasm_smart(
         config.reward_contract.to_string(),
         &RewardDistributorQueryMsg::Reward { user },
     )?;
-    Ok(user_reward)
+    Ok(user_reward.flexible)
 }

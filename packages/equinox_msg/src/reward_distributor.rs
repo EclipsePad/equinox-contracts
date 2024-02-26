@@ -41,7 +41,15 @@ pub enum ExecuteMsg {
         amount: Uint128,
         duration: u64,
     },
-    Claim {
+    FlexibleStakeClaim {
+        user: String,
+    },
+    TimelockStakeClaim {
+        user: String,
+        duration: u64,
+        locked_at: u64,
+    },
+    TimelockStakeClaimAll {
         user: String,
     },
     FlexibleUnstake {
@@ -50,13 +58,13 @@ pub enum ExecuteMsg {
     },
     TimelockUnstake {
         user: String,
-        amount: Uint128,
         duration: u64,
+        locked_at: u64,
     },
     Restake {
         user: String,
-        amount: Uint128,
         from: u64,
+        locked_at: u64,
         to: u64,
     },
 }
@@ -139,7 +147,21 @@ pub struct UpdateConfigMsg {
 }
 
 #[cw_serde]
-pub struct UserRewardResponse {
+pub struct FlexibleReward {
     pub eclip: Uint128,
     pub eclipastro: Uint128,
+}
+
+#[cw_serde]
+pub struct TimelockReward {
+    pub duration: u64,
+    pub locked_at: u64,
+    pub eclip: Uint128,
+    pub eclipastro: Uint128,
+}
+
+#[cw_serde]
+pub struct UserRewardResponse {
+    pub flexible: FlexibleReward,
+    pub timelock: Vec<TimelockReward>,
 }

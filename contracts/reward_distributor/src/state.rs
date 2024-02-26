@@ -13,31 +13,14 @@ pub const OWNER: Admin = Admin::new("owner");
 pub const CONFIG: Item<Config> = Item::new("config");
 // user staking data, reward weight for eclipASTRO, reward weight for ECLIP
 pub const TOTAL_STAKING: Item<TotalStakingData> = Item::new("total_staking");
-pub const USER_STAKING: Map<&String, Vec<StakingData>> = Map::new("user_staking");
-pub const USER_REWARDS: Map<&String, UserRewards> = Map::new("user_rewards");
+pub const TIMELOCK_USER_STAKING: Map<(&String, u64, u64), UserStakingData> = Map::new("timelock_user_staking");
+pub const FLEXIBLE_USER_STAKING: Map<&String, UserStakingData> = Map::new("flexible_user_staking");
 pub const LAST_UPDATE_TIME: Item<u64> = Item::new("last_update_time");
 
 #[cw_serde]
 pub struct StakingData {
     pub duration: u64,
     pub amount: Uint128,
-}
-
-#[cw_serde]
-pub struct TotalStakingData {
-    pub staking_data: Vec<StakingData>,
-    pub reward_weight_eclipastro: Decimal,
-    pub reward_weight_astro: Decimal,
-}
-
-impl Default for TotalStakingData {
-    fn default() -> Self {
-        TotalStakingData {
-            staking_data: vec![],
-            reward_weight_eclipastro: Decimal::zero(),
-            reward_weight_astro: Decimal::zero(),
-        }
-    }
 }
 
 #[cw_serde]
@@ -66,6 +49,38 @@ impl Default for UserRewards {
         UserRewards {
             eclipastro: UserReward::default(),
             eclip: UserReward::default(),
+        }
+    }
+}
+
+#[cw_serde]
+pub struct UserStakingData {
+    pub amount: Uint128,
+    pub rewards: UserRewards,
+}
+
+impl Default for UserStakingData {
+    fn default() -> Self {
+        UserStakingData {
+            amount: Uint128::zero(),
+            rewards: UserRewards::default(),
+        }
+    }
+}
+
+#[cw_serde]
+pub struct TotalStakingData {
+    pub staking_data: Vec<StakingData>,
+    pub reward_weight_eclipastro: Decimal,
+    pub reward_weight_eclip: Decimal,
+}
+
+impl Default for TotalStakingData {
+    fn default() -> Self {
+        TotalStakingData {
+            staking_data: vec![],
+            reward_weight_eclipastro: Decimal::zero(),
+            reward_weight_eclip: Decimal::zero(),
         }
     }
 }

@@ -12,8 +12,8 @@ pub struct InstantiateMsg {
     pub vxtoken: String,
     /// Astroport Staking contract
     pub staking_contract: String,
-    /// Converter contact
-    pub converter_contact: String,
+    /// Converter contract
+    pub converter_contract: String,
     /// contract owner for update
     pub owner: String,
 }

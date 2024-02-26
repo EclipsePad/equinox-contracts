@@ -6,7 +6,12 @@
 
 export interface InstantiateMsg {
   owner: string;
+  timelock_config: TimeLockConfig[];
   token: string;
+}
+export interface TimeLockConfig {
+  duration: number;
+  early_unlock_penalty_bps: number;
 }
 export type ExecuteMsg = {
   update_owner: {
@@ -19,16 +24,29 @@ export type ExecuteMsg = {
 } | {
   receive: Cw20ReceiveMsg;
 } | {
-  claim: {};
+  claim: {
+    duration: number;
+    locked_at: number;
+  };
+} | {
+  claim_all: {};
 } | {
   unstake: {
-    amount: Uint128;
+    duration: number;
+    locked_at: number;
+  };
+} | {
+  restake: {
+    from_duration: number;
+    locked_at: number;
+    to_duration: number;
   };
 };
 export type Uint128 = string;
 export type Binary = string;
 export interface UpdateConfigMsg {
   reward_contract?: string | null;
+  timelock_config?: TimeLockConfig[] | null;
   token?: string | null;
 }
 export interface Cw20ReceiveMsg {
@@ -50,10 +68,17 @@ export type QueryMsg = {
   reward: {
     user: string;
   };
+} | {
+  calculate_penalty: {
+    amount: Uint128;
+    duration: number;
+    locked_at: number;
+  };
 };
 export type Addr = string;
 export interface Config {
   reward_contract: Addr;
+  timelock_config: TimeLockConfig[];
   token: Addr;
 }
 export interface UserRewardResponse {
@@ -68,5 +93,14 @@ export interface TimelockReward {
   duration: number;
   eclip: Uint128;
   eclipastro: Uint128;
+  locked_at: number;
+}
+export type ArrayOfUserStaking = UserStaking[];
+export interface UserStaking {
+  duration: number;
+  staking: UserStakingByDuration[];
+}
+export interface UserStakingByDuration {
+  amount: Uint128;
   locked_at: number;
 }

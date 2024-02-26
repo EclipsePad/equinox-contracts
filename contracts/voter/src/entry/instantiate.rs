@@ -24,7 +24,7 @@ pub fn try_instantiate(
             xtoken: deps.api.addr_validate(&msg.xtoken)?,
             vxtoken: deps.api.addr_validate(&msg.vxtoken)?,
             staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
-            converter_contract: deps.api.addr_validate(&msg.converter_contact)?,
+            converter_contract: deps.api.addr_validate(&msg.converter_contract)?,
             gauge_contract: Addr::unchecked(""),
             astroport_gauge_contract: Addr::unchecked(""),
         },
