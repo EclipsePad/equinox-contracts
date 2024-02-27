@@ -2,7 +2,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
 use cw20::Cw20ReceiveMsg;
 
-use crate::reward_distributor::UserRewardResponse;
+use crate::reward_distributor::TimelockReward;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -60,7 +60,7 @@ pub enum QueryMsg {
     #[returns(Vec<UserStaking>)]
     Staking { user: String },
     /// query pending_rewards
-    #[returns(UserRewardResponse)]
+    #[returns(Vec<TimelockReward>)]
     Reward { user: String },
     /// query calculating penalty
     #[returns(Uint128)]

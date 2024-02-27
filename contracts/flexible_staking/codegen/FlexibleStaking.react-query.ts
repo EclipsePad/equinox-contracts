@@ -7,106 +7,25 @@
 import { UseQueryOptions, useQuery, useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee, Coin } from "@cosmjs/amino";
-import { InstantiateMsg, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, UserRewardResponse } from "./FlexibleStaking.types";
+import { InstantiateMsg, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, FlexibleReward } from "./FlexibleStaking.types";
 import { FlexibleStakingQueryClient, FlexibleStakingClient } from "./FlexibleStaking.client";
-export const flexibleStakingQueryKeys = {
-  contract: ([{
-    contract: "flexibleStaking"
-  }] as const),
-  address: (contractAddress: string | undefined) => ([{ ...flexibleStakingQueryKeys.contract[0],
-    address: contractAddress
-  }] as const),
-  config: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...flexibleStakingQueryKeys.address(contractAddress)[0],
-    method: "config",
-    args
-  }] as const),
-  owner: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...flexibleStakingQueryKeys.address(contractAddress)[0],
-    method: "owner",
-    args
-  }] as const),
-  totalStaking: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...flexibleStakingQueryKeys.address(contractAddress)[0],
-    method: "total_staking",
-    args
-  }] as const),
-  staking: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...flexibleStakingQueryKeys.address(contractAddress)[0],
-    method: "staking",
-    args
-  }] as const),
-  reward: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...flexibleStakingQueryKeys.address(contractAddress)[0],
-    method: "reward",
-    args
-  }] as const)
-};
-export const flexibleStakingQueries = {
-  config: <TData = Config,>({
-    client,
-    options
-  }: FlexibleStakingConfigQuery<TData>): UseQueryOptions<Config, Error, TData> => ({
-    queryKey: flexibleStakingQueryKeys.config(client?.contractAddress),
-    queryFn: () => client ? client.config() : Promise.reject(new Error("Invalid client")),
-    ...options,
-    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
-  }),
-  owner: <TData = Addr,>({
-    client,
-    options
-  }: FlexibleStakingOwnerQuery<TData>): UseQueryOptions<Addr, Error, TData> => ({
-    queryKey: flexibleStakingQueryKeys.owner(client?.contractAddress),
-    queryFn: () => client ? client.owner() : Promise.reject(new Error("Invalid client")),
-    ...options,
-    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
-  }),
-  totalStaking: <TData = Uint128,>({
-    client,
-    options
-  }: FlexibleStakingTotalStakingQuery<TData>): UseQueryOptions<Uint128, Error, TData> => ({
-    queryKey: flexibleStakingQueryKeys.totalStaking(client?.contractAddress),
-    queryFn: () => client ? client.totalStaking() : Promise.reject(new Error("Invalid client")),
-    ...options,
-    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
-  }),
-  staking: <TData = Uint128,>({
-    client,
-    args,
-    options
-  }: FlexibleStakingStakingQuery<TData>): UseQueryOptions<Uint128, Error, TData> => ({
-    queryKey: flexibleStakingQueryKeys.staking(client?.contractAddress, args),
-    queryFn: () => client ? client.staking({
-      user: args.user
-    }) : Promise.reject(new Error("Invalid client")),
-    ...options,
-    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
-  }),
-  reward: <TData = UserRewardResponse,>({
-    client,
-    args,
-    options
-  }: FlexibleStakingRewardQuery<TData>): UseQueryOptions<UserRewardResponse, Error, TData> => ({
-    queryKey: flexibleStakingQueryKeys.reward(client?.contractAddress, args),
-    queryFn: () => client ? client.reward({
-      user: args.user
-    }) : Promise.reject(new Error("Invalid client")),
-    ...options,
-    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
-  })
-};
 export interface FlexibleStakingReactQuery<TResponse, TData = TResponse> {
   client: FlexibleStakingQueryClient | undefined;
   options?: Omit<UseQueryOptions<TResponse, Error, TData>, "'queryKey' | 'queryFn' | 'initialData'"> & {
     initialData?: undefined;
   };
 }
-export interface FlexibleStakingRewardQuery<TData> extends FlexibleStakingReactQuery<UserRewardResponse, TData> {
+export interface FlexibleStakingRewardQuery<TData> extends FlexibleStakingReactQuery<FlexibleReward, TData> {
   args: {
     user: string;
   };
 }
-export function useFlexibleStakingRewardQuery<TData = UserRewardResponse>({
+export function useFlexibleStakingRewardQuery<TData = FlexibleReward>({
   client,
   args,
   options
 }: FlexibleStakingRewardQuery<TData>) {
-  return useQuery<UserRewardResponse, Error, TData>(flexibleStakingQueryKeys.reward(client?.contractAddress, args), () => client ? client.reward({
+  return useQuery<FlexibleReward, Error, TData>(["flexibleStakingReward", client?.contractAddress, JSON.stringify(args)], () => client ? client.reward({
     user: args.user
   }) : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
@@ -122,7 +41,7 @@ export function useFlexibleStakingStakingQuery<TData = Uint128>({
   args,
   options
 }: FlexibleStakingStakingQuery<TData>) {
-  return useQuery<Uint128, Error, TData>(flexibleStakingQueryKeys.staking(client?.contractAddress, args), () => client ? client.staking({
+  return useQuery<Uint128, Error, TData>(["flexibleStakingStaking", client?.contractAddress, JSON.stringify(args)], () => client ? client.staking({
     user: args.user
   }) : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
@@ -133,7 +52,7 @@ export function useFlexibleStakingTotalStakingQuery<TData = Uint128>({
   client,
   options
 }: FlexibleStakingTotalStakingQuery<TData>) {
-  return useQuery<Uint128, Error, TData>(flexibleStakingQueryKeys.totalStaking(client?.contractAddress), () => client ? client.totalStaking() : Promise.reject(new Error("Invalid client")), { ...options,
+  return useQuery<Uint128, Error, TData>(["flexibleStakingTotalStaking", client?.contractAddress], () => client ? client.totalStaking() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
@@ -142,7 +61,7 @@ export function useFlexibleStakingOwnerQuery<TData = Addr>({
   client,
   options
 }: FlexibleStakingOwnerQuery<TData>) {
-  return useQuery<Addr, Error, TData>(flexibleStakingQueryKeys.owner(client?.contractAddress), () => client ? client.owner() : Promise.reject(new Error("Invalid client")), { ...options,
+  return useQuery<Addr, Error, TData>(["flexibleStakingOwner", client?.contractAddress], () => client ? client.owner() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
@@ -151,7 +70,7 @@ export function useFlexibleStakingConfigQuery<TData = Config>({
   client,
   options
 }: FlexibleStakingConfigQuery<TData>) {
-  return useQuery<Config, Error, TData>(flexibleStakingQueryKeys.config(client?.contractAddress), () => client ? client.config() : Promise.reject(new Error("Invalid client")), { ...options,
+  return useQuery<Config, Error, TData>(["flexibleStakingConfig", client?.contractAddress], () => client ? client.config() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }

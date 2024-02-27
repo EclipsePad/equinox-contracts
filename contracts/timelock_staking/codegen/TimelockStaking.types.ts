@@ -81,14 +81,7 @@ export interface Config {
   timelock_config: TimeLockConfig[];
   token: Addr;
 }
-export interface UserRewardResponse {
-  flexible: FlexibleReward;
-  timelock: TimelockReward[];
-}
-export interface FlexibleReward {
-  eclip: Uint128;
-  eclipastro: Uint128;
-}
+export type ArrayOfTimelockReward = TimelockReward[];
 export interface TimelockReward {
   duration: number;
   eclip: Uint128;

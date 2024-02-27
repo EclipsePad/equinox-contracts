@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, UserRewardResponse, FlexibleReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration } from "./TimelockStaking.types";
+import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, ArrayOfTimelockReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration } from "./TimelockStaking.types";
 export interface TimelockStakingReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<Config>;
@@ -21,7 +21,7 @@ export interface TimelockStakingReadOnlyInterface {
     user
   }: {
     user: string;
-  }) => Promise<UserRewardResponse>;
+  }) => Promise<ArrayOfTimelockReward>;
   calculatePenalty: ({
     amount,
     duration,
@@ -77,7 +77,7 @@ export class TimelockStakingQueryClient implements TimelockStakingReadOnlyInterf
     user
   }: {
     user: string;
-  }): Promise<UserRewardResponse> => {
+  }): Promise<ArrayOfTimelockReward> => {
     return this.client.queryContractSmart(this.contractAddress, {
       reward: {
         user

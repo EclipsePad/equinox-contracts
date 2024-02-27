@@ -56,17 +56,7 @@ export interface Config {
   reward_contract: Addr;
   token: Addr;
 }
-export interface UserRewardResponse {
-  flexible: FlexibleReward;
-  timelock: TimelockReward[];
-}
 export interface FlexibleReward {
   eclip: Uint128;
   eclipastro: Uint128;
-}
-export interface TimelockReward {
-  duration: number;
-  eclip: Uint128;
-  eclipastro: Uint128;
-  locked_at: number;
 }

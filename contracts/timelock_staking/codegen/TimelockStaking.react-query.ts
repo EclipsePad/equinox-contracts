@@ -7,7 +7,7 @@
 import { UseQueryOptions, useQuery, useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee, Coin } from "@cosmjs/amino";
-import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, UserRewardResponse, FlexibleReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration } from "./TimelockStaking.types";
+import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, ArrayOfTimelockReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration } from "./TimelockStaking.types";
 import { TimelockStakingQueryClient, TimelockStakingClient } from "./TimelockStaking.client";
 export interface TimelockStakingReactQuery<TResponse, TData = TResponse> {
   client: TimelockStakingQueryClient | undefined;
@@ -35,17 +35,17 @@ export function useTimelockStakingCalculatePenaltyQuery<TData = Uint128>({
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
-export interface TimelockStakingRewardQuery<TData> extends TimelockStakingReactQuery<UserRewardResponse, TData> {
+export interface TimelockStakingRewardQuery<TData> extends TimelockStakingReactQuery<ArrayOfTimelockReward, TData> {
   args: {
     user: string;
   };
 }
-export function useTimelockStakingRewardQuery<TData = UserRewardResponse>({
+export function useTimelockStakingRewardQuery<TData = ArrayOfTimelockReward>({
   client,
   args,
   options
 }: TimelockStakingRewardQuery<TData>) {
-  return useQuery<UserRewardResponse, Error, TData>(["timelockStakingReward", client?.contractAddress, JSON.stringify(args)], () => client ? client.reward({
+  return useQuery<ArrayOfTimelockReward, Error, TData>(["timelockStakingReward", client?.contractAddress, JSON.stringify(args)], () => client ? client.reward({
     user: args.user
   }) : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)

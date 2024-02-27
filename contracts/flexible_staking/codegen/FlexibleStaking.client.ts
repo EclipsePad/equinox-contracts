@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { InstantiateMsg, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, UserRewardResponse, FlexibleReward, TimelockReward } from "./FlexibleStaking.types";
+import { InstantiateMsg, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, FlexibleReward } from "./FlexibleStaking.types";
 export interface FlexibleStakingReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<Config>;
@@ -21,7 +21,7 @@ export interface FlexibleStakingReadOnlyInterface {
     user
   }: {
     user: string;
-  }) => Promise<UserRewardResponse>;
+  }) => Promise<FlexibleReward>;
 }
 export class FlexibleStakingQueryClient implements FlexibleStakingReadOnlyInterface {
   client: CosmWasmClient;
@@ -67,7 +67,7 @@ export class FlexibleStakingQueryClient implements FlexibleStakingReadOnlyInterf
     user
   }: {
     user: string;
-  }): Promise<UserRewardResponse> => {
+  }): Promise<FlexibleReward> => {
     return this.client.queryContractSmart(this.contractAddress, {
       reward: {
         user
