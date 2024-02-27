@@ -6,7 +6,7 @@ use crate::{
     entry::{
         execute::{claim, claim_all, receive_cw20, restake, unstake, update_config, update_owner},
         instantiate::try_instantiate,
-        query::{calculate_penalty, query_config, query_owner, query_reward, query_staking, query_total_staking},
+        query::{calculate_penalty, query_config, query_owner, query_reward, query_staking, query_total_staking, query_total_staking_by_duration},
     },
     error::ContractError,
 };
@@ -58,6 +58,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::Staking { user } => Ok(to_json_binary(&query_staking(deps, env, user)?)?),
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
+        QueryMsg::TotalStakingByDuration {} => Ok(to_json_binary(&query_total_staking_by_duration(deps, env)?)?),
         QueryMsg::Reward { user } => Ok(to_json_binary(&query_reward(deps, env, user)?)?),
         QueryMsg::CalculatePenalty { amount, duration, locked_at } => Ok(to_json_binary(&calculate_penalty(deps, env, amount, duration, locked_at)?)?),
     }

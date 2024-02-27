@@ -56,6 +56,9 @@ pub enum QueryMsg {
     /// query total_staking
     #[returns(Uint128)]
     TotalStaking {},
+    /// query total_staking_by_duration
+    #[returns(Vec<Uint128>)]
+    TotalStakingByDuration {},
     /// query user_staking
     #[returns(Vec<UserStaking>)]
     Staking { user: String },

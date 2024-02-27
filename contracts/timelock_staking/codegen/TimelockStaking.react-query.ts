@@ -7,8 +7,120 @@
 import { UseQueryOptions, useQuery, useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee, Coin } from "@cosmjs/amino";
-import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, ArrayOfTimelockReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration } from "./TimelockStaking.types";
+import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, ArrayOfTimelockReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration, ArrayOfUint128 } from "./TimelockStaking.types";
 import { TimelockStakingQueryClient, TimelockStakingClient } from "./TimelockStaking.client";
+export const timelockStakingQueryKeys = {
+  contract: ([{
+    contract: "timelockStaking"
+  }] as const),
+  address: (contractAddress: string | undefined) => ([{ ...timelockStakingQueryKeys.contract[0],
+    address: contractAddress
+  }] as const),
+  config: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...timelockStakingQueryKeys.address(contractAddress)[0],
+    method: "config",
+    args
+  }] as const),
+  owner: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...timelockStakingQueryKeys.address(contractAddress)[0],
+    method: "owner",
+    args
+  }] as const),
+  totalStaking: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...timelockStakingQueryKeys.address(contractAddress)[0],
+    method: "total_staking",
+    args
+  }] as const),
+  totalStakingByDuration: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...timelockStakingQueryKeys.address(contractAddress)[0],
+    method: "total_staking_by_duration",
+    args
+  }] as const),
+  staking: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...timelockStakingQueryKeys.address(contractAddress)[0],
+    method: "staking",
+    args
+  }] as const),
+  reward: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...timelockStakingQueryKeys.address(contractAddress)[0],
+    method: "reward",
+    args
+  }] as const),
+  calculatePenalty: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...timelockStakingQueryKeys.address(contractAddress)[0],
+    method: "calculate_penalty",
+    args
+  }] as const)
+};
+export const timelockStakingQueries = {
+  config: <TData = Config,>({
+    client,
+    options
+  }: TimelockStakingConfigQuery<TData>): UseQueryOptions<Config, Error, TData> => ({
+    queryKey: timelockStakingQueryKeys.config(client?.contractAddress),
+    queryFn: () => client ? client.config() : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  owner: <TData = Addr,>({
+    client,
+    options
+  }: TimelockStakingOwnerQuery<TData>): UseQueryOptions<Addr, Error, TData> => ({
+    queryKey: timelockStakingQueryKeys.owner(client?.contractAddress),
+    queryFn: () => client ? client.owner() : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  totalStaking: <TData = Uint128,>({
+    client,
+    options
+  }: TimelockStakingTotalStakingQuery<TData>): UseQueryOptions<Uint128, Error, TData> => ({
+    queryKey: timelockStakingQueryKeys.totalStaking(client?.contractAddress),
+    queryFn: () => client ? client.totalStaking() : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  totalStakingByDuration: <TData = ArrayOfUint128,>({
+    client,
+    options
+  }: TimelockStakingTotalStakingByDurationQuery<TData>): UseQueryOptions<ArrayOfUint128, Error, TData> => ({
+    queryKey: timelockStakingQueryKeys.totalStakingByDuration(client?.contractAddress),
+    queryFn: () => client ? client.totalStakingByDuration() : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  staking: <TData = ArrayOfUserStaking,>({
+    client,
+    args,
+    options
+  }: TimelockStakingStakingQuery<TData>): UseQueryOptions<ArrayOfUserStaking, Error, TData> => ({
+    queryKey: timelockStakingQueryKeys.staking(client?.contractAddress, args),
+    queryFn: () => client ? client.staking({
+      user: args.user
+    }) : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  reward: <TData = ArrayOfTimelockReward,>({
+    client,
+    args,
+    options
+  }: TimelockStakingRewardQuery<TData>): UseQueryOptions<ArrayOfTimelockReward, Error, TData> => ({
+    queryKey: timelockStakingQueryKeys.reward(client?.contractAddress, args),
+    queryFn: () => client ? client.reward({
+      user: args.user
+    }) : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  calculatePenalty: <TData = Uint128,>({
+    client,
+    args,
+    options
+  }: TimelockStakingCalculatePenaltyQuery<TData>): UseQueryOptions<Uint128, Error, TData> => ({
+    queryKey: timelockStakingQueryKeys.calculatePenalty(client?.contractAddress, args),
+    queryFn: () => client ? client.calculatePenalty({
+      amount: args.amount,
+      duration: args.duration,
+      lockedAt: args.lockedAt
+    }) : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  })
+};
 export interface TimelockStakingReactQuery<TResponse, TData = TResponse> {
   client: TimelockStakingQueryClient | undefined;
   options?: Omit<UseQueryOptions<TResponse, Error, TData>, "'queryKey' | 'queryFn' | 'initialData'"> & {
@@ -27,7 +139,7 @@ export function useTimelockStakingCalculatePenaltyQuery<TData = Uint128>({
   args,
   options
 }: TimelockStakingCalculatePenaltyQuery<TData>) {
-  return useQuery<Uint128, Error, TData>(["timelockStakingCalculatePenalty", client?.contractAddress, JSON.stringify(args)], () => client ? client.calculatePenalty({
+  return useQuery<Uint128, Error, TData>(timelockStakingQueryKeys.calculatePenalty(client?.contractAddress, args), () => client ? client.calculatePenalty({
     amount: args.amount,
     duration: args.duration,
     lockedAt: args.lockedAt
@@ -45,7 +157,7 @@ export function useTimelockStakingRewardQuery<TData = ArrayOfTimelockReward>({
   args,
   options
 }: TimelockStakingRewardQuery<TData>) {
-  return useQuery<ArrayOfTimelockReward, Error, TData>(["timelockStakingReward", client?.contractAddress, JSON.stringify(args)], () => client ? client.reward({
+  return useQuery<ArrayOfTimelockReward, Error, TData>(timelockStakingQueryKeys.reward(client?.contractAddress, args), () => client ? client.reward({
     user: args.user
   }) : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
@@ -61,9 +173,18 @@ export function useTimelockStakingStakingQuery<TData = ArrayOfUserStaking>({
   args,
   options
 }: TimelockStakingStakingQuery<TData>) {
-  return useQuery<ArrayOfUserStaking, Error, TData>(["timelockStakingStaking", client?.contractAddress, JSON.stringify(args)], () => client ? client.staking({
+  return useQuery<ArrayOfUserStaking, Error, TData>(timelockStakingQueryKeys.staking(client?.contractAddress, args), () => client ? client.staking({
     user: args.user
   }) : Promise.reject(new Error("Invalid client")), { ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  });
+}
+export interface TimelockStakingTotalStakingByDurationQuery<TData> extends TimelockStakingReactQuery<ArrayOfUint128, TData> {}
+export function useTimelockStakingTotalStakingByDurationQuery<TData = ArrayOfUint128>({
+  client,
+  options
+}: TimelockStakingTotalStakingByDurationQuery<TData>) {
+  return useQuery<ArrayOfUint128, Error, TData>(timelockStakingQueryKeys.totalStakingByDuration(client?.contractAddress), () => client ? client.totalStakingByDuration() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
@@ -72,7 +193,7 @@ export function useTimelockStakingTotalStakingQuery<TData = Uint128>({
   client,
   options
 }: TimelockStakingTotalStakingQuery<TData>) {
-  return useQuery<Uint128, Error, TData>(["timelockStakingTotalStaking", client?.contractAddress], () => client ? client.totalStaking() : Promise.reject(new Error("Invalid client")), { ...options,
+  return useQuery<Uint128, Error, TData>(timelockStakingQueryKeys.totalStaking(client?.contractAddress), () => client ? client.totalStaking() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
@@ -81,7 +202,7 @@ export function useTimelockStakingOwnerQuery<TData = Addr>({
   client,
   options
 }: TimelockStakingOwnerQuery<TData>) {
-  return useQuery<Addr, Error, TData>(["timelockStakingOwner", client?.contractAddress], () => client ? client.owner() : Promise.reject(new Error("Invalid client")), { ...options,
+  return useQuery<Addr, Error, TData>(timelockStakingQueryKeys.owner(client?.contractAddress), () => client ? client.owner() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
@@ -90,7 +211,7 @@ export function useTimelockStakingConfigQuery<TData = Config>({
   client,
   options
 }: TimelockStakingConfigQuery<TData>) {
-  return useQuery<Config, Error, TData>(["timelockStakingConfig", client?.contractAddress], () => client ? client.config() : Promise.reject(new Error("Invalid client")), { ...options,
+  return useQuery<Config, Error, TData>(timelockStakingQueryKeys.config(client?.contractAddress), () => client ? client.config() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }

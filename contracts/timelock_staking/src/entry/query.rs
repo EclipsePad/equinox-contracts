@@ -1,6 +1,6 @@
 use cosmwasm_std::{Addr, Deps, Env, Order, StdResult, Uint128};
 
-use crate::state::{CONFIG, OWNER, STAKING, TOTAL_STAKING};
+use crate::state::{CONFIG, OWNER, STAKING, TOTAL_STAKING, TOTAL_STAKING_BY_DURATION};
 use equinox_msg::{
     reward_distributor::{QueryMsg as RewardDistributorQueryMsg, TimelockReward, UserRewardResponse},
     timelock_staking::{Config, UserStaking, UserStakingByDuration},
@@ -21,6 +21,16 @@ pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
 // query total staking
 pub fn query_total_staking(deps: Deps, _env: Env) -> StdResult<Uint128> {
     let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
+    Ok(total_staking)
+}
+
+// query total staking by duration
+pub fn query_total_staking_by_duration(deps: Deps, _env: Env) -> StdResult<Vec<Uint128>> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let total_staking = config.timelock_config.into_iter().map(|c| {
+        Ok(TOTAL_STAKING_BY_DURATION.load(deps.storage, c.duration).unwrap_or_default())
+    }).collect::<StdResult<Vec<Uint128>>>().unwrap_or(vec![]);
     Ok(total_staking)
 }
 

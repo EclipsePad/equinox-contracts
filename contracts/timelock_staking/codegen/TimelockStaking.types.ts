@@ -61,6 +61,8 @@ export type QueryMsg = {
 } | {
   total_staking: {};
 } | {
+  total_staking_by_duration: {};
+} | {
   staking: {
     user: string;
   };
@@ -97,3 +99,4 @@ export interface UserStakingByDuration {
   amount: Uint128;
   locked_at: number;
 }
+export type ArrayOfUint128 = Uint128[];
