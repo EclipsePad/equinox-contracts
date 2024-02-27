@@ -13,7 +13,7 @@ pub fn calculate_claimable(
         .unwrap()
         .multiply_ratio(total_xtoken, total_token)
         .checked_sub(claimed)
-        .unwrap()
+        .unwrap_or_default()
 }
 
 pub fn convert_token(a: Uint128, total_a: Uint128, total_b: Uint128) -> Uint128 {

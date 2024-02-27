@@ -606,7 +606,7 @@ dependencies = [
 
 [[package]]
 name = "eclipastro-token"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -680,7 +680,7 @@ dependencies = [
 
 [[package]]
 name = "equinox-msg"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -709,7 +709,7 @@ dependencies = [
 
 [[package]]
 name = "flexible-staking"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -846,7 +846,7 @@ checksum = "13e3bf6590cbc649f4d1a3eefc9d5d6eb746f5200ffb04e5e142700b8faa56e7"
 
 [[package]]
 name = "multitests"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "astroport",
@@ -965,7 +965,7 @@ dependencies = [
 
 [[package]]
 name = "reward-distributor"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1256,7 +1256,7 @@ dependencies = [
 
 [[package]]
 name = "timelock-staking"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1272,7 +1272,7 @@ dependencies = [
 
 [[package]]
 name = "token-converter"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1318,7 +1318,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "voter"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
