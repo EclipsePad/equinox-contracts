@@ -6,13 +6,13 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, ArrayOfTimelockReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration, ArrayOfUint128 } from "./TimelockStaking.types";
+import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, ArrayOfTimelockReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration, ArrayOfStakingWithDuration, StakingWithDuration } from "./TimelockStaking.types";
 export interface TimelockStakingReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<Config>;
   owner: () => Promise<Addr>;
   totalStaking: () => Promise<Uint128>;
-  totalStakingByDuration: () => Promise<ArrayOfUint128>;
+  totalStakingByDuration: () => Promise<ArrayOfStakingWithDuration>;
   staking: ({
     user
   }: {
@@ -64,7 +64,7 @@ export class TimelockStakingQueryClient implements TimelockStakingReadOnlyInterf
       total_staking: {}
     });
   };
-  totalStakingByDuration = async (): Promise<ArrayOfUint128> => {
+  totalStakingByDuration = async (): Promise<ArrayOfStakingWithDuration> => {
     return this.client.queryContractSmart(this.contractAddress, {
       total_staking_by_duration: {}
     });

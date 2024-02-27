@@ -99,4 +99,8 @@ export interface UserStakingByDuration {
   amount: Uint128;
   locked_at: number;
 }
-export type ArrayOfUint128 = Uint128[];
+export type ArrayOfStakingWithDuration = StakingWithDuration[];
+export interface StakingWithDuration {
+  amount: Uint128;
+  duration: number;
+}

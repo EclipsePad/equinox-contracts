@@ -3,7 +3,7 @@ use cosmwasm_std::{Addr, Deps, Env, Order, StdResult, Uint128};
 use crate::state::{CONFIG, OWNER, STAKING, TOTAL_STAKING, TOTAL_STAKING_BY_DURATION};
 use equinox_msg::{
     reward_distributor::{QueryMsg as RewardDistributorQueryMsg, TimelockReward, UserRewardResponse},
-    timelock_staking::{Config, UserStaking, UserStakingByDuration},
+    timelock_staking::{Config, StakingWithDuration, UserStaking, UserStakingByDuration},
 };
 
 /// query owner
@@ -25,12 +25,15 @@ pub fn query_total_staking(deps: Deps, _env: Env) -> StdResult<Uint128> {
 }
 
 // query total staking by duration
-pub fn query_total_staking_by_duration(deps: Deps, _env: Env) -> StdResult<Vec<Uint128>> {
+pub fn query_total_staking_by_duration(deps: Deps, _env: Env) -> StdResult<Vec<StakingWithDuration>> {
     let config = CONFIG.load(deps.storage)?;
 
     let total_staking = config.timelock_config.into_iter().map(|c| {
-        Ok(TOTAL_STAKING_BY_DURATION.load(deps.storage, c.duration).unwrap_or_default())
-    }).collect::<StdResult<Vec<Uint128>>>().unwrap_or(vec![]);
+        Ok(StakingWithDuration {
+            amount: TOTAL_STAKING_BY_DURATION.load(deps.storage, c.duration).unwrap_or_default(),
+            duration: c.duration
+    })
+    }).collect::<StdResult<Vec<StakingWithDuration>>>().unwrap_or(vec![]);
     Ok(total_staking)
 }
 

@@ -57,7 +57,7 @@ pub enum QueryMsg {
     #[returns(Uint128)]
     TotalStaking {},
     /// query total_staking_by_duration
-    #[returns(Vec<Uint128>)]
+    #[returns(Vec<StakingWithDuration>)]
     TotalStakingByDuration {},
     /// query user_staking
     #[returns(Vec<UserStaking>)]
@@ -116,4 +116,10 @@ pub struct UserStakingByDuration {
 pub struct UserStaking {
     pub duration: u64,
     pub staking: Vec<UserStakingByDuration>,
+}
+
+#[cw_serde]
+pub struct StakingWithDuration {
+    pub amount: Uint128,
+    pub duration: u64,
 }

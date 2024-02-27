@@ -7,7 +7,7 @@
 import { UseQueryOptions, useQuery, useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee, Coin } from "@cosmjs/amino";
-import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, ArrayOfTimelockReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration, ArrayOfUint128 } from "./TimelockStaking.types";
+import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, ArrayOfTimelockReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration, ArrayOfStakingWithDuration, StakingWithDuration } from "./TimelockStaking.types";
 import { TimelockStakingQueryClient, TimelockStakingClient } from "./TimelockStaking.client";
 export const timelockStakingQueryKeys = {
   contract: ([{
@@ -73,10 +73,10 @@ export const timelockStakingQueries = {
     ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   }),
-  totalStakingByDuration: <TData = ArrayOfUint128,>({
+  totalStakingByDuration: <TData = ArrayOfStakingWithDuration,>({
     client,
     options
-  }: TimelockStakingTotalStakingByDurationQuery<TData>): UseQueryOptions<ArrayOfUint128, Error, TData> => ({
+  }: TimelockStakingTotalStakingByDurationQuery<TData>): UseQueryOptions<ArrayOfStakingWithDuration, Error, TData> => ({
     queryKey: timelockStakingQueryKeys.totalStakingByDuration(client?.contractAddress),
     queryFn: () => client ? client.totalStakingByDuration() : Promise.reject(new Error("Invalid client")),
     ...options,
@@ -179,12 +179,12 @@ export function useTimelockStakingStakingQuery<TData = ArrayOfUserStaking>({
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
-export interface TimelockStakingTotalStakingByDurationQuery<TData> extends TimelockStakingReactQuery<ArrayOfUint128, TData> {}
-export function useTimelockStakingTotalStakingByDurationQuery<TData = ArrayOfUint128>({
+export interface TimelockStakingTotalStakingByDurationQuery<TData> extends TimelockStakingReactQuery<ArrayOfStakingWithDuration, TData> {}
+export function useTimelockStakingTotalStakingByDurationQuery<TData = ArrayOfStakingWithDuration>({
   client,
   options
 }: TimelockStakingTotalStakingByDurationQuery<TData>) {
-  return useQuery<ArrayOfUint128, Error, TData>(timelockStakingQueryKeys.totalStakingByDuration(client?.contractAddress), () => client ? client.totalStakingByDuration() : Promise.reject(new Error("Invalid client")), { ...options,
+  return useQuery<ArrayOfStakingWithDuration, Error, TData>(timelockStakingQueryKeys.totalStakingByDuration(client?.contractAddress), () => client ? client.totalStakingByDuration() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
