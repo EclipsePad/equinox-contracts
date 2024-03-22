@@ -15,10 +15,12 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub enum ExecuteMsg {
     /// Change the owner
-    UpdateOwner { owner: String },
+    UpdateOwner {
+        owner: String,
+    },
     /// Change config
     UpdateConfig {
-        config: UpdateConfigMsg
+        config: UpdateConfigMsg,
     },
     /// This accepts a properly-encoded ReceiveMsg from a cw20 contract
     Receive(Cw20ReceiveMsg),
@@ -50,7 +52,9 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub update_contract_name: Option<bool>,
+}
 
 #[cw_serde]
 pub enum Cw20HookMsg {

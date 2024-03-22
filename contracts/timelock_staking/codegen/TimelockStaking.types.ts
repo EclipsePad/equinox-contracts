@@ -6,7 +6,7 @@
 
 export interface InstantiateMsg {
   owner: string;
-  timelock_config: TimeLockConfig[];
+  timelock_config?: TimeLockConfig[] | null;
   token: string;
 }
 export interface TimeLockConfig {

@@ -1,4 +1,5 @@
 use astroport::staking::Cw20HookMsg as AstroportStakingCw20HookMsg;
+use cosmwasm_std::ensure;
 // use astroport_governance::voting_escrow::{
 //     Cw20HookMsg as AstroportVotingEscrowCw20HookMsg, ExecuteMsg as AstroportVotingEscrowExecuteMsg,
 //     QueryMsg as AstroportVotingEscrowQueryMsg,
@@ -165,10 +166,9 @@ pub fn receive_cw20(
     match from_json(&msg.msg) {
         Ok(Cw20HookMsg::Stake {}) => {
             let config = CONFIG.load(deps.storage)?;
-            // Check token is ASTRO token
-            ensure_eq!(
-                info.sender,
-                config.base_token,
+            // only ASTRO token or xASTRO token can execute this message
+            ensure!(
+                info.sender == config.base_token || info.sender == config.xtoken,
                 ContractError::UnknownToken(info.sender.to_string())
             );
             // Check sender is converter
@@ -177,25 +177,31 @@ pub fn receive_cw20(
                 config.converter_contract,
                 ContractError::Unauthorized {}
             );
-            let stake_msg = SubMsg {
-                id: STAKE_TOKEN_REPLY_ID,
-                msg: WasmMsg::Execute {
-                    contract_addr: config.base_token.to_string(),
-                    msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                        contract: config.staking_contract.to_string(),
-                        amount: msg.amount,
-                        msg: to_json_binary(&AstroportStakingCw20HookMsg::Enter {})?,
-                    })?,
-                    funds: vec![],
-                }
-                .into(),
-                gas_limit: None,
-                reply_on: ReplyOn::Success,
-            };
-            Ok(Response::new()
-                .add_submessage(stake_msg)
-                .add_attribute("action", "stake ASTRO")
-                .add_attribute("ASTRO", msg.amount.to_string()))
+            if info.sender == config.base_token {
+                let stake_msg = SubMsg {
+                    id: STAKE_TOKEN_REPLY_ID,
+                    msg: WasmMsg::Execute {
+                        contract_addr: config.base_token.to_string(),
+                        msg: to_json_binary(&Cw20ExecuteMsg::Send {
+                            contract: config.staking_contract.to_string(),
+                            amount: msg.amount,
+                            msg: to_json_binary(&AstroportStakingCw20HookMsg::Enter {})?,
+                        })?,
+                        funds: vec![],
+                    }
+                    .into(),
+                    gas_limit: None,
+                    reply_on: ReplyOn::Success,
+                };
+                Ok(Response::new()
+                    .add_submessage(stake_msg)
+                    .add_attribute("action", "stake ASTRO")
+                    .add_attribute("ASTRO", msg.amount.to_string()))
+            } else {
+                Ok(Response::new()
+                    .add_attribute("action", "lock xASTRO")
+                    .add_attribute("xASTRO", msg.amount.to_string()))
+            }
         }
         Err(_) => Err(ContractError::UnknownMessage {}),
     }

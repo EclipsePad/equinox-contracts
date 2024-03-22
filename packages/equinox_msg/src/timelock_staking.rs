@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
     /// eclipASTRO token
     pub token: String,
     /// timelock config
-    pub timelock_config: Vec<TimeLockConfig>,
+    pub timelock_config: Option<Vec<TimeLockConfig>>,
 }
 
 #[cw_serde]
@@ -35,6 +35,7 @@ pub enum ExecuteMsg {
     Unstake {
         duration: u64,
         locked_at: u64,
+        amount: Option<Uint128>,
     },
     /// update locking period from short one to long one
     Restake {
@@ -75,7 +76,9 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub update_contract_name: Option<bool>,
+}
 
 #[cw_serde]
 pub enum Cw20HookMsg {

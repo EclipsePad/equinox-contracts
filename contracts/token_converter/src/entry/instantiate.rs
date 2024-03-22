@@ -13,10 +13,8 @@ use equinox_msg::{
 use crate::{
     contract::INSTANTIATE_TOKEN_REPLY_ID,
     error::ContractError,
-    state::{CONFIG, CONTRACT_NAME, OWNER, REWARD_CONFIG},
+    state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER, REWARD_CONFIG},
 };
-
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// eclipASTRO information.
 const TOKEN_NAME: &str = "eclipASTRO";

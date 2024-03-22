@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { Uint128, InstantiateMsg, LockingRewardConfig, ExecuteMsg, UpdateConfigMsg, QueryMsg, Addr, Config, UserRewardResponse, FlexibleReward, TimelockReward } from "./RewardDistributor.types";
+import { Uint128, InstantiateMsg, LockingRewardConfig, ExecuteMsg, UpdateConfigMsg, QueryMsg, Addr, Config, ArrayOfTupleOfUint64AndUint128, UserRewardResponse, FlexibleReward, TimelockReward, Decimal256, TotalStakingData, StakingData } from "./RewardDistributor.types";
 export interface RewardDistributorReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<Config>;
@@ -16,6 +16,8 @@ export interface RewardDistributorReadOnlyInterface {
   }: {
     user: string;
   }) => Promise<UserRewardResponse>;
+  totalStaking: () => Promise<TotalStakingData>;
+  pendingRewards: () => Promise<ArrayOfTupleOfUint64AndUint128>;
 }
 export class RewardDistributorQueryClient implements RewardDistributorReadOnlyInterface {
   client: CosmWasmClient;
@@ -27,6 +29,8 @@ export class RewardDistributorQueryClient implements RewardDistributorReadOnlyIn
     this.config = this.config.bind(this);
     this.owner = this.owner.bind(this);
     this.reward = this.reward.bind(this);
+    this.totalStaking = this.totalStaking.bind(this);
+    this.pendingRewards = this.pendingRewards.bind(this);
   }
 
   config = async (): Promise<Config> => {
@@ -48,6 +52,16 @@ export class RewardDistributorQueryClient implements RewardDistributorReadOnlyIn
       reward: {
         user
       }
+    });
+  };
+  totalStaking = async (): Promise<TotalStakingData> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      total_staking: {}
+    });
+  };
+  pendingRewards = async (): Promise<ArrayOfTupleOfUint64AndUint128> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      pending_rewards: {}
     });
   };
 }

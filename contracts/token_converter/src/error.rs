@@ -7,25 +7,28 @@ use thiserror::Error;
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
-    Std(#[from] StdError),
-
-    #[error("{0}")]
     Admin(#[from] AdminError),
+
+    #[error("Contract name must be same: {0}")]
+    ContractNameErr(String),
+
+    #[error("Failed to parse or process reply message")]
+    FailedToParseReply {},
+
+    #[error("Balance is not enough")]
+    NotEnoughBalance {},
+
+    #[error("No reward claimable for user")]
+    NoRewardClaimable {},
 
     #[error("Semver parsing error: {0}")]
     SemVer(String),
 
-    #[error("Can't stake this token: {0}")]
-    UnknownToken(String),
-
-    #[error("New version must be greater than previous one: {0}")]
-    VersionErr(String),
-
-    #[error("Can't handle this message")]
-    UnknownMessage {},
-
     #[error("Error staking astro")]
     StakeError {},
+
+    #[error("{0}")]
+    Std(#[from] StdError),
 
     #[error("Unknown reply id: {0}")]
     UnknownReplyId(u64),
@@ -33,17 +36,17 @@ pub enum ContractError {
     #[error("Total Reward point must be 10000")]
     RewardDistributionErr {},
 
-    #[error("No reward claimable for user")]
-    NoRewardClaimable {},
-
-    #[error("Balance is not enough")]
-    NotEnoughBalance {},
-
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Failed to parse or process reply message")]
-    FailedToParseReply {},
+    #[error("Can't handle this message")]
+    UnknownMessage {},
+
+    #[error("Can't stake this token: {0}")]
+    UnknownToken(String),
+
+    #[error("New version must be greater than previous one: {0}")]
+    VersionErr(String),
 }
 
 impl From<semver::Error> for ContractError {

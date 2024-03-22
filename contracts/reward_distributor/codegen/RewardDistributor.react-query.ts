@@ -7,13 +7,109 @@
 import { UseQueryOptions, useQuery, useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee, Coin } from "@cosmjs/amino";
-import { Uint128, InstantiateMsg, LockingRewardConfig, ExecuteMsg, UpdateConfigMsg, QueryMsg, Addr, Config, UserRewardResponse, FlexibleReward, TimelockReward } from "./RewardDistributor.types";
+import { Uint128, InstantiateMsg, LockingRewardConfig, ExecuteMsg, UpdateConfigMsg, QueryMsg, Addr, Config, ArrayOfTupleOfUint64AndUint128, UserRewardResponse, FlexibleReward, TimelockReward, Decimal256, TotalStakingData, StakingData } from "./RewardDistributor.types";
 import { RewardDistributorQueryClient, RewardDistributorClient } from "./RewardDistributor.client";
+export const rewardDistributorQueryKeys = {
+  contract: ([{
+    contract: "rewardDistributor"
+  }] as const),
+  address: (contractAddress: string | undefined) => ([{ ...rewardDistributorQueryKeys.contract[0],
+    address: contractAddress
+  }] as const),
+  config: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...rewardDistributorQueryKeys.address(contractAddress)[0],
+    method: "config",
+    args
+  }] as const),
+  owner: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...rewardDistributorQueryKeys.address(contractAddress)[0],
+    method: "owner",
+    args
+  }] as const),
+  reward: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...rewardDistributorQueryKeys.address(contractAddress)[0],
+    method: "reward",
+    args
+  }] as const),
+  totalStaking: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...rewardDistributorQueryKeys.address(contractAddress)[0],
+    method: "total_staking",
+    args
+  }] as const),
+  pendingRewards: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...rewardDistributorQueryKeys.address(contractAddress)[0],
+    method: "pending_rewards",
+    args
+  }] as const)
+};
+export const rewardDistributorQueries = {
+  config: <TData = Config,>({
+    client,
+    options
+  }: RewardDistributorConfigQuery<TData>): UseQueryOptions<Config, Error, TData> => ({
+    queryKey: rewardDistributorQueryKeys.config(client?.contractAddress),
+    queryFn: () => client ? client.config() : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  owner: <TData = Addr,>({
+    client,
+    options
+  }: RewardDistributorOwnerQuery<TData>): UseQueryOptions<Addr, Error, TData> => ({
+    queryKey: rewardDistributorQueryKeys.owner(client?.contractAddress),
+    queryFn: () => client ? client.owner() : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  reward: <TData = UserRewardResponse,>({
+    client,
+    args,
+    options
+  }: RewardDistributorRewardQuery<TData>): UseQueryOptions<UserRewardResponse, Error, TData> => ({
+    queryKey: rewardDistributorQueryKeys.reward(client?.contractAddress, args),
+    queryFn: () => client ? client.reward({
+      user: args.user
+    }) : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  totalStaking: <TData = TotalStakingData,>({
+    client,
+    options
+  }: RewardDistributorTotalStakingQuery<TData>): UseQueryOptions<TotalStakingData, Error, TData> => ({
+    queryKey: rewardDistributorQueryKeys.totalStaking(client?.contractAddress),
+    queryFn: () => client ? client.totalStaking() : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  pendingRewards: <TData = ArrayOfTupleOfUint64AndUint128,>({
+    client,
+    options
+  }: RewardDistributorPendingRewardsQuery<TData>): UseQueryOptions<ArrayOfTupleOfUint64AndUint128, Error, TData> => ({
+    queryKey: rewardDistributorQueryKeys.pendingRewards(client?.contractAddress),
+    queryFn: () => client ? client.pendingRewards() : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  })
+};
 export interface RewardDistributorReactQuery<TResponse, TData = TResponse> {
   client: RewardDistributorQueryClient | undefined;
   options?: Omit<UseQueryOptions<TResponse, Error, TData>, "'queryKey' | 'queryFn' | 'initialData'"> & {
     initialData?: undefined;
   };
+}
+export interface RewardDistributorPendingRewardsQuery<TData> extends RewardDistributorReactQuery<ArrayOfTupleOfUint64AndUint128, TData> {}
+export function useRewardDistributorPendingRewardsQuery<TData = ArrayOfTupleOfUint64AndUint128>({
+  client,
+  options
+}: RewardDistributorPendingRewardsQuery<TData>) {
+  return useQuery<ArrayOfTupleOfUint64AndUint128, Error, TData>(rewardDistributorQueryKeys.pendingRewards(client?.contractAddress), () => client ? client.pendingRewards() : Promise.reject(new Error("Invalid client")), { ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  });
+}
+export interface RewardDistributorTotalStakingQuery<TData> extends RewardDistributorReactQuery<TotalStakingData, TData> {}
+export function useRewardDistributorTotalStakingQuery<TData = TotalStakingData>({
+  client,
+  options
+}: RewardDistributorTotalStakingQuery<TData>) {
+  return useQuery<TotalStakingData, Error, TData>(rewardDistributorQueryKeys.totalStaking(client?.contractAddress), () => client ? client.totalStaking() : Promise.reject(new Error("Invalid client")), { ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  });
 }
 export interface RewardDistributorRewardQuery<TData> extends RewardDistributorReactQuery<UserRewardResponse, TData> {
   args: {
@@ -25,7 +121,7 @@ export function useRewardDistributorRewardQuery<TData = UserRewardResponse>({
   args,
   options
 }: RewardDistributorRewardQuery<TData>) {
-  return useQuery<UserRewardResponse, Error, TData>(["rewardDistributorReward", client?.contractAddress, JSON.stringify(args)], () => client ? client.reward({
+  return useQuery<UserRewardResponse, Error, TData>(rewardDistributorQueryKeys.reward(client?.contractAddress, args), () => client ? client.reward({
     user: args.user
   }) : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
@@ -36,7 +132,7 @@ export function useRewardDistributorOwnerQuery<TData = Addr>({
   client,
   options
 }: RewardDistributorOwnerQuery<TData>) {
-  return useQuery<Addr, Error, TData>(["rewardDistributorOwner", client?.contractAddress], () => client ? client.owner() : Promise.reject(new Error("Invalid client")), { ...options,
+  return useQuery<Addr, Error, TData>(rewardDistributorQueryKeys.owner(client?.contractAddress), () => client ? client.owner() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
@@ -45,7 +141,7 @@ export function useRewardDistributorConfigQuery<TData = Config>({
   client,
   options
 }: RewardDistributorConfigQuery<TData>) {
-  return useQuery<Config, Error, TData>(["rewardDistributorConfig", client?.contractAddress], () => client ? client.config() : Promise.reject(new Error("Invalid client")), { ...options,
+  return useQuery<Config, Error, TData>(rewardDistributorQueryKeys.config(client?.contractAddress), () => client ? client.config() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }

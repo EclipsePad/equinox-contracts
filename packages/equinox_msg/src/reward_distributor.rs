@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Decimal256, Uint128};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -13,7 +13,7 @@ pub struct InstantiateMsg {
     pub flexible_staking: String,
     /// timelock staking pool
     pub timelock_staking: String,
-    /// eclipASTRO reward contract
+    /// ASTRO/eclipASTRO converter contract
     pub token_converter: String,
     /// ECLIP daily reward
     pub eclip_daily_reward: Uint128,
@@ -81,10 +81,18 @@ pub enum QueryMsg {
 
     #[returns(UserRewardResponse)]
     Reward { user: String },
+
+    #[returns(TotalStakingData)]
+    TotalStaking {},
+
+    #[returns(Vec<(u64, Uint128)>)]
+    PendingRewards {},
 }
 
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub update_contract_name: Option<bool>,
+}
 
 #[cw_serde]
 pub struct LockingRewardConfig {
@@ -164,4 +172,27 @@ pub struct TimelockReward {
 pub struct UserRewardResponse {
     pub flexible: FlexibleReward,
     pub timelock: Vec<TimelockReward>,
+}
+
+#[cw_serde]
+pub struct TotalStakingData {
+    pub staking_data: Vec<StakingData>,
+    pub reward_weight_eclipastro: Decimal256,
+    pub reward_weight_eclip: Decimal256,
+}
+
+impl Default for TotalStakingData {
+    fn default() -> Self {
+        TotalStakingData {
+            staking_data: vec![],
+            reward_weight_eclipastro: Decimal256::zero(),
+            reward_weight_eclip: Decimal256::zero(),
+        }
+    }
+}
+
+#[cw_serde]
+pub struct StakingData {
+    pub duration: u64,
+    pub amount: Uint128,
 }

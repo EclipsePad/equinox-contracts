@@ -39,7 +39,9 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub update_contract_name: Option<bool>
+}
 
 #[cw_serde]
 #[derive(QueryResponses)]

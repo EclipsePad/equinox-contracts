@@ -7,6 +7,9 @@ use equinox_msg::token_converter::{Config, RewardConfig};
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = "token_converter";
 
+/// Contract version that is used for migration.
+pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Owner of the contract who can update config or set new admin
 pub const OWNER: Admin = Admin::new("owner");
 pub const CONFIG: Item<Config> = Item::new("config");

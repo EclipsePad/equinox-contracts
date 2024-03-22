@@ -14,13 +14,13 @@ use equinox_msg::{
 };
 
 /// Update config
+/// Only owner
 pub fn update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     new_config: UpdateConfigMsg,
 ) -> Result<Response, ContractError> {
-    // only owner can execute this function
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let mut config = CONFIG.load(deps.storage)?;
     let mut res: Response = Response::new().add_attribute("action", "update config");
@@ -37,6 +37,7 @@ pub fn update_config(
 }
 
 /// Update owner
+/// Only owner
 pub fn update_owner(
     mut deps: DepsMut,
     _env: Env,
@@ -59,10 +60,12 @@ pub fn receive_cw20(
     msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     match from_json(&msg.msg)? {
+        // stake eclipASTRO token
+        // non zero amount
+        // update user staking, total staking amount
+        // send stake msg to reward distributor contract
         Cw20HookMsg::Stake {} => {
             let config = CONFIG.load(deps.storage)?;
-            let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
-            // only ASTRO token contract can execute this message
             ensure_eq!(
                 config.token,
                 info.sender,
@@ -71,15 +74,19 @@ pub fn receive_cw20(
                     expected: config.token.to_string(),
                 }
             );
-            // check user's staking balance, if not return zero balance
+            ensure!(
+                msg.amount.gt(&Uint128::zero()),
+                ContractError::ZeroAmount {}
+            );
+            let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
             let mut user_staking = STAKING
                 .load(deps.storage, &msg.sender.to_string())
                 .unwrap_or_default();
-            // add amount to user's staking balance and save it.
-            user_staking = user_staking.checked_add(msg.amount).unwrap();
-            STAKING.save(deps.storage, &msg.sender, &user_staking)?;
-            // add amount to total staking balance and save it
+
             total_staking = total_staking.checked_add(msg.amount).unwrap();
+            user_staking = user_staking.checked_add(msg.amount).unwrap();
+
+            STAKING.save(deps.storage, &msg.sender, &user_staking)?;
             TOTAL_STAKING.save(deps.storage, &total_staking)?;
 
             // send stake message to reward_contract
@@ -101,9 +108,10 @@ pub fn receive_cw20(
 }
 
 /// Claim user rewards
+/// send claim message to reward distributor contract
 pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    // send claim message to reward contract
+
     let claim_msg = WasmMsg::Execute {
         contract_addr: config.reward_contract.to_string(),
         msg: to_json_binary(&RewardDistributorExecuteMsg::FlexibleStakeClaim {
@@ -117,6 +125,7 @@ pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, Co
 }
 
 /// Unstake amount and claim rewards of user
+/// check unstake amount
 pub fn unstake(
     deps: DepsMut,
     _env: Env,
@@ -124,10 +133,10 @@ pub fn unstake(
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    // check user staking balance and total_staking balance, if not, raise error
+
     let mut user_staking = STAKING.load(deps.storage, &info.sender.to_string())?;
     let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
-    // check user staking balance is greater than unstaking amount, if not, raise error
+
     ensure!(
         amount.le(&user_staking),
         ContractError::ExeedingUnstakeAmount {
@@ -135,11 +144,14 @@ pub fn unstake(
             expected: user_staking.u128()
         }
     );
-    // update user staking and total staking balance
+    
     user_staking = user_staking.checked_sub(amount).unwrap();
     total_staking = total_staking.checked_sub(amount).unwrap();
+
+    // update user staking, total staking amount
     STAKING.save(deps.storage, &info.sender.to_string(), &user_staking)?;
     TOTAL_STAKING.save(deps.storage, &total_staking)?;
+
     // send eclipASTRO to user, send unstake message to reward contract
     let msg = vec![
         WasmMsg::Execute {

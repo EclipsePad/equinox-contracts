@@ -2,7 +2,9 @@ use cosmwasm_std::{Addr, Deps, Env, Order, StdResult, Uint128};
 
 use crate::state::{CONFIG, OWNER, STAKING, TOTAL_STAKING, TOTAL_STAKING_BY_DURATION};
 use equinox_msg::{
-    reward_distributor::{QueryMsg as RewardDistributorQueryMsg, TimelockReward, UserRewardResponse},
+    reward_distributor::{
+        QueryMsg as RewardDistributorQueryMsg, TimelockReward, UserRewardResponse,
+    },
     timelock_staking::{Config, StakingWithDuration, UserStaking, UserStakingByDuration},
 };
 
@@ -25,50 +27,27 @@ pub fn query_total_staking(deps: Deps, _env: Env) -> StdResult<Uint128> {
 }
 
 // query total staking by duration
-pub fn query_total_staking_by_duration(deps: Deps, _env: Env) -> StdResult<Vec<StakingWithDuration>> {
+pub fn query_total_staking_by_duration(
+    deps: Deps,
+    _env: Env,
+) -> StdResult<Vec<StakingWithDuration>> {
     let config = CONFIG.load(deps.storage)?;
 
-    let total_staking = config.timelock_config.into_iter().map(|c| {
-        Ok(StakingWithDuration {
-            amount: TOTAL_STAKING_BY_DURATION.load(deps.storage, c.duration).unwrap_or_default(),
-            duration: c.duration
-    })
-    }).collect::<StdResult<Vec<StakingWithDuration>>>().unwrap_or(vec![]);
+    let total_staking = config
+        .timelock_config
+        .into_iter()
+        .map(|c| {
+            Ok(StakingWithDuration {
+                amount: TOTAL_STAKING_BY_DURATION
+                    .load(deps.storage, c.duration)
+                    .unwrap_or_default(),
+                duration: c.duration,
+            })
+        })
+        .collect::<StdResult<Vec<StakingWithDuration>>>()
+        .unwrap_or(vec![]);
     Ok(total_staking)
 }
-
-// /// query user staking by specific duration
-// pub fn query_staking_by_duration(
-//     deps: Deps,
-//     _env: Env,
-//     user: String,
-//     duration: u64,
-//     locked_at: Option<u64>,
-// ) -> StdResult<Vec<UserStakingByDuration>> {
-//     match locked_at {
-//         Some(l) => {
-//             let amount = STAKING
-//                 .load(deps.storage, (&user, duration, l))
-//                 .unwrap_or_default();
-//             Ok(vec![UserStakingByDuration {
-//                 amount,
-//                 locked_at: l,
-//             }])
-//         }
-//         None => {
-//             let list = STAKING
-//                 .prefix((&user, duration))
-//                 .range(deps.storage, None, None, Order::Ascending)
-//                 .map(|s| {
-//                     let (locked_at, amount) = s?;
-//                     Ok(UserStakingByDuration { amount, locked_at })
-//                 })
-//                 .collect::<StdResult<Vec<UserStakingByDuration>>>()
-//                 .unwrap_or(vec![]);
-//             Ok(list)
-//         }
-//     }
-// }
 
 /// query user staking
 pub fn query_staking(deps: Deps, _env: Env, user: String) -> StdResult<Vec<UserStaking>> {

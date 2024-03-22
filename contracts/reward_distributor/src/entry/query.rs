@@ -1,14 +1,16 @@
-use cosmwasm_std::{ensure_eq, Addr, Decimal, Deps, Env, Order, StdResult, Uint128};
-use equinox_msg::{
-    reward_distributor::{Config, FlexibleReward, TimelockReward, UserRewardResponse},
-    token_converter::{QueryMsg as ConverterQueryMsg, RewardResponse},
+use std::cmp::min;
+
+use cosmwasm_std::{ensure_eq, Addr, Decimal256, Deps, Env, Order, StdResult, Uint128};
+use cw_storage_plus::Bound;
+use equinox_msg::reward_distributor::{
+    Config, FlexibleReward, StakingData, TimelockReward, TotalStakingData, UserRewardResponse,
 };
 
 use crate::{
     error::ContractError,
     state::{
-        StakingData, TotalStakingData, UserStakingData, CONFIG, FLEXIBLE_USER_STAKING,
-        LAST_UPDATE_TIME, OWNER, TIMELOCK_USER_STAKING, TOTAL_STAKING,
+        UserStakingData, CONFIG, FLEXIBLE_USER_STAKING, LAST_UPDATE_TIME, OWNER, PENDING_REWARDS,
+        REWARD_DISTRIBUTION_PERIOD, REWARD_WEIGHT_MULTIPLIER, TIMELOCK_USER_STAKING, TOTAL_STAKING,
     },
 };
 
@@ -26,12 +28,7 @@ pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
 
 /// query user reward
 pub fn query_reward(deps: Deps, env: Env, user: String) -> StdResult<UserRewardResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    let pending_reward: RewardResponse = deps.querier.query_wasm_smart(
-        config.token_converter.to_string(),
-        &ConverterQueryMsg::Rewards {},
-    )?;
-    let total_staking_data = total_staking_reward_update(deps, env, &pending_reward)?;
+    let total_staking_data = total_staking_reward_update(deps, env)?;
     let mut flexible_user_staking = FLEXIBLE_USER_STAKING
         .load(deps.storage, &user)
         .unwrap_or_default();
@@ -65,15 +62,29 @@ pub fn query_reward(deps: Deps, env: Env, user: String) -> StdResult<UserRewardR
     })
 }
 
-pub fn total_staking_reward_update(
-    deps: Deps,
-    env: Env,
-    pending_reward: &RewardResponse,
-) -> StdResult<TotalStakingData> {
+pub fn query_total_staking(deps: Deps, env: Env) -> StdResult<TotalStakingData> {
+    let total_staking_data = total_staking_reward_update(deps, env)?;
+    Ok(total_staking_data)
+}
+
+pub fn query_pending_rewards(deps: Deps, _env: Env) -> StdResult<Vec<(u64, Uint128)>> {
+    let pending_rewards = PENDING_REWARDS
+        .range(deps.storage, None, None, Order::Descending)
+        .take(30)
+        .collect::<StdResult<Vec<(u64, Uint128)>>>()
+        .unwrap_or(vec![]);
+    Ok(pending_rewards)
+}
+
+pub fn total_staking_reward_update(deps: Deps, env: Env) -> StdResult<TotalStakingData> {
+    let current_time = env.block.time.seconds();
     let config = CONFIG.load(deps.storage)?;
     let mut total_staking_data = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
-    let last_update_time = LAST_UPDATE_TIME.load(deps.storage).unwrap_or_default();
-    if pending_reward.users_reward.amount.gt(&Uint128::zero()) {
+    let last_update_time = LAST_UPDATE_TIME
+        .load(deps.storage)
+        .unwrap_or(current_time);
+    let pending_eclipastro_reward = calculate_eclipastro_reward(deps, current_time);
+    if pending_eclipastro_reward.gt(&Uint128::zero()) {
         // calculate total staking amount
         let total_staking = total_staking_data
             .staking_data
@@ -84,13 +95,11 @@ pub fn total_staking_reward_update(
         // update eclipASTRO reward weight
         // new_weight = old_weight + (converted eclipASTRO reward from xASTRO reward) / total_staking
         if total_staking.gt(&Uint128::zero()) {
-            total_staking_data.reward_weight_eclipastro = total_staking_data
-                .reward_weight_eclipastro
-                .checked_add(Decimal::from_ratio(
-                    pending_reward.users_reward.amount,
-                    total_staking,
-                ))
-                .unwrap();
+            total_staking_data = update_reward_weight_eclipastro(
+                total_staking_data,
+                pending_eclipastro_reward,
+                total_staking,
+            );
         }
     }
     // calculate total staking amount with multiplier
@@ -100,7 +109,7 @@ pub fn total_staking_reward_update(
             .staking_data
             .iter()
             .fold(Uint128::zero(), |acc, cur| {
-                let multiplier = config
+                let multiplier: u64 = config
                     .locking_reward_config
                     .iter()
                     .find(|c| c.duration == cur.duration)
@@ -114,14 +123,14 @@ pub fn total_staking_reward_update(
     if total_staking_with_multiplier.gt(&Uint128::zero()) {
         let pending_reward = config
             .eclip_daily_reward
-            .multiply_ratio(env.block.time.seconds() - last_update_time, 86400u64);
-        total_staking_data.reward_weight_eclip = total_staking_data
-            .reward_weight_eclip
-            .checked_add(Decimal::from_ratio(
+            .multiply_ratio(current_time - last_update_time, 86400u64);
+        if pending_reward.gt(&Uint128::zero()) {
+            total_staking_data = update_reward_weight_eclip(
+                total_staking_data,
                 pending_reward,
                 total_staking_with_multiplier,
-            ))
-            .unwrap();
+            );
+        }
     }
     Ok(total_staking_data)
 }
@@ -208,9 +217,13 @@ pub fn user_reward_update(
                     .reward_weight_eclipastro
                     .checked_sub(user.rewards.eclipastro.reward_weight)
                     .unwrap()
-                    .checked_mul(Decimal::from_ratio(user.amount, Uint128::one()))
+                    .checked_mul(Decimal256::from_ratio(
+                        user.amount,
+                        REWARD_WEIGHT_MULTIPLIER,
+                    ))
                     .unwrap()
-                    .to_uint_floor(),
+                    .to_uint_floor()
+                    .try_into()?,
             )
             .unwrap();
     }
@@ -231,18 +244,80 @@ pub fn user_reward_update(
                     .reward_weight_eclip
                     .checked_sub(user.rewards.eclip.reward_weight)
                     .unwrap()
-                    .checked_mul(Decimal::from_ratio(
+                    .checked_mul(Decimal256::from_ratio(
                         user.amount
                             .checked_mul(eclip_reward_multiplier.into())
                             .unwrap(),
-                        Uint128::one(),
+                        REWARD_WEIGHT_MULTIPLIER,
                     ))
                     .unwrap()
-                    .to_uint_floor(),
+                    .to_uint_floor()
+                    .try_into()?,
             )
             .unwrap();
     }
     user.rewards.eclipastro.reward_weight = total_staking_data.reward_weight_eclipastro;
     user.rewards.eclip.reward_weight = total_staking_data.reward_weight_eclip;
     Ok(user)
+}
+
+pub fn calculate_eclipastro_reward(deps: Deps, time: u64) -> Uint128 {
+    let last_update_time = LAST_UPDATE_TIME.load(deps.storage).unwrap_or(time);
+    if last_update_time == time {
+        return Uint128::zero();
+    }
+    let start_bound = Some(Bound::exclusive(
+        last_update_time - REWARD_DISTRIBUTION_PERIOD,
+    ));
+    let mut pending_rewards = Uint128::zero();
+    let keys = PENDING_REWARDS
+        .keys(deps.storage, start_bound, None, Order::Ascending)
+        .collect::<StdResult<Vec<u64>>>()
+        .unwrap_or(vec![]);
+    for k in keys.into_iter() {
+        let pending_reward = PENDING_REWARDS
+            .load(deps.storage, k)
+            .unwrap_or(Uint128::zero());
+        let end_time = min(k + REWARD_DISTRIBUTION_PERIOD, time);
+        pending_rewards = pending_rewards
+            .checked_add(
+                pending_reward.multiply_ratio(end_time - last_update_time, REWARD_DISTRIBUTION_PERIOD),
+            )
+            .unwrap();
+    }
+    pending_rewards
+}
+
+pub fn update_reward_weight_eclipastro(
+    mut total_staking_data: TotalStakingData,
+    pending_eclipastro_reward: Uint128,
+    total_staking: Uint128,
+) -> TotalStakingData {
+    total_staking_data.reward_weight_eclipastro = total_staking_data
+        .reward_weight_eclipastro
+        .checked_add(Decimal256::from_ratio(
+            pending_eclipastro_reward
+                .checked_mul(Uint128::from(REWARD_WEIGHT_MULTIPLIER))
+                .unwrap(),
+            total_staking,
+        ))
+        .unwrap();
+    total_staking_data
+}
+
+pub fn update_reward_weight_eclip(
+    mut total_staking_data: TotalStakingData,
+    pending_eclip_reward: Uint128,
+    total_staking: Uint128,
+) -> TotalStakingData {
+    total_staking_data.reward_weight_eclip = total_staking_data
+        .reward_weight_eclip
+        .checked_add(Decimal256::from_ratio(
+            pending_eclip_reward
+                .checked_mul(Uint128::from(REWARD_WEIGHT_MULTIPLIER))
+                .unwrap(),
+            total_staking,
+        ))
+        .unwrap();
+    total_staking_data
 }

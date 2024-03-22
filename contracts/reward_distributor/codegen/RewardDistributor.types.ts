@@ -88,6 +88,10 @@ export type QueryMsg = {
   reward: {
     user: string;
   };
+} | {
+  total_staking: {};
+} | {
+  pending_rewards: {};
 };
 export type Addr = string;
 export interface Config {
@@ -99,6 +103,7 @@ export interface Config {
   timelock_staking: Addr;
   token_converter: Addr;
 }
+export type ArrayOfTupleOfUint64AndUint128 = [number, Uint128][];
 export interface UserRewardResponse {
   flexible: FlexibleReward;
   timelock: TimelockReward[];
@@ -112,4 +117,14 @@ export interface TimelockReward {
   eclip: Uint128;
   eclipastro: Uint128;
   locked_at: number;
+}
+export type Decimal256 = string;
+export interface TotalStakingData {
+  reward_weight_eclip: Decimal256;
+  reward_weight_eclipastro: Decimal256;
+  staking_data: StakingData[];
+}
+export interface StakingData {
+  amount: Uint128;
+  duration: number;
 }

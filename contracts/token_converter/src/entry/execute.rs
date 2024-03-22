@@ -344,28 +344,20 @@ pub fn receive_cw20(
     match from_json(&msg.msg) {
         Ok(Cw20HookMsg::Convert {}) => {
             let config = CONFIG.load(deps.storage)?;
-            // only ASTRO token contract can execute this message
-            if config.token_in != info.sender {
-                return Err(ContractError::UnknownToken(info.sender.to_string()));
-            }
-
-            let cw20_sender = deps.api.addr_validate(&msg.sender)?;
-            // save user staking data temporarily
-            USER_STAKING.save(
-                deps.storage,
-                &UserStake {
-                    user: cw20_sender.to_string(),
-                    stake: msg.amount,
-                },
-            )?;
+            let mut amount = msg.amount;
+            // only ASTRO token or xASTRO token can execute this message
+            ensure!(
+                info.sender == config.token_in || info.sender == config.xtoken,
+                ContractError::UnknownToken(info.sender.to_string())
+            );
             // send stake message to vxtoken holder contract and handle response
-            let stake_msg = SubMsg {
+            let mut stake_msg = SubMsg {
                 id: STAKE_TOKEN_REPLY_ID,
                 msg: WasmMsg::Execute {
                     contract_addr: config.token_in.to_string(),
                     msg: to_json_binary(&Cw20ExecuteMsg::Send {
                         contract: config.vxtoken_holder.to_string(),
-                        amount: msg.amount,
+                        amount: amount,
                         msg: to_json_binary(&VoterCw20HookMsg::Stake {})?,
                     })?,
                     funds: vec![],
@@ -374,6 +366,40 @@ pub fn receive_cw20(
                 gas_limit: None,
                 reply_on: ReplyOn::Success,
             };
+            if info.sender == config.xtoken {
+                let (total_deposit, total_shares): (Uint128, Uint128) =
+                    deps.querier.query_wasm_smart(
+                        &config.vxtoken_holder.to_string(),
+                        &VoterQueryMsg::ConvertRatio {},
+                    )?;
+                stake_msg = SubMsg {
+                    id: STAKE_TOKEN_REPLY_ID,
+                    msg: WasmMsg::Execute {
+                        contract_addr: config.xtoken.to_string(),
+                        msg: to_json_binary(&Cw20ExecuteMsg::Send {
+                            contract: config.vxtoken_holder.to_string(),
+                            amount: amount,
+                            msg: to_json_binary(&VoterCw20HookMsg::Stake {})?,
+                        })?,
+                        funds: vec![],
+                    }
+                    .into(),
+                    gas_limit: None,
+                    reply_on: ReplyOn::Success,
+                };
+                // calculate related ASTRO amount from xASTRO amount
+                amount = amount.multiply_ratio(total_deposit, total_shares);
+            }
+
+            let cw20_sender = deps.api.addr_validate(&msg.sender)?;
+            // save user staking data temporarily
+            USER_STAKING.save(
+                deps.storage,
+                &UserStake {
+                    user: cw20_sender.to_string(),
+                    stake: amount,
+                },
+            )?;
             Ok(Response::new().add_submessage(stake_msg))
         }
         Err(_) => Err(ContractError::UnknownMessage {}),

@@ -19,11 +19,8 @@ use crate::{
         },
     },
     error::ContractError,
-    state::CONTRACT_NAME,
+    state::{CONTRACT_NAME, CONTRACT_VERSION},
 };
-
-/// Contract version that is used for migration.
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 pub const STAKE_TOKEN_REPLY_ID: u64 = 2;
@@ -78,17 +75,30 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let version: Version = CONTRACT_VERSION.parse()?;
     let storage_version: Version = get_contract_version(deps.storage)?.version.parse()?;
+    let contract_name = get_contract_version(deps.storage)?.contract;
+
+    match msg.update_contract_name {
+        Some(true) => {
+        },
+        _ => {
+            ensure_eq!(
+                contract_name,
+                CONTRACT_NAME,
+                ContractError::ContractNameErr(contract_name)
+            );
+        }
+    }
 
     ensure_eq!(
-        (storage_version < version),
+        (version >= storage_version),
         true,
         ContractError::VersionErr(storage_version.to_string())
     );
 
-    if storage_version < version {
+    if version > storage_version {
         set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     }
 

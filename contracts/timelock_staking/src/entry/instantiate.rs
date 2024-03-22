@@ -5,7 +5,7 @@ use crate::{
     error::ContractError,
     state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER},
 };
-use equinox_msg::timelock_staking::{Config, InstantiateMsg};
+use equinox_msg::timelock_staking::{Config, InstantiateMsg, TimeLockConfig};
 
 pub fn try_instantiate(
     mut deps: DepsMut,
@@ -20,7 +20,28 @@ pub fn try_instantiate(
         &Config {
             token: deps.api.addr_validate(&msg.token)?,
             reward_contract: Addr::unchecked(""),
-            timelock_config: msg.timelock_config,
+            timelock_config: msg.timelock_config.unwrap_or(vec![
+                TimeLockConfig {
+                    duration: 86400 * 30,
+                    early_unlock_penalty_bps: 3000,
+                },
+                TimeLockConfig {
+                    duration: 86400 * 30 * 3,
+                    early_unlock_penalty_bps: 3000,
+                },
+                TimeLockConfig {
+                    duration: 86400 * 30 * 6,
+                    early_unlock_penalty_bps: 3000,
+                },
+                TimeLockConfig {
+                    duration: 86400 * 30 * 9,
+                    early_unlock_penalty_bps: 3000,
+                },
+                TimeLockConfig {
+                    duration: 86400 * 365,
+                    early_unlock_penalty_bps: 3000,
+                },
+            ]),
         },
     )?;
 

@@ -8,3 +8,7 @@ pub mod voter;
 pub mod flexible_stake;
 #[cfg(test)]
 pub mod timelock_stake;
+#[cfg(test)]
+pub mod lp_stake;
+#[cfg(test)]
+pub mod lockdrop;

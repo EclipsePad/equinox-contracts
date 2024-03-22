@@ -10,7 +10,7 @@ pub fn calculate_claimable(
     xtoken
         .multiply_ratio(total_token, total_xtoken)
         .checked_sub(token)
-        .unwrap()
+        .unwrap_or_default()
         .multiply_ratio(total_xtoken, total_token)
         .checked_sub(claimed)
         .unwrap_or_default()
