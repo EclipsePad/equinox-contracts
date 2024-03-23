@@ -22,7 +22,12 @@ use equinox_msg::{
         ExecuteMsg as FlexibleStakingExecuteMsg, InstantiateMsg as FlexibleStakingInstantiateMsg,
         QueryMsg as FlexibleStakingQueryMsg, UpdateConfigMsg as FlexibleStakingUpdateConfig,
     },
-    lockdrop::{InstantiateMsg as LockdropInstantiateMsg, LockConfig},
+    lockdrop::{
+        Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
+        ExecuteMsg as LockdropExecuteMsg, InstantiateMsg as LockdropInstantiateMsg, LockConfig,
+        LockupInfoResponse, QueryMsg as LockdropQueryMsg, StakeType,
+        UpdateConfigMsg as LockdropUpdateConfigMsg, UserSingleLockupInfoResponse,
+    },
     lp_staking::{
         Config as LpStakingConfig, Cw20HookMsg as LpStakingCw20HookMsg,
         ExecuteMsg as LpStakingExecuteMsg, InstantiateMsg as LpStakingInstantiateMsg,
@@ -644,7 +649,7 @@ impl SuiteBuilder {
 
         let lockdrop_code_id = store_lockdrop(&mut app);
         let init_timestamp = match self.lockdrop_init_timestamp {
-            0u64 => app.block_info().time.seconds(),
+            0u64 => app.block_info().time.seconds() + 86400,
             _ => self.lockdrop_init_timestamp,
         };
         let lockdrop = app
@@ -1696,6 +1701,85 @@ impl Suite {
             .app
             .wrap()
             .query_wasm_smart(self.lp_staking.clone(), &LpStakingQueryMsg::TotalStaking {})?;
+        Ok(res)
+    }
+
+    // lockdrop
+    pub fn update_lockdrop_config(
+        &mut self,
+        sender: &str,
+        new_config: LockdropUpdateConfigMsg,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::UpdateConfig { new_config },
+            &[],
+        )
+    }
+
+    pub fn single_staking_increase_lockdrop(
+        &mut self,
+        sender: &str,
+        token: String,
+        amount: u128,
+        duration: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            Addr::unchecked(token),
+            &Cw20ExecuteMsg::Send {
+                contract: self.lockdrop.to_string(),
+                amount: Uint128::from(amount),
+                msg: to_json_binary(&LockdropCw20HookMsg::IncreaseLockup {
+                    stake_type: StakeType::SingleStaking,
+                    duration,
+                })?,
+            },
+            &[],
+        )
+    }
+
+    pub fn single_staking_lockdrop_withdraw(
+        &mut self,
+        sender: &str,
+        assets: Option<Vec<Asset>>,
+        duration: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::SingleLockingWithdraw { assets, duration },
+            &[],
+        )
+    }
+
+    pub fn query_lockdrop_config(&self) -> StdResult<LockdropConfig> {
+        let res: LockdropConfig = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.lockdrop.clone(), &LockdropQueryMsg::Config {})?;
+        Ok(res)
+    }
+
+    pub fn query_single_lockup_info(&self) -> StdResult<Vec<LockupInfoResponse>> {
+        let res: Vec<LockupInfoResponse> = self.app.wrap().query_wasm_smart(
+            self.lockdrop.clone(),
+            &LockdropQueryMsg::SingleLockupInfo {},
+        )?;
+        Ok(res)
+    }
+
+    pub fn query_user_single_lockup_info(
+        &self,
+        user: &str,
+    ) -> StdResult<Vec<UserSingleLockupInfoResponse>> {
+        let res: Vec<UserSingleLockupInfoResponse> = self.app.wrap().query_wasm_smart(
+            self.lockdrop.clone(),
+            &LockdropQueryMsg::UserSingleLockupInfo {
+                user: Addr::unchecked(user),
+            },
+        )?;
         Ok(res)
     }
 

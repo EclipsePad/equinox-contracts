@@ -540,4 +540,16 @@ fn lp_staking() {
             - new_alice_eclip_balance,
         alice_pending_eclip_reward
     );
+    assert_eq!(
+        suite.query_astro_balance(&suite.eclipse_treasury()).unwrap(),
+        233280u128
+    );
+    assert_eq!(
+        suite.query_astro_balance(&suite.eclipse_ce_reward_distributor()).unwrap(),
+        69120u128
+    );
+    assert_eq!(
+        suite.query_astro_balance(&suite.eclipse_stability_pool()).unwrap(),
+        43200u128
+    );
 }

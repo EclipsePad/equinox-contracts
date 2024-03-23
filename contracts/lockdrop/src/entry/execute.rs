@@ -5,8 +5,8 @@ use astroport::{
     token::BalanceResponse,
 };
 use cosmwasm_std::{
-    attr, coins, ensure, ensure_eq, from_json, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, MessageInfo, Order, Response, Uint128, Uint256, WasmMsg,
+    attr, coins, ensure, ensure_eq, ensure_ne, from_json, to_json_binary, Addr, BankMsg, CosmosMsg,
+    Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response, Uint128, Uint256, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use equinox_msg::{
@@ -177,6 +177,11 @@ pub fn handle_increase_lockup(
     ensure!(
         current_time <= cfg.init_timestamp + cfg.deposit_window,
         ContractError::DepositWindowClosed {}
+    );
+    ensure_ne!(
+        cfg.lock_configs.iter().find(|c| c.duration == duration),
+        None,
+        ContractError::InvalidDuration(duration)
     );
 
     match stake_type {
@@ -598,6 +603,15 @@ pub fn handle_single_locking_withdraw(
         ContractError::AlreadyWithdrawed {}
     );
 
+    if let Some(assets) = assets.clone() {
+        for asset in assets {
+            ensure!(
+                asset.amount.gt(&Uint128::zero()),
+                ContractError::ZeroAmount {}
+            );
+        }
+    }
+
     let mut msgs = vec![];
     let mut response = Response::new().add_attribute("action", "withdraw_from_lockup");
     let assets = assets.unwrap_or(vec![
@@ -616,10 +630,9 @@ pub fn handle_single_locking_withdraw(
     ]);
 
     for asset in assets {
-        ensure!(
-            asset.amount.gt(&Uint128::zero()),
-            ContractError::ZeroAmount {}
-        );
+        if asset.amount.eq(&Uint128::zero()) {
+            continue;
+        }
         ensure!(
             asset.info.equal(&AssetInfo::Token {
                 contract_addr: cfg.astro_token.clone()
@@ -1014,9 +1027,10 @@ pub fn handle_claim_rewards_and_unlock_for_single_lockup(
         .checked_div(Uint128::from(2u128))
         .unwrap();
     let max_allowed_to_claim = half_amount
-        .checked_add(
-            half_amount.multiply_ratio(env.block.time.seconds() - state.countdown_start_at, duration),
-        )
+        .checked_add(half_amount.multiply_ratio(
+            env.block.time.seconds() - state.countdown_start_at,
+            duration,
+        ))
         .unwrap();
     let claimable_amount = max_allowed_to_claim
         .checked_sub(user_lockup_info.claimed_eclip_incentives)
@@ -1168,9 +1182,10 @@ pub fn handle_claim_rewards_and_unlock_for_lp_lockup(
         .checked_div(Uint128::from(2u128))
         .unwrap();
     let max_allowed_to_claim = half_amount
-        .checked_add(
-            half_amount.multiply_ratio(env.block.time.seconds() - state.countdown_start_at, duration),
-        )
+        .checked_add(half_amount.multiply_ratio(
+            env.block.time.seconds() - state.countdown_start_at,
+            duration,
+        ))
         .unwrap();
     let claimable_amount = max_allowed_to_claim
         .checked_sub(user_lockup_info.claimed_eclip_incentives)
