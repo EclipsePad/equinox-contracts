@@ -51,12 +51,8 @@ pub fn query_reward(deps: Deps, env: Env, user: String) -> StdResult<UserRewardR
         .unwrap_or(vec![]);
     Ok(UserRewardResponse {
         flexible: FlexibleReward {
-            eclip: flexible_user_staking.rewards.eclip.pending_reward.clone(),
-            eclipastro: flexible_user_staking
-                .rewards
-                .eclipastro
-                .pending_reward
-                .clone(),
+            eclip: flexible_user_staking.rewards.eclip.pending_reward,
+            eclipastro: flexible_user_staking.rewards.eclipastro.pending_reward,
         },
         timelock: timelock_rewards,
     })
@@ -80,9 +76,7 @@ pub fn total_staking_reward_update(deps: Deps, env: Env) -> StdResult<TotalStaki
     let current_time = env.block.time.seconds();
     let config = CONFIG.load(deps.storage)?;
     let mut total_staking_data = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
-    let last_update_time = LAST_UPDATE_TIME
-        .load(deps.storage)
-        .unwrap_or(current_time);
+    let last_update_time = LAST_UPDATE_TIME.load(deps.storage).unwrap_or(current_time);
     let pending_eclipastro_reward = calculate_eclipastro_reward(deps, current_time);
     if pending_eclipastro_reward.gt(&Uint128::zero()) {
         // calculate total staking amount
@@ -158,11 +152,10 @@ pub fn total_staking_amount_update(
                 }
             })
             .collect::<StdResult<Vec<StakingData>>>()?;
-        if is_duration_contained == false {
-            total_staking_data.staking_data.push(StakingData {
-                duration,
-                amount: amount,
-            });
+        if !is_duration_contained {
+            total_staking_data
+                .staking_data
+                .push(StakingData { duration, amount });
         }
     } else {
         total_staking_data.staking_data = total_staking_data
@@ -281,7 +274,8 @@ pub fn calculate_eclipastro_reward(deps: Deps, time: u64) -> Uint128 {
         let end_time = min(k + REWARD_DISTRIBUTION_PERIOD, time);
         pending_rewards = pending_rewards
             .checked_add(
-                pending_reward.multiply_ratio(end_time - last_update_time, REWARD_DISTRIBUTION_PERIOD),
+                pending_reward
+                    .multiply_ratio(end_time - last_update_time, REWARD_DISTRIBUTION_PERIOD),
             )
             .unwrap();
     }

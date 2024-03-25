@@ -13,7 +13,10 @@ use crate::{
             update_reward_config,
         },
         instantiate::try_instantiate,
-        query::{query_config, query_owner, query_reward, query_reward_config, query_staking, query_total_staking},
+        query::{
+            query_config, query_owner, query_reward, query_reward_config, query_staking,
+            query_total_staking,
+        },
     },
     error::ContractError,
     state::{CONTRACT_NAME, CONTRACT_VERSION},

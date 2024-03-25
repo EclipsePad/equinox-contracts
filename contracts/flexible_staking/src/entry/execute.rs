@@ -144,7 +144,7 @@ pub fn unstake(
             expected: user_staking.u128()
         }
     );
-    
+
     user_staking = user_staking.checked_sub(amount).unwrap();
     total_staking = total_staking.checked_sub(amount).unwrap();
 

@@ -14,7 +14,10 @@ pub fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> StdR
         .to_uint_floor())
 }
 
-pub fn calculate_max_withdrawal_percent_allowed(current_timestamp: u64, config: &Config) -> Decimal {
+pub fn calculate_max_withdrawal_percent_allowed(
+    current_timestamp: u64,
+    config: &Config,
+) -> Decimal {
     let withdrawal_cutoff_init_point = config.init_timestamp + config.deposit_window;
 
     // Deposit window :: 100% withdrawals allowed

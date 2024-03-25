@@ -129,7 +129,7 @@ pub enum Cw20HookMsg {
 
 #[cw_serde]
 pub enum CallbackMsg {
-        StakeToSingleVault {
+    StakeToSingleVault {
         prev_eclipastro_balance: Uint128,
         astro_balance_to_convert: Uint128,
         xastro_balance_to_convert: Uint128,
@@ -235,18 +235,10 @@ pub struct UpdateConfigMsg {
 }
 
 #[cw_serde]
+#[derive(Default)]
 pub struct LockConfig {
     pub duration: u64,
     pub multiplier: u64, // basis points
-}
-
-impl Default for LockConfig {
-    fn default() -> Self {
-        LockConfig {
-            duration: 0u64,
-            multiplier: 0u64,
-        }
-    }
 }
 
 // change when user deposit/withdraw

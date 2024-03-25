@@ -121,7 +121,7 @@ pub fn flexible_stake(
     // update user staking reward
     user_staking = user_reward_update(deps.as_ref(), &total_staking_data, 0u64, &user_staking)?;
     // update user staking balance
-    user_staking.amount = user_staking.amount.checked_add(amount.clone()).unwrap();
+    user_staking.amount = user_staking.amount.checked_add(amount).unwrap();
     TOTAL_STAKING.save(deps.storage, &total_staking_data)?;
     // update last update time as current block time
     LAST_UPDATE_TIME.save(deps.storage, &env.block.time.seconds())?;
@@ -687,12 +687,8 @@ pub fn timelock_unstake(
     let mut user_staking =
         TIMELOCK_USER_STAKING.load(deps.storage, (&user, duration, locked_at))?;
     // update total staking balance
-    total_staking_data = total_staking_amount_update(
-        total_staking_data,
-        duration,
-        user_staking.amount.clone(),
-        false,
-    )?;
+    total_staking_data =
+        total_staking_amount_update(total_staking_data, duration, user_staking.amount, false)?;
     // update user reward data
     user_staking = user_reward_update(deps.as_ref(), &total_staking_data, duration, &user_staking)?;
     let mut msgs = vec![];
@@ -776,7 +772,7 @@ pub fn restake(
         info.sender == config.timelock_staking,
         ContractError::Unauthorized {}
     );
-    
+
     // get user staking data
     let mut old_user_staking =
         TIMELOCK_USER_STAKING.load(deps.storage, (&user, from_duration, locked_at))?;

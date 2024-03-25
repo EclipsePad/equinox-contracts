@@ -2,7 +2,10 @@ use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
 
 use crate::state::{CONFIG, OWNER, STAKING, TOTAL_STAKING};
 use equinox_msg::{
-    flexible_staking::Config, reward_distributor::{FlexibleReward, QueryMsg as RewardDistributorQueryMsg, UserRewardResponse},
+    flexible_staking::Config,
+    reward_distributor::{
+        FlexibleReward, QueryMsg as RewardDistributorQueryMsg, UserRewardResponse,
+    },
 };
 
 /// query owner

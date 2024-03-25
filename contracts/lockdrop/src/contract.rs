@@ -12,7 +12,13 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            _handle_callback, handle_claim_lp_staking_asset_rewards, handle_claim_rewards_and_unlock_for_lp_lockup, handle_claim_rewards_and_unlock_for_single_lockup, handle_claim_single_staking_asset_rewards, handle_enable_claims, handle_increase_eclip_incentives, handle_lp_locking_withdraw, handle_single_locking_withdraw, handle_stake_lp_vault, handle_stake_single_vault, handle_update_config, receive_cw20
+            _handle_callback, handle_claim_lp_staking_asset_rewards,
+            handle_claim_rewards_and_unlock_for_lp_lockup,
+            handle_claim_rewards_and_unlock_for_single_lockup,
+            handle_claim_single_staking_asset_rewards, handle_enable_claims,
+            handle_increase_eclip_incentives, handle_lp_locking_withdraw,
+            handle_single_locking_withdraw, handle_stake_lp_vault, handle_stake_single_vault,
+            handle_update_config, receive_cw20,
         },
         instantiate::try_instantiate,
         query::{
@@ -88,24 +94,20 @@ pub fn execute(
                 |recip_addr| deps.api.addr_validate(&recip_addr),
             )?;
             match stake_type {
-                StakeType::SingleStaking => {
-                    return handle_claim_single_staking_asset_rewards(
-                        deps,
-                        env,
-                        info.sender,
-                        recipient,
-                        duration,
-                    )
-                }
-                StakeType::LpStaking => {
-                    return handle_claim_lp_staking_asset_rewards(
-                        deps,
-                        env,
-                        info.sender,
-                        recipient,
-                        duration,
-                    )
-                }
+                StakeType::SingleStaking => handle_claim_single_staking_asset_rewards(
+                    deps,
+                    env,
+                    info.sender,
+                    recipient,
+                    duration,
+                ),
+                StakeType::LpStaking => handle_claim_lp_staking_asset_rewards(
+                    deps,
+                    env,
+                    info.sender,
+                    recipient,
+                    duration,
+                ),
             }
         }
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {

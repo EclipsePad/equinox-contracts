@@ -1,6 +1,4 @@
-use cosmwasm_std::{
-    Addr, Api, StdResult
-};
+use cosmwasm_std::{Addr, Api, StdResult};
 
 /// Returns a lowercased, validated address upon success if present.
 #[inline]

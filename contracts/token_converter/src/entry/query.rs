@@ -34,7 +34,7 @@ pub fn query_rewards(deps: Deps, _env: Env) -> StdResult<RewardResponse> {
     let reward_config = REWARD_CONFIG.load(deps.storage)?;
     let mut treasury_reward = TREASURY_REWARD.load(deps.storage).unwrap_or_default();
     let (total_deposit, total_shares): (Uint128, Uint128) = deps.querier.query_wasm_smart(
-        &config.vxtoken_holder.to_string(),
+        config.vxtoken_holder.to_string(),
         &VoterQueryMsg::ConvertRatio {},
     )?;
     let total_staking = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
@@ -91,7 +91,7 @@ pub fn query_treasury_reward(deps: Deps, _env: Env) -> StdResult<Uint128> {
     let total_stake_info = TOTAL_STAKE_INFO.load(deps.storage)?;
     let treasury_reward = TREASURY_REWARD.load(deps.storage)?;
     let (total_deposit, total_shares): (Uint128, Uint128) = deps.querier.query_wasm_smart(
-        &config.vxtoken_holder.to_string(),
+        config.vxtoken_holder.to_string(),
         &VoterQueryMsg::ConvertRatio {},
     )?;
     let claimable = calculate_claimable(

@@ -95,18 +95,10 @@ pub struct MigrateMsg {
 }
 
 #[cw_serde]
+#[derive(Default)]
 pub struct LockingRewardConfig {
     pub duration: u64,
     pub multiplier: u64,
-}
-
-impl Default for LockingRewardConfig {
-    fn default() -> Self {
-        LockingRewardConfig {
-            duration: 0u64,
-            multiplier: 0u64,
-        }
-    }
 }
 
 impl Default for &LockingRewardConfig {

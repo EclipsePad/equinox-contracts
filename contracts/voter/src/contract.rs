@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
+    Response, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use equinox_msg::voter::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};

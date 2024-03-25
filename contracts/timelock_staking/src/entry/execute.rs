@@ -100,8 +100,7 @@ pub fn receive_cw20(
                 config
                     .timelock_config
                     .into_iter()
-                    .find(|i| i.duration == duration)
-                    != None,
+                    .any(|i| i.duration == duration),
                 ContractError::NoLockingPeriodFound(duration)
             );
 

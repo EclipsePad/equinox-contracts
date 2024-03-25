@@ -7,7 +7,7 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
-    
+
     #[error("Semver parsing error: {0}")]
     SemVer(String),
 }

@@ -30,7 +30,7 @@ pub fn try_instantiate(
             astroport_generator: deps.api.addr_validate(&msg.astroport_generator)?,
             treasury: deps.api.addr_validate(&msg.treasury)?,
             stability_pool: deps.api.addr_validate(&msg.stability_pool)?,
-            ce_reward_distributor: ce_reward_distributor,
+            ce_reward_distributor,
         },
     )?;
     // update reward config

@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use semver::Version;
@@ -12,9 +13,12 @@ use crate::{
             update_owner,
         },
         instantiate::try_instantiate,
-        query::{query_config, query_owner, query_pending_rewards, query_reward, query_total_staking},
+        query::{
+            query_config, query_owner, query_pending_rewards, query_reward, query_total_staking,
+        },
     },
-    error::ContractError, state::{CONTRACT_NAME, CONTRACT_VERSION},
+    error::ContractError,
+    state::{CONTRACT_NAME, CONTRACT_VERSION},
 };
 use equinox_msg::reward_distributor::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
@@ -53,7 +57,9 @@ pub fn execute(
             duration,
             locked_at,
         } => timelock_stake_claim(deps, env, info, user, duration, locked_at),
-        ExecuteMsg::TimelockStakeClaimAll { user } => timelock_stake_claim_all(deps, env, info, user),
+        ExecuteMsg::TimelockStakeClaimAll { user } => {
+            timelock_stake_claim_all(deps, env, info, user)
+        }
         ExecuteMsg::FlexibleUnstake { user, amount } => {
             flexible_unstake(deps, env, info, user, amount)
         }
@@ -91,8 +97,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     let contract_name = get_contract_version(deps.storage)?.contract;
 
     match msg.update_contract_name {
-        Some(true) => {
-        },
+        Some(true) => {}
         _ => {
             ensure_eq!(
                 contract_name,

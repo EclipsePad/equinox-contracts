@@ -913,8 +913,7 @@ pub fn handle_claim_single_staking_asset_rewards(
 
     let timelock_claimable = timelock_staking_reward_response
         .into_iter()
-        .find(|r| r.eclip.gt(&Uint128::zero()) || r.eclipastro.gt(&Uint128::zero()))
-        .is_some();
+        .any(|r| r.eclip.gt(&Uint128::zero()) || r.eclipastro.gt(&Uint128::zero()));
 
     if timelock_claimable {
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -1259,20 +1258,21 @@ pub fn handle_unlock_lp_lockup(
     let lp_amount = state
         .total_lp_lockdrop
         .multiply_ratio(state.total_eclipastro, converted_eclipastro_amount);
-    let mut msgs = vec![];
-    msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.lp_staking.unwrap().to_string(),
-        msg: to_json_binary(&LpStakingExecuteMsg::Unstake { amount: lp_amount })?,
-        funds: vec![],
-    }));
-    msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.lp_token.to_string(),
-        msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: user_address.to_string(),
-            amount: lp_amount,
-        })?,
-        funds: vec![],
-    }));
+    let msgs = vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.lp_staking.unwrap().to_string(),
+            msg: to_json_binary(&LpStakingExecuteMsg::Unstake { amount: lp_amount })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.lp_token.to_string(),
+            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: user_address.to_string(),
+                amount: lp_amount,
+            })?,
+            funds: vec![],
+        }),
+    ];
     user_lockup_info.unlock_flag = true;
     lockup_info.total_withdrawed = lockup_info.total_withdrawed.checked_add(lp_amount).unwrap();
     LP_USER_LOCKUP_INFO.save(deps.storage, (&user_address, duration), &user_lockup_info)?;
@@ -1614,7 +1614,7 @@ fn handle_distribute_single_staking_asset_rewards(
         .balance
         .checked_sub(prev_eclipastro_balance)
         .unwrap();
-    if single_state.reward_weights.len() == 0 {
+    if single_state.reward_weights.is_empty() {
         single_state.reward_weights = vec![
             AssetRewardWeight {
                 asset: AssetInfo::Token {
@@ -1631,7 +1631,7 @@ fn handle_distribute_single_staking_asset_rewards(
         ];
     }
     let reward_distributor_config: RewardDistributorConfig = deps.querier.query_wasm_smart(
-        &cfg.reward_distributor.unwrap().to_string(),
+        cfg.reward_distributor.unwrap().to_string(),
         &RewardDistributorQueryMsg::Config {},
     )?;
     let locking_reward_config = reward_distributor_config.locking_reward_config;
@@ -1778,7 +1778,7 @@ fn handle_lp_stake_distribute_asset_reward(
         .balance
         .checked_sub(prev_astro_balance)
         .unwrap();
-    if lp_state.reward_weights.len() == 0 {
+    if lp_state.reward_weights.is_empty() {
         lp_state.reward_weights = vec![
             AssetRewardWeight {
                 asset: AssetInfo::Token {

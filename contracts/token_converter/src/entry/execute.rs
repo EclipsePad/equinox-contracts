@@ -115,7 +115,7 @@ pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, Co
     );
     // ASTRO / xASTRO rate from voter contract
     let (total_deposit, total_shares): (Uint128, Uint128) = deps.querier.query_wasm_smart(
-        &config.vxtoken_holder.to_string(),
+        config.vxtoken_holder.to_string(),
         &VoterQueryMsg::ConvertRatio {},
     )?;
     let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
@@ -222,7 +222,7 @@ pub fn claim_treasury_reward(
     let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
     // ASTRO / xASTRO
     let (total_deposit, total_shares): (Uint128, Uint128) = deps.querier.query_wasm_smart(
-        &config.vxtoken_holder.to_string(),
+        config.vxtoken_holder.to_string(),
         &VoterQueryMsg::ConvertRatio {},
     )?;
     let dao_reward_point =
@@ -286,14 +286,14 @@ pub fn claim_treasury_reward(
         amount.le(&treasury_reward_withdrawable),
         ContractError::NotEnoughBalance {}
     );
-    treasury_reward_withdrawable = treasury_reward_withdrawable - amount;
+    treasury_reward_withdrawable -= amount;
     total_stake_info.claimed = total_stake_info.claimed.checked_add(claimable).unwrap();
     TOTAL_STAKE_INFO.save(deps.storage, &total_stake_info)?;
     TREASURY_REWARD.save(deps.storage, &treasury_reward_withdrawable)?;
     msgs.push(WasmMsg::Execute {
         contract_addr: config.vxtoken_holder.to_string(),
         msg: to_json_binary(&VoterExecuteMsg::Withdraw {
-            amount: amount,
+            amount,
             recipient: config.treasury.to_string(),
         })?,
         funds: vec![],
@@ -319,15 +319,12 @@ pub fn withdraw_xtoken(
         amount.le(&withdrawable_balance),
         ContractError::NotEnoughBalance {}
     );
-    withdrawable_balance = withdrawable_balance - amount;
+    withdrawable_balance -= amount;
     WITHDRAWABLE_BALANCE.save(deps.storage, &withdrawable_balance)?;
     Ok(Response::new()
         .add_message(WasmMsg::Execute {
             contract_addr: config.vxtoken_holder.to_string(),
-            msg: to_json_binary(&VoterExecuteMsg::Withdraw {
-                amount: amount,
-                recipient: recipient,
-            })?,
+            msg: to_json_binary(&VoterExecuteMsg::Withdraw { amount, recipient })?,
             funds: vec![],
         })
         .add_attribute("action", "withdraw xtoken")
@@ -357,7 +354,7 @@ pub fn receive_cw20(
                     contract_addr: config.token_in.to_string(),
                     msg: to_json_binary(&Cw20ExecuteMsg::Send {
                         contract: config.vxtoken_holder.to_string(),
-                        amount: amount,
+                        amount,
                         msg: to_json_binary(&VoterCw20HookMsg::Stake {})?,
                     })?,
                     funds: vec![],
@@ -369,7 +366,7 @@ pub fn receive_cw20(
             if info.sender == config.xtoken {
                 let (total_deposit, total_shares): (Uint128, Uint128) =
                     deps.querier.query_wasm_smart(
-                        &config.vxtoken_holder.to_string(),
+                        config.vxtoken_holder.to_string(),
                         &VoterQueryMsg::ConvertRatio {},
                     )?;
                 stake_msg = SubMsg {
@@ -378,7 +375,7 @@ pub fn receive_cw20(
                         contract_addr: config.xtoken.to_string(),
                         msg: to_json_binary(&Cw20ExecuteMsg::Send {
                             contract: config.vxtoken_holder.to_string(),
-                            amount: amount,
+                            amount,
                             msg: to_json_binary(&VoterCw20HookMsg::Stake {})?,
                         })?,
                         funds: vec![],

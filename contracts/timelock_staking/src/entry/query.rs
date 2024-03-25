@@ -68,7 +68,7 @@ pub fn query_staking(deps: Deps, _env: Env, user: String) -> StdResult<Vec<UserS
             })
             .collect::<StdResult<Vec<UserStakingByDuration>>>()
             .unwrap_or(vec![]);
-        if staking.len() > 0 {
+        if !staking.is_empty() {
             staking_lists.push(UserStaking { duration, staking });
         }
     }
@@ -108,8 +108,8 @@ pub fn calculate_penalty(
         let penalty_amount = amount
             .multiply_ratio(locked_at + duration - current_time, duration)
             .multiply_ratio(timelock_config.early_unlock_penalty_bps, 10000u128);
-        return Ok(penalty_amount);
+        Ok(penalty_amount)
     } else {
-        return Ok(Uint128::zero());
-    };
+        Ok(Uint128::zero())
+    }
 }

@@ -419,9 +419,17 @@ fn claim_treasury_reward() {
         )
         .unwrap();
 
-    assert_eq!(suite.query_astro_staking_total_deposit().unwrap(), 1_101_000);
+    assert_eq!(
+        suite.query_astro_staking_total_deposit().unwrap(),
+        1_101_000
+    );
     assert_eq!(suite.query_astro_staking_total_shares().unwrap(), 1_001_000);
-    assert_eq!(suite.query_xastro_balance(suite.voter_contract().as_str()).unwrap(), 1_000);
+    assert_eq!(
+        suite
+            .query_xastro_balance(suite.voter_contract().as_str())
+            .unwrap(),
+        1_000
+    );
 
     let reward = suite.query_converter_reward().unwrap();
     // total_reward = (1000 * 1_101_000 / 1_001_000 - 1000) * 1_001_000 / 1_101_000 = 90
@@ -652,15 +660,19 @@ fn withdraw_xtoken() {
     suite.claim().unwrap();
     assert_eq!(suite.query_withdrawable_balance().unwrap(), 72);
     let err = suite.withdraw_xtoken("hacker", 10, "hacker").unwrap_err();
-    assert_eq!(ContractError::Admin(AdminError::NotAdmin {}), err.downcast().unwrap());
-    suite.withdraw_xtoken(&suite.admin(), 10, &suite.admin()).unwrap();
     assert_eq!(
-        suite
-            .query_xastro_balance(&suite.admin())
-            .unwrap(),
-        10
+        ContractError::Admin(AdminError::NotAdmin {}),
+        err.downcast().unwrap()
     );
-    let err = suite.withdraw_xtoken(&suite.admin(), 70, &suite.admin()).unwrap_err();
+    suite
+        .withdraw_xtoken(&suite.admin(), 10, &suite.admin())
+        .unwrap();
+    assert_eq!(suite.query_xastro_balance(&suite.admin()).unwrap(), 10);
+    let err = suite
+        .withdraw_xtoken(&suite.admin(), 70, &suite.admin())
+        .unwrap_err();
     assert_eq!(ContractError::NotEnoughBalance {}, err.downcast().unwrap());
-    suite.withdraw_xtoken(&suite.admin(), 62, &suite.admin()).unwrap();
+    suite
+        .withdraw_xtoken(&suite.admin(), 62, &suite.admin())
+        .unwrap();
 }

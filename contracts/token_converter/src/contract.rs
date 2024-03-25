@@ -81,8 +81,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     let contract_name = get_contract_version(deps.storage)?.contract;
 
     match msg.update_contract_name {
-        Some(true) => {
-        },
+        Some(true) => {}
         _ => {
             ensure_eq!(
                 contract_name,

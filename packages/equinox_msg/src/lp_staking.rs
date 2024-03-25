@@ -86,12 +86,8 @@ pub enum Cw20HookMsg {
 
 #[cw_serde]
 pub enum CallbackMsg {
-    Claim {
-        user: String,
-    },
-    DistributeEclipseRewards {
-        assets: Vec<Asset>
-    }
+    Claim { user: String },
+    DistributeEclipseRewards { assets: Vec<Asset> },
 }
 
 impl CallbackMsg {
@@ -210,6 +206,5 @@ pub struct UserAstroportReward {
 #[cw_serde]
 pub struct UserRewardResponse {
     pub asset: AssetInfo,
-    pub amount: Uint128
+    pub amount: Uint128,
 }
-

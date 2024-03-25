@@ -189,7 +189,7 @@ pub fn receive_cw20(
                 funds: vec![],
             }));
 
-            if pending_eclipse_rewards.len() > 0 {
+            if !pending_eclipse_rewards.is_empty() {
                 msgs.push(
                     CallbackMsg::DistributeEclipseRewards {
                         assets: pending_eclipse_rewards,
@@ -286,13 +286,13 @@ pub fn claim(
     }
     response = response
         .add_attribute("asset", cfg.eclip.to_string())
-        .add_attribute("amount", user_staking.pending_eclip_rewards.clone());
+        .add_attribute("amount", user_staking.pending_eclip_rewards);
 
     user_staking.pending_eclip_rewards = Uint128::zero();
     STAKING.save(deps.storage, &sender, &user_staking)?;
     LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
 
-    if pending_eclipse_rewards.len() > 0 {
+    if !pending_eclipse_rewards.is_empty() {
         msgs.push(
             CallbackMsg::DistributeEclipseRewards {
                 assets: pending_eclipse_rewards,
@@ -374,7 +374,7 @@ pub fn unstake(
         }
         .to_cosmos_msg(&env)?,
     );
-    if pending_eclipse_rewards.len() > 0 {
+    if !pending_eclipse_rewards.is_empty() {
         msgs.push(
             CallbackMsg::DistributeEclipseRewards {
                 assets: pending_eclipse_rewards,

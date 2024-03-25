@@ -541,15 +541,21 @@ fn lp_staking() {
         alice_pending_eclip_reward
     );
     assert_eq!(
-        suite.query_astro_balance(&suite.eclipse_treasury()).unwrap(),
+        suite
+            .query_astro_balance(&suite.eclipse_treasury())
+            .unwrap(),
         233280u128
     );
     assert_eq!(
-        suite.query_astro_balance(&suite.eclipse_ce_reward_distributor()).unwrap(),
+        suite
+            .query_astro_balance(&suite.eclipse_ce_reward_distributor())
+            .unwrap(),
         69120u128
     );
     assert_eq!(
-        suite.query_astro_balance(&suite.eclipse_stability_pool()).unwrap(),
+        suite
+            .query_astro_balance(&suite.eclipse_stability_pool())
+            .unwrap(),
         43200u128
     );
 }

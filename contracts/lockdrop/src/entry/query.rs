@@ -103,16 +103,16 @@ pub fn query_user_single_lockup_info(
     let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
     let cfg = CONFIG.load(deps.storage)?;
 
-    if state.is_staked == true {
+    if state.is_staked {
         let flexible_staking_reward_response: FlexibleReward = deps.querier.query_wasm_smart(
-            &cfg.flexible_staking.clone().unwrap(),
+            cfg.flexible_staking.clone().unwrap(),
             &FlexibleStakingQueryMsg::Reward {
                 user: env.contract.address.to_string(),
             },
         )?;
 
         let lock_staking_reward_response: Vec<TimelockReward> = deps.querier.query_wasm_smart(
-            &cfg.timelock_staking.clone().unwrap(),
+            cfg.timelock_staking.clone().unwrap(),
             &TimelockStakingQueryMsg::Reward {
                 user: env.contract.address.to_string(),
             },
@@ -133,7 +133,7 @@ pub fn query_user_single_lockup_info(
             });
 
         let reward_distributor_config: RewardDistributorConfig = deps.querier.query_wasm_smart(
-            &cfg.reward_distributor.unwrap().to_string(),
+            cfg.reward_distributor.unwrap().to_string(),
             &RewardDistributorQueryMsg::Config {},
         )?;
         let locking_reward_config = reward_distributor_config.locking_reward_config;
@@ -152,7 +152,7 @@ pub fn query_user_single_lockup_info(
                     .unwrap()
             });
 
-        let reward_weights = if state.reward_weights.len() > 0 {
+        let reward_weights = if !state.reward_weights.is_empty() {
             state.reward_weights
         } else {
             vec![
@@ -263,7 +263,7 @@ pub fn query_user_single_lockup_info(
                             amount: pending_eclip_reward,
                         },
                     ],
-                    countdown_start_at: state.countdown_start_at
+                    countdown_start_at: state.countdown_start_at,
                 }
             })
             .collect::<Vec<UserSingleLockupInfoResponse>>())
@@ -283,7 +283,7 @@ pub fn query_user_single_lockup_info(
                     total_eclip_incentives: user_lockup_info.total_eclip_incentives,
                     claimed_eclip_incentives: user_lockup_info.claimed_eclip_incentives,
                     staking_rewards: vec![],
-                    countdown_start_at: state.countdown_start_at
+                    countdown_start_at: state.countdown_start_at,
                 }
             })
             .collect::<Vec<UserSingleLockupInfoResponse>>())
@@ -299,9 +299,9 @@ pub fn query_user_lp_lockup_info(
     let state = LP_LOCKUP_STATE.load(deps.storage)?;
     let cfg = CONFIG.load(deps.storage)?;
 
-    if state.is_staked == true {
+    if state.is_staked {
         let lp_staking_reward_response: LpRewards = deps.querier.query_wasm_smart(
-            &cfg.lp_staking.clone().unwrap(),
+            cfg.lp_staking.clone().unwrap(),
             &LpStakingQueryMsg::Reward {
                 user: env.contract.address.to_string(),
             },
@@ -317,7 +317,7 @@ pub fn query_user_lp_lockup_info(
                 acc + lockup_info.total_staked - lockup_info.total_withdrawed
             });
 
-        let reward_weights = if state.reward_weights.len() > 0 {
+        let reward_weights = if !state.reward_weights.is_empty() {
             state.reward_weights
         } else {
             vec![
@@ -419,7 +419,7 @@ pub fn query_user_lp_lockup_info(
                             amount: pending_eclip_reward,
                         },
                     ],
-                    countdown_start_at: state.countdown_start_at
+                    countdown_start_at: state.countdown_start_at,
                 }
             })
             .collect::<Vec<UserLpLockupInfoResponse>>())
@@ -439,7 +439,7 @@ pub fn query_user_lp_lockup_info(
                     total_eclip_incentives: user_lockup_info.total_eclip_incentives,
                     claimed_eclip_incentives: user_lockup_info.claimed_eclip_incentives,
                     staking_rewards: vec![],
-                    countdown_start_at: state.countdown_start_at
+                    countdown_start_at: state.countdown_start_at,
                 }
             })
             .collect::<Vec<UserLpLockupInfoResponse>>())

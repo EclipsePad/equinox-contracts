@@ -6,10 +6,6 @@ pub fn query_token_balance(
     token: String,
     address: String,
 ) -> StdResult<BalanceResponse> {
-    deps.querier.query_wasm_smart(
-        &token,
-        &Cw20QueryMsg::Balance {
-            address: address,
-        },
-    )
+    deps.querier
+        .query_wasm_smart(token, &Cw20QueryMsg::Balance { address })
 }

@@ -20,13 +20,15 @@ pub const OWNER: Admin = Admin::new("owner");
 pub const CONFIG: Item<Config> = Item::new("config");
 // user staking data, reward weight for eclipASTRO, reward weight for ECLIP
 pub const TOTAL_STAKING: Item<TotalStakingData> = Item::new("total_staking");
-pub const TIMELOCK_USER_STAKING: Map<(&String, u64, u64), UserStakingData> = Map::new("timelock_user_staking");
+pub const TIMELOCK_USER_STAKING: Map<(&String, u64, u64), UserStakingData> =
+    Map::new("timelock_user_staking");
 pub const FLEXIBLE_USER_STAKING: Map<&String, UserStakingData> = Map::new("flexible_user_staking");
 pub const LAST_UPDATE_TIME: Item<u64> = Item::new("last_update_time");
 // start time, end time
 pub const PENDING_REWARDS: Map<u64, Uint128> = Map::new("pending_rewards");
 
 #[cw_serde]
+#[derive(Default)]
 pub struct UserRewards {
     pub eclipastro: UserReward,
     pub eclip: UserReward,
@@ -43,15 +45,6 @@ impl Default for UserReward {
         UserReward {
             reward_weight: Decimal256::zero(),
             pending_reward: Uint128::zero(),
-        }
-    }
-}
-
-impl Default for UserRewards {
-    fn default() -> Self {
-        UserRewards {
-            eclipastro: UserReward::default(),
-            eclip: UserReward::default(),
         }
     }
 }

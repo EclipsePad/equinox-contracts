@@ -106,8 +106,6 @@ pub fn handle_instantiate_reply(
 
             Ok(Response::new())
         }
-        _ => {
-            return Err(ContractError::FailedToParseReply {});
-        }
+        _ => Err(ContractError::FailedToParseReply {}),
     }
 }

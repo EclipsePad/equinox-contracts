@@ -4,7 +4,8 @@ use cw_storage_plus::{Item, Map};
 use equinox_msg::{
     common::OwnershipProposal,
     lockdrop::{
-        Config, LockupInfo, LpLockupState, LpStakingAssetRewardWeights, LpUserLockupInfo, SingleLockupState, SingleStakingAssetRewardWeights, SingleUserLockupInfo
+        Config, LockupInfo, LpLockupState, LpStakingAssetRewardWeights, LpUserLockupInfo,
+        SingleLockupState, SingleStakingAssetRewardWeights, SingleUserLockupInfo,
     },
 };
 

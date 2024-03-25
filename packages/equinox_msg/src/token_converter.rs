@@ -17,7 +17,7 @@ pub struct InstantiateMsg {
     /// eclipASTRO token code id
     pub token_code_id: u64,
     /// eclipASTRO marketing info
-    pub marketing: Option<InstantiateMarketingInfo>
+    pub marketing: Option<InstantiateMarketingInfo>,
 }
 
 #[cw_serde]
@@ -40,7 +40,7 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 pub struct MigrateMsg {
-    pub update_contract_name: Option<bool>
+    pub update_contract_name: Option<bool>,
 }
 
 #[cw_serde]

@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use semver::Version;
@@ -10,7 +11,8 @@ use crate::{
         instantiate::try_instantiate,
         query::{query_config, query_owner, query_reward, query_staking, query_total_staking},
     },
-    error::ContractError, state::{CONTRACT_NAME, CONTRACT_VERSION},
+    error::ContractError,
+    state::{CONTRACT_NAME, CONTRACT_VERSION},
 };
 use equinox_msg::flexible_staking::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
@@ -63,8 +65,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     let contract_name = get_contract_version(deps.storage)?.contract;
 
     match msg.update_contract_name {
-        Some(true) => {
-        },
+        Some(true) => {}
         _ => {
             ensure_eq!(
                 contract_name,
