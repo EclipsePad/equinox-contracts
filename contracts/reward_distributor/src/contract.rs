@@ -20,7 +20,10 @@ use crate::{
     error::ContractError,
     state::{CONTRACT_NAME, CONTRACT_VERSION},
 };
-use equinox_msg::reward_distributor::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use equinox_msg::{
+    reward_distributor::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
+    timelock_staking::RestakingDetail,
+};
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -73,7 +76,24 @@ pub fn execute(
             from,
             locked_at,
             to,
-        } => restake(deps, env, info, user, from, locked_at, to),
+            receiver,
+            amount,
+        } => {
+            let sender = deps.api.addr_validate(&user)?;
+            restake(
+                deps,
+                env,
+                info,
+                RestakingDetail {
+                    sender,
+                    receiver,
+                    amount: Some(amount),
+                    from_duration: from,
+                    to_duration: to,
+                    locked_at,
+                },
+            )
+        }
     }
 }
 

@@ -13,7 +13,7 @@ use astroport::{
     },
     vesting::{self, Cw20HookMsg as VestingCw20HookMsg, VestingAccount},
 };
-use cosmwasm_std::{coin, to_json_binary, Addr, Binary, Decimal, StdResult, Uint128};
+use cosmwasm_std::{coin, to_json_binary, Addr, Binary, Coin, Decimal, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 use equinox_msg::{
@@ -25,8 +25,9 @@ use equinox_msg::{
     lockdrop::{
         Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
         ExecuteMsg as LockdropExecuteMsg, InstantiateMsg as LockdropInstantiateMsg, LockConfig,
-        LockupInfoResponse, QueryMsg as LockdropQueryMsg, StakeType,
-        UpdateConfigMsg as LockdropUpdateConfigMsg, UserSingleLockupInfoResponse,
+        LockupInfoResponse, LpLockupStateResponse, QueryMsg as LockdropQueryMsg,
+        SingleLockupStateResponse, StakeType, UpdateConfigMsg as LockdropUpdateConfigMsg,
+        UserLpLockupInfoResponse, UserSingleLockupInfoResponse,
     },
     lp_staking::{
         Config as LpStakingConfig, Cw20HookMsg as LpStakingCw20HookMsg,
@@ -349,8 +350,15 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_lock_configs(mut self, config: Vec<LockConfig>) -> Self {
-        self.lock_configs = config;
+    pub fn with_lock_configs(mut self, config: Vec<(u64, u64)>) -> Self {
+        let lock_configs = config
+            .into_iter()
+            .map(|(duration, multiplier)| LockConfig {
+                duration,
+                multiplier,
+            })
+            .collect::<Vec<LockConfig>>();
+        self.lock_configs = lock_configs;
         self
     }
 
@@ -1127,6 +1135,18 @@ impl Suite {
             &[],
         )
     }
+    pub fn convert_xastro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.xastro_contract.clone(),
+            &Cw20ExecuteMsg::Send {
+                contract: self.converter_contract(),
+                amount: Uint128::from(amount),
+                msg: to_json_binary(&ConverterCw20HookMsg::Convert {})?,
+            },
+            &[],
+        )
+    }
 
     pub fn update_converter_config(&mut self, config: ConverterUpdateConfig) {
         self.app
@@ -1294,6 +1314,14 @@ impl Suite {
             .app
             .wrap()
             .query_wasm_smart(self.voter_contract.clone(), &VoterQueryMsg::Config {})?;
+        Ok(config)
+    }
+
+    pub fn query_voter_convert_ratio(&self) -> StdResult<(Uint128, Uint128)> {
+        let config: (Uint128, Uint128) = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.voter_contract.clone(), &VoterQueryMsg::ConvertRatio {  })?;
         Ok(config)
     }
 
@@ -1476,7 +1504,10 @@ impl Suite {
             &Cw20ExecuteMsg::Send {
                 contract: self.timelock_staking_contract(),
                 amount: Uint128::from(amount),
-                msg: to_json_binary(&TimelockCw20HookMsg::Lock { duration })?,
+                msg: to_json_binary(&TimelockCw20HookMsg::Lock {
+                    duration,
+                    user: Some(Addr::unchecked(sender)),
+                })?,
             },
             &[],
         )
@@ -1533,6 +1564,8 @@ impl Suite {
         from_duration: u64,
         locked_at: u64,
         to_duration: u64,
+        receiver: Option<Addr>,
+        amount: Option<Uint128>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -1541,6 +1574,8 @@ impl Suite {
                 from_duration,
                 locked_at,
                 to_duration,
+                receiver,
+                amount,
             },
             &[],
         )
@@ -1740,16 +1775,132 @@ impl Suite {
         )
     }
 
+    pub fn lp_staking_increase_lockdrop(
+        &mut self,
+        sender: &str,
+        token: String,
+        amount: u128,
+        duration: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            Addr::unchecked(token),
+            &Cw20ExecuteMsg::Send {
+                contract: self.lockdrop.to_string(),
+                amount: Uint128::from(amount),
+                msg: to_json_binary(&LockdropCw20HookMsg::IncreaseLockup {
+                    stake_type: StakeType::LpStaking,
+                    duration,
+                })?,
+            },
+            &[],
+        )
+    }
+
     pub fn single_staking_lockdrop_withdraw(
         &mut self,
         sender: &str,
-        assets: Option<Vec<Asset>>,
+        amount: Option<Uint128>,
         duration: u64,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lockdrop.clone(),
-            &LockdropExecuteMsg::SingleLockingWithdraw { assets, duration },
+            &LockdropExecuteMsg::SingleLockupWithdraw { amount, duration },
+            &[],
+        )
+    }
+
+    pub fn lp_staking_lockdrop_withdraw(
+        &mut self,
+        sender: &str,
+        amount: Option<Uint128>,
+        duration: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::LpLockupWithdraw { amount, duration },
+            &[],
+        )
+    }
+
+    pub fn increase_eclip_incentives_lockdrop(
+        &mut self,
+        sender: &str,
+        stake_type: StakeType,
+        amount: u128,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::IncreaseEclipIncentives { stake_type },
+            &[Coin {
+                denom: self.eclip(),
+                amount: Uint128::from(amount),
+            }],
+        )
+    }
+
+    pub fn lockdrop_stake_single_vault(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::StakeToSingleVault {},
+            &[],
+        )
+    }
+
+    pub fn lockdrop_stake_lp_vault(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::StakeToLpVault {},
+            &[],
+        )
+    }
+
+    pub fn lockdrop_enable_claimes(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::EnableClaims {},
+            &[],
+        )
+    }
+
+    pub fn single_lockdrop_claim_rewards_and_optionally_unlock(
+        &mut self,
+        sender: &str,
+        duration: u64,
+        amount: Option<Uint128>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::ClaimRewardsAndOptionallyUnlock {
+                stake_type: StakeType::SingleStaking,
+                duration,
+                amount,
+            },
+            &[],
+        )
+    }
+
+    pub fn lp_lockdrop_claim_rewards_and_optionally_unlock(
+        &mut self,
+        sender: &str,
+        duration: u64,
+        amount: Option<Uint128>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::ClaimRewardsAndOptionallyUnlock {
+                stake_type: StakeType::LpStaking,
+                duration,
+                amount,
+            },
             &[],
         )
     }
@@ -1770,6 +1921,30 @@ impl Suite {
         Ok(res)
     }
 
+    pub fn query_lp_lockup_info(&self) -> StdResult<Vec<LockupInfoResponse>> {
+        let res: Vec<LockupInfoResponse> = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.lockdrop.clone(), &LockdropQueryMsg::LpLockupInfo {})?;
+        Ok(res)
+    }
+
+    pub fn query_single_lockup_state(&self) -> StdResult<SingleLockupStateResponse> {
+        let res: SingleLockupStateResponse = self.app.wrap().query_wasm_smart(
+            self.lockdrop.clone(),
+            &LockdropQueryMsg::SingleLockupState {},
+        )?;
+        Ok(res)
+    }
+
+    pub fn query_lp_lockup_state(&self) -> StdResult<LpLockupStateResponse> {
+        let res: LpLockupStateResponse = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.lockdrop.clone(), &LockdropQueryMsg::LpLockupState {})?;
+        Ok(res)
+    }
+
     pub fn query_user_single_lockup_info(
         &self,
         user: &str,
@@ -1777,6 +1952,19 @@ impl Suite {
         let res: Vec<UserSingleLockupInfoResponse> = self.app.wrap().query_wasm_smart(
             self.lockdrop.clone(),
             &LockdropQueryMsg::UserSingleLockupInfo {
+                user: Addr::unchecked(user),
+            },
+        )?;
+        Ok(res)
+    }
+
+    pub fn query_user_lp_lockup_info(
+        &self,
+        user: &str,
+    ) -> StdResult<Vec<UserLpLockupInfoResponse>> {
+        let res: Vec<UserLpLockupInfoResponse> = self.app.wrap().query_wasm_smart(
+            self.lockdrop.clone(),
+            &LockdropQueryMsg::UserLpLockupInfo {
                 user: Addr::unchecked(user),
             },
         )?;

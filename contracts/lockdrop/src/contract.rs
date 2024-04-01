@@ -15,8 +15,8 @@ use crate::{
             _handle_callback, handle_claim_lp_staking_asset_rewards,
             handle_claim_rewards_and_unlock_for_lp_lockup,
             handle_claim_rewards_and_unlock_for_single_lockup,
-            handle_claim_single_staking_asset_rewards, handle_enable_claims,
-            handle_increase_eclip_incentives, handle_lp_locking_withdraw,
+            handle_claim_single_staking_asset_rewards, handle_enable_claims, handle_extend_lock,
+            handle_increase_eclip_incentives, handle_lp_locking_withdraw, handle_restake,
             handle_single_locking_withdraw, handle_stake_lp_vault, handle_stake_single_vault,
             handle_update_config, receive_cw20,
         },
@@ -51,37 +51,42 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig { new_config } => handle_update_config(deps, info, new_config),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::SingleLockingWithdraw { assets, duration } => {
-            handle_single_locking_withdraw(deps, env, info, assets, duration)
+        ExecuteMsg::ExtendLock {
+            stake_type,
+            amount,
+            from,
+            to,
+        } => handle_extend_lock(deps, env, info, stake_type, amount, from, to),
+        ExecuteMsg::SingleLockupWithdraw { amount, duration } => {
+            handle_single_locking_withdraw(deps, env, info, amount, duration)
         }
-        ExecuteMsg::LpLockingWithdraw { assets, duration } => {
-            handle_lp_locking_withdraw(deps, env, info, assets, duration)
+        ExecuteMsg::LpLockupWithdraw { amount, duration } => {
+            handle_lp_locking_withdraw(deps, env, info, amount, duration)
         }
         ExecuteMsg::IncreaseEclipIncentives { stake_type } => {
             handle_increase_eclip_incentives(deps, env, info, stake_type)
         }
         ExecuteMsg::StakeToSingleVault {} => handle_stake_single_vault(deps, env, info),
         ExecuteMsg::StakeToLpVault {} => handle_stake_lp_vault(deps, env, info),
+        ExecuteMsg::RestakeSingleStaking { amount, from, to } => {
+            handle_restake(deps, env, info, amount, from, to)
+        }
         ExecuteMsg::EnableClaims {} => handle_enable_claims(deps, env, info),
         ExecuteMsg::ClaimRewardsAndOptionallyUnlock {
             stake_type,
             duration,
-            withdraw_lockup,
+            amount,
         } => match stake_type {
             StakeType::SingleStaking => handle_claim_rewards_and_unlock_for_single_lockup(
                 deps,
                 env,
-                info,
                 duration,
-                withdraw_lockup,
+                info.sender,
+                amount,
             ),
-            StakeType::LpStaking => handle_claim_rewards_and_unlock_for_lp_lockup(
-                deps,
-                env,
-                info,
-                duration,
-                withdraw_lockup,
-            ),
+            StakeType::LpStaking => {
+                handle_claim_rewards_and_unlock_for_lp_lockup(deps, env, info, duration, amount)
+            }
         },
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
         ExecuteMsg::ClaimAssetReward {

@@ -66,6 +66,8 @@ pub enum ExecuteMsg {
         from: u64,
         locked_at: u64,
         to: u64,
+        receiver: Option<Addr>,
+        amount: Uint128,
     },
 }
 

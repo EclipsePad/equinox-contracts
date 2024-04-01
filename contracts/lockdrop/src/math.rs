@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, Decimal256, OverflowError, StdResult, Uint128, Uint256};
+use cosmwasm_std::{Decimal, Decimal256, StdResult, Uint128, Uint256};
 use equinox_msg::lockdrop::Config;
 
 pub fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> StdResult<Uint256> {
@@ -46,33 +46,4 @@ pub fn calculate_max_withdrawal_percent_allowed(
     else {
         Decimal::from_ratio(0u32, 100u32)
     }
-}
-
-pub fn calculate_eclipastro_staked(
-    astro: Uint128,
-    xastro: Uint128,
-    conversion_rate: Decimal,
-) -> Result<Uint128, OverflowError> {
-    astro.checked_add(
-        conversion_rate
-            .checked_mul(Decimal::from_ratio(xastro, 1u128))
-            .unwrap()
-            .to_uint_floor(),
-    )
-}
-
-pub fn calculate_eclipastro_amount_for_lp(
-    astro_locked: Uint128,
-    xastro_locked: Uint128,
-    conversion_rate: Decimal,
-) -> Result<Uint128, OverflowError> {
-    astro_locked
-        .checked_div(Uint128::from(2u128))
-        .unwrap()
-        .checked_add(
-            conversion_rate
-                .checked_mul(Decimal::from_ratio(xastro_locked, 2u128))
-                .unwrap()
-                .to_uint_floor(),
-        )
 }

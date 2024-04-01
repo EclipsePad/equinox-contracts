@@ -7,6 +7,7 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 use equinox_msg::{
     reward_distributor::UpdateConfigMsg,
+    timelock_staking::RestakingDetail,
     token_converter::{
         ExecuteMsg as ConverterExecuteMsg, QueryMsg as ConverterQueryMsg, RewardResponse,
     },
@@ -761,40 +762,44 @@ pub fn restake(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    user: String,
-    from_duration: u64,
-    mut locked_at: u64,
-    to_duration: u64,
+    restaking_detail: RestakingDetail,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let receiver = restaking_detail.receiver;
+    let user = restaking_detail.sender;
+    let locked_at = restaking_detail.locked_at;
+    let from_duration = restaking_detail.from_duration;
+    let to_duration = restaking_detail.to_duration;
+    let amount = restaking_detail.amount.unwrap();
 
     ensure!(
         info.sender == config.timelock_staking,
         ContractError::Unauthorized {}
     );
 
+    let new_owner = receiver.unwrap_or(info.sender);
+
     // get user staking data
     let mut old_user_staking =
-        TIMELOCK_USER_STAKING.load(deps.storage, (&user, from_duration, locked_at))?;
+        TIMELOCK_USER_STAKING.load(deps.storage, (&user.to_string(), from_duration, locked_at))?;
     let mut new_user_staking = TIMELOCK_USER_STAKING
-        .load(deps.storage, (&user, to_duration, locked_at))
+        .load(
+            deps.storage,
+            (
+                &new_owner.to_string(),
+                to_duration,
+                env.block.time.seconds(),
+            ),
+        )
         .unwrap_or_default();
     // update total staking rewards info
     let mut total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone())?;
     // update total staking balance from duration
-    total_staking_data = total_staking_amount_update(
-        total_staking_data,
-        from_duration,
-        old_user_staking.amount,
-        false,
-    )?;
+    total_staking_data =
+        total_staking_amount_update(total_staking_data, from_duration, amount, false)?;
     // update total staking balance to duration
-    total_staking_data = total_staking_amount_update(
-        total_staking_data,
-        to_duration,
-        old_user_staking.amount,
-        true,
-    )?;
+    total_staking_data =
+        total_staking_amount_update(total_staking_data, to_duration, amount, true)?;
     // update user rewards
     old_user_staking = user_reward_update(
         deps.as_ref(),
@@ -842,7 +847,7 @@ pub fn restake(
             msgs.push(WasmMsg::Execute {
                 contract_addr: config.eclipastro.to_string(),
                 msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: user.clone(),
+                    recipient: user.to_string(),
                     amount: old_user_staking.rewards.eclipastro.pending_reward,
                 })?,
                 funds: vec![],
@@ -856,7 +861,7 @@ pub fn restake(
             .gt(&Uint128::zero())
         {
             bankmsgs.push(BankMsg::Send {
-                to_address: user.clone(),
+                to_address: user.to_string(),
                 amount: coins(
                     old_user_staking.rewards.eclip.pending_reward.u128(),
                     config.eclip,
@@ -864,18 +869,25 @@ pub fn restake(
             })
         }
     }
-    TIMELOCK_USER_STAKING.remove(deps.storage, (&user, from_duration, locked_at));
-
-    new_user_staking.amount = new_user_staking
-        .amount
-        .checked_add(old_user_staking.amount)
-        .unwrap();
-    if env.block.time.seconds() - locked_at > from_duration {
-        locked_at = env.block.time.seconds() - from_duration;
+    if amount == old_user_staking.amount {
+        TIMELOCK_USER_STAKING.remove(deps.storage, (&user.to_string(), from_duration, locked_at));
+    } else {
+        old_user_staking.amount -= amount;
+        TIMELOCK_USER_STAKING.save(
+            deps.storage,
+            (&user.to_string(), from_duration, locked_at),
+            &old_user_staking,
+        )?;
     }
+
+    new_user_staking.amount = new_user_staking.amount.checked_add(amount).unwrap();
     TIMELOCK_USER_STAKING.save(
         deps.storage,
-        (&user, to_duration, locked_at),
+        (
+            &new_owner.to_string(),
+            to_duration,
+            env.block.time.seconds(),
+        ),
         &new_user_staking,
     )?;
     TOTAL_STAKING.save(deps.storage, &total_staking_data)?;

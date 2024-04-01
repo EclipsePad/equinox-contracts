@@ -42,6 +42,8 @@ pub enum ExecuteMsg {
         from_duration: u64,
         locked_at: u64,
         to_duration: u64,
+        receiver: Option<Addr>,
+        amount: Option<Uint128>,
     },
 }
 
@@ -83,7 +85,7 @@ pub struct MigrateMsg {
 #[cw_serde]
 pub enum Cw20HookMsg {
     /// timelock eclipASTRO token
-    Lock { duration: u64 },
+    Lock { duration: u64, user: Option<Addr> },
 }
 
 #[cw_serde]
@@ -125,4 +127,14 @@ pub struct UserStaking {
 pub struct StakingWithDuration {
     pub amount: Uint128,
     pub duration: u64,
+}
+
+#[cw_serde]
+pub struct RestakingDetail {
+    pub sender: Addr,
+    pub receiver: Option<Addr>,
+    pub amount: Option<Uint128>,
+    pub from_duration: u64,
+    pub to_duration: u64,
+    pub locked_at: u64,
 }

@@ -68,6 +68,12 @@ pub enum ContractError {
     #[error("Tokens are not staked")]
     NotStaked {},
 
+    #[error("No deposit from user")]
+    NoDeposit {},
+
+    #[error("No ECLIP reward for user")]
+    NoEclipReward {},
+
     #[error("Only {expected} is allowed: received {got}")]
     OnlyEclipAllowed { expected: String, got: String },
 
