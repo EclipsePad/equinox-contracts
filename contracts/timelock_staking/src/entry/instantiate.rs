@@ -23,25 +23,26 @@ pub fn try_instantiate(
             timelock_config: msg.timelock_config.unwrap_or(vec![
                 TimeLockConfig {
                     duration: 86400 * 30,
-                    early_unlock_penalty_bps: 3000,
+                    early_unlock_penalty_bps: 5000,
                 },
                 TimeLockConfig {
                     duration: 86400 * 30 * 3,
-                    early_unlock_penalty_bps: 3000,
+                    early_unlock_penalty_bps: 5000,
                 },
                 TimeLockConfig {
                     duration: 86400 * 30 * 6,
-                    early_unlock_penalty_bps: 3000,
+                    early_unlock_penalty_bps: 5000,
                 },
                 TimeLockConfig {
                     duration: 86400 * 30 * 9,
-                    early_unlock_penalty_bps: 3000,
+                    early_unlock_penalty_bps: 5000,
                 },
                 TimeLockConfig {
                     duration: 86400 * 365,
-                    early_unlock_penalty_bps: 3000,
+                    early_unlock_penalty_bps: 5000,
                 },
             ]),
+            dao_treasury_address: deps.api.addr_validate(&msg.dao_treasury_address)?,
         },
     )?;
 

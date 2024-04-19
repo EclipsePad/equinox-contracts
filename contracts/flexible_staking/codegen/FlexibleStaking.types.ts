@@ -23,12 +23,28 @@ export type ExecuteMsg = {
 } | {
   unstake: {
     amount: Uint128;
+    recipient?: string | null;
+  };
+} | {
+  relock: {
+    amount?: Uint128 | null;
+    duration: number;
+    recipient?: string | null;
+  };
+} | {
+  allow_users: {
+    users: string[];
+  };
+} | {
+  block_users: {
+    users: string[];
   };
 };
 export type Uint128 = string;
 export type Binary = string;
 export interface UpdateConfigMsg {
   reward_contract?: string | null;
+  timelock_contract?: string | null;
   token?: string | null;
 }
 export interface Cw20ReceiveMsg {
@@ -50,12 +66,18 @@ export type QueryMsg = {
   reward: {
     user: string;
   };
+} | {
+  is_allowed: {
+    user: string;
+  };
 };
 export type Addr = string;
 export interface Config {
   reward_contract: Addr;
+  timelock_contract: Addr;
   token: Addr;
 }
+export type Boolean = boolean;
 export interface FlexibleReward {
   eclip: Uint128;
   eclipastro: Uint128;

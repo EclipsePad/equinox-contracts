@@ -9,12 +9,20 @@ pub struct InstantiateMsg {
     pub owner: String,
     /// lp token
     pub lp_token: String,
+    /// lp contract
+    pub lp_contract: String,
     /// ECLIP token
     pub eclip: String,
     /// ASTRO token
     pub astro: String,
+    /// xASTRO token
+    pub xastro: String,
+    /// astro staking contract
+    pub astro_staking: String,
+    /// eclipASTRO converter
+    pub converter: String,
     /// ECLIP daily reward
-    pub eclip_daily_reward: Uint128,
+    pub eclip_daily_reward: Option<Uint128>,
     /// Astroport generator
     pub astroport_generator: String,
     /// Eclipse treasury. send 67.5% of 20% of generator rewards
@@ -28,17 +36,11 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub enum ExecuteMsg {
     /// Change the owner
-    UpdateOwner {
-        owner: String,
-    },
+    UpdateOwner { owner: String },
     /// Change config
-    UpdateConfig {
-        config: UpdateConfigMsg,
-    },
+    UpdateConfig { config: UpdateConfigMsg },
     /// Change reward config
-    UpdateRewardConfig {
-        config: RewardConfig,
-    },
+    UpdateRewardConfig { config: RewardConfig },
     /// This accepts a properly-encoded ReceiveMsg from a cw20 contract
     Receive(Cw20ReceiveMsg),
     /// Claim rewards of user.
@@ -47,6 +49,7 @@ pub enum ExecuteMsg {
     Callback(CallbackMsg),
     Unstake {
         amount: Uint128,
+        recipient: Option<String>,
     },
 }
 
@@ -103,8 +106,10 @@ impl CallbackMsg {
 #[cw_serde]
 pub struct UpdateConfigMsg {
     pub lp_token: Option<String>,
+    pub lp_contract: Option<String>,
     pub eclip: Option<String>,
     pub eclip_daily_reward: Option<Uint128>,
+    pub converter: Option<String>,
     pub astroport_generator: Option<String>,
     pub treasury: Option<String>,
     pub stability_pool: Option<String>,
@@ -123,10 +128,18 @@ pub struct UpdateRewardConfigMsg {
 pub struct Config {
     /// lp token
     pub lp_token: Addr,
+    /// lp contract
+    pub lp_contract: Addr,
     /// ECLIP token
     pub eclip: String,
     /// ASTRO token
     pub astro: Addr,
+    /// xASTRO token
+    pub xastro: Addr,
+    /// ASTRO staking contract
+    pub astro_staking: Addr,
+    /// eclipASTRO converter
+    pub converter: Addr,
     /// ECLIP daily reward
     pub eclip_daily_reward: Uint128,
     /// Astroport generator

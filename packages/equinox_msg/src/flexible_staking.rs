@@ -28,6 +28,18 @@ pub enum ExecuteMsg {
     Claim {},
     Unstake {
         amount: Uint128,
+        recipient: Option<String>,
+    },
+    Relock {
+        amount: Option<Uint128>,
+        duration: u64,
+        recipient: Option<String>,
+    },
+    AllowUsers {
+        users: Vec<String>,
+    },
+    BlockUsers {
+        users: Vec<String>,
     },
 }
 
@@ -49,6 +61,8 @@ pub enum QueryMsg {
     /// query pending_rewards
     #[returns(FlexibleReward)]
     Reward { user: String },
+    #[returns(bool)]
+    IsAllowed { user: String },
 }
 
 #[cw_serde]
@@ -60,12 +74,18 @@ pub struct MigrateMsg {
 pub enum Cw20HookMsg {
     /// Stake eclipASTRO token
     Stake {},
+    Relock {
+        duration: u64,
+        amount: Option<Uint128>,
+        recipient: Option<String>,
+    },
 }
 
 #[cw_serde]
 pub struct UpdateConfigMsg {
     pub token: Option<String>,
     pub reward_contract: Option<String>,
+    pub timelock_contract: Option<String>,
 }
 
 #[cw_serde]
@@ -74,4 +94,5 @@ pub struct Config {
     pub token: Addr,
     /// reward_contract address
     pub reward_contract: Addr,
+    pub timelock_contract: Addr,
 }

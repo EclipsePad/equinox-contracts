@@ -7,7 +7,7 @@
 import { UseQueryOptions, useQuery, useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee, Coin } from "@cosmjs/amino";
-import { InstantiateMsg, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, FlexibleReward } from "./FlexibleStaking.types";
+import { InstantiateMsg, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, Boolean, FlexibleReward } from "./FlexibleStaking.types";
 import { FlexibleStakingQueryClient, FlexibleStakingClient } from "./FlexibleStaking.client";
 export const flexibleStakingQueryKeys = {
   contract: ([{
@@ -34,6 +34,10 @@ export const flexibleStakingQueryKeys = {
   }] as const),
   reward: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...flexibleStakingQueryKeys.address(contractAddress)[0],
     method: "reward",
+    args
+  }] as const),
+  isAllowed: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...flexibleStakingQueryKeys.address(contractAddress)[0],
+    method: "is_allowed",
     args
   }] as const)
 };
@@ -88,6 +92,18 @@ export const flexibleStakingQueries = {
     }) : Promise.reject(new Error("Invalid client")),
     ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  isAllowed: <TData = Boolean,>({
+    client,
+    args,
+    options
+  }: FlexibleStakingIsAllowedQuery<TData>): UseQueryOptions<Boolean, Error, TData> => ({
+    queryKey: flexibleStakingQueryKeys.isAllowed(client?.contractAddress, args),
+    queryFn: () => client ? client.isAllowed({
+      user: args.user
+    }) : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   })
 };
 export interface FlexibleStakingReactQuery<TResponse, TData = TResponse> {
@@ -95,6 +111,22 @@ export interface FlexibleStakingReactQuery<TResponse, TData = TResponse> {
   options?: Omit<UseQueryOptions<TResponse, Error, TData>, "'queryKey' | 'queryFn' | 'initialData'"> & {
     initialData?: undefined;
   };
+}
+export interface FlexibleStakingIsAllowedQuery<TData> extends FlexibleStakingReactQuery<Boolean, TData> {
+  args: {
+    user: string;
+  };
+}
+export function useFlexibleStakingIsAllowedQuery<TData = Boolean>({
+  client,
+  args,
+  options
+}: FlexibleStakingIsAllowedQuery<TData>) {
+  return useQuery<Boolean, Error, TData>(flexibleStakingQueryKeys.isAllowed(client?.contractAddress, args), () => client ? client.isAllowed({
+    user: args.user
+  }) : Promise.reject(new Error("Invalid client")), { ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  });
 }
 export interface FlexibleStakingRewardQuery<TData> extends FlexibleStakingReactQuery<FlexibleReward, TData> {
   args: {
@@ -155,10 +187,79 @@ export function useFlexibleStakingConfigQuery<TData = Config>({
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
+export interface FlexibleStakingBlockUsersMutation {
+  client: FlexibleStakingClient;
+  msg: {
+    users: string[];
+  };
+  args?: {
+    fee?: number | StdFee | "auto";
+    memo?: string;
+    funds?: Coin[];
+  };
+}
+export function useFlexibleStakingBlockUsersMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, FlexibleStakingBlockUsersMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, FlexibleStakingBlockUsersMutation>(({
+    client,
+    msg,
+    args: {
+      fee,
+      memo,
+      funds
+    } = {}
+  }) => client.blockUsers(msg, fee, memo, funds), options);
+}
+export interface FlexibleStakingAllowUsersMutation {
+  client: FlexibleStakingClient;
+  msg: {
+    users: string[];
+  };
+  args?: {
+    fee?: number | StdFee | "auto";
+    memo?: string;
+    funds?: Coin[];
+  };
+}
+export function useFlexibleStakingAllowUsersMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, FlexibleStakingAllowUsersMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, FlexibleStakingAllowUsersMutation>(({
+    client,
+    msg,
+    args: {
+      fee,
+      memo,
+      funds
+    } = {}
+  }) => client.allowUsers(msg, fee, memo, funds), options);
+}
+export interface FlexibleStakingRelockMutation {
+  client: FlexibleStakingClient;
+  msg: {
+    amount?: Uint128;
+    duration: number;
+    recipient?: string;
+  };
+  args?: {
+    fee?: number | StdFee | "auto";
+    memo?: string;
+    funds?: Coin[];
+  };
+}
+export function useFlexibleStakingRelockMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, FlexibleStakingRelockMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, FlexibleStakingRelockMutation>(({
+    client,
+    msg,
+    args: {
+      fee,
+      memo,
+      funds
+    } = {}
+  }) => client.relock(msg, fee, memo, funds), options);
+}
 export interface FlexibleStakingUnstakeMutation {
   client: FlexibleStakingClient;
   msg: {
     amount: Uint128;
+    recipient?: string;
   };
   args?: {
     fee?: number | StdFee | "auto";

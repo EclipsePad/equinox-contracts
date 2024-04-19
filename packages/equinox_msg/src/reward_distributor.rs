@@ -16,9 +16,9 @@ pub struct InstantiateMsg {
     /// ASTRO/eclipASTRO converter contract
     pub token_converter: String,
     /// ECLIP daily reward
-    pub eclip_daily_reward: Uint128,
+    pub eclip_daily_reward: Option<Uint128>,
     /// locking_reward_config
-    pub locking_reward_config: Vec<LockingRewardConfig>,
+    pub locking_reward_config: Option<Vec<LockingRewardConfig>>,
 }
 
 /// This structure describes the execute messages available in the contract.
@@ -61,13 +61,13 @@ pub enum ExecuteMsg {
         duration: u64,
         locked_at: u64,
     },
-    Restake {
-        user: String,
-        from: u64,
-        locked_at: u64,
-        to: u64,
-        receiver: Option<Addr>,
-        amount: Uint128,
+    Relock {
+        from: Addr,
+        to: Addr,
+        relocking: Vec<(u64, Uint128)>,
+        adding_amount: Option<Uint128>,
+        from_duration: u64,
+        to_duration: u64,
     },
 }
 
@@ -189,4 +189,13 @@ impl Default for TotalStakingData {
 pub struct StakingData {
     pub duration: u64,
     pub amount: Uint128,
+}
+
+#[cw_serde]
+pub struct RelockDetail {
+    pub sender: Addr,
+    pub receiver: Addr,
+    pub relocks: Vec<(u64, Uint128)>,
+    pub from_duration: u64,
+    pub to_duration: u64,
 }

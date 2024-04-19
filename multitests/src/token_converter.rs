@@ -559,7 +559,7 @@ fn claim() {
         .stake_astro(astro_staking_initiator, 1_000_000)
         .unwrap();
 
-        // suite.send_astro(&bob_address.clone().into_string(), &suite.astro_staking_contract(), 100000u128).unwrap();
+    // suite.send_astro(&bob_address.clone().into_string(), &suite.astro_staking_contract(), 100000u128).unwrap();
     // assert_eq!(suite.query_astro_staking_total_deposit().unwrap(), 1100000u128);
     // assert_eq!(suite.query_astro_staking_total_shares().unwrap(), 1000000u128);
     // let bob_eclipastro_balance = suite.query_eclipastro_balance(&bob_address.clone().into_string()).unwrap();

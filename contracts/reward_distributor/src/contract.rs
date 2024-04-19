@@ -8,7 +8,7 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            flexible_stake, flexible_stake_claim, flexible_unstake, restake, timelock_stake,
+            flexible_stake, flexible_stake_claim, flexible_unstake, relock, timelock_stake,
             timelock_stake_claim, timelock_stake_claim_all, timelock_unstake, update_config,
             update_owner,
         },
@@ -20,9 +20,8 @@ use crate::{
     error::ContractError,
     state::{CONTRACT_NAME, CONTRACT_VERSION},
 };
-use equinox_msg::{
-    reward_distributor::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
-    timelock_staking::RestakingDetail,
+use equinox_msg::reward_distributor::{
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RelockDetail,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -71,29 +70,26 @@ pub fn execute(
             duration,
             locked_at,
         } => timelock_unstake(deps, env, info, user, duration, locked_at),
-        ExecuteMsg::Restake {
-            user,
+        ExecuteMsg::Relock {
             from,
-            locked_at,
             to,
-            receiver,
-            amount,
-        } => {
-            let sender = deps.api.addr_validate(&user)?;
-            restake(
-                deps,
-                env,
-                info,
-                RestakingDetail {
-                    sender,
-                    receiver,
-                    amount: Some(amount),
-                    from_duration: from,
-                    to_duration: to,
-                    locked_at,
-                },
-            )
-        }
+            relocking,
+            adding_amount,
+            from_duration,
+            to_duration,
+        } => relock(
+            deps,
+            env,
+            info,
+            adding_amount,
+            RelockDetail {
+                sender: from,
+                receiver: to,
+                relocks: relocking,
+                from_duration,
+                to_duration,
+            },
+        ),
     }
 }
 

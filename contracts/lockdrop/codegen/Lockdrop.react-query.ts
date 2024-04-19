@@ -7,7 +7,7 @@
 import { UseQueryOptions, useQuery, useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee, Coin } from "@cosmjs/amino";
-import { InstantiateMsg, LockConfig, ExecuteMsg, Uint128, Binary, StakeType, CallbackMsg, Addr, Cw20ReceiveMsg, UpdateConfigMsg, QueryMsg, Config, ArrayOfLockupInfoResponse, LockupInfoResponse, ArrayOfLpLockupStateResponse, LpLockupStateResponse, ArrayOfSingleLockupStateResponse, SingleLockupStateResponse, AssetInfo, ArrayOfUserLpLockupInfoResponse, UserLpLockupInfoResponse, Asset, ArrayOfUserSingleLockupInfoResponse, UserSingleLockupInfoResponse } from "./Lockdrop.types";
+import { InstantiateMsg, LockConfig, ExecuteMsg, Uint128, Binary, StakeType, CallbackMsg, Addr, Cw20ReceiveMsg, UpdateConfigMsg, RewardDistributionConfig, QueryMsg, Config, ArrayOfLockupInfoResponse, LockupInfoResponse, LpLockupStateResponse, SingleLockupStateResponse, BalanceResponse, AssetInfo, ArrayOfUserLpLockupInfoResponse, UserLpLockupInfoResponse, Asset, ArrayOfUserSingleLockupInfoResponse, UserSingleLockupInfoResponse } from "./Lockdrop.types";
 import { LockdropQueryClient, LockdropClient } from "./Lockdrop.client";
 export const lockdropQueryKeys = {
   contract: ([{
@@ -46,6 +46,10 @@ export const lockdropQueryKeys = {
   }] as const),
   userLpLockupInfo: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...lockdropQueryKeys.address(contractAddress)[0],
     method: "user_lp_lockup_info",
+    args
+  }] as const),
+  totalEclipIncentives: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...lockdropQueryKeys.address(contractAddress)[0],
+    method: "total_eclip_incentives",
     args
   }] as const)
 };
@@ -86,19 +90,19 @@ export const lockdropQueries = {
     ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   }),
-  singleLockupState: <TData = ArrayOfSingleLockupStateResponse,>({
+  singleLockupState: <TData = SingleLockupStateResponse,>({
     client,
     options
-  }: LockdropSingleLockupStateQuery<TData>): UseQueryOptions<ArrayOfSingleLockupStateResponse, Error, TData> => ({
+  }: LockdropSingleLockupStateQuery<TData>): UseQueryOptions<SingleLockupStateResponse, Error, TData> => ({
     queryKey: lockdropQueryKeys.singleLockupState(client?.contractAddress),
     queryFn: () => client ? client.singleLockupState() : Promise.reject(new Error("Invalid client")),
     ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   }),
-  lpLockupState: <TData = ArrayOfLpLockupStateResponse,>({
+  lpLockupState: <TData = LpLockupStateResponse,>({
     client,
     options
-  }: LockdropLpLockupStateQuery<TData>): UseQueryOptions<ArrayOfLpLockupStateResponse, Error, TData> => ({
+  }: LockdropLpLockupStateQuery<TData>): UseQueryOptions<LpLockupStateResponse, Error, TData> => ({
     queryKey: lockdropQueryKeys.lpLockupState(client?.contractAddress),
     queryFn: () => client ? client.lpLockupState() : Promise.reject(new Error("Invalid client")),
     ...options,
@@ -127,6 +131,15 @@ export const lockdropQueries = {
     }) : Promise.reject(new Error("Invalid client")),
     ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  totalEclipIncentives: <TData = BalanceResponse,>({
+    client,
+    options
+  }: LockdropTotalEclipIncentivesQuery<TData>): UseQueryOptions<BalanceResponse, Error, TData> => ({
+    queryKey: lockdropQueryKeys.totalEclipIncentives(client?.contractAddress),
+    queryFn: () => client ? client.totalEclipIncentives() : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   })
 };
 export interface LockdropReactQuery<TResponse, TData = TResponse> {
@@ -134,6 +147,15 @@ export interface LockdropReactQuery<TResponse, TData = TResponse> {
   options?: Omit<UseQueryOptions<TResponse, Error, TData>, "'queryKey' | 'queryFn' | 'initialData'"> & {
     initialData?: undefined;
   };
+}
+export interface LockdropTotalEclipIncentivesQuery<TData> extends LockdropReactQuery<BalanceResponse, TData> {}
+export function useLockdropTotalEclipIncentivesQuery<TData = BalanceResponse>({
+  client,
+  options
+}: LockdropTotalEclipIncentivesQuery<TData>) {
+  return useQuery<BalanceResponse, Error, TData>(lockdropQueryKeys.totalEclipIncentives(client?.contractAddress), () => client ? client.totalEclipIncentives() : Promise.reject(new Error("Invalid client")), { ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  });
 }
 export interface LockdropUserLpLockupInfoQuery<TData> extends LockdropReactQuery<ArrayOfUserLpLockupInfoResponse, TData> {
   args: {
@@ -167,21 +189,21 @@ export function useLockdropUserSingleLockupInfoQuery<TData = ArrayOfUserSingleLo
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
-export interface LockdropLpLockupStateQuery<TData> extends LockdropReactQuery<ArrayOfLpLockupStateResponse, TData> {}
-export function useLockdropLpLockupStateQuery<TData = ArrayOfLpLockupStateResponse>({
+export interface LockdropLpLockupStateQuery<TData> extends LockdropReactQuery<LpLockupStateResponse, TData> {}
+export function useLockdropLpLockupStateQuery<TData = LpLockupStateResponse>({
   client,
   options
 }: LockdropLpLockupStateQuery<TData>) {
-  return useQuery<ArrayOfLpLockupStateResponse, Error, TData>(lockdropQueryKeys.lpLockupState(client?.contractAddress), () => client ? client.lpLockupState() : Promise.reject(new Error("Invalid client")), { ...options,
+  return useQuery<LpLockupStateResponse, Error, TData>(lockdropQueryKeys.lpLockupState(client?.contractAddress), () => client ? client.lpLockupState() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
-export interface LockdropSingleLockupStateQuery<TData> extends LockdropReactQuery<ArrayOfSingleLockupStateResponse, TData> {}
-export function useLockdropSingleLockupStateQuery<TData = ArrayOfSingleLockupStateResponse>({
+export interface LockdropSingleLockupStateQuery<TData> extends LockdropReactQuery<SingleLockupStateResponse, TData> {}
+export function useLockdropSingleLockupStateQuery<TData = SingleLockupStateResponse>({
   client,
   options
 }: LockdropSingleLockupStateQuery<TData>) {
-  return useQuery<ArrayOfSingleLockupStateResponse, Error, TData>(lockdropQueryKeys.singleLockupState(client?.contractAddress), () => client ? client.singleLockupState() : Promise.reject(new Error("Invalid client")), { ...options,
+  return useQuery<SingleLockupStateResponse, Error, TData>(lockdropQueryKeys.singleLockupState(client?.contractAddress), () => client ? client.singleLockupState() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
@@ -300,30 +322,6 @@ export function useLockdropCallbackMutation(options?: Omit<UseMutationOptions<Ex
     } = {}
   }) => client.callback(msg, fee, memo, funds), options);
 }
-export interface LockdropClaimAssetRewardMutation {
-  client: LockdropClient;
-  msg: {
-    duration: number;
-    recipient?: string;
-    stakeType: StakeType;
-  };
-  args?: {
-    fee?: number | StdFee | "auto";
-    memo?: string;
-    funds?: Coin[];
-  };
-}
-export function useLockdropClaimAssetRewardMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, LockdropClaimAssetRewardMutation>, "mutationFn">) {
-  return useMutation<ExecuteResult, Error, LockdropClaimAssetRewardMutation>(({
-    client,
-    msg,
-    args: {
-      fee,
-      memo,
-      funds
-    } = {}
-  }) => client.claimAssetReward(msg, fee, memo, funds), options);
-}
 export interface LockdropClaimRewardsAndOptionallyUnlockMutation {
   client: LockdropClient;
   msg: {
@@ -348,10 +346,9 @@ export function useLockdropClaimRewardsAndOptionallyUnlockMutation(options?: Omi
     } = {}
   }) => client.claimRewardsAndOptionallyUnlock(msg, fee, memo, funds), options);
 }
-export interface LockdropRestakeSingleStakingMutation {
+export interface LockdropRelockSingleStakingMutation {
   client: LockdropClient;
   msg: {
-    amount?: Uint128;
     from: number;
     to: number;
   };
@@ -361,8 +358,8 @@ export interface LockdropRestakeSingleStakingMutation {
     funds?: Coin[];
   };
 }
-export function useLockdropRestakeSingleStakingMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, LockdropRestakeSingleStakingMutation>, "mutationFn">) {
-  return useMutation<ExecuteResult, Error, LockdropRestakeSingleStakingMutation>(({
+export function useLockdropRelockSingleStakingMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, LockdropRelockSingleStakingMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, LockdropRelockSingleStakingMutation>(({
     client,
     msg,
     args: {
@@ -370,13 +367,10 @@ export function useLockdropRestakeSingleStakingMutation(options?: Omit<UseMutati
       memo,
       funds
     } = {}
-  }) => client.restakeSingleStaking(msg, fee, memo, funds), options);
+  }) => client.relockSingleStaking(msg, fee, memo, funds), options);
 }
 export interface LockdropIncreaseEclipIncentivesMutation {
   client: LockdropClient;
-  msg: {
-    stakeType: StakeType;
-  };
   args?: {
     fee?: number | StdFee | "auto";
     memo?: string;
@@ -386,13 +380,12 @@ export interface LockdropIncreaseEclipIncentivesMutation {
 export function useLockdropIncreaseEclipIncentivesMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, LockdropIncreaseEclipIncentivesMutation>, "mutationFn">) {
   return useMutation<ExecuteResult, Error, LockdropIncreaseEclipIncentivesMutation>(({
     client,
-    msg,
     args: {
       fee,
       memo,
       funds
     } = {}
-  }) => client.increaseEclipIncentives(msg, fee, memo, funds), options);
+  }) => client.increaseEclipIncentives(fee, memo, funds), options);
 }
 export interface LockdropLpLockupWithdrawMutation {
   client: LockdropClient;
@@ -443,7 +436,6 @@ export function useLockdropSingleLockupWithdrawMutation(options?: Omit<UseMutati
 export interface LockdropExtendLockMutation {
   client: LockdropClient;
   msg: {
-    amount?: Uint128;
     from: number;
     stakeType: StakeType;
     to: number;
@@ -465,7 +457,7 @@ export function useLockdropExtendLockMutation(options?: Omit<UseMutationOptions<
     } = {}
   }) => client.extendLock(msg, fee, memo, funds), options);
 }
-export interface LockdropEnableClaimsMutation {
+export interface LockdropStakeToVaultsMutation {
   client: LockdropClient;
   args?: {
     fee?: number | StdFee | "auto";
@@ -473,51 +465,37 @@ export interface LockdropEnableClaimsMutation {
     funds?: Coin[];
   };
 }
-export function useLockdropEnableClaimsMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, LockdropEnableClaimsMutation>, "mutationFn">) {
-  return useMutation<ExecuteResult, Error, LockdropEnableClaimsMutation>(({
+export function useLockdropStakeToVaultsMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, LockdropStakeToVaultsMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, LockdropStakeToVaultsMutation>(({
     client,
     args: {
       fee,
       memo,
       funds
     } = {}
-  }) => client.enableClaims(fee, memo, funds), options);
+  }) => client.stakeToVaults(fee, memo, funds), options);
 }
-export interface LockdropStakeToLpVaultMutation {
+export interface LockdropUpdateRewardDistributionConfigMutation {
   client: LockdropClient;
+  msg: {
+    newConfig: RewardDistributionConfig;
+  };
   args?: {
     fee?: number | StdFee | "auto";
     memo?: string;
     funds?: Coin[];
   };
 }
-export function useLockdropStakeToLpVaultMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, LockdropStakeToLpVaultMutation>, "mutationFn">) {
-  return useMutation<ExecuteResult, Error, LockdropStakeToLpVaultMutation>(({
+export function useLockdropUpdateRewardDistributionConfigMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, LockdropUpdateRewardDistributionConfigMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, LockdropUpdateRewardDistributionConfigMutation>(({
     client,
+    msg,
     args: {
       fee,
       memo,
       funds
     } = {}
-  }) => client.stakeToLpVault(fee, memo, funds), options);
-}
-export interface LockdropStakeToSingleVaultMutation {
-  client: LockdropClient;
-  args?: {
-    fee?: number | StdFee | "auto";
-    memo?: string;
-    funds?: Coin[];
-  };
-}
-export function useLockdropStakeToSingleVaultMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, LockdropStakeToSingleVaultMutation>, "mutationFn">) {
-  return useMutation<ExecuteResult, Error, LockdropStakeToSingleVaultMutation>(({
-    client,
-    args: {
-      fee,
-      memo,
-      funds
-    } = {}
-  }) => client.stakeToSingleVault(fee, memo, funds), options);
+  }) => client.updateRewardDistributionConfig(msg, fee, memo, funds), options);
 }
 export interface LockdropUpdateConfigMutation {
   client: LockdropClient;

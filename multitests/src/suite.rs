@@ -243,13 +243,13 @@ pub struct SuiteBuilder {
     pub admin: Option<String>,
     pub initial_balances: Vec<Cw20Coin>,
     pub timelock_config: Vec<TimeLockConfig>,
-    pub eclip_daily_reward: Uint128,
-    pub lp_staking_eclip_daily_reward: Uint128,
-    pub locking_reward_config: Vec<LockingRewardConfig>,
+    pub eclip_daily_reward: Option<Uint128>,
+    pub lp_staking_eclip_daily_reward: Option<Uint128>,
+    pub locking_reward_config: Option<Vec<LockingRewardConfig>>,
     pub lockdrop_init_timestamp: u64,
-    pub lockdrop_deposit_window: u64,
-    pub lockdrop_withdraw_window: u64,
-    pub lock_configs: Vec<LockConfig>,
+    pub lockdrop_deposit_window: Option<u64>,
+    pub lockdrop_withdraw_window: Option<u64>,
+    pub lock_configs: Option<Vec<LockConfig>>,
 }
 
 impl SuiteBuilder {
@@ -258,34 +258,13 @@ impl SuiteBuilder {
             admin: None,
             initial_balances: vec![],
             timelock_config: vec![],
-            eclip_daily_reward: Uint128::zero(),
-            lp_staking_eclip_daily_reward: Uint128::zero(),
-            locking_reward_config: vec![],
+            eclip_daily_reward: None,
+            lp_staking_eclip_daily_reward: None,
+            locking_reward_config: None,
             lockdrop_init_timestamp: 0u64,
-            lockdrop_deposit_window: 432_000u64,
-            lockdrop_withdraw_window: 172_800u64,
-            lock_configs: vec![
-                LockConfig {
-                    duration: 0u64,
-                    multiplier: 1u64,
-                },
-                LockConfig {
-                    duration: 2_592_000u64,
-                    multiplier: 2u64,
-                },
-                LockConfig {
-                    duration: 7_776_000u64,
-                    multiplier: 1u64,
-                },
-                LockConfig {
-                    duration: 15_552_000u64,
-                    multiplier: 1u64,
-                },
-                LockConfig {
-                    duration: 31_536_000u64,
-                    multiplier: 1u64,
-                },
-            ],
+            lockdrop_deposit_window: None,
+            lockdrop_withdraw_window: None,
+            lock_configs: None,
         }
     }
 
@@ -301,7 +280,7 @@ impl SuiteBuilder {
         self
     }
 
-    pub fn with_timelock_config(mut self, config: Vec<(u64, u16)>) -> Self {
+    pub fn with_timelock_config(mut self, config: Vec<(u64, u64)>) -> Self {
         let timelock_config = config
             .into_iter()
             .map(|(duration, early_unlock_penalty_bps)| TimeLockConfig {
@@ -314,12 +293,12 @@ impl SuiteBuilder {
     }
 
     pub fn with_eclip_daily_reward(mut self, daily_reward: u128) -> Self {
-        self.eclip_daily_reward = Uint128::from(daily_reward);
+        self.eclip_daily_reward = Some(Uint128::from(daily_reward));
         self
     }
 
     pub fn with_lp_staking_eclip_daily_reward(mut self, daily_reward: u128) -> Self {
-        self.lp_staking_eclip_daily_reward = Uint128::from(daily_reward);
+        self.lp_staking_eclip_daily_reward = Some(Uint128::from(daily_reward));
         self
     }
 
@@ -331,7 +310,7 @@ impl SuiteBuilder {
                 multiplier,
             })
             .collect::<Vec<LockingRewardConfig>>();
-        self.locking_reward_config = locking_reward_config;
+        self.locking_reward_config = Some(locking_reward_config);
         self
     }
 
@@ -341,24 +320,27 @@ impl SuiteBuilder {
     }
 
     pub fn with_lockdrop_deposit_window(mut self, time: u64) -> Self {
-        self.lockdrop_deposit_window = time;
+        self.lockdrop_deposit_window = Some(time);
         self
     }
 
     pub fn with_lockdrop_withdraw_window(mut self, time: u64) -> Self {
-        self.lockdrop_withdraw_window = time;
+        self.lockdrop_withdraw_window = Some(time);
         self
     }
 
-    pub fn with_lock_configs(mut self, config: Vec<(u64, u64)>) -> Self {
+    pub fn with_lock_configs(mut self, config: Vec<(u64, u64, u64)>) -> Self {
         let lock_configs = config
             .into_iter()
-            .map(|(duration, multiplier)| LockConfig {
-                duration,
-                multiplier,
-            })
+            .map(
+                |(duration, multiplier, early_unlock_penalty_bps)| LockConfig {
+                    duration,
+                    multiplier,
+                    early_unlock_penalty_bps,
+                },
+            )
             .collect::<Vec<LockConfig>>();
-        self.lock_configs = lock_configs;
+        self.lock_configs = Some(lock_configs);
         self
     }
 
@@ -548,6 +530,7 @@ impl SuiteBuilder {
                     owner: admin.clone().into_string(),
                     token: eclipastro_contract.clone().into_string(),
                     timelock_config: Some(self.timelock_config.clone()),
+                    dao_treasury_address: Addr::unchecked("dao_treasury_address").to_string(),
                 },
                 &[],
                 "timelock staking",
@@ -641,8 +624,12 @@ impl SuiteBuilder {
                 &LpStakingInstantiateMsg {
                     owner: admin.clone().to_string(),
                     lp_token: eclipastro_xastro_lp_token_contract.to_string(),
+                    lp_contract: eclipastro_xastro_lp_contract.to_string(),
                     eclip: eclip.clone(),
                     astro: astro_contract.to_string(),
+                    xastro: xastro_contract.to_string(),
+                    astro_staking: astro_staking_contract.to_string(),
+                    converter: converter_contract.to_string(),
                     eclip_daily_reward: self.lp_staking_eclip_daily_reward,
                     astroport_generator: astroport_generator.to_string(),
                     treasury: eclipse_treasury.to_string(),
@@ -677,6 +664,7 @@ impl SuiteBuilder {
                     liquidity_pool: eclipastro_xastro_lp_contract.to_string(),
                     owner: None,
                     eclip: eclip.clone(),
+                    dao_treasury_address: Addr::unchecked("dao_treasury_address").to_string(),
                 },
                 &[],
                 "Eclipsefi lockdrop",
@@ -853,6 +841,9 @@ impl Suite {
                         reward_contract: Some(
                             self.reward_distributor_contract.clone().into_string(),
                         ),
+                        timelock_contract: Some(
+                            self.timelock_staking_contract.clone().into_string(),
+                        ),
                     },
                 },
                 &[],
@@ -870,6 +861,27 @@ impl Suite {
                         ),
                         timelock_config: None,
                     },
+                },
+                &[],
+            )
+            .unwrap();
+
+        self.app
+            .execute_contract(
+                self.admin.clone(),
+                self.timelock_staking_contract.clone(),
+                &TimelockStakingExecuteMsg::AllowUsers {
+                    users: vec![self.lockdrop.to_string()],
+                },
+                &[],
+            )
+            .unwrap();
+        self.app
+            .execute_contract(
+                self.admin.clone(),
+                self.flexible_staking_contract.clone(),
+                &FlexibleStakingExecuteMsg::AllowUsers {
+                    users: vec![self.lockdrop.to_string()],
                 },
                 &[],
             )
@@ -1321,7 +1333,7 @@ impl Suite {
         let config: (Uint128, Uint128) = self
             .app
             .wrap()
-            .query_wasm_smart(self.voter_contract.clone(), &VoterQueryMsg::ConvertRatio {  })?;
+            .query_wasm_smart(self.voter_contract.clone(), &VoterQueryMsg::ConvertRatio {})?;
         Ok(config)
     }
 
@@ -1386,6 +1398,32 @@ impl Suite {
         )
     }
 
+    pub fn update_flexible_allow_users(
+        &mut self,
+        sender: &str,
+        users: Vec<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.flexible_staking_contract.clone(),
+            &FlexibleStakingExecuteMsg::AllowUsers { users },
+            &[],
+        )
+    }
+
+    pub fn update_flexible_block_users(
+        &mut self,
+        sender: &str,
+        users: Vec<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.flexible_staking_contract.clone(),
+            &FlexibleStakingExecuteMsg::BlockUsers { users },
+            &[],
+        )
+    }
+
     pub fn flexible_stake(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -1394,6 +1432,49 @@ impl Suite {
                 contract: self.flexible_staking_contract(),
                 amount: Uint128::from(amount),
                 msg: to_json_binary(&FlexibleStakingCw20HookMsg::Stake {})?,
+            },
+            &[],
+        )
+    }
+
+    pub fn flexible_relock(
+        &mut self,
+        sender: &str,
+        duration: u64,
+        amount: Option<Uint128>,
+        recipient: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.flexible_staking_contract.clone(),
+            &FlexibleStakingCw20HookMsg::Relock {
+                duration,
+                amount,
+                recipient,
+            },
+            &[],
+        )
+    }
+
+    pub fn flexible_relock_with_deposit(
+        &mut self,
+        sender: &str,
+        stake_amount: u128,
+        duration: u64,
+        amount: Option<Uint128>,
+        recipient: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.eclipastro_contract.clone(),
+            &Cw20ExecuteMsg::Send {
+                contract: self.flexible_staking_contract(),
+                amount: Uint128::from(stake_amount),
+                msg: to_json_binary(&FlexibleStakingCw20HookMsg::Relock {
+                    duration,
+                    amount,
+                    recipient,
+                })?,
             },
             &[],
         )
@@ -1408,12 +1489,18 @@ impl Suite {
         )
     }
 
-    pub fn flexible_unstake(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+    pub fn flexible_unstake(
+        &mut self,
+        sender: &str,
+        amount: u128,
+        recipient: Option<String>,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.flexible_staking_contract.clone(),
             &FlexibleStakingExecuteMsg::Unstake {
                 amount: Uint128::from(amount),
+                recipient,
             },
             &[],
         )
@@ -1433,6 +1520,12 @@ impl Suite {
             &FlexibleStakingQueryMsg::Owner {},
         )?;
         Ok(owner.into_string())
+    }
+    pub fn query_flexible_is_allowed(&self, user: String) -> StdResult<bool> {
+        Ok(self.app.wrap().query_wasm_smart(
+            self.flexible_staking_contract.clone(),
+            &FlexibleStakingQueryMsg::IsAllowed { user },
+        )?)
     }
 
     pub fn query_flexible_staking(&self, user: &str) -> StdResult<u128> {
@@ -1477,6 +1570,32 @@ impl Suite {
         )
     }
 
+    pub fn update_timelock_allow_users(
+        &mut self,
+        sender: &str,
+        users: Vec<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.timelock_staking_contract.clone(),
+            &TimelockStakingExecuteMsg::AllowUsers { users },
+            &[],
+        )
+    }
+
+    pub fn update_timelock_block_users(
+        &mut self,
+        sender: &str,
+        users: Vec<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.timelock_staking_contract.clone(),
+            &TimelockStakingExecuteMsg::BlockUsers { users },
+            &[],
+        )
+    }
+
     pub fn update_timelock_stake_owner(
         &mut self,
         sender: &str,
@@ -1497,6 +1616,7 @@ impl Suite {
         sender: &str,
         amount: u128,
         duration: u64,
+        recipient: Option<String>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -1506,7 +1626,7 @@ impl Suite {
                 amount: Uint128::from(amount),
                 msg: to_json_binary(&TimelockCw20HookMsg::Lock {
                     duration,
-                    user: Some(Addr::unchecked(sender)),
+                    recipient,
                 })?,
             },
             &[],
@@ -1519,14 +1639,16 @@ impl Suite {
         duration: u64,
         locked_at: u64,
         amount: Option<Uint128>,
+        recipient: Option<String>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::Unstake {
+            &TimelockStakingExecuteMsg::Unlock {
                 duration,
                 locked_at,
                 amount,
+                recipient,
             },
             &[],
         )
@@ -1564,18 +1686,44 @@ impl Suite {
         from_duration: u64,
         locked_at: u64,
         to_duration: u64,
-        receiver: Option<Addr>,
+        recipient: Option<String>,
         amount: Option<Uint128>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::Restake {
+            &TimelockStakingExecuteMsg::Relock {
                 from_duration,
-                locked_at,
                 to_duration,
-                receiver,
-                amount,
+                relocks: vec![(locked_at, amount)],
+                recipient,
+            },
+            &[],
+        )
+    }
+
+    pub fn timelock_restake_with_deposit(
+        &mut self,
+        sender: &str,
+        from_duration: u64,
+        locked_at: u64,
+        to_duration: u64,
+        stake_amount: u128,
+        recipient: Option<String>,
+        amount: Option<Uint128>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.eclipastro_contract.clone(),
+            &Cw20ExecuteMsg::Send {
+                contract: self.timelock_staking_contract(),
+                amount: Uint128::from(stake_amount),
+                msg: to_json_binary(&TimelockStakingExecuteMsg::Relock {
+                    from_duration,
+                    to_duration,
+                    relocks: vec![(locked_at, amount)],
+                    recipient,
+                })?,
             },
             &[],
         )
@@ -1587,6 +1735,12 @@ impl Suite {
             &TimelockStakingQueryMsg::Config {},
         )?;
         Ok(config)
+    }
+    pub fn query_timelock_is_allowed(&self, user: String) -> StdResult<bool> {
+        Ok(self.app.wrap().query_wasm_smart(
+            self.timelock_staking_contract.clone(),
+            &TimelockStakingQueryMsg::IsAllowed { user },
+        )?)
     }
 
     pub fn query_timelock_stake_owner(&self) -> StdResult<String> {
@@ -1689,12 +1843,18 @@ impl Suite {
         )
     }
 
-    pub fn unstake_lp_token(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+    pub fn unstake_lp_token(
+        &mut self,
+        sender: &str,
+        amount: u128,
+        recipient: Option<String>,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lp_staking.clone(),
             &LpStakingExecuteMsg::Unstake {
                 amount: Uint128::from(amount),
+                recipient,
             },
             &[],
         )
@@ -1775,6 +1935,48 @@ impl Suite {
         )
     }
 
+    pub fn single_staking_extend_duration_without_deposit(
+        &mut self,
+        sender: &str,
+        from_duration: u64,
+        to_duration: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::ExtendLock {
+                stake_type: StakeType::SingleStaking,
+                from: from_duration,
+                to: to_duration,
+            },
+            &[],
+        )
+    }
+
+    pub fn single_staking_extend_duration_with_deposit(
+        &mut self,
+        sender: &str,
+        token: String,
+        amount: u128,
+        from_duration: u64,
+        to_duration: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            Addr::unchecked(token),
+            &Cw20ExecuteMsg::Send {
+                contract: self.lockdrop.to_string(),
+                amount: Uint128::from(amount),
+                msg: to_json_binary(&LockdropCw20HookMsg::ExtendDuration {
+                    stake_type: StakeType::SingleStaking,
+                    from: from_duration,
+                    to: to_duration,
+                })?,
+            },
+            &[],
+        )
+    }
+
     pub fn lp_staking_increase_lockdrop(
         &mut self,
         sender: &str,
@@ -1791,6 +1993,48 @@ impl Suite {
                 msg: to_json_binary(&LockdropCw20HookMsg::IncreaseLockup {
                     stake_type: StakeType::LpStaking,
                     duration,
+                })?,
+            },
+            &[],
+        )
+    }
+
+    pub fn lp_lockup_extend_duration_without_deposit(
+        &mut self,
+        sender: &str,
+        from_duration: u64,
+        to_duration: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::ExtendLock {
+                stake_type: StakeType::LpStaking,
+                from: from_duration,
+                to: to_duration,
+            },
+            &[],
+        )
+    }
+
+    pub fn lp_lockup_extend_duration_with_deposit(
+        &mut self,
+        sender: &str,
+        token: String,
+        amount: u128,
+        from_duration: u64,
+        to_duration: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            Addr::unchecked(token),
+            &Cw20ExecuteMsg::Send {
+                contract: self.lockdrop.to_string(),
+                amount: Uint128::from(amount),
+                msg: to_json_binary(&LockdropCw20HookMsg::ExtendDuration {
+                    stake_type: StakeType::LpStaking,
+                    from: from_duration,
+                    to: to_duration,
                 })?,
             },
             &[],
@@ -1828,13 +2072,12 @@ impl Suite {
     pub fn increase_eclip_incentives_lockdrop(
         &mut self,
         sender: &str,
-        stake_type: StakeType,
         amount: u128,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lockdrop.clone(),
-            &LockdropExecuteMsg::IncreaseEclipIncentives { stake_type },
+            &LockdropExecuteMsg::IncreaseEclipIncentives {},
             &[Coin {
                 denom: self.eclip(),
                 amount: Uint128::from(amount),
@@ -1842,29 +2085,11 @@ impl Suite {
         )
     }
 
-    pub fn lockdrop_stake_single_vault(&mut self, sender: &str) -> AnyResult<AppResponse> {
+    pub fn lockdrop_stake_to_vaults(&mut self, sender: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lockdrop.clone(),
-            &LockdropExecuteMsg::StakeToSingleVault {},
-            &[],
-        )
-    }
-
-    pub fn lockdrop_stake_lp_vault(&mut self, sender: &str) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.lockdrop.clone(),
-            &LockdropExecuteMsg::StakeToLpVault {},
-            &[],
-        )
-    }
-
-    pub fn lockdrop_enable_claimes(&mut self, sender: &str) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.lockdrop.clone(),
-            &LockdropExecuteMsg::EnableClaims {},
+            &LockdropExecuteMsg::StakeToVaults {},
             &[],
         )
     }
@@ -1900,6 +2125,39 @@ impl Suite {
                 stake_type: StakeType::LpStaking,
                 duration,
                 amount,
+            },
+            &[],
+        )
+    }
+
+    pub fn single_lockup_relock(
+        &mut self,
+        sender: &str,
+        from: u64,
+        to: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop.clone(),
+            &LockdropExecuteMsg::RelockSingleStaking { from, to },
+            &[],
+        )
+    }
+
+    pub fn single_lockup_relock_with_deposit(
+        &mut self,
+        sender: &str,
+        from: u64,
+        to: u64,
+        amount: u128,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.eclipastro_contract.clone(),
+            &Cw20ExecuteMsg::Send {
+                contract: self.lockdrop.to_string(),
+                amount: Uint128::from(amount),
+                msg: to_json_binary(&LockdropCw20HookMsg::Relock { from, to })?,
             },
             &[],
         )

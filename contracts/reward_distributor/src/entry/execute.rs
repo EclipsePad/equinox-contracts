@@ -6,8 +6,7 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ExecuteMsg;
 use equinox_msg::{
-    reward_distributor::UpdateConfigMsg,
-    timelock_staking::RestakingDetail,
+    reward_distributor::{RelockDetail, UpdateConfigMsg},
     token_converter::{
         ExecuteMsg as ConverterExecuteMsg, QueryMsg as ConverterQueryMsg, RewardResponse,
     },
@@ -170,6 +169,13 @@ pub fn timelock_stake(
         ContractError::Unauthorized {}
     );
     ensure!(amount.gt(&Uint128::zero()), ContractError::ZeroAmount {});
+    ensure!(
+        config
+            .locking_reward_config
+            .into_iter()
+            .any(|c| c.duration == duration),
+        ContractError::InvalidDuration(duration)
+    );
 
     // update total staking reward
     let mut total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone())?;
@@ -758,61 +764,80 @@ pub fn timelock_unstake(
 
 /// restaking event
 /// only timelock staking contract
-pub fn restake(
+pub fn relock(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    restaking_detail: RestakingDetail,
+    adding_amount: Option<Uint128>,
+    relock_detail: RelockDetail,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let receiver = restaking_detail.receiver;
-    let user = restaking_detail.sender;
-    let locked_at = restaking_detail.locked_at;
-    let from_duration = restaking_detail.from_duration;
-    let to_duration = restaking_detail.to_duration;
-    let amount = restaking_detail.amount.unwrap();
+    // update total staking rewards info
+    let mut total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone())?;
+    let sender = relock_detail.sender;
+    let receiver = relock_detail.receiver;
+    let from_duration = relock_detail.from_duration;
+    let to_duration = relock_detail.to_duration;
 
     ensure!(
         info.sender == config.timelock_staking,
         ContractError::Unauthorized {}
     );
 
-    let new_owner = receiver.unwrap_or(info.sender);
+    let mut relock_amounts = Uint128::zero();
+    let mut pending_eclipastro_rewards = Uint128::zero();
+    let mut pending_eclip_rewards = Uint128::zero();
+    for relock in relock_detail.relocks {
+        // get user staking data
+        let mut old_user_staking = TIMELOCK_USER_STAKING
+            .load(deps.storage, (&sender.to_string(), from_duration, relock.0))?;
+        relock_amounts += relock.1;
+        // update user rewards
+        old_user_staking = user_reward_update(
+            deps.as_ref(),
+            &total_staking_data,
+            from_duration,
+            &old_user_staking,
+        )?;
+        pending_eclipastro_rewards += old_user_staking.rewards.eclipastro.pending_reward;
+        pending_eclip_rewards += old_user_staking.rewards.eclip.pending_reward;
+        if relock.1 == old_user_staking.amount {
+            TIMELOCK_USER_STAKING
+                .remove(deps.storage, (&sender.to_string(), from_duration, relock.0));
+        } else {
+            old_user_staking.amount -= relock.1;
+            TIMELOCK_USER_STAKING.save(
+                deps.storage,
+                (&sender.to_string(), from_duration, relock.0),
+                &old_user_staking,
+            )?;
+        }
+    }
 
-    // get user staking data
-    let mut old_user_staking =
-        TIMELOCK_USER_STAKING.load(deps.storage, (&user.to_string(), from_duration, locked_at))?;
     let mut new_user_staking = TIMELOCK_USER_STAKING
         .load(
             deps.storage,
-            (
-                &new_owner.to_string(),
-                to_duration,
-                env.block.time.seconds(),
-            ),
+            (&receiver.to_string(), to_duration, env.block.time.seconds()),
         )
         .unwrap_or_default();
-    // update total staking rewards info
-    let mut total_staking_data = total_staking_reward_update(deps.as_ref(), env.clone())?;
-    // update total staking balance from duration
-    total_staking_data =
-        total_staking_amount_update(total_staking_data, from_duration, amount, false)?;
-    // update total staking balance to duration
-    total_staking_data =
-        total_staking_amount_update(total_staking_data, to_duration, amount, true)?;
-    // update user rewards
-    old_user_staking = user_reward_update(
-        deps.as_ref(),
-        &total_staking_data,
-        from_duration,
-        &old_user_staking,
-    )?;
+
     new_user_staking = user_reward_update(
         deps.as_ref(),
         &total_staking_data,
         to_duration,
         &new_user_staking,
     )?;
+    // update total staking balance from duration
+    total_staking_data =
+        total_staking_amount_update(total_staking_data, from_duration, relock_amounts, false)?;
+    // update total staking balance to duration
+    total_staking_data = total_staking_amount_update(
+        total_staking_data,
+        to_duration,
+        relock_amounts + adding_amount.unwrap_or_default(),
+        true,
+    )?;
+    new_user_staking.amount += relock_amounts + adding_amount.unwrap_or_default();
     let mut msgs = vec![];
     let mut bankmsgs = vec![];
 
@@ -837,57 +862,27 @@ pub fn restake(
             msg: to_json_binary(&ConverterExecuteMsg::Claim {})?,
             funds: vec![],
         });
-        // send user eclipASTRO rewards
-        if old_user_staking
-            .rewards
-            .eclipastro
-            .pending_reward
-            .gt(&Uint128::zero())
-        {
-            msgs.push(WasmMsg::Execute {
-                contract_addr: config.eclipastro.to_string(),
-                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: user.to_string(),
-                    amount: old_user_staking.rewards.eclipastro.pending_reward,
-                })?,
-                funds: vec![],
-            });
-        }
-        // send user ECLIP rewards
-        if old_user_staking
-            .rewards
-            .eclip
-            .pending_reward
-            .gt(&Uint128::zero())
-        {
-            bankmsgs.push(BankMsg::Send {
-                to_address: user.to_string(),
-                amount: coins(
-                    old_user_staking.rewards.eclip.pending_reward.u128(),
-                    config.eclip,
-                ),
-            })
-        }
     }
-    if amount == old_user_staking.amount {
-        TIMELOCK_USER_STAKING.remove(deps.storage, (&user.to_string(), from_duration, locked_at));
-    } else {
-        old_user_staking.amount -= amount;
-        TIMELOCK_USER_STAKING.save(
-            deps.storage,
-            (&user.to_string(), from_duration, locked_at),
-            &old_user_staking,
-        )?;
+    if !pending_eclipastro_rewards.is_zero() {
+        msgs.push(WasmMsg::Execute {
+            contract_addr: config.eclipastro.to_string(),
+            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: sender.to_string(),
+                amount: pending_eclipastro_rewards,
+            })?,
+            funds: vec![],
+        });
     }
-
-    new_user_staking.amount = new_user_staking.amount.checked_add(amount).unwrap();
+    // send user ECLIP rewards
+    if !pending_eclip_rewards.is_zero() {
+        bankmsgs.push(BankMsg::Send {
+            to_address: sender.to_string(),
+            amount: coins(pending_eclip_rewards.u128(), config.eclip),
+        })
+    }
     TIMELOCK_USER_STAKING.save(
         deps.storage,
-        (
-            &new_owner.to_string(),
-            to_duration,
-            env.block.time.seconds(),
-        ),
+        (&receiver.to_string(), to_duration, env.block.time.seconds()),
         &new_user_staking,
     )?;
     TOTAL_STAKING.save(deps.storage, &total_staking_data)?;

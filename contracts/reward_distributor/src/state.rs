@@ -8,7 +8,7 @@ use equinox_msg::reward_distributor::{Config, TotalStakingData};
 // Decimal256      Uint128   Uin128
 // ~ 10^(77-18)       3 * 10^38
 // 59 - 38 = 21 / 2 = 10
-pub const REWARD_WEIGHT_MULTIPLIER: u128 = 10_000_000_000;
+pub const REWARD_MULTIPLIER: u128 = 10_000_000_000;
 pub const REWARD_DISTRIBUTION_PERIOD: u64 = 8 * 86_400; // 8 days
 pub const REWARD_DISTRIBUTION_TIME_DIFF: u64 = 6 * 3_600; // 6 hours
 

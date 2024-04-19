@@ -1,6 +1,6 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
-use equinox_msg::reward_distributor::{Config, InstantiateMsg};
+use equinox_msg::reward_distributor::{Config, InstantiateMsg, LockingRewardConfig};
 
 use crate::{
     error::ContractError,
@@ -23,8 +23,35 @@ pub fn try_instantiate(
             flexible_staking: deps.api.addr_validate(&msg.flexible_staking)?,
             timelock_staking: deps.api.addr_validate(&msg.timelock_staking)?,
             token_converter: deps.api.addr_validate(&msg.token_converter)?,
-            eclip_daily_reward: msg.eclip_daily_reward,
-            locking_reward_config: msg.locking_reward_config,
+            eclip_daily_reward: msg
+                .eclip_daily_reward
+                .unwrap_or(Uint128::from(1_000_000_000u128)),
+            locking_reward_config: msg.locking_reward_config.unwrap_or(vec![
+                LockingRewardConfig {
+                    duration: 0,
+                    multiplier: 1,
+                },
+                LockingRewardConfig {
+                    duration: 86400 * 30,
+                    multiplier: 2,
+                },
+                LockingRewardConfig {
+                    duration: 86400 * 30 * 3,
+                    multiplier: 3,
+                },
+                LockingRewardConfig {
+                    duration: 86400 * 30 * 6,
+                    multiplier: 4,
+                },
+                LockingRewardConfig {
+                    duration: 86400 * 30 * 9,
+                    multiplier: 5,
+                },
+                LockingRewardConfig {
+                    duration: 86400 * 365,
+                    multiplier: 6,
+                },
+            ]),
         },
     )?;
 

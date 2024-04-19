@@ -7,7 +7,7 @@
 import { UseQueryOptions, useQuery, useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee, Coin } from "@cosmjs/amino";
-import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, ArrayOfTimelockReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration, ArrayOfStakingWithDuration, StakingWithDuration } from "./TimelockStaking.types";
+import { InstantiateMsg, TimeLockConfig, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, Boolean, ArrayOfTimelockReward, TimelockReward, ArrayOfUserStaking, UserStaking, UserStakingByDuration, ArrayOfStakingWithDuration, StakingWithDuration } from "./TimelockStaking.types";
 import { TimelockStakingQueryClient, TimelockStakingClient } from "./TimelockStaking.client";
 export const timelockStakingQueryKeys = {
   contract: ([{
@@ -42,6 +42,10 @@ export const timelockStakingQueryKeys = {
   }] as const),
   calculatePenalty: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...timelockStakingQueryKeys.address(contractAddress)[0],
     method: "calculate_penalty",
+    args
+  }] as const),
+  isAllowed: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...timelockStakingQueryKeys.address(contractAddress)[0],
+    method: "is_allowed",
     args
   }] as const)
 };
@@ -119,6 +123,18 @@ export const timelockStakingQueries = {
     }) : Promise.reject(new Error("Invalid client")),
     ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  isAllowed: <TData = Boolean,>({
+    client,
+    args,
+    options
+  }: TimelockStakingIsAllowedQuery<TData>): UseQueryOptions<Boolean, Error, TData> => ({
+    queryKey: timelockStakingQueryKeys.isAllowed(client?.contractAddress, args),
+    queryFn: () => client ? client.isAllowed({
+      user: args.user
+    }) : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   })
 };
 export interface TimelockStakingReactQuery<TResponse, TData = TResponse> {
@@ -126,6 +142,22 @@ export interface TimelockStakingReactQuery<TResponse, TData = TResponse> {
   options?: Omit<UseQueryOptions<TResponse, Error, TData>, "'queryKey' | 'queryFn' | 'initialData'"> & {
     initialData?: undefined;
   };
+}
+export interface TimelockStakingIsAllowedQuery<TData> extends TimelockStakingReactQuery<Boolean, TData> {
+  args: {
+    user: string;
+  };
+}
+export function useTimelockStakingIsAllowedQuery<TData = Boolean>({
+  client,
+  args,
+  options
+}: TimelockStakingIsAllowedQuery<TData>) {
+  return useQuery<Boolean, Error, TData>(timelockStakingQueryKeys.isAllowed(client?.contractAddress, args), () => client ? client.isAllowed({
+    user: args.user
+  }) : Promise.reject(new Error("Invalid client")), { ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  });
 }
 export interface TimelockStakingCalculatePenaltyQuery<TData> extends TimelockStakingReactQuery<Uint128, TData> {
   args: {
@@ -215,11 +247,56 @@ export function useTimelockStakingConfigQuery<TData = Config>({
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
-export interface TimelockStakingRestakeMutation {
+export interface TimelockStakingBlockUsersMutation {
+  client: TimelockStakingClient;
+  msg: {
+    users: string[];
+  };
+  args?: {
+    fee?: number | StdFee | "auto";
+    memo?: string;
+    funds?: Coin[];
+  };
+}
+export function useTimelockStakingBlockUsersMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, TimelockStakingBlockUsersMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, TimelockStakingBlockUsersMutation>(({
+    client,
+    msg,
+    args: {
+      fee,
+      memo,
+      funds
+    } = {}
+  }) => client.blockUsers(msg, fee, memo, funds), options);
+}
+export interface TimelockStakingAllowUsersMutation {
+  client: TimelockStakingClient;
+  msg: {
+    users: string[];
+  };
+  args?: {
+    fee?: number | StdFee | "auto";
+    memo?: string;
+    funds?: Coin[];
+  };
+}
+export function useTimelockStakingAllowUsersMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, TimelockStakingAllowUsersMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, TimelockStakingAllowUsersMutation>(({
+    client,
+    msg,
+    args: {
+      fee,
+      memo,
+      funds
+    } = {}
+  }) => client.allowUsers(msg, fee, memo, funds), options);
+}
+export interface TimelockStakingRelockMutation {
   client: TimelockStakingClient;
   msg: {
     fromDuration: number;
-    lockedAt: number;
+    recipient?: string;
+    relocks: number[][];
     toDuration: number;
   };
   args?: {
@@ -228,8 +305,8 @@ export interface TimelockStakingRestakeMutation {
     funds?: Coin[];
   };
 }
-export function useTimelockStakingRestakeMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, TimelockStakingRestakeMutation>, "mutationFn">) {
-  return useMutation<ExecuteResult, Error, TimelockStakingRestakeMutation>(({
+export function useTimelockStakingRelockMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, TimelockStakingRelockMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, TimelockStakingRelockMutation>(({
     client,
     msg,
     args: {
@@ -237,13 +314,15 @@ export function useTimelockStakingRestakeMutation(options?: Omit<UseMutationOpti
       memo,
       funds
     } = {}
-  }) => client.restake(msg, fee, memo, funds), options);
+  }) => client.relock(msg, fee, memo, funds), options);
 }
-export interface TimelockStakingUnstakeMutation {
+export interface TimelockStakingUnlockMutation {
   client: TimelockStakingClient;
   msg: {
+    amount?: Uint128;
     duration: number;
     lockedAt: number;
+    recipient?: string;
   };
   args?: {
     fee?: number | StdFee | "auto";
@@ -251,8 +330,8 @@ export interface TimelockStakingUnstakeMutation {
     funds?: Coin[];
   };
 }
-export function useTimelockStakingUnstakeMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, TimelockStakingUnstakeMutation>, "mutationFn">) {
-  return useMutation<ExecuteResult, Error, TimelockStakingUnstakeMutation>(({
+export function useTimelockStakingUnlockMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, TimelockStakingUnlockMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, TimelockStakingUnlockMutation>(({
     client,
     msg,
     args: {
@@ -260,7 +339,7 @@ export function useTimelockStakingUnstakeMutation(options?: Omit<UseMutationOpti
       memo,
       funds
     } = {}
-  }) => client.unstake(msg, fee, memo, funds), options);
+  }) => client.unlock(msg, fee, memo, funds), options);
 }
 export interface TimelockStakingClaimAllMutation {
   client: TimelockStakingClient;

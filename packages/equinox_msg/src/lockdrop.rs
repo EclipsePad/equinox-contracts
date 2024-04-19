@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{
     to_json_binary, Addr, CosmosMsg, Decimal, Decimal256, Env, StdResult, Uint128, Uint256, WasmMsg,
 };
-use cw20::Cw20ReceiveMsg;
+use cw20::{BalanceResponse, Cw20ReceiveMsg};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -12,11 +12,11 @@ pub struct InstantiateMsg {
     /// Timestamp when Contract will start accepting ASTRO/xASTRO tokens
     pub init_timestamp: u64,
     /// Number of seconds during which lockup deposits will be accepted
-    pub deposit_window: u64,
+    pub deposit_window: Option<u64>,
     /// Withdrawal Window Length :: Post the deposit window
-    pub withdrawal_window: u64,
+    pub withdrawal_window: Option<u64>,
     /// lockup config(duration, multiplier)
-    pub lock_configs: Vec<LockConfig>,
+    pub lock_configs: Option<Vec<LockConfig>>,
     /// ASTRO token address
     pub astro_token: String,
     /// xASTRO token address
@@ -31,6 +31,7 @@ pub struct InstantiateMsg {
     pub converter: String,
     /// eclipASTRO/xASTRO pool
     pub liquidity_pool: String,
+    pub dao_treasury_address: String,
 }
 
 #[cw_serde]
@@ -41,16 +42,14 @@ pub enum ExecuteMsg {
     UpdateConfig {
         new_config: UpdateConfigMsg,
     },
+    UpdateRewardDistributionConfig {
+        new_config: RewardDistributionConfig,
+    },
     // ADMIN Function ::: To deposit ASTRO/xASTRO to Eclipse Equinox vxASTRO holder contract
-    StakeToSingleVault {},
-    // ADMIN Function ::: To deposit ASTRO/xASTRO to Eclipse eclipASTRO/xASTRO stability pool
-    StakeToLpVault {},
-    // ADMIN Function ::: Enable ECLIP withdrawals by users
-    EnableClaims {},
+    StakeToVaults {},
     // Function to increase lockup duration while deposit window
     ExtendLock {
         stake_type: StakeType,
-        amount: Option<Uint128>,
         from: u64,
         to: u64,
     },
@@ -65,11 +64,8 @@ pub enum ExecuteMsg {
         amount: Option<Uint128>,
         duration: u64,
     },
-    IncreaseEclipIncentives {
-        stake_type: StakeType,
-    },
-    RestakeSingleStaking {
-        amount: Option<Uint128>,
+    IncreaseEclipIncentives {},
+    RelockSingleStaking {
         from: u64,
         to: u64,
     },
@@ -78,11 +74,6 @@ pub enum ExecuteMsg {
         stake_type: StakeType,
         duration: u64,
         amount: Option<Uint128>,
-    },
-    ClaimAssetReward {
-        recipient: Option<String>,
-        stake_type: StakeType,
-        duration: u64,
     },
     /// Callbacks; only callable by the contract itself.
     Callback(CallbackMsg),
@@ -120,15 +111,17 @@ pub enum QueryMsg {
     #[returns(Vec<LockupInfoResponse>)]
     LpLockupInfo {},
     /// query lockup state
-    #[returns(Vec<SingleLockupStateResponse>)]
+    #[returns(SingleLockupStateResponse)]
     SingleLockupState {},
-    #[returns(Vec<LpLockupStateResponse>)]
+    #[returns(LpLockupStateResponse)]
     LpLockupState {},
     /// query user lockup info
     #[returns(Vec<UserSingleLockupInfoResponse>)]
     UserSingleLockupInfo { user: Addr },
     #[returns(Vec<UserLpLockupInfoResponse>)]
     UserLpLockupInfo { user: Addr },
+    #[returns(BalanceResponse)]
+    TotalEclipIncentives {},
 }
 
 #[cw_serde]
@@ -138,6 +131,15 @@ pub enum Cw20HookMsg {
         stake_type: StakeType,
         duration: u64,
     },
+    ExtendDuration {
+        stake_type: StakeType,
+        from: u64,
+        to: u64,
+    },
+    Relock {
+        from: u64,
+        to: u64,
+    },
 }
 
 #[cw_serde]
@@ -145,10 +147,12 @@ pub enum CallbackMsg {
     StakeToSingleVault {
         prev_eclipastro_balance: Uint128,
         xastro_amount_to_convert: Uint128,
+        weighted_amount: Uint128,
     },
     DepositIntoPool {
         prev_eclipastro_balance: Uint128,
         xastro_amount: Uint128,
+        weighted_amount: Uint128,
     },
     DistributeLpStakingAssetRewards {
         prev_eclip_balance: Uint128,
@@ -191,6 +195,8 @@ pub enum CallbackMsg {
         duration: u64,
         amount: Uint128,
     },
+    StakeSingleVault {},
+    StakeLpVault {},
 }
 
 impl CallbackMsg {
@@ -239,6 +245,7 @@ pub struct Config {
     pub lock_configs: Vec<LockConfig>,
     /// Total ECLIP lockdrop incentives to be distributed among the users
     pub lockdrop_incentives: Uint128,
+    pub dao_treasury_address: Addr,
 }
 
 #[cw_serde]
@@ -247,6 +254,7 @@ pub struct UpdateConfigMsg {
     pub timelock_staking: Option<String>,
     pub lp_staking: Option<String>,
     pub reward_distributor: Option<String>,
+    pub dao_treasury_address: Option<String>,
 }
 
 #[cw_serde]
@@ -254,6 +262,7 @@ pub struct UpdateConfigMsg {
 pub struct LockConfig {
     pub duration: u64,
     pub multiplier: u64, // basis points
+    pub early_unlock_penalty_bps: u64,
 }
 
 // change when user deposit/withdraw
@@ -342,8 +351,6 @@ impl Default for LpUserLockupInfo {
 
 #[cw_serde]
 pub struct SingleLockupState {
-    /// Total ECLIP incentives
-    pub total_eclip_incentives: Uint128,
     /// Boolean value indicating if the user can withdraw their ECLIP rewards or not
     pub are_claims_allowed: bool,
     /// start time to countdown lock
@@ -356,6 +363,8 @@ pub struct SingleLockupState {
     pub weighted_total_eclipastro_lockup: Uint256,
     /// total xASTRO at the end of the lockdrop
     pub total_xastro: Uint128,
+    /// total xASTRO at the end of the lockdrop
+    pub weighted_total_xastro: Uint128,
     /// Asset rewards weights
     pub reward_weights: Vec<AssetRewardWeight>,
 }
@@ -363,13 +372,13 @@ pub struct SingleLockupState {
 impl Default for SingleLockupState {
     fn default() -> Self {
         SingleLockupState {
-            total_eclip_incentives: Uint128::zero(),
             are_claims_allowed: false,
             countdown_start_at: 0u64,
             is_staked: false,
             total_eclipastro_lockup: Uint128::zero(),
             weighted_total_eclipastro_lockup: Uint256::zero(),
             total_xastro: Uint128::zero(),
+            weighted_total_xastro: Uint128::zero(),
             reward_weights: vec![],
         }
     }
@@ -383,8 +392,6 @@ pub struct AssetRewardWeight {
 
 #[cw_serde]
 pub struct LpLockupState {
-    /// Total ECLIP incentives
-    pub total_eclip_incentives: Uint128,
     /// Boolean value indicating if the user can withdraw their ECLIP rewards or not
     pub are_claims_allowed: bool,
     /// start time to countdown lock
@@ -397,6 +404,8 @@ pub struct LpLockupState {
     pub weighted_total_lp_lockdrop: Uint256,
     /// total xASTRO at the end of the lockdrop
     pub total_xastro: Uint128,
+    /// total xASTRO at the end of the lockdrop
+    pub weighted_total_xastro: Uint128,
     /// Asset rewards weights
     pub reward_weights: Vec<AssetRewardWeight>,
 }
@@ -404,13 +413,13 @@ pub struct LpLockupState {
 impl Default for LpLockupState {
     fn default() -> Self {
         LpLockupState {
-            total_eclip_incentives: Uint128::zero(),
             are_claims_allowed: false,
             countdown_start_at: 0u64,
             is_staked: false,
             total_lp_lockdrop: Uint128::zero(),
             weighted_total_lp_lockdrop: Uint256::zero(),
             total_xastro: Uint128::zero(),
+            weighted_total_xastro: Uint128::zero(),
             reward_weights: vec![],
         }
     }
@@ -465,7 +474,6 @@ pub struct LockupInfoResponse {
 
 #[cw_serde]
 pub struct SingleLockupStateResponse {
-    pub total_eclip_incentives: Uint128,
     pub are_claims_allowed: bool,
     pub countdown_start_at: u64,
     pub is_staked: bool,
@@ -474,7 +482,6 @@ pub struct SingleLockupStateResponse {
 
 #[cw_serde]
 pub struct LpLockupStateResponse {
-    pub total_eclip_incentives: Uint128,
     pub are_claims_allowed: bool,
     pub countdown_start_at: u64,
     pub is_staked: bool,
@@ -490,6 +497,7 @@ pub struct UserSingleLockupInfoResponse {
     pub withdrawal_flag: bool,
     pub total_eclip_incentives: Uint128,
     pub claimed_eclip_incentives: Uint128,
+    pub pending_eclip_incentives: Uint128,
     pub staking_rewards: Vec<Asset>,
     pub countdown_start_at: u64,
 }
@@ -503,6 +511,13 @@ pub struct UserLpLockupInfoResponse {
     pub withdrawal_flag: bool,
     pub total_eclip_incentives: Uint128,
     pub claimed_eclip_incentives: Uint128,
+    pub pending_eclip_incentives: Uint128,
     pub staking_rewards: Vec<Asset>,
     pub countdown_start_at: u64,
+}
+
+#[cw_serde]
+pub struct RewardDistributionConfig {
+    pub instant: u64,        // bps
+    pub vesting_period: u64, // seconds
 }

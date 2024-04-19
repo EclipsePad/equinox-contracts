@@ -1,5 +1,6 @@
 use astroport::asset::{Asset, AssetInfo};
 use cosmwasm_std::{Addr, Decimal, Deps, Env, Order, StdResult, Uint128, Uint256};
+use cw20::BalanceResponse;
 use equinox_msg::{
     flexible_staking::QueryMsg as FlexibleStakingQueryMsg,
     lockdrop::{
@@ -17,8 +18,9 @@ use equinox_msg::{
 use crate::{
     error::ContractError,
     state::{
-        CONFIG, LP_LOCKUP_INFO, LP_LOCKUP_STATE, LP_USER_LOCKUP_INFO, OWNER, SINGLE_LOCKUP_INFO,
-        SINGLE_LOCKUP_STATE, SINGLE_USER_LOCKUP_INFO,
+        CONFIG, LP_LOCKUP_INFO, LP_LOCKUP_STATE, LP_USER_LOCKUP_INFO, OWNER,
+        REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKUP_INFO, SINGLE_LOCKUP_STATE,
+        SINGLE_USER_LOCKUP_INFO, TOTAL_ECLIP_INCENTIVES,
     },
 };
 
@@ -72,7 +74,6 @@ pub fn query_lp_lockup_info(deps: Deps, _env: Env) -> StdResult<Vec<LockupInfoRe
 pub fn query_single_lockup_state(deps: Deps, _env: Env) -> StdResult<SingleLockupStateResponse> {
     let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
     Ok(SingleLockupStateResponse {
-        total_eclip_incentives: state.total_eclip_incentives,
         are_claims_allowed: state.are_claims_allowed,
         countdown_start_at: state.countdown_start_at,
         is_staked: state.is_staked,
@@ -84,7 +85,6 @@ pub fn query_single_lockup_state(deps: Deps, _env: Env) -> StdResult<SingleLocku
 pub fn query_lp_lockup_state(deps: Deps, _env: Env) -> StdResult<LpLockupStateResponse> {
     let state = LP_LOCKUP_STATE.load(deps.storage)?;
     Ok(LpLockupStateResponse {
-        total_eclip_incentives: state.total_eclip_incentives,
         are_claims_allowed: state.are_claims_allowed,
         countdown_start_at: state.countdown_start_at,
         is_staked: state.is_staked,
@@ -100,6 +100,7 @@ pub fn query_user_single_lockup_info(
 ) -> StdResult<Vec<UserSingleLockupInfoResponse>> {
     let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
     let cfg = CONFIG.load(deps.storage)?;
+    let reward_cfg = REWARD_DISTRIBUTION_CONFIG.load(deps.storage)?;
 
     if state.is_staked {
         let flexible_staking_reward_response: FlexibleReward = deps.querier.query_wasm_smart(
@@ -247,6 +248,21 @@ pub fn query_user_single_lockup_info(
                 } else {
                     user_lockup_info.total_eclip_incentives
                 };
+                let instant_amount =
+                    user_total_eclip_incentives.multiply_ratio(reward_cfg.instant, 10000u64);
+                let claimable_eclip_incentives = if env.block.time.seconds()
+                    > state.countdown_start_at + reward_cfg.vesting_period
+                {
+                    user_total_eclip_incentives
+                } else {
+                    instant_amount
+                        + (user_total_eclip_incentives - instant_amount).multiply_ratio(
+                            env.block.time.seconds() - state.countdown_start_at,
+                            reward_cfg.vesting_period,
+                        )
+                };
+                let user_pending_eclip_incentives =
+                    claimable_eclip_incentives - user_lockup_info.claimed_eclip_incentives;
                 UserSingleLockupInfoResponse {
                     duration: d,
                     xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
@@ -255,6 +271,7 @@ pub fn query_user_single_lockup_info(
                     withdrawal_flag: user_lockup_info.withdrawal_flag,
                     total_eclip_incentives: user_total_eclip_incentives,
                     claimed_eclip_incentives: user_lockup_info.claimed_eclip_incentives,
+                    pending_eclip_incentives: user_pending_eclip_incentives,
                     staking_rewards: vec![
                         Asset {
                             info: AssetInfo::Token {
@@ -284,6 +301,7 @@ pub fn query_user_single_lockup_info(
                     xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
                     eclipastro_staked: Uint128::zero(),
                     eclipastro_withdrawed: Uint128::zero(),
+                    pending_eclip_incentives: Uint128::zero(),
                     withdrawal_flag: user_lockup_info.withdrawal_flag,
                     total_eclip_incentives: user_lockup_info.total_eclip_incentives,
                     claimed_eclip_incentives: user_lockup_info.claimed_eclip_incentives,
@@ -303,6 +321,7 @@ pub fn query_user_lp_lockup_info(
 ) -> StdResult<Vec<UserLpLockupInfoResponse>> {
     let state = LP_LOCKUP_STATE.load(deps.storage)?;
     let cfg = CONFIG.load(deps.storage)?;
+    let reward_cfg = REWARD_DISTRIBUTION_CONFIG.load(deps.storage)?;
 
     if state.is_staked {
         let lp_staking_reward_response: Vec<UserRewardResponse> = deps.querier.query_wasm_smart(
@@ -423,6 +442,22 @@ pub fn query_user_lp_lockup_info(
                     } else {
                         user_lockup_info.total_eclip_incentives
                     };
+
+                let instant_amount =
+                    user_total_eclip_incentives.multiply_ratio(reward_cfg.instant, 10000u64);
+                let claimable_eclip_incentives = if env.block.time.seconds()
+                    > state.countdown_start_at + reward_cfg.vesting_period
+                {
+                    user_total_eclip_incentives
+                } else {
+                    instant_amount
+                        + (user_total_eclip_incentives - instant_amount).multiply_ratio(
+                            env.block.time.seconds() - state.countdown_start_at,
+                            reward_cfg.vesting_period,
+                        )
+                };
+                let user_pending_eclip_incentives =
+                    claimable_eclip_incentives - user_lockup_info.claimed_eclip_incentives;
                 UserLpLockupInfoResponse {
                     duration: d,
                     xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
@@ -431,6 +466,7 @@ pub fn query_user_lp_lockup_info(
                     withdrawal_flag: user_lockup_info.withdrawal_flag,
                     total_eclip_incentives: user_total_eclip_incentives,
                     claimed_eclip_incentives: user_lockup_info.claimed_eclip_incentives,
+                    pending_eclip_incentives: user_pending_eclip_incentives,
                     staking_rewards: vec![
                         Asset {
                             info: AssetInfo::Token {
@@ -463,6 +499,7 @@ pub fn query_user_lp_lockup_info(
                     withdrawal_flag: user_lockup_info.withdrawal_flag,
                     total_eclip_incentives: user_lockup_info.total_eclip_incentives,
                     claimed_eclip_incentives: user_lockup_info.claimed_eclip_incentives,
+                    pending_eclip_incentives: Uint128::zero(),
                     staking_rewards: vec![],
                     countdown_start_at: state.countdown_start_at,
                 }
@@ -471,13 +508,25 @@ pub fn query_user_lp_lockup_info(
     }
 }
 
+pub fn query_total_eclip_incentives(deps: Deps) -> StdResult<BalanceResponse> {
+    Ok(BalanceResponse {
+        balance: TOTAL_ECLIP_INCENTIVES
+            .load(deps.storage)
+            .unwrap_or_default(),
+    })
+}
+
 pub fn calculate_user_eclip_incentives_for_single_lockup(
     deps: Deps,
     user_address: Addr,
     duration: u64,
 ) -> Result<Uint128, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
-    let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
+    let total_eclip_incentives = TOTAL_ECLIP_INCENTIVES
+        .load(deps.storage)
+        .unwrap_or_default();
+    let single_sided_state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
+    let lp_state = LP_LOCKUP_STATE.load(deps.storage)?;
     let user_lockup_info = SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&user_address, duration))?;
     let duration_multiplier = cfg
         .lock_configs
@@ -487,12 +536,11 @@ pub fn calculate_user_eclip_incentives_for_single_lockup(
         .multiplier;
     // convert user xastro amount to eclipastro amount, multiply duration multiplier, calculate eclip incentives
     let amount = Uint256::from(user_lockup_info.xastro_amount_in_lockups)
-        .multiply_ratio(state.total_eclipastro_lockup, state.total_xastro)
         .checked_mul(Uint256::from(duration_multiplier))
         .unwrap()
         .multiply_ratio(
-            state.total_eclip_incentives,
-            state.weighted_total_eclipastro_lockup,
+            total_eclip_incentives,
+            single_sided_state.weighted_total_xastro + lp_state.weighted_total_xastro,
         )
         .try_into()
         .unwrap();
@@ -505,24 +553,24 @@ pub fn calculate_user_eclip_incentives_for_lp_lockup(
     duration: u64,
 ) -> Result<Uint128, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
-    let state = LP_LOCKUP_STATE.load(deps.storage)?;
+    let total_eclip_incentives = TOTAL_ECLIP_INCENTIVES
+        .load(deps.storage)
+        .unwrap_or_default();
+    let single_sided_state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
+    let lp_state = LP_LOCKUP_STATE.load(deps.storage)?;
     let user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&user_address, duration))?;
-    let xastro_amount = user_lockup_info.xastro_amount_in_lockups;
-    let user_lp_token_staked = state
-        .total_lp_lockdrop
-        .multiply_ratio(state.total_xastro, xastro_amount);
     let duration_multiplier = cfg
         .lock_configs
         .into_iter()
         .find(|c| c.duration == duration)
         .unwrap_or_default()
         .multiplier;
-    let amount = Uint256::from(user_lp_token_staked)
+    let amount = Uint256::from(user_lockup_info.xastro_amount_in_lockups)
         .checked_mul(Uint256::from(duration_multiplier))
         .unwrap()
         .multiply_ratio(
-            state.total_eclip_incentives,
-            state.weighted_total_lp_lockdrop,
+            total_eclip_incentives,
+            single_sided_state.weighted_total_xastro + lp_state.weighted_total_xastro,
         )
         .try_into()
         .unwrap();

@@ -106,7 +106,7 @@ pub fn calculate_penalty(
         .find(|c| c.duration == duration)
     {
         let penalty_amount = amount
-            .multiply_ratio(locked_at + duration - current_time, duration)
+            // .multiply_ratio(locked_at + duration - current_time, duration)
             .multiply_ratio(timelock_config.early_unlock_penalty_bps, 10000u128);
         Ok(penalty_amount)
     } else {

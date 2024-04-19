@@ -12,19 +12,17 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            _handle_callback, handle_claim_lp_staking_asset_rewards,
-            handle_claim_rewards_and_unlock_for_lp_lockup,
-            handle_claim_rewards_and_unlock_for_single_lockup,
-            handle_claim_single_staking_asset_rewards, handle_enable_claims, handle_extend_lock,
-            handle_increase_eclip_incentives, handle_lp_locking_withdraw, handle_restake,
-            handle_single_locking_withdraw, handle_stake_lp_vault, handle_stake_single_vault,
-            handle_update_config, receive_cw20,
+            _handle_callback, handle_claim_rewards_and_unlock_for_lp_lockup,
+            handle_claim_rewards_and_unlock_for_single_lockup, handle_extend_lock,
+            handle_increase_eclip_incentives, handle_lp_locking_withdraw, handle_relock,
+            handle_single_locking_withdraw, handle_stake_to_vaults, handle_update_config,
+            handle_update_reward_distribution_config, receive_cw20,
         },
         instantiate::try_instantiate,
         query::{
             query_config, query_lp_lockup_info, query_lp_lockup_state, query_owner,
-            query_single_lockup_info, query_single_lockup_state, query_user_lp_lockup_info,
-            query_user_single_lockup_info,
+            query_single_lockup_info, query_single_lockup_state, query_total_eclip_incentives,
+            query_user_lp_lockup_info, query_user_single_lockup_info,
         },
     },
     error::ContractError,
@@ -50,28 +48,24 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig { new_config } => handle_update_config(deps, info, new_config),
+        ExecuteMsg::UpdateRewardDistributionConfig { new_config } => {
+            handle_update_reward_distribution_config(deps, env, info, new_config)
+        }
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ExtendLock {
             stake_type,
-            amount,
             from,
             to,
-        } => handle_extend_lock(deps, env, info, stake_type, amount, from, to),
+        } => handle_extend_lock(deps, env, info, stake_type, from, to),
         ExecuteMsg::SingleLockupWithdraw { amount, duration } => {
             handle_single_locking_withdraw(deps, env, info, amount, duration)
         }
         ExecuteMsg::LpLockupWithdraw { amount, duration } => {
             handle_lp_locking_withdraw(deps, env, info, amount, duration)
         }
-        ExecuteMsg::IncreaseEclipIncentives { stake_type } => {
-            handle_increase_eclip_incentives(deps, env, info, stake_type)
-        }
-        ExecuteMsg::StakeToSingleVault {} => handle_stake_single_vault(deps, env, info),
-        ExecuteMsg::StakeToLpVault {} => handle_stake_lp_vault(deps, env, info),
-        ExecuteMsg::RestakeSingleStaking { amount, from, to } => {
-            handle_restake(deps, env, info, amount, from, to)
-        }
-        ExecuteMsg::EnableClaims {} => handle_enable_claims(deps, env, info),
+        ExecuteMsg::IncreaseEclipIncentives {} => handle_increase_eclip_incentives(deps, env, info),
+        ExecuteMsg::StakeToVaults {} => handle_stake_to_vaults(deps, env, info),
+        ExecuteMsg::RelockSingleStaking { from, to } => handle_relock(deps, env, info, from, to),
         ExecuteMsg::ClaimRewardsAndOptionallyUnlock {
             stake_type,
             duration,
@@ -89,32 +83,6 @@ pub fn execute(
             }
         },
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
-        ExecuteMsg::ClaimAssetReward {
-            recipient,
-            stake_type,
-            duration,
-        } => {
-            let recipient = recipient.map_or_else(
-                || Ok(info.sender.clone()),
-                |recip_addr| deps.api.addr_validate(&recip_addr),
-            )?;
-            match stake_type {
-                StakeType::SingleStaking => handle_claim_single_staking_asset_rewards(
-                    deps,
-                    env,
-                    info.sender,
-                    recipient,
-                    duration,
-                ),
-                StakeType::LpStaking => handle_claim_lp_staking_asset_rewards(
-                    deps,
-                    env,
-                    info.sender,
-                    recipient,
-                    duration,
-                ),
-            }
-        }
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let old_owner = OWNER.get(deps.as_ref()).unwrap().unwrap();
             Ok(propose_new_owner(
@@ -175,6 +143,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserLpLockupInfo { user } => Ok(to_json_binary(&query_user_lp_lockup_info(
             deps, env, user,
         )?)?),
+        QueryMsg::TotalEclipIncentives {} => {
+            Ok(to_json_binary(&query_total_eclip_incentives(deps)?)?)
+        }
     }
 }
 

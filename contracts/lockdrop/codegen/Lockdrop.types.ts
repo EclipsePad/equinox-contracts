@@ -8,18 +8,20 @@ export interface InstantiateMsg {
   astro_staking: string;
   astro_token: string;
   converter: string;
-  deposit_window: number;
+  dao_treasury_address: string;
+  deposit_window?: number | null;
   eclip: string;
   eclipastro_token: string;
   init_timestamp: number;
   liquidity_pool: string;
-  lock_configs: LockConfig[];
+  lock_configs?: LockConfig[] | null;
   owner?: string | null;
-  withdrawal_window: number;
+  withdrawal_window?: number | null;
   xastro_token: string;
 }
 export interface LockConfig {
   duration: number;
+  early_unlock_penalty_bps: number;
   multiplier: number;
 }
 export type ExecuteMsg = {
@@ -29,14 +31,13 @@ export type ExecuteMsg = {
     new_config: UpdateConfigMsg;
   };
 } | {
-  stake_to_single_vault: {};
+  update_reward_distribution_config: {
+    new_config: RewardDistributionConfig;
+  };
 } | {
-  stake_to_lp_vault: {};
-} | {
-  enable_claims: {};
+  stake_to_vaults: {};
 } | {
   extend_lock: {
-    amount?: Uint128 | null;
     from: number;
     stake_type: StakeType;
     to: number;
@@ -52,12 +53,9 @@ export type ExecuteMsg = {
     duration: number;
   };
 } | {
-  increase_eclip_incentives: {
-    stake_type: StakeType;
-  };
+  increase_eclip_incentives: {};
 } | {
-  restake_single_staking: {
-    amount?: Uint128 | null;
+  relock_single_staking: {
     from: number;
     to: number;
   };
@@ -65,12 +63,6 @@ export type ExecuteMsg = {
   claim_rewards_and_optionally_unlock: {
     amount?: Uint128 | null;
     duration: number;
-    stake_type: StakeType;
-  };
-} | {
-  claim_asset_reward: {
-    duration: number;
-    recipient?: string | null;
     stake_type: StakeType;
   };
 } | {
@@ -91,11 +83,13 @@ export type StakeType = "single_staking" | "lp_staking";
 export type CallbackMsg = {
   stake_to_single_vault: {
     prev_eclipastro_balance: Uint128;
+    weighted_amount: Uint128;
     xastro_amount_to_convert: Uint128;
   };
 } | {
   deposit_into_pool: {
     prev_eclipastro_balance: Uint128;
+    weighted_amount: Uint128;
     xastro_amount: Uint128;
   };
 } | {
@@ -147,6 +141,10 @@ export type CallbackMsg = {
     duration: number;
     user_address: Addr;
   };
+} | {
+  stake_single_vault: {};
+} | {
+  stake_lp_vault: {};
 };
 export type Addr = string;
 export interface Cw20ReceiveMsg {
@@ -155,10 +153,15 @@ export interface Cw20ReceiveMsg {
   sender: string;
 }
 export interface UpdateConfigMsg {
+  dao_treasury_address?: string | null;
   flexible_staking?: string | null;
   lp_staking?: string | null;
   reward_distributor?: string | null;
   timelock_staking?: string | null;
+}
+export interface RewardDistributionConfig {
+  instant: number;
+  vesting_period: number;
 }
 export type QueryMsg = {
   config: {};
@@ -180,11 +183,14 @@ export type QueryMsg = {
   user_lp_lockup_info: {
     user: Addr;
   };
+} | {
+  total_eclip_incentives: {};
 };
 export interface Config {
   astro_staking: Addr;
   astro_token: Addr;
   converter: Addr;
+  dao_treasury_address: Addr;
   deposit_window: number;
   eclip: string;
   eclipastro_token: Addr;
@@ -207,21 +213,20 @@ export interface LockupInfoResponse {
   total_withdrawed: Uint128;
   xastro_amount_in_lockups: Uint128;
 }
-export type ArrayOfLpLockupStateResponse = LpLockupStateResponse[];
 export interface LpLockupStateResponse {
   are_claims_allowed: boolean;
   countdown_start_at: number;
   is_staked: boolean;
-  total_eclip_incentives: Uint128;
   total_lp_lockdrop: Uint128;
 }
-export type ArrayOfSingleLockupStateResponse = SingleLockupStateResponse[];
 export interface SingleLockupStateResponse {
   are_claims_allowed: boolean;
   countdown_start_at: number;
   is_staked: boolean;
-  total_eclip_incentives: Uint128;
   total_eclipastro_lockup: Uint128;
+}
+export interface BalanceResponse {
+  balance: Uint128;
 }
 export type AssetInfo = {
   token: {
@@ -239,6 +244,7 @@ export interface UserLpLockupInfoResponse {
   duration: number;
   lp_token_staked: Uint128;
   lp_token_withdrawed: Uint128;
+  pending_eclip_incentives: Uint128;
   staking_rewards: Asset[];
   total_eclip_incentives: Uint128;
   withdrawal_flag: boolean;
@@ -255,6 +261,7 @@ export interface UserSingleLockupInfoResponse {
   duration: number;
   eclipastro_staked: Uint128;
   eclipastro_withdrawed: Uint128;
+  pending_eclip_incentives: Uint128;
   staking_rewards: Asset[];
   total_eclip_incentives: Uint128;
   withdrawal_flag: boolean;

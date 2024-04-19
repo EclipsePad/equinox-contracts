@@ -12,3 +12,5 @@ pub const OWNER: Admin = Admin::new("owner");
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const STAKING: Map<&String, Uint128> = Map::new("staking");
 pub const TOTAL_STAKING: Item<Uint128> = Item::new("total_staking");
+
+pub const ALLOWED_USERS: Map<&String, bool> = Map::new("alllowed_users");

@@ -19,6 +19,9 @@ pub enum ContractError {
     #[error("Amount {got} exceeds your staking {expected}")]
     ExeedingUnstakeAmount { got: u128, expected: u128 },
 
+    #[error("Duration is not allowed: {0}")]
+    InvalidDuration(u64),
+
     #[error("No reward to claim")]
     NoReward {},
 

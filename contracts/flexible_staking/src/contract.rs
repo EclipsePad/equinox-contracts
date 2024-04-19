@@ -7,12 +7,15 @@ use semver::Version;
 
 use crate::{
     entry::{
-        execute::{claim, receive_cw20, unstake, update_config, update_owner},
+        execute::{
+            allow_users, block_users, claim, handle_lock, receive_cw20, unstake, update_config,
+            update_owner,
+        },
         instantiate::try_instantiate,
         query::{query_config, query_owner, query_reward, query_staking, query_total_staking},
     },
     error::ContractError,
-    state::{CONTRACT_NAME, CONTRACT_VERSION},
+    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION},
 };
 use equinox_msg::flexible_staking::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
@@ -41,7 +44,14 @@ pub fn execute(
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Claim {} => claim(deps, env, info),
-        ExecuteMsg::Unstake { amount } => unstake(deps, env, info, amount),
+        ExecuteMsg::Unstake { amount, recipient } => unstake(deps, env, info, amount, recipient),
+        ExecuteMsg::Relock {
+            amount,
+            duration,
+            recipient,
+        } => handle_lock(deps, env, info, amount, duration, recipient),
+        ExecuteMsg::AllowUsers { users } => allow_users(deps, info, users),
+        ExecuteMsg::BlockUsers { users } => block_users(deps, info, users),
     }
 }
 
@@ -54,6 +64,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Staking { user } => Ok(to_json_binary(&query_staking(deps, env, user)?)?),
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
         QueryMsg::Reward { user } => Ok(to_json_binary(&query_reward(deps, env, user)?)?),
+        QueryMsg::IsAllowed { user } => {
+            let is_allowed = ALLOWED_USERS.load(deps.storage, &user).unwrap_or_default();
+            Ok(to_json_binary(&is_allowed)?)
+        }
     }
 }
 

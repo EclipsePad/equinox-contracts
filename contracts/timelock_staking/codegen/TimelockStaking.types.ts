@@ -5,6 +5,7 @@
 */
 
 export interface InstantiateMsg {
+  dao_treasury_address: string;
   owner: string;
   timelock_config?: TimeLockConfig[] | null;
   token: string;
@@ -31,15 +32,26 @@ export type ExecuteMsg = {
 } | {
   claim_all: {};
 } | {
-  unstake: {
+  unlock: {
+    amount?: Uint128 | null;
     duration: number;
     locked_at: number;
+    recipient?: string | null;
   };
 } | {
-  restake: {
+  relock: {
     from_duration: number;
-    locked_at: number;
+    recipient?: string | null;
+    relocks: [number, Uint128 | null][];
     to_duration: number;
+  };
+} | {
+  allow_users: {
+    users: string[];
+  };
+} | {
+  block_users: {
+    users: string[];
   };
 };
 export type Uint128 = string;
@@ -76,13 +88,19 @@ export type QueryMsg = {
     duration: number;
     locked_at: number;
   };
+} | {
+  is_allowed: {
+    user: string;
+  };
 };
 export type Addr = string;
 export interface Config {
+  dao_treasury_address: Addr;
   reward_contract: Addr;
   timelock_config: TimeLockConfig[];
   token: Addr;
 }
+export type Boolean = boolean;
 export type ArrayOfTimelockReward = TimelockReward[];
 export interface TimelockReward {
   duration: number;

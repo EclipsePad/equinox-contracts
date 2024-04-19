@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { InstantiateMsg, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, FlexibleReward } from "./LpStaking.types";
+import { InstantiateMsg, ExecuteMsg, Uint128, Binary, UpdateConfigMsg, Cw20ReceiveMsg, QueryMsg, Addr, Config, Boolean, FlexibleReward } from "./LpStaking.types";
 export interface LpStakingReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<Config>;
@@ -22,6 +22,11 @@ export interface LpStakingReadOnlyInterface {
   }: {
     user: string;
   }) => Promise<FlexibleReward>;
+  isAllowed: ({
+    user
+  }: {
+    user: string;
+  }) => Promise<Boolean>;
 }
 export class LpStakingQueryClient implements LpStakingReadOnlyInterface {
   client: CosmWasmClient;
@@ -35,6 +40,7 @@ export class LpStakingQueryClient implements LpStakingReadOnlyInterface {
     this.totalStaking = this.totalStaking.bind(this);
     this.staking = this.staking.bind(this);
     this.reward = this.reward.bind(this);
+    this.isAllowed = this.isAllowed.bind(this);
   }
 
   config = async (): Promise<Config> => {
@@ -74,6 +80,17 @@ export class LpStakingQueryClient implements LpStakingReadOnlyInterface {
       }
     });
   };
+  isAllowed = async ({
+    user
+  }: {
+    user: string;
+  }): Promise<Boolean> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      is_allowed: {
+        user
+      }
+    });
+  };
 }
 export interface LpStakingInterface extends LpStakingReadOnlyInterface {
   contractAddress: string;
@@ -99,9 +116,30 @@ export interface LpStakingInterface extends LpStakingReadOnlyInterface {
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   claim: (fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   unstake: ({
-    amount
+    amount,
+    recipient
   }: {
     amount: Uint128;
+    recipient?: string;
+  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  relock: ({
+    amount,
+    duration,
+    recipient
+  }: {
+    amount?: Uint128;
+    duration: number;
+    recipient?: string;
+  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  allowUsers: ({
+    users
+  }: {
+    users: string[];
+  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  blockUsers: ({
+    users
+  }: {
+    users: string[];
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
 }
 export class LpStakingClient extends LpStakingQueryClient implements LpStakingInterface {
@@ -119,6 +157,9 @@ export class LpStakingClient extends LpStakingQueryClient implements LpStakingIn
     this.receive = this.receive.bind(this);
     this.claim = this.claim.bind(this);
     this.unstake = this.unstake.bind(this);
+    this.relock = this.relock.bind(this);
+    this.allowUsers = this.allowUsers.bind(this);
+    this.blockUsers = this.blockUsers.bind(this);
   }
 
   updateOwner = async ({
@@ -166,13 +207,55 @@ export class LpStakingClient extends LpStakingQueryClient implements LpStakingIn
     }, fee, memo, _funds);
   };
   unstake = async ({
-    amount
+    amount,
+    recipient
   }: {
     amount: Uint128;
+    recipient?: string;
   }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
       unstake: {
-        amount
+        amount,
+        recipient
+      }
+    }, fee, memo, _funds);
+  };
+  relock = async ({
+    amount,
+    duration,
+    recipient
+  }: {
+    amount?: Uint128;
+    duration: number;
+    recipient?: string;
+  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      relock: {
+        amount,
+        duration,
+        recipient
+      }
+    }, fee, memo, _funds);
+  };
+  allowUsers = async ({
+    users
+  }: {
+    users: string[];
+  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      allow_users: {
+        users
+      }
+    }, fee, memo, _funds);
+  };
+  blockUsers = async ({
+    users
+  }: {
+    users: string[];
+  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      block_users: {
+        users
       }
     }, fee, memo, _funds);
   };

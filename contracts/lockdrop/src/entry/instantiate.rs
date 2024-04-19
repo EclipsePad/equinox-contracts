@@ -1,11 +1,16 @@
 use astroport::{asset::PairInfo, pair::QueryMsg as AstroportPairQueryMsg};
 use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
-use equinox_msg::lockdrop::{Config, InstantiateMsg, LpLockupState, SingleLockupState};
+use equinox_msg::lockdrop::{
+    Config, InstantiateMsg, LockConfig, LpLockupState, RewardDistributionConfig, SingleLockupState,
+};
 
 use crate::{
     error::ContractError,
-    state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, LP_LOCKUP_STATE, OWNER, SINGLE_LOCKUP_STATE},
+    state::{
+        CONFIG, CONTRACT_NAME, CONTRACT_VERSION, LP_LOCKUP_STATE, OWNER,
+        REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKUP_STATE,
+    },
 };
 
 pub fn try_instantiate(
@@ -16,10 +21,10 @@ pub fn try_instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     // CHECK :: init_timestamp needs to be valid
-    ensure!(
-        msg.init_timestamp >= env.block.time.seconds(),
-        ContractError::InvalidInitTimestamp(env.block.time.seconds())
-    );
+    // ensure!(
+    //     msg.init_timestamp >= env.block.time.seconds(),
+    //     ContractError::InvalidInitTimestamp(env.block.time.seconds())
+    // );
 
     let pool_info: PairInfo = deps
         .querier
@@ -37,13 +42,53 @@ pub fn try_instantiate(
         reward_distributor: None,
         liquidity_pool: deps.api.addr_validate(&msg.liquidity_pool)?,
         lp_token: pool_info.liquidity_token,
-        lock_configs: msg.lock_configs,
+        dao_treasury_address: deps.api.addr_validate(&msg.dao_treasury_address)?,
+        lock_configs: msg.lock_configs.unwrap_or(vec![
+            LockConfig {
+                duration: 0,
+                multiplier: 1,
+                early_unlock_penalty_bps: 5000,
+            },
+            LockConfig {
+                duration: 86400 * 30,
+                multiplier: 2,
+                early_unlock_penalty_bps: 5000,
+            },
+            LockConfig {
+                duration: 86400 * 30 * 3,
+                multiplier: 3,
+                early_unlock_penalty_bps: 5000,
+            },
+            LockConfig {
+                duration: 86400 * 30 * 6,
+                multiplier: 4,
+                early_unlock_penalty_bps: 5000,
+            },
+            LockConfig {
+                duration: 86400 * 30 * 9,
+                multiplier: 5,
+                early_unlock_penalty_bps: 5000,
+            },
+            LockConfig {
+                duration: 86400 * 365,
+                multiplier: 6,
+                early_unlock_penalty_bps: 5000,
+            },
+        ]),
         init_timestamp: msg.init_timestamp,
-        deposit_window: msg.deposit_window,
-        withdrawal_window: msg.withdrawal_window,
+        deposit_window: msg.deposit_window.unwrap_or(86400 * 5),
+        withdrawal_window: msg.withdrawal_window.unwrap_or(86400 * 2),
         lockdrop_incentives: Uint128::zero(),
         astro_staking: deps.api.addr_validate(&msg.astro_staking)?,
     };
+
+    REWARD_DISTRIBUTION_CONFIG.save(
+        deps.storage,
+        &RewardDistributionConfig {
+            instant: 3000,           // bps
+            vesting_period: 7776000, // 3 months
+        },
+    )?;
 
     let owner = msg
         .owner

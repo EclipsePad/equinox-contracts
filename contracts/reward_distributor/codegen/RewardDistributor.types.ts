@@ -7,10 +7,10 @@
 export type Uint128 = string;
 export interface InstantiateMsg {
   eclip: string;
-  eclip_daily_reward: Uint128;
+  eclip_daily_reward?: Uint128 | null;
   eclipastro: string;
   flexible_staking: string;
-  locking_reward_config: LockingRewardConfig[];
+  locking_reward_config?: LockingRewardConfig[] | null;
   owner: string;
   timelock_staking: string;
   token_converter: string;
@@ -64,13 +64,16 @@ export type ExecuteMsg = {
     user: string;
   };
 } | {
-  restake: {
-    from: number;
-    locked_at: number;
-    to: number;
-    user: string;
+  relock: {
+    adding_amount?: Uint128 | null;
+    from: Addr;
+    from_duration: number;
+    relocking: [number, Uint128][];
+    to: Addr;
+    to_duration: number;
   };
 };
+export type Addr = string;
 export interface UpdateConfigMsg {
   eclip?: string | null;
   eclip_daily_reward?: Uint128 | null;
@@ -93,7 +96,6 @@ export type QueryMsg = {
 } | {
   pending_rewards: {};
 };
-export type Addr = string;
 export interface Config {
   eclip: string;
   eclip_daily_reward: Uint128;

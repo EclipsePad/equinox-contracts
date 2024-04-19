@@ -7,7 +7,10 @@ use semver::Version;
 
 use crate::{
     entry::{
-        execute::{claim, claim_all, receive_cw20, restake, unstake, update_config, update_owner},
+        execute::{
+            allow_users, block_users, claim, claim_all, receive_cw20, relock, unlock,
+            update_config, update_owner,
+        },
         instantiate::try_instantiate,
         query::{
             calculate_penalty, query_config, query_owner, query_reward, query_staking,
@@ -15,10 +18,10 @@ use crate::{
         },
     },
     error::ContractError,
-    state::{CONTRACT_NAME, CONTRACT_VERSION},
+    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION},
 };
 use equinox_msg::timelock_staking::{
-    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RestakingDetail,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RelockingDetail,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -50,29 +53,33 @@ pub fn execute(
             locked_at,
         } => claim(deps, env, info, duration, locked_at),
         ExecuteMsg::ClaimAll {} => claim_all(deps, env, info),
-        ExecuteMsg::Unstake {
+        ExecuteMsg::Unlock {
             duration,
             locked_at,
             amount,
-        } => unstake(deps, env, info, duration, locked_at, amount),
-        ExecuteMsg::Restake {
+            recipient,
+        } => unlock(deps, env, info, duration, locked_at, amount, recipient),
+        ExecuteMsg::Relock {
             from_duration,
-            locked_at,
             to_duration,
-            receiver,
-            amount,
-        } => restake(
-            deps,
-            env,
-            RestakingDetail {
-                sender: info.sender,
-                receiver,
-                amount,
-                from_duration,
-                to_duration,
-                locked_at,
-            },
-        ),
+            relocks,
+            recipient,
+        } => {
+            let recipient = recipient.unwrap_or(info.sender.to_string());
+            relock(
+                deps,
+                env,
+                RelockingDetail {
+                    sender: info.sender,
+                    recipient,
+                    relocks,
+                    from_duration,
+                    to_duration,
+                },
+            )
+        }
+        ExecuteMsg::AllowUsers { users } => allow_users(deps, info, users),
+        ExecuteMsg::BlockUsers { users } => block_users(deps, info, users),
     }
 }
 
@@ -95,6 +102,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => Ok(to_json_binary(&calculate_penalty(
             deps, env, amount, duration, locked_at,
         )?)?),
+        QueryMsg::IsAllowed { user } => {
+            let is_allowed = ALLOWED_USERS.load(deps.storage, &user).unwrap_or_default();
+            Ok(to_json_binary(&is_allowed)?)
+        }
     }
 }
 

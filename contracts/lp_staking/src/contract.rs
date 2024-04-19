@@ -48,7 +48,7 @@ pub fn execute(
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Claim {} => claim(deps, env, info.clone(), info.sender.to_string()),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
-        ExecuteMsg::Unstake { amount } => unstake(deps, env, info, amount),
+        ExecuteMsg::Unstake { amount, recipient } => unstake(deps, env, info, amount, recipient),
         ExecuteMsg::UpdateRewardConfig { config } => update_reward_config(deps, env, info, config),
     }
 }

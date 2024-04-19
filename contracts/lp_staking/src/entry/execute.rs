@@ -37,6 +37,10 @@ pub fn update_config(
         config.lp_token = deps.api.addr_validate(&lp_token)?;
         res = res.add_attribute("lp_token", lp_token);
     }
+    if let Some(lp_contract) = new_config.lp_contract {
+        config.lp_contract = deps.api.addr_validate(&lp_contract)?;
+        res = res.add_attribute("lp_contract", lp_contract);
+    }
     if let Some(eclip) = new_config.eclip {
         config.eclip = eclip.clone();
         res = res.add_attribute("eclip", eclip);
@@ -44,6 +48,10 @@ pub fn update_config(
     if let Some(eclip_daily_reward) = new_config.eclip_daily_reward {
         config.eclip_daily_reward = eclip_daily_reward;
         res = res.add_attribute("eclip_daily_reward", eclip_daily_reward);
+    }
+    if let Some(converter) = new_config.converter {
+        config.converter = deps.api.addr_validate(&converter)?;
+        res = res.add_attribute("converter", converter);
     }
     if let Some(astroport_generator) = new_config.astroport_generator {
         config.astroport_generator = deps.api.addr_validate(&astroport_generator)?;
@@ -311,6 +319,7 @@ pub fn unstake(
     env: Env,
     info: MessageInfo,
     amount: Uint128,
+    recipient: Option<String>,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -351,7 +360,7 @@ pub fn unstake(
     user_staking.staked = user_staking.staked.checked_sub(amount).unwrap();
     STAKING.save(deps.storage, &info.sender.to_string(), &user_staking)?;
 
-    // send lp_token to user, send unstake message to reward contract
+    // send lp_token to user
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: cfg.astroport_generator.to_string(),
         msg: to_json_binary(&IncentivesExecuteMsg::Withdraw {
@@ -363,7 +372,7 @@ pub fn unstake(
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: cfg.lp_token.clone().to_string(),
         msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: info.sender.to_string(),
+            recipient: recipient.unwrap_or(info.sender.to_string()),
             amount,
         })?,
         funds: vec![],

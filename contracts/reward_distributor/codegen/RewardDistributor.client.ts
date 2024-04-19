@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { Uint128, InstantiateMsg, LockingRewardConfig, ExecuteMsg, UpdateConfigMsg, QueryMsg, Addr, Config, ArrayOfTupleOfUint64AndUint128, UserRewardResponse, FlexibleReward, TimelockReward, Decimal256, TotalStakingData, StakingData } from "./RewardDistributor.types";
+import { Uint128, InstantiateMsg, LockingRewardConfig, ExecuteMsg, Addr, UpdateConfigMsg, QueryMsg, Config, ArrayOfTupleOfUint64AndUint128, UserRewardResponse, FlexibleReward, TimelockReward, Decimal256, TotalStakingData, StakingData } from "./RewardDistributor.types";
 export interface RewardDistributorReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<Config>;
@@ -129,16 +129,20 @@ export interface RewardDistributorInterface extends RewardDistributorReadOnlyInt
     lockedAt: number;
     user: string;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
-  restake: ({
+  relock: ({
+    addingAmount,
     from,
-    lockedAt,
+    fromDuration,
+    relocking,
     to,
-    user
+    toDuration
   }: {
-    from: number;
-    lockedAt: number;
-    to: number;
-    user: string;
+    addingAmount?: Uint128;
+    from: Addr;
+    fromDuration: number;
+    relocking: number[][];
+    to: Addr;
+    toDuration: number;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
 }
 export class RewardDistributorClient extends RewardDistributorQueryClient implements RewardDistributorInterface {
@@ -160,7 +164,7 @@ export class RewardDistributorClient extends RewardDistributorQueryClient implem
     this.timelockStakeClaimAll = this.timelockStakeClaimAll.bind(this);
     this.flexibleUnstake = this.flexibleUnstake.bind(this);
     this.timelockUnstake = this.timelockUnstake.bind(this);
-    this.restake = this.restake.bind(this);
+    this.relock = this.relock.bind(this);
   }
 
   updateOwner = async ({
@@ -286,23 +290,29 @@ export class RewardDistributorClient extends RewardDistributorQueryClient implem
       }
     }, fee, memo, _funds);
   };
-  restake = async ({
+  relock = async ({
+    addingAmount,
     from,
-    lockedAt,
+    fromDuration,
+    relocking,
     to,
-    user
+    toDuration
   }: {
-    from: number;
-    lockedAt: number;
-    to: number;
-    user: string;
+    addingAmount?: Uint128;
+    from: Addr;
+    fromDuration: number;
+    relocking: number[][];
+    to: Addr;
+    toDuration: number;
   }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
-      restake: {
+      relock: {
+        adding_amount: addingAmount,
         from,
-        locked_at: lockedAt,
+        from_duration: fromDuration,
+        relocking,
         to,
-        user
+        to_duration: toDuration
       }
     }, fee, memo, _funds);
   };

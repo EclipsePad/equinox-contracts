@@ -7,7 +7,7 @@
 import { UseQueryOptions, useQuery, useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee, Coin } from "@cosmjs/amino";
-import { Uint128, InstantiateMsg, LockingRewardConfig, ExecuteMsg, UpdateConfigMsg, QueryMsg, Addr, Config, ArrayOfTupleOfUint64AndUint128, UserRewardResponse, FlexibleReward, TimelockReward, Decimal256, TotalStakingData, StakingData } from "./RewardDistributor.types";
+import { Uint128, InstantiateMsg, LockingRewardConfig, ExecuteMsg, Addr, UpdateConfigMsg, QueryMsg, Config, ArrayOfTupleOfUint64AndUint128, UserRewardResponse, FlexibleReward, TimelockReward, Decimal256, TotalStakingData, StakingData } from "./RewardDistributor.types";
 import { RewardDistributorQueryClient, RewardDistributorClient } from "./RewardDistributor.client";
 export const rewardDistributorQueryKeys = {
   contract: ([{
@@ -145,13 +145,15 @@ export function useRewardDistributorConfigQuery<TData = Config>({
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
-export interface RewardDistributorRestakeMutation {
+export interface RewardDistributorRelockMutation {
   client: RewardDistributorClient;
   msg: {
-    from: number;
-    lockedAt: number;
-    to: number;
-    user: string;
+    addingAmount?: Uint128;
+    from: Addr;
+    fromDuration: number;
+    relocking: number[][];
+    to: Addr;
+    toDuration: number;
   };
   args?: {
     fee?: number | StdFee | "auto";
@@ -159,8 +161,8 @@ export interface RewardDistributorRestakeMutation {
     funds?: Coin[];
   };
 }
-export function useRewardDistributorRestakeMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, RewardDistributorRestakeMutation>, "mutationFn">) {
-  return useMutation<ExecuteResult, Error, RewardDistributorRestakeMutation>(({
+export function useRewardDistributorRelockMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, RewardDistributorRelockMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, RewardDistributorRelockMutation>(({
     client,
     msg,
     args: {
@@ -168,7 +170,7 @@ export function useRewardDistributorRestakeMutation(options?: Omit<UseMutationOp
       memo,
       funds
     } = {}
-  }) => client.restake(msg, fee, memo, funds), options);
+  }) => client.relock(msg, fee, memo, funds), options);
 }
 export interface RewardDistributorTimelockUnstakeMutation {
   client: RewardDistributorClient;

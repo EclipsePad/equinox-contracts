@@ -16,8 +16,14 @@ pub enum ContractError {
     )]
     Cw20AddressesNotMatch { got: String, expected: String },
 
+    #[error("Duplicated address: {0}")]
+    DuplicatedAddress(String),
+
     #[error("Amount {got} exceeds your staking {expected}")]
     ExeedingUnstakeAmount { got: u128, expected: u128 },
+
+    #[error("Can't extend from duration {0} to duration {1}")]
+    ExtendDurationErr(u64, u64),
 
     #[error("Exceed locked amount")]
     ExceedAmount {},
@@ -27,6 +33,9 @@ pub enum ContractError {
 
     #[error("No locked amount found")]
     NoLockedAmount {},
+
+    #[error("Not allowed address: {0}")]
+    NotAllowed(String),
 
     #[error("Semver parsing error: {0}")]
     SemVer(String),

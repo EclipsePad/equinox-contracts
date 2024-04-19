@@ -1,11 +1,12 @@
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
 use equinox_msg::{
     common::OwnershipProposal,
     lockdrop::{
         Config, LockupInfo, LpLockupState, LpStakingAssetRewardWeights, LpUserLockupInfo,
-        SingleLockupState, SingleStakingAssetRewardWeights, SingleUserLockupInfo,
+        RewardDistributionConfig, SingleLockupState, SingleStakingAssetRewardWeights,
+        SingleUserLockupInfo,
     },
 };
 
@@ -32,3 +33,8 @@ pub const SINGLE_STAKING_ASSET_REWARD_WEIGHTS: Item<SingleStakingAssetRewardWeig
     Item::new("single_staking_asset_reward_weights");
 pub const LP_STAKING_ASSET_REWARD_WEIGHTS: Item<LpStakingAssetRewardWeights> =
     Item::new("lp_staking_asset_reward_weights");
+
+pub const REWARD_DISTRIBUTION_CONFIG: Item<RewardDistributionConfig> =
+    Item::new("reward_distribution_config");
+
+pub const TOTAL_ECLIP_INCENTIVES: Item<Uint128> = Item::new("total_eclip_incentives");

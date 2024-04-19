@@ -21,6 +21,7 @@ pub fn try_instantiate(
         &Config {
             token: deps.api.addr_validate(&msg.token)?,
             reward_contract: Addr::unchecked(""),
+            timelock_contract: Addr::unchecked(""),
         },
     )?;
     // update owner

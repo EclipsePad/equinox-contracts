@@ -12,6 +12,7 @@ pub struct InstantiateMsg {
     pub token: String,
     /// timelock config
     pub timelock_config: Option<Vec<TimeLockConfig>>,
+    pub dao_treasury_address: String,
 }
 
 #[cw_serde]
@@ -32,18 +33,24 @@ pub enum ExecuteMsg {
         locked_at: u64,
     },
     ClaimAll {},
-    Unstake {
+    Unlock {
         duration: u64,
         locked_at: u64,
         amount: Option<Uint128>,
+        recipient: Option<String>,
     },
     /// update locking period from short one to long one
-    Restake {
+    Relock {
         from_duration: u64,
-        locked_at: u64,
         to_duration: u64,
-        receiver: Option<Addr>,
-        amount: Option<Uint128>,
+        relocks: Vec<(u64, Option<Uint128>)>,
+        recipient: Option<String>,
+    },
+    AllowUsers {
+        users: Vec<String>,
+    },
+    BlockUsers {
+        users: Vec<String>,
     },
 }
 
@@ -75,6 +82,8 @@ pub enum QueryMsg {
         duration: u64,
         locked_at: u64,
     },
+    #[returns(bool)]
+    IsAllowed { user: String },
 }
 
 #[cw_serde]
@@ -85,7 +94,16 @@ pub struct MigrateMsg {
 #[cw_serde]
 pub enum Cw20HookMsg {
     /// timelock eclipASTRO token
-    Lock { duration: u64, user: Option<Addr> },
+    Lock {
+        duration: u64,
+        recipient: Option<String>,
+    },
+    Relock {
+        from_duration: u64,
+        to_duration: u64,
+        relocks: Vec<(u64, Option<Uint128>)>,
+        recipient: Option<String>,
+    },
 }
 
 #[cw_serde]
@@ -103,12 +121,13 @@ pub struct Config {
     pub reward_contract: Addr,
     /// lock config
     pub timelock_config: Vec<TimeLockConfig>,
+    pub dao_treasury_address: Addr,
 }
 
 #[cw_serde]
 pub struct TimeLockConfig {
     pub duration: u64,
-    pub early_unlock_penalty_bps: u16,
+    pub early_unlock_penalty_bps: u64,
 }
 
 #[cw_serde]
@@ -130,11 +149,10 @@ pub struct StakingWithDuration {
 }
 
 #[cw_serde]
-pub struct RestakingDetail {
+pub struct RelockingDetail {
     pub sender: Addr,
-    pub receiver: Option<Addr>,
-    pub amount: Option<Uint128>,
+    pub recipient: String,
+    pub relocks: Vec<(u64, Option<Uint128>)>,
     pub from_duration: u64,
     pub to_duration: u64,
-    pub locked_at: u64,
 }

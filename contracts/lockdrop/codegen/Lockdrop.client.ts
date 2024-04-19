@@ -6,15 +6,15 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { InstantiateMsg, LockConfig, ExecuteMsg, Uint128, Binary, StakeType, CallbackMsg, Addr, Cw20ReceiveMsg, UpdateConfigMsg, QueryMsg, Config, ArrayOfLockupInfoResponse, LockupInfoResponse, ArrayOfLpLockupStateResponse, LpLockupStateResponse, ArrayOfSingleLockupStateResponse, SingleLockupStateResponse, AssetInfo, ArrayOfUserLpLockupInfoResponse, UserLpLockupInfoResponse, Asset, ArrayOfUserSingleLockupInfoResponse, UserSingleLockupInfoResponse } from "./Lockdrop.types";
+import { InstantiateMsg, LockConfig, ExecuteMsg, Uint128, Binary, StakeType, CallbackMsg, Addr, Cw20ReceiveMsg, UpdateConfigMsg, RewardDistributionConfig, QueryMsg, Config, ArrayOfLockupInfoResponse, LockupInfoResponse, LpLockupStateResponse, SingleLockupStateResponse, BalanceResponse, AssetInfo, ArrayOfUserLpLockupInfoResponse, UserLpLockupInfoResponse, Asset, ArrayOfUserSingleLockupInfoResponse, UserSingleLockupInfoResponse } from "./Lockdrop.types";
 export interface LockdropReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<Config>;
   owner: () => Promise<Addr>;
   singleLockupInfo: () => Promise<ArrayOfLockupInfoResponse>;
   lpLockupInfo: () => Promise<ArrayOfLockupInfoResponse>;
-  singleLockupState: () => Promise<ArrayOfSingleLockupStateResponse>;
-  lpLockupState: () => Promise<ArrayOfLpLockupStateResponse>;
+  singleLockupState: () => Promise<SingleLockupStateResponse>;
+  lpLockupState: () => Promise<LpLockupStateResponse>;
   userSingleLockupInfo: ({
     user
   }: {
@@ -25,6 +25,7 @@ export interface LockdropReadOnlyInterface {
   }: {
     user: Addr;
   }) => Promise<ArrayOfUserLpLockupInfoResponse>;
+  totalEclipIncentives: () => Promise<BalanceResponse>;
 }
 export class LockdropQueryClient implements LockdropReadOnlyInterface {
   client: CosmWasmClient;
@@ -41,6 +42,7 @@ export class LockdropQueryClient implements LockdropReadOnlyInterface {
     this.lpLockupState = this.lpLockupState.bind(this);
     this.userSingleLockupInfo = this.userSingleLockupInfo.bind(this);
     this.userLpLockupInfo = this.userLpLockupInfo.bind(this);
+    this.totalEclipIncentives = this.totalEclipIncentives.bind(this);
   }
 
   config = async (): Promise<Config> => {
@@ -63,12 +65,12 @@ export class LockdropQueryClient implements LockdropReadOnlyInterface {
       lp_lockup_info: {}
     });
   };
-  singleLockupState = async (): Promise<ArrayOfSingleLockupStateResponse> => {
+  singleLockupState = async (): Promise<SingleLockupStateResponse> => {
     return this.client.queryContractSmart(this.contractAddress, {
       single_lockup_state: {}
     });
   };
-  lpLockupState = async (): Promise<ArrayOfLpLockupStateResponse> => {
+  lpLockupState = async (): Promise<LpLockupStateResponse> => {
     return this.client.queryContractSmart(this.contractAddress, {
       lp_lockup_state: {}
     });
@@ -95,6 +97,11 @@ export class LockdropQueryClient implements LockdropReadOnlyInterface {
       }
     });
   };
+  totalEclipIncentives = async (): Promise<BalanceResponse> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      total_eclip_incentives: {}
+    });
+  };
 }
 export interface LockdropInterface extends LockdropReadOnlyInterface {
   contractAddress: string;
@@ -113,16 +120,17 @@ export interface LockdropInterface extends LockdropReadOnlyInterface {
   }: {
     newConfig: UpdateConfigMsg;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
-  stakeToSingleVault: (fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
-  stakeToLpVault: (fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
-  enableClaims: (fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  updateRewardDistributionConfig: ({
+    newConfig
+  }: {
+    newConfig: RewardDistributionConfig;
+  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  stakeToVaults: (fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   extendLock: ({
-    amount,
     from,
     stakeType,
     to
   }: {
-    amount?: Uint128;
     from: number;
     stakeType: StakeType;
     to: number;
@@ -141,17 +149,11 @@ export interface LockdropInterface extends LockdropReadOnlyInterface {
     amount?: Uint128;
     duration: number;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
-  increaseEclipIncentives: ({
-    stakeType
-  }: {
-    stakeType: StakeType;
-  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
-  restakeSingleStaking: ({
-    amount,
+  increaseEclipIncentives: (fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  relockSingleStaking: ({
     from,
     to
   }: {
-    amount?: Uint128;
     from: number;
     to: number;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
@@ -162,15 +164,6 @@ export interface LockdropInterface extends LockdropReadOnlyInterface {
   }: {
     amount?: Uint128;
     duration: number;
-    stakeType: StakeType;
-  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
-  claimAssetReward: ({
-    duration,
-    recipient,
-    stakeType
-  }: {
-    duration: number;
-    recipient?: string;
     stakeType: StakeType;
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   callback: (callbackMsg: CallbackMsg, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
@@ -196,16 +189,14 @@ export class LockdropClient extends LockdropQueryClient implements LockdropInter
     this.contractAddress = contractAddress;
     this.receive = this.receive.bind(this);
     this.updateConfig = this.updateConfig.bind(this);
-    this.stakeToSingleVault = this.stakeToSingleVault.bind(this);
-    this.stakeToLpVault = this.stakeToLpVault.bind(this);
-    this.enableClaims = this.enableClaims.bind(this);
+    this.updateRewardDistributionConfig = this.updateRewardDistributionConfig.bind(this);
+    this.stakeToVaults = this.stakeToVaults.bind(this);
     this.extendLock = this.extendLock.bind(this);
     this.singleLockupWithdraw = this.singleLockupWithdraw.bind(this);
     this.lpLockupWithdraw = this.lpLockupWithdraw.bind(this);
     this.increaseEclipIncentives = this.increaseEclipIncentives.bind(this);
-    this.restakeSingleStaking = this.restakeSingleStaking.bind(this);
+    this.relockSingleStaking = this.relockSingleStaking.bind(this);
     this.claimRewardsAndOptionallyUnlock = this.claimRewardsAndOptionallyUnlock.bind(this);
-    this.claimAssetReward = this.claimAssetReward.bind(this);
     this.callback = this.callback.bind(this);
     this.proposeNewOwner = this.proposeNewOwner.bind(this);
     this.dropOwnershipProposal = this.dropOwnershipProposal.bind(this);
@@ -240,35 +231,33 @@ export class LockdropClient extends LockdropQueryClient implements LockdropInter
       }
     }, fee, memo, _funds);
   };
-  stakeToSingleVault = async (fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+  updateRewardDistributionConfig = async ({
+    newConfig
+  }: {
+    newConfig: RewardDistributionConfig;
+  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
-      stake_to_single_vault: {}
+      update_reward_distribution_config: {
+        new_config: newConfig
+      }
     }, fee, memo, _funds);
   };
-  stakeToLpVault = async (fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+  stakeToVaults = async (fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
-      stake_to_lp_vault: {}
-    }, fee, memo, _funds);
-  };
-  enableClaims = async (fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
-    return await this.client.execute(this.sender, this.contractAddress, {
-      enable_claims: {}
+      stake_to_vaults: {}
     }, fee, memo, _funds);
   };
   extendLock = async ({
-    amount,
     from,
     stakeType,
     to
   }: {
-    amount?: Uint128;
     from: number;
     stakeType: StakeType;
     to: number;
   }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
       extend_lock: {
-        amount,
         from,
         stake_type: stakeType,
         to
@@ -303,29 +292,20 @@ export class LockdropClient extends LockdropQueryClient implements LockdropInter
       }
     }, fee, memo, _funds);
   };
-  increaseEclipIncentives = async ({
-    stakeType
-  }: {
-    stakeType: StakeType;
-  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+  increaseEclipIncentives = async (fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
-      increase_eclip_incentives: {
-        stake_type: stakeType
-      }
+      increase_eclip_incentives: {}
     }, fee, memo, _funds);
   };
-  restakeSingleStaking = async ({
-    amount,
+  relockSingleStaking = async ({
     from,
     to
   }: {
-    amount?: Uint128;
     from: number;
     to: number;
   }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
-      restake_single_staking: {
-        amount,
+      relock_single_staking: {
         from,
         to
       }
@@ -344,23 +324,6 @@ export class LockdropClient extends LockdropQueryClient implements LockdropInter
       claim_rewards_and_optionally_unlock: {
         amount,
         duration,
-        stake_type: stakeType
-      }
-    }, fee, memo, _funds);
-  };
-  claimAssetReward = async ({
-    duration,
-    recipient,
-    stakeType
-  }: {
-    duration: number;
-    recipient?: string;
-    stakeType: StakeType;
-  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
-    return await this.client.execute(this.sender, this.contractAddress, {
-      claim_asset_reward: {
-        duration,
-        recipient,
         stake_type: stakeType
       }
     }, fee, memo, _funds);

@@ -35,11 +35,17 @@ pub enum ContractError {
     #[error("Deposit window is not started")]
     DepositWindowNotStarted {},
 
+    #[error("Can't extend from duration {0} to duration {1}")]
+    ExtendDurationErr(u64, u64),
+
     #[error("Failed to parse or process reply message")]
     FailedToParseReply {},
 
     #[error("Insufficient ASTRO/xASTRO amount in the contract")]
     InsufficientAmountInContract {},
+
+    #[error("Asset is not allowed")]
+    InvalidAsset {},
 
     #[error("Asset {0} is not allowed to lockup")]
     InvalidLockupAsset(String),
@@ -62,6 +68,12 @@ pub enum ContractError {
     #[error("Invalid init_timestamp. Current timestamp : {0}")]
     InvalidInitTimestamp(u64),
 
+    #[error("Lockdrop is finished")]
+    LockdropFinished {},
+
+    #[error("Lockdrop is not finished yet")]
+    LockdropNotFinished {},
+
     #[error("The asset is not staked into lp staking vault")]
     LpStakingNotHappend {},
 
@@ -80,6 +92,9 @@ pub enum ContractError {
     #[error("Ownership proposal expired")]
     OwnershipProposalExpired {},
 
+    #[error("Relock is not allowed yet")]
+    RelockNotAllowed {},
+
     #[error("Semver parsing error: {0}")]
     SemVer(String),
 
@@ -97,9 +112,6 @@ pub enum ContractError {
 
     #[error("{0} seconds to unlock")]
     WaitToUnlock(u64),
-
-    #[error("Lockdrop is not finished yet")]
-    LockdropNotFinished {},
 
     #[error("Amount exceeds maximum allowed withdrawal limit of {0}")]
     WithdrawLimitExceed(String),
