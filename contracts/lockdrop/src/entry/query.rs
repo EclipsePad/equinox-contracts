@@ -5,7 +5,8 @@ use equinox_msg::{
     flexible_staking::QueryMsg as FlexibleStakingQueryMsg,
     lockdrop::{
         AssetRewardWeight, Config, LockupInfoResponse, LpLockupStateResponse,
-        SingleLockupStateResponse, UserLpLockupInfoResponse, UserSingleLockupInfoResponse,
+        RewardDistributionConfig, SingleLockupStateResponse, UserLpLockupInfoResponse,
+        UserSingleLockupInfoResponse,
     },
     lp_staking::{QueryMsg as LpStakingQueryMsg, UserRewardResponse},
     reward_distributor::{
@@ -33,6 +34,12 @@ pub fn query_owner(deps: Deps, _env: Env) -> StdResult<Addr> {
 /// query config
 pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
     let config = CONFIG.load(deps.storage)?;
+    Ok(config)
+}
+
+/// query config
+pub fn query_reward_config(deps: Deps, _env: Env) -> StdResult<RewardDistributionConfig> {
+    let config = REWARD_DISTRIBUTION_CONFIG.load(deps.storage)?;
     Ok(config)
 }
 

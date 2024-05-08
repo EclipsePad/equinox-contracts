@@ -56,22 +56,22 @@ pub fn try_instantiate(
             },
             LockConfig {
                 duration: 86400 * 30 * 3,
-                multiplier: 3,
+                multiplier: 6,
                 early_unlock_penalty_bps: 5000,
             },
             LockConfig {
                 duration: 86400 * 30 * 6,
-                multiplier: 4,
+                multiplier: 12,
                 early_unlock_penalty_bps: 5000,
             },
             LockConfig {
                 duration: 86400 * 30 * 9,
-                multiplier: 5,
+                multiplier: 18,
                 early_unlock_penalty_bps: 5000,
             },
             LockConfig {
                 duration: 86400 * 365,
-                multiplier: 6,
+                multiplier: 24,
                 early_unlock_penalty_bps: 5000,
             },
         ]),

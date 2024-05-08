@@ -76,6 +76,10 @@ export type ExecuteMsg = {
   drop_ownership_proposal: {};
 } | {
   claim_ownership: {};
+} | {
+  change_init_time: {
+    init_time: number;
+  };
 };
 export type Uint128 = string;
 export type Binary = string;
@@ -165,6 +169,8 @@ export interface RewardDistributionConfig {
 }
 export type QueryMsg = {
   config: {};
+} | {
+  reward_config: {};
 } | {
   owner: {};
 } | {

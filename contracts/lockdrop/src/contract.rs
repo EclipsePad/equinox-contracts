@@ -21,8 +21,8 @@ use crate::{
         instantiate::try_instantiate,
         query::{
             query_config, query_lp_lockup_info, query_lp_lockup_state, query_owner,
-            query_single_lockup_info, query_single_lockup_state, query_total_eclip_incentives,
-            query_user_lp_lockup_info, query_user_single_lockup_info,
+            query_reward_config, query_single_lockup_info, query_single_lockup_state,
+            query_total_eclip_incentives, query_user_lp_lockup_info, query_user_single_lockup_info,
         },
     },
     error::ContractError,
@@ -130,6 +130,7 @@ pub fn execute(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
+        QueryMsg::RewardConfig {} => Ok(to_json_binary(&query_reward_config(deps, env)?)?),
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::SingleLockupInfo {} => Ok(to_json_binary(&query_single_lockup_info(deps, env)?)?),
         QueryMsg::LpLockupInfo {} => Ok(to_json_binary(&query_lp_lockup_info(deps, env)?)?),

@@ -20,6 +20,10 @@ export const lockdropQueryKeys = {
     method: "config",
     args
   }] as const),
+  rewardConfig: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...lockdropQueryKeys.address(contractAddress)[0],
+    method: "reward_config",
+    args
+  }] as const),
   owner: (contractAddress: string | undefined, args?: Record<string, unknown>) => ([{ ...lockdropQueryKeys.address(contractAddress)[0],
     method: "owner",
     args
@@ -60,6 +64,15 @@ export const lockdropQueries = {
   }: LockdropConfigQuery<TData>): UseQueryOptions<Config, Error, TData> => ({
     queryKey: lockdropQueryKeys.config(client?.contractAddress),
     queryFn: () => client ? client.config() : Promise.reject(new Error("Invalid client")),
+    ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  }),
+  rewardConfig: <TData = RewardDistributionConfig,>({
+    client,
+    options
+  }: LockdropRewardConfigQuery<TData>): UseQueryOptions<RewardDistributionConfig, Error, TData> => ({
+    queryKey: lockdropQueryKeys.rewardConfig(client?.contractAddress),
+    queryFn: () => client ? client.rewardConfig() : Promise.reject(new Error("Invalid client")),
     ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   }),
@@ -234,6 +247,15 @@ export function useLockdropOwnerQuery<TData = Addr>({
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
 }
+export interface LockdropRewardConfigQuery<TData> extends LockdropReactQuery<RewardDistributionConfig, TData> {}
+export function useLockdropRewardConfigQuery<TData = RewardDistributionConfig>({
+  client,
+  options
+}: LockdropRewardConfigQuery<TData>) {
+  return useQuery<RewardDistributionConfig, Error, TData>(lockdropQueryKeys.rewardConfig(client?.contractAddress), () => client ? client.rewardConfig() : Promise.reject(new Error("Invalid client")), { ...options,
+    enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
+  });
+}
 export interface LockdropConfigQuery<TData> extends LockdropReactQuery<Config, TData> {}
 export function useLockdropConfigQuery<TData = Config>({
   client,
@@ -242,6 +264,28 @@ export function useLockdropConfigQuery<TData = Config>({
   return useQuery<Config, Error, TData>(lockdropQueryKeys.config(client?.contractAddress), () => client ? client.config() : Promise.reject(new Error("Invalid client")), { ...options,
     enabled: !!client && (options?.enabled != undefined ? options.enabled : true)
   });
+}
+export interface LockdropChangeInitTimeMutation {
+  client: LockdropClient;
+  msg: {
+    initTime: number;
+  };
+  args?: {
+    fee?: number | StdFee | "auto";
+    memo?: string;
+    funds?: Coin[];
+  };
+}
+export function useLockdropChangeInitTimeMutation(options?: Omit<UseMutationOptions<ExecuteResult, Error, LockdropChangeInitTimeMutation>, "mutationFn">) {
+  return useMutation<ExecuteResult, Error, LockdropChangeInitTimeMutation>(({
+    client,
+    msg,
+    args: {
+      fee,
+      memo,
+      funds
+    } = {}
+  }) => client.changeInitTime(msg, fee, memo, funds), options);
 }
 export interface LockdropClaimOwnershipMutation {
   client: LockdropClient;

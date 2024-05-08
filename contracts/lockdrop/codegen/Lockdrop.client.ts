@@ -10,6 +10,7 @@ import { InstantiateMsg, LockConfig, ExecuteMsg, Uint128, Binary, StakeType, Cal
 export interface LockdropReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<Config>;
+  rewardConfig: () => Promise<RewardDistributionConfig>;
   owner: () => Promise<Addr>;
   singleLockupInfo: () => Promise<ArrayOfLockupInfoResponse>;
   lpLockupInfo: () => Promise<ArrayOfLockupInfoResponse>;
@@ -35,6 +36,7 @@ export class LockdropQueryClient implements LockdropReadOnlyInterface {
     this.client = client;
     this.contractAddress = contractAddress;
     this.config = this.config.bind(this);
+    this.rewardConfig = this.rewardConfig.bind(this);
     this.owner = this.owner.bind(this);
     this.singleLockupInfo = this.singleLockupInfo.bind(this);
     this.lpLockupInfo = this.lpLockupInfo.bind(this);
@@ -48,6 +50,11 @@ export class LockdropQueryClient implements LockdropReadOnlyInterface {
   config = async (): Promise<Config> => {
     return this.client.queryContractSmart(this.contractAddress, {
       config: {}
+    });
+  };
+  rewardConfig = async (): Promise<RewardDistributionConfig> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      reward_config: {}
     });
   };
   owner = async (): Promise<Addr> => {
@@ -176,6 +183,11 @@ export interface LockdropInterface extends LockdropReadOnlyInterface {
   }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   dropOwnershipProposal: (fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   claimOwnership: (fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  changeInitTime: ({
+    initTime
+  }: {
+    initTime: number;
+  }, fee?: number | StdFee | "auto", memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
 }
 export class LockdropClient extends LockdropQueryClient implements LockdropInterface {
   client: SigningCosmWasmClient;
@@ -201,6 +213,7 @@ export class LockdropClient extends LockdropQueryClient implements LockdropInter
     this.proposeNewOwner = this.proposeNewOwner.bind(this);
     this.dropOwnershipProposal = this.dropOwnershipProposal.bind(this);
     this.claimOwnership = this.claimOwnership.bind(this);
+    this.changeInitTime = this.changeInitTime.bind(this);
   }
 
   receive = async ({
@@ -355,6 +368,17 @@ export class LockdropClient extends LockdropQueryClient implements LockdropInter
   claimOwnership = async (fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
       claim_ownership: {}
+    }, fee, memo, _funds);
+  };
+  changeInitTime = async ({
+    initTime
+  }: {
+    initTime: number;
+  }, fee: number | StdFee | "auto" = "auto", memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      change_init_time: {
+        init_time: initTime
+      }
     }, fee, memo, _funds);
   };
 }

@@ -102,6 +102,9 @@ pub enum QueryMsg {
     /// query config
     #[returns(Config)]
     Config {},
+    /// query reward config
+    #[returns(RewardDistributionConfig)]
+    RewardConfig {},
     /// query owner
     #[returns(Addr)]
     Owner {},

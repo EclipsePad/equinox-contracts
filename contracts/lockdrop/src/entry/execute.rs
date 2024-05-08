@@ -1159,10 +1159,10 @@ pub fn handle_increase_eclip_incentives(
         .load(deps.storage)
         .unwrap_or_default();
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-    ensure!(
-        env.block.time.seconds() < cfg.init_timestamp + cfg.deposit_window,
-        ContractError::DepositWindowClosed {}
-    );
+    // ensure!(
+    //     env.block.time.seconds() < cfg.init_timestamp + cfg.deposit_window,
+    //     ContractError::DepositWindowClosed {}
+    // );
     let coins = info.funds;
     let mut response = Response::new().add_attribute("action", "increase ECLIP incentives");
     for coin in coins {
