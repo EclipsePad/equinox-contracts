@@ -6,6 +6,7 @@ members = [
     "contracts/token_converter",
     "contracts/voter",
     "contracts/lp_staking",
+    "contracts/single_sided_staking",
     "packages/*",
     # "multitests",
 ]
@@ -38,7 +39,7 @@ equinox-msg             = { path = "./packages/equinox_msg" }
 eclipastro-token        = { path = "./contracts/token" }
 token-converter         = { path = "./contracts/token_converter" }
 flexible-staking        = { path = "./contracts/flexible_staking" }
-timelock-staking        = { path = "./contracts/timelock_staking" }
+single-sided-staking    = { path = "./contracts/single_sided_staking" }
 reward-distributor      = { path = "./contracts/reward_distributor" }
 voter                   = { path = "./contracts/voter" }
 lp-staking              = { path = "./contracts/lp_staking" }

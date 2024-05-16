@@ -20,7 +20,7 @@ use crate::{
     error::ContractError,
     state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION},
 };
-use equinox_msg::timelock_staking::{
+use equinox_msg::single_sided_staking::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RelockingDetail,
 };
 

@@ -1,5 +1,5 @@
 use cosmwasm_schema::write_api;
-use equinox_msg::timelock_staking::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use equinox_msg::single_sided_staking::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     write_api! {

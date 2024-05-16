@@ -1,11 +1,11 @@
 [package]
-name                    = "timelock-staking"
+name                    = "single-sided-staking"
 version.workspace       = true
 edition.workspace       = true
 repository.workspace    = true
 authors.workspace       = true
 license.workspace       = true
-description             = "eclipASTRO timelock staking contract"
+description             = "eclipASTRO staking contract"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -5,7 +5,7 @@ use crate::{
     error::ContractError,
     state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER},
 };
-use equinox_msg::timelock_staking::{Config, InstantiateMsg, TimeLockConfig};
+use equinox_msg::single_sided_staking::{Config, InstantiateMsg, TimeLockConfig};
 
 pub fn try_instantiate(
     mut deps: DepsMut,

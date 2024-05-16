@@ -1,3 +1,4 @@
+use astroport::asset::AssetInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
 use cw20::Cw20ReceiveMsg;
@@ -10,9 +11,18 @@ pub struct InstantiateMsg {
     pub owner: String,
     /// eclipASTRO token
     pub token: String,
+    /// bECLIP token
+    pub beclip: AssetInfo,
     /// timelock config
     pub timelock_config: Option<Vec<TimeLockConfig>>,
-    pub dao_treasury_address: String,
+    /// EclipseFi Treasury address
+    pub treasury_address: String,
+    /// ASTRO/eclipASTRO converter contract
+    pub token_converter: String,
+    /// bECLIP daily reward
+    pub beclip_daily_reward: Option<Uint128>,
+    /// reward_config
+    pub reward_config: Option<Vec<RewardConfig>>,
 }
 
 #[cw_serde]
@@ -121,7 +131,31 @@ pub struct Config {
     pub reward_contract: Addr,
     /// lock config
     pub timelock_config: Vec<TimeLockConfig>,
+    /// EclipseFi Treasury address
     pub dao_treasury_address: Addr,
+    /// ASTRO/eclipASTRO converter contract
+    pub token_converter: String,
+    /// bECLIP daily reward
+    pub beclip_daily_reward: Uint128,
+    /// reward_config
+    pub reward_config: Vec<RewardConfig>,
+}
+
+
+#[cw_serde]
+#[derive(Default)]
+pub struct RewardConfig {
+    pub duration: u64,
+    pub multiplier: u64,
+}
+
+impl Default for &RewardConfig {
+    fn default() -> Self {
+        &RewardConfig {
+            duration: 0u64,
+            multiplier: 0u64,
+        }
+    }
 }
 
 #[cw_serde]

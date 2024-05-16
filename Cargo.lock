@@ -961,6 +961,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "single-sided-staking"
+version = "0.1.1"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-controllers",
+ "cw-storage-plus",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "equinox-msg",
+ "semver",
+ "thiserror",
+]
+
+[[package]]
 name = "spki"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
