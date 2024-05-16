@@ -89,10 +89,7 @@ pub fn update_owner(
         .add_attribute("to", new_owner))
 }
 
-pub fn _claim(
-    deps: DepsMut,
-    treasury_claim_amount: Uint128,
-) -> Result<Response, ContractError> {
+pub fn _claim(deps: DepsMut, treasury_claim_amount: Uint128) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let reward_config = REWARD_CONFIG.load(deps.storage)?;
     let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
@@ -112,7 +109,11 @@ pub fn _claim(
     );
     // add message to mint eclipASTRO to staking_reward_distributor
     let mut msgs = vec![mint_eclipastro_msg(
-        config.staking_reward_distributor.clone().unwrap().to_string(),
+        config
+            .staking_reward_distributor
+            .clone()
+            .unwrap()
+            .to_string(),
         res.0.users_reward.amount,
         config.eclipastro.to_string(),
     )?];
@@ -129,17 +130,17 @@ pub fn _claim(
     if reward_stability_pool.gt(&Uint128::zero()) {
         msgs.push(withdraw_xastro_msg(
             config.vxastro_holder.clone().unwrap().to_string(),
-            config.staking_reward_distributor.clone().unwrap().to_string(),
+            config
+                .staking_reward_distributor
+                .clone()
+                .unwrap()
+                .to_string(),
             reward_ce_holders,
         )?);
     }
     // deduct claimable
     total_stake_info.claimed_xastro += claimable_xastro;
-    treasury_reward = treasury_reward
-        .checked_add(
-            reward_treasury
-        )
-        .unwrap();
+    treasury_reward = treasury_reward.checked_add(reward_treasury).unwrap();
 
     let mut response = Response::new()
         .add_attribute("action", "claim reward")
@@ -277,7 +278,10 @@ fn handle_convert_astro(
         amount: converted_xastro,
     };
     let msgs = vec![
-        send_xastro_msg(config.vxastro_holder.unwrap().to_string(), xastro_token.clone())?,
+        send_xastro_msg(
+            config.vxastro_holder.unwrap().to_string(),
+            xastro_token.clone(),
+        )?,
         mint_eclipastro_msg(
             receiver,
             astro_amount_to_convert,
@@ -299,7 +303,12 @@ fn handle_convert_astro(
 }
 
 /// Stake ASTRO/xASTRO
-pub fn try_convert(deps: DepsMut, env: Env, info: MessageInfo, recipient: Option<String>) -> Result<Response, ContractError> {
+pub fn try_convert(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    recipient: Option<String>,
+) -> Result<Response, ContractError> {
     let received_token = one_coin(&info)?;
     let config = CONFIG.load(deps.storage)?;
     let mut total_staking = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
@@ -332,10 +341,12 @@ pub fn try_convert(deps: DepsMut, env: Env, info: MessageInfo, recipient: Option
             .add_attribute("ASTRO", received_token.amount.to_string()));
     }
     let rate = query_rates_astro_staking(deps.as_ref(), config.staking_contract.to_string())?;
-    let eclipastro_amount =
-        calculate_eclipastro_amount(rate, Uint128::from(received_token.amount));
+    let eclipastro_amount = calculate_eclipastro_amount(rate, received_token.amount);
     let msgs = vec![
-        send_xastro_msg(config.vxastro_holder.unwrap().to_string(), received_token.clone())?,
+        send_xastro_msg(
+            config.vxastro_holder.unwrap().to_string(),
+            received_token.clone(),
+        )?,
         mint_eclipastro_msg(
             receiver.clone(),
             eclipastro_amount,
@@ -385,7 +396,7 @@ pub fn mint_eclipastro_msg(
         contract_addr: eclipastro,
         msg: to_json_binary(&Cw20ExecuteMsg::Mint {
             recipient: receiver,
-            amount: amount,
+            amount,
         })?,
         funds: vec![],
     }))

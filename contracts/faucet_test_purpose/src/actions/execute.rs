@@ -37,15 +37,19 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 
     let mut msg_list: Vec<CosmosMsg> = vec![];
 
-    let astro_balance = deps.querier.query_balance(creator, config.astro_token.clone())?;
-    let xastro_balance = deps.querier.query_balance(creator, config.xastro_token.clone())?;
+    let astro_balance = deps
+        .querier
+        .query_balance(creator, config.astro_token.clone())?;
+    let xastro_balance = deps
+        .querier
+        .query_balance(creator, config.xastro_token.clone())?;
 
     if astro_balance.amount < Uint128::from(20_000_000_000u128) {
         msg_list.push(
             WasmMsg::Execute {
                 contract_addr: config.astro_generator.to_string(),
                 msg: to_json_binary(&AstroGeneratorExecuteMsg::Mint {
-                    amount: Uint128::from(1000_000_000_000u128),
+                    amount: Uint128::from(1_000_000_000_000u128),
                 })?,
                 funds: vec![],
             }
@@ -106,16 +110,18 @@ pub fn try_mint(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response,
             funds: vec![],
         }
         .into(),
-            WasmMsg::Execute {
-                contract_addr: config.staking_contract.to_string(),
-                msg: to_json_binary(&ExecuteMsg::Enter { receiver: Some(info.sender.to_string()) })?,
-                funds: vec![astro_amount_to_convert],
-            }
-            .into(),
-            CosmosMsg::Bank(BankMsg::Send {
-                to_address: info.sender.to_string(),
-                amount: vec![astro_amount_to_send],
-            }),
+        WasmMsg::Execute {
+            contract_addr: config.staking_contract.to_string(),
+            msg: to_json_binary(&ExecuteMsg::Enter {
+                receiver: Some(info.sender.to_string()),
+            })?,
+            funds: vec![astro_amount_to_convert],
+        }
+        .into(),
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: info.sender.to_string(),
+            amount: vec![astro_amount_to_send],
+        }),
     ];
     Ok(Response::new()
         .add_messages(msg_list)

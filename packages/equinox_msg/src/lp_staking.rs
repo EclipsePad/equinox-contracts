@@ -179,14 +179,14 @@ pub struct RewardAmount {
 #[cw_serde]
 pub struct UserStaking {
     pub staked: Uint128,
-    pub reward_weights: Vec<RewardWeight>
+    pub reward_weights: Vec<RewardWeight>,
 }
 
 impl Default for UserStaking {
     fn default() -> Self {
         UserStaking {
             staked: Uint128::zero(),
-            reward_weights: vec![]
+            reward_weights: vec![],
         }
     }
 }

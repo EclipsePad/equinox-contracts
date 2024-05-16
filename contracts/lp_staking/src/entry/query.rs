@@ -40,7 +40,7 @@ pub fn query_total_staking(deps: Deps, _env: Env) -> StdResult<Uint128> {
 pub fn query_reward(deps: Deps, env: Env, user: String) -> StdResult<Vec<RewardAmount>> {
     let user_staking = STAKING.load(deps.storage, &user)?;
     if user_staking.staked.is_zero() {
-        return Ok(vec![]);
+        Ok(vec![])
     } else {
         let astroport_rewards = calculate_incentive_pending_rewards(deps, env.contract.address)?;
         let beclip_reward = calculate_beclip_reward(deps, env.block.time.seconds())?;
@@ -60,7 +60,8 @@ pub fn calculate_user_staking_rewards(
     let mut user_rewards = vec![];
     for reward_weight in reward_weights {
         let user_reward = user_staking
-            .reward_weights.clone()
+            .reward_weights
+            .clone()
             .into_iter()
             .find(|r| reward_weight.info == r.info);
         let user_reward_weight = match user_reward {
@@ -128,7 +129,7 @@ pub fn calculate_updated_reward_weights(
     let config = CONFIG.load(deps.storage)?;
     let reward_cfg = REWARD_CONFIG.load(deps.storage)?;
     let total_staking = TOTAL_STAKING.load(deps.storage)?;
-    let mut reward_weights = REWARD_WEIGHTS.load(deps.storage).unwrap_or(vec![]);
+    let mut reward_weights = REWARD_WEIGHTS.load(deps.storage).unwrap_or_default();
     let mut is_beclip = false;
     let beclip_user_reward_weight = Decimal256::from_ratio(beclip_reward, total_staking);
     for reward in astroport_rewards {

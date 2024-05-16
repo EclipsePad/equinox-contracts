@@ -22,13 +22,15 @@ pub fn try_instantiate(
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    CONFIG.save(deps.storage, &Config {
-        astro_token: msg.astro_token,
-        xastro_token: msg.xastr_token,
-        astro_generator: msg.astro_generator,
-        staking_contract: msg.staking_contract,
-    })?;
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            astro_token: msg.astro_token,
+            xastro_token: msg.xastr_token,
+            astro_generator: msg.astro_generator,
+            staking_contract: msg.staking_contract,
+        },
+    )?;
 
-    Ok(Response::new()
-        .add_attributes([("action", "instantiate astro xastro faucet")]))
+    Ok(Response::new().add_attributes([("action", "instantiate astro xastro faucet")]))
 }

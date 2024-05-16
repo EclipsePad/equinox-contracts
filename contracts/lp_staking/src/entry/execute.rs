@@ -1,17 +1,17 @@
 use astroport::{
     asset::Asset,
-    incentives::{
-        Cw20Msg as IncentivesCw20Msg, ExecuteMsg as IncentivesExecuteMsg,
-    }, staking::ExecuteMsg as StakingExecuteMsg,
+    incentives::{Cw20Msg as IncentivesCw20Msg, ExecuteMsg as IncentivesExecuteMsg},
+    staking::ExecuteMsg as StakingExecuteMsg,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, from_json, to_json_binary, BankMsg, CosmosMsg,
-    DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
+    coin, ensure, ensure_eq, from_json, to_json_binary, BankMsg, CosmosMsg, DepsMut, Env,
+    MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use equinox_msg::{lp_staking::{
-    CallbackMsg, Cw20HookMsg, RewardConfig, UpdateConfigMsg,
-}, token_converter::ExecuteMsg as ConverterExecuteMsg};
+use equinox_msg::{
+    lp_staking::{CallbackMsg, Cw20HookMsg, RewardConfig, UpdateConfigMsg},
+    // token_converter::ExecuteMsg as ConverterExecuteMsg,
+};
 
 use crate::{
     entry::query::{
@@ -225,22 +225,30 @@ pub fn _claim(deps: DepsMut, env: Env, sender: String) -> Result<Response, Contr
     let updated_reward_weights =
         calculate_updated_reward_weights(deps.as_ref(), astroport_rewards, beclip_reward)?;
     if !user_staking.staked.is_zero() {
-        let user_rewards =
-            calculate_user_staking_rewards(deps.as_ref(), sender.clone(), updated_reward_weights.clone())?;
+        let user_rewards = calculate_user_staking_rewards(
+            deps.as_ref(),
+            sender.clone(),
+            updated_reward_weights.clone(),
+        )?;
         let mut coins = vec![];
         for r in user_rewards {
             if !r.amount.is_zero() {
                 if r.info.is_native_token() {
-                    if r.info.to_string() == cfg.astro {
-                        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                            contract_addr: cfg.converter.clone().into_string(),
-                            msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: Some(sender.clone())})?,
-                            funds: vec![coin(r.amount.u128(), r.info.to_string())],
-                        }));
-                    } else {
-                        coins.push(coin(r.amount.u128(), r.info.to_string()));
-                        response = response.add_attribute("action", "claim").add_attribute("denom", r.info.to_string()).add_attribute("amount", r.amount);
-                    }
+                    // if r.info.to_string() == cfg.astro {
+                    //     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    //         contract_addr: cfg.converter.clone().into_string(),
+                    //         msg: to_json_binary(&ConverterExecuteMsg::Convert {
+                    //             recipient: Some(sender.clone()),
+                    //         })?,
+                    //         funds: vec![coin(r.amount.u128(), r.info.to_string())],
+                    //     }));
+                    // } else {
+                    coins.push(coin(r.amount.u128(), r.info.to_string()));
+                    response = response
+                        .add_attribute("action", "claim")
+                        .add_attribute("denom", r.info.to_string())
+                        .add_attribute("amount", r.amount);
+                    // }
                 } else {
                     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: r.info.to_string(),
@@ -250,7 +258,10 @@ pub fn _claim(deps: DepsMut, env: Env, sender: String) -> Result<Response, Contr
                         })?,
                         funds: vec![],
                     }));
-                    response = response.add_attribute("action", "claim").add_attribute("address", r.info.to_string()).add_attribute("amount", r.amount);
+                    response = response
+                        .add_attribute("action", "claim")
+                        .add_attribute("address", r.info.to_string())
+                        .add_attribute("amount", r.amount);
                 }
             }
         }
@@ -321,7 +332,7 @@ pub fn unstake(
 
     total_staking = total_staking.checked_sub(amount).unwrap();
     user_staking.staked = user_staking.staked.checked_sub(amount).unwrap();
-    
+
     TOTAL_STAKING.save(deps.storage, &total_staking)?;
     STAKING.save(deps.storage, &info.sender.to_string(), &user_staking)?;
 
@@ -375,23 +386,29 @@ pub fn distribute_eclipse_rewards(
             if ce_holders_rewards.gt(&Uint128::zero()) {
                 msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: cfg.astro_staking.to_string(),
-                    msg: to_json_binary(&StakingExecuteMsg::Enter { receiver: Some(cfg.ce_reward_distributor.clone().unwrap().to_string()) })?,
+                    msg: to_json_binary(&StakingExecuteMsg::Enter {
+                        receiver: Some(cfg.ce_reward_distributor.clone().unwrap().to_string()),
+                    })?,
                     funds: vec![coin(ce_holders_rewards.u128(), cfg.astro.clone())],
-                }),);
+                }));
             }
             if stability_pool_rewards.gt(&Uint128::zero()) {
                 msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: cfg.astro_staking.to_string(),
-                    msg: to_json_binary(&StakingExecuteMsg::Enter { receiver: Some(cfg.stability_pool.clone().unwrap().to_string()) })?,
+                    msg: to_json_binary(&StakingExecuteMsg::Enter {
+                        receiver: Some(cfg.stability_pool.clone().unwrap().to_string()),
+                    })?,
                     funds: vec![coin(stability_pool_rewards.u128(), cfg.astro.clone())],
-                }),);
+                }));
             }
             if treasury_rewards.gt(&Uint128::zero()) {
                 msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: cfg.astro_staking.to_string(),
-                    msg: to_json_binary(&StakingExecuteMsg::Enter { receiver: Some(cfg.treasury.clone().to_string()) })?,
+                    msg: to_json_binary(&StakingExecuteMsg::Enter {
+                        receiver: Some(cfg.treasury.clone().to_string()),
+                    })?,
                     funds: vec![coin(treasury_rewards.u128(), cfg.astro.clone())],
-                }),);
+                }));
             }
         }
     }

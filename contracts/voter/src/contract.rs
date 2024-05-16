@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult,
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use equinox_msg::voter::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -9,7 +9,7 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            place_vote, try_stake, update_config, update_owner, withdraw, withdraw_bribe_rewards
+            place_vote, try_stake, update_config, update_owner, withdraw, withdraw_bribe_rewards,
         },
         instantiate::try_instantiate,
         query::{query_config, query_owner, query_voting_power},
@@ -43,7 +43,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Stake{} => try_stake(deps, env, info),
+        ExecuteMsg::Stake {} => try_stake(deps, env, info),
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
         ExecuteMsg::Withdraw { amount, recipient } => withdraw(deps, env, info, amount, recipient),

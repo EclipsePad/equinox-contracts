@@ -18,9 +18,6 @@ pub fn calculate_claimable(
         .unwrap_or_default()
 }
 
-pub fn calculate_eclipastro_amount(
-    rate: AstroStaking,
-    xastro: Uint128,
-) -> Uint128 {
+pub fn calculate_eclipastro_amount(rate: AstroStaking, xastro: Uint128) -> Uint128 {
     xastro.multiply_ratio(rate.total_deposit, rate.total_shares)
 }

@@ -1,8 +1,5 @@
 use cosmwasm_std::{coin, BankMsg, CosmosMsg};
-use cosmwasm_std::{
-    ensure_eq, DepsMut, Env, MessageInfo, Response,
-    Uint128,
-};
+use cosmwasm_std::{ensure_eq, DepsMut, Env, MessageInfo, Response, Uint128};
 use cw_utils::must_pay;
 
 use equinox_msg::voter::UpdateConfig;
@@ -155,4 +152,3 @@ pub fn try_stake(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response
         .add_attribute("action", "lock xASTRO")
         .add_attribute("xASTRO", amount.to_string()))
 }
-

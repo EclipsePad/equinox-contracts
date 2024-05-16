@@ -11,9 +11,7 @@ pub enum ContractError {
     #[error("Contract name must be same: {0}")]
     ContractNameErr(String),
 
-    #[error(
-        "Sender's CW20 token contract address {got} does not match one from config {expected}"
-    )]
+    #[error("Sender's CW20 token contract address {got} does not match one from config {expected}")]
     Cw20AddressesNotMatch { got: String, expected: String },
 
     #[error("Amount {got} exceeds your staking {expected}")]

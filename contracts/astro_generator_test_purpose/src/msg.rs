@@ -6,8 +6,8 @@ pub struct InstantiateMsg {}
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    UpdateOwner {owner: Addr},
-    Mint {amount: Uint128},
+    UpdateOwner { owner: Addr },
+    Mint { amount: Uint128 },
 }
 
 #[cw_serde]

@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    UpdateOwner {owner: Addr},
+    UpdateOwner { owner: Addr },
     Claim {},
     Mint {},
 }
@@ -26,7 +26,7 @@ pub enum QueryMsg {
     LastClaimed { addr: String },
 
     #[returns(Addr)]
-    Owner { },
+    Owner {},
 }
 
 #[cw_serde]

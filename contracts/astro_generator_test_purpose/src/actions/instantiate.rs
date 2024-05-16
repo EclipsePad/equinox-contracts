@@ -26,7 +26,7 @@ pub fn try_instantiate(
 
     let creator = env.contract.address;
     let subdenom = "astro";
-    let full_denom = &get_full_denom(&creator, &subdenom);
+    let full_denom = &get_full_denom(&creator, subdenom);
 
     TOKEN.save(deps.storage, full_denom)?;
 

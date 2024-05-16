@@ -1,5 +1,5 @@
-use cosmwasm_std::{DepsMut, Env, Response};
 use crate::{error::ContractError, msg::MigrateMsg};
+use cosmwasm_std::{DepsMut, Env, Response};
 
 pub fn migrate_contract(
     _deps: DepsMut,

@@ -68,9 +68,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps)?)?),
         QueryMsg::RewardConfig {} => Ok(to_json_binary(&query_reward_config(deps)?)?),
         QueryMsg::Rewards {} => Ok(to_json_binary(&query_rewards(deps)?)?),
-        QueryMsg::WithdrawableBalance {} => {
-            Ok(to_json_binary(&query_withdrawable_balance(deps)?)?)
-        }
+        QueryMsg::WithdrawableBalance {} => Ok(to_json_binary(&query_withdrawable_balance(deps)?)?),
     }
 }
 

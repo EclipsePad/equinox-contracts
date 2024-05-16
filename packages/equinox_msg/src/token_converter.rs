@@ -24,9 +24,7 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub enum ExecuteMsg {
     /// convert astro, xastro to eclipastro by user
-    Convert {
-        recipient: Option<String>,
-    },
+    Convert { recipient: Option<String> },
     /// update config
     UpdateConfig { config: UpdateConfig },
     /// update reward config
@@ -141,7 +139,7 @@ pub enum CallbackMsg {
         prev_xastro_balance: Uint128,
         astro_amount_to_convert: Uint128,
         receiver: String,
-    }
+    },
 }
 
 impl CallbackMsg {

@@ -24,6 +24,6 @@ pub fn query_config(deps: Deps, _env: Env) -> StdResult<ConfigResponse> {
         astro_token: config.astro_token,
         xastro_token: config.xastro_token,
         astro_generator: config.astro_generator,
-        staking_contract: config.staking_contract
+        staking_contract: config.staking_contract,
     })
 }
