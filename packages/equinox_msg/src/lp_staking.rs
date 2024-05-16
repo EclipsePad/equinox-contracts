@@ -5,32 +5,30 @@ use cw20::Cw20ReceiveMsg;
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// Contract owner for updating
-    pub owner: String,
     /// lp token
-    pub lp_token: String,
+    pub lp_token: Addr,
     /// lp contract
-    pub lp_contract: String,
-    /// ECLIP token
-    pub eclip: String,
+    pub lp_contract: Addr,
+    /// bECLIP token
+    pub beclip: AssetInfo,
     /// ASTRO token
     pub astro: String,
     /// xASTRO token
     pub xastro: String,
     /// astro staking contract
-    pub astro_staking: String,
+    pub astro_staking: Addr,
     /// eclipASTRO converter
-    pub converter: String,
-    /// ECLIP daily reward
-    pub eclip_daily_reward: Option<Uint128>,
+    pub converter: Addr,
+    /// bECLIP daily reward
+    pub beclip_daily_reward: Option<Uint128>,
     /// Astroport generator
-    pub astroport_generator: String,
+    pub astroport_generator: Addr,
     /// Eclipse treasury. send 67.5% of 20% of generator rewards
-    pub treasury: String,
+    pub treasury: Addr,
     /// eclipASTRO / xASTRO stability pool. send xastro converted from 12.5% of 20% of generator rewards
-    pub stability_pool: String,
+    pub stability_pool: Option<Addr>,
     /// cosmic essence reward distributor. send 20% of 20% of generator rewards
-    pub ce_reward_distributor: Option<String>,
+    pub ce_reward_distributor: Option<Addr>,
 }
 
 #[cw_serde]
@@ -66,7 +64,7 @@ pub enum QueryMsg {
     #[returns(Addr)]
     Owner {},
     /// query total_staking
-    #[returns(TotalStaking)]
+    #[returns(Uint128)]
     TotalStaking {},
     /// query user_staking
     #[returns(UserStaking)]
@@ -89,7 +87,6 @@ pub enum Cw20HookMsg {
 
 #[cw_serde]
 pub enum CallbackMsg {
-    Claim { user: String },
     DistributeEclipseRewards { assets: Vec<Asset> },
 }
 
@@ -105,15 +102,15 @@ impl CallbackMsg {
 
 #[cw_serde]
 pub struct UpdateConfigMsg {
-    pub lp_token: Option<String>,
-    pub lp_contract: Option<String>,
-    pub eclip: Option<String>,
-    pub eclip_daily_reward: Option<Uint128>,
-    pub converter: Option<String>,
-    pub astroport_generator: Option<String>,
-    pub treasury: Option<String>,
-    pub stability_pool: Option<String>,
-    pub ce_reward_distributor: Option<String>,
+    pub lp_token: Option<Addr>,
+    pub lp_contract: Option<Addr>,
+    pub beclip: Option<AssetInfo>,
+    pub beclip_daily_reward: Option<Uint128>,
+    pub converter: Option<Addr>,
+    pub astroport_generator: Option<Addr>,
+    pub treasury: Option<Addr>,
+    pub stability_pool: Option<Addr>,
+    pub ce_reward_distributor: Option<Addr>,
 }
 
 #[cw_serde]
@@ -130,22 +127,22 @@ pub struct Config {
     pub lp_token: Addr,
     /// lp contract
     pub lp_contract: Addr,
-    /// ECLIP token
-    pub eclip: String,
+    /// bECLIP token
+    pub beclip: AssetInfo,
     /// ASTRO token
-    pub astro: Addr,
+    pub astro: String,
     /// xASTRO token
-    pub xastro: Addr,
+    pub xastro: String,
     /// ASTRO staking contract
     pub astro_staking: Addr,
     /// eclipASTRO converter
     pub converter: Addr,
-    /// ECLIP daily reward
-    pub eclip_daily_reward: Uint128,
+    /// bECLIP daily reward
+    pub beclip_daily_reward: Uint128,
     /// Astroport generator
     pub astroport_generator: Addr,
     pub treasury: Addr,
-    pub stability_pool: Addr,
+    pub stability_pool: Option<Addr>,
     pub ce_reward_distributor: Option<Addr>,
 }
 
@@ -168,45 +165,30 @@ pub struct LpRewards {
 }
 
 #[cw_serde]
-pub struct TotalStaking {
-    pub total_staked: Uint128,
-    pub astroport_reward_weights: Vec<AstroportRewardWeight>,
-    pub eclip_reward_weight: Decimal256,
+pub struct RewardWeight {
+    pub info: AssetInfo,
+    pub reward_weight: Decimal256,
 }
 
-impl Default for TotalStaking {
-    fn default() -> Self {
-        TotalStaking {
-            total_staked: Uint128::zero(),
-            astroport_reward_weights: vec![],
-            eclip_reward_weight: Decimal256::zero(),
-        }
-    }
+#[cw_serde]
+pub struct RewardAmount {
+    pub info: AssetInfo,
+    pub amount: Uint128,
 }
 
 #[cw_serde]
 pub struct UserStaking {
     pub staked: Uint128,
-    pub astroport_rewards: Vec<UserAstroportReward>,
-    pub eclip_reward_weight: Decimal256,
-    pub pending_eclip_rewards: Uint128,
+    pub reward_weights: Vec<RewardWeight>
 }
 
 impl Default for UserStaking {
     fn default() -> Self {
         UserStaking {
             staked: Uint128::zero(),
-            astroport_rewards: vec![],
-            eclip_reward_weight: Decimal256::zero(),
-            pending_eclip_rewards: Uint128::zero(),
+            reward_weights: vec![]
         }
     }
-}
-
-#[cw_serde]
-pub struct AstroportRewardWeight {
-    pub asset: AssetInfo,
-    pub reward_weight: Decimal256,
 }
 
 #[cw_serde]

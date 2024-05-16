@@ -1,15 +1,14 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128};
-use cw20::Cw20ReceiveMsg;
 
 #[cw_serde]
 pub struct InstantiateMsg {
     /// ASTRO token address
-    pub base_token: String,
+    pub astro: String,
     /// xASTRO token address
-    pub xtoken: String,
+    pub xastro: String,
     /// vxASTRO contract
-    pub vxtoken: String,
+    pub vxastro: String,
     /// Astroport Staking contract
     pub staking_contract: String,
     /// Converter contract
@@ -21,11 +20,11 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub struct UpdateConfig {
     /// ASTRO token address
-    pub base_token: Option<String>,
+    pub astro: Option<String>,
     /// xASTRO token address
-    pub xtoken: Option<String>,
+    pub xastro: Option<String>,
     /// vxASTRO contract
-    pub vxtoken: Option<String>,
+    pub vxastro: Option<String>,
     /// Astroport Staking contract
     pub staking_contract: Option<String>,
     /// Converter contract
@@ -38,8 +37,8 @@ pub struct UpdateConfig {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// stake ASTRO from user
-    Receive(Cw20ReceiveMsg),
+    /// stake ASTRO / xASTRO from user
+    Stake {},
     /// update config
     UpdateConfig { config: UpdateConfig },
     /// update owner
@@ -70,9 +69,6 @@ pub enum QueryMsg {
     /// query total vxASTRO
     #[returns(Uint128)]
     VotingPower {},
-    /// query ASTRO/xASTRO ratio
-    #[returns((Uint128, Uint128))]
-    ConvertRatio {},
 }
 
 #[cw_serde]
@@ -91,11 +87,11 @@ pub struct Vote {
 #[cw_serde]
 pub struct Config {
     /// ASTRO token address
-    pub base_token: Addr,
+    pub astro: String,
     /// xASTRO token address
-    pub xtoken: Addr,
+    pub xastro: String,
     /// vxASTRO contract
-    pub vxtoken: Addr,
+    pub vxastro: String,
     /// Astroport Staking contract
     pub staking_contract: Addr,
     /// Converter contract

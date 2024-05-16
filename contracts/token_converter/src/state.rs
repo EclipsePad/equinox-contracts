@@ -27,19 +27,19 @@ pub const USER_STAKING: Item<UserStake> = Item::new("staking_user");
 #[cw_serde]
 pub struct StakeInfo {
     /// initial ASTRO stake
-    pub stake: Uint128,
+    pub astro: Uint128,
     /// user's xASTRO amount
-    pub xtoken: Uint128,
+    pub xastro: Uint128,
     /// claimed xASTRO amount
-    pub claimed: Uint128,
+    pub claimed_xastro: Uint128,
 }
 
 impl Default for StakeInfo {
     fn default() -> Self {
         StakeInfo {
-            stake: Uint128::zero(),
-            xtoken: Uint128::zero(),
-            claimed: Uint128::zero(),
+            astro: Uint128::zero(),
+            xastro: Uint128::zero(),
+            claimed_xastro: Uint128::zero(),
         }
     }
 }

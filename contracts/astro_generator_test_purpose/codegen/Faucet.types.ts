@@ -4,21 +4,21 @@
 * and run the @cosmwasm/ts-codegen generate command to regenerate this file.
 */
 
-export type Addr = string;
-export interface InstantiateMsg {
-  astro: Addr;
-  astro_staking: Addr;
-  xastro: Addr;
-}
+export interface InstantiateMsg {}
 export type ExecuteMsg = {
   claim: {};
 };
 export type QueryMsg = {
+  denom: {};
+} | {
   last_claimed: {
     addr: string;
   };
 };
-export interface MigrateMsg {}
+export interface MigrateMsg {
+  version: string;
+}
+export type String = string;
 export interface LastClaimedResponse {
   last_claim_at: number;
 }

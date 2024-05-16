@@ -1,17 +1,16 @@
-#[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
 use crate::{
+    actions::{
+        execute::{try_mint, update_owner},
+        instantiate::try_instantiate,
+        other::migrate_contract,
+        query::{query_denom, query_owner},
+    },
     error::ContractError,
     msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
-};
-
-use crate::actions::{
-    execute::try_claim,
-    instantiate::try_instantiate,
-    query::last_claimed,
 };
 
 /// Creates a new contract with the specified parameters packed in the "msg" variable
@@ -34,7 +33,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Claim {} => try_claim(deps, env, info),
+        ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
+        ExecuteMsg::Mint { amount } => try_mint(deps, env, info, amount),
     }
 }
 
@@ -42,12 +42,13 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::LastClaimed { addr } => to_json_binary(&last_claimed(deps, env, addr)?),
+        QueryMsg::Denom {} => to_json_binary(&query_denom(deps, env)?),
+        QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
     }
 }
 
 /// Used for contract migration
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::new())
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    migrate_contract(deps, env, msg)
 }

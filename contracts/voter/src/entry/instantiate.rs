@@ -20,9 +20,9 @@ pub fn try_instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            base_token: deps.api.addr_validate(&msg.base_token)?,
-            xtoken: deps.api.addr_validate(&msg.xtoken)?,
-            vxtoken: deps.api.addr_validate(&msg.vxtoken)?,
+            astro: msg.astro,
+            xastro: msg.xastro,
+            vxastro: msg.vxastro,
             staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
             converter_contract: deps.api.addr_validate(&msg.converter_contract)?,
             gauge_contract: Addr::unchecked(""),

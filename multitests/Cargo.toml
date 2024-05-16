@@ -42,6 +42,6 @@ astroport-router        = { workspace = true }
 astroport-token         = { workspace = true }
 astroport-staking       = { workspace = true }
 astroport-vesting       = { workspace = true }
-astroport-xastro-token  = { workspace = true }
+# astroport-xastro-token  = { workspace = true }
 astroport               = { workspace = true }
 # astroport-governance    = { workspace = true }

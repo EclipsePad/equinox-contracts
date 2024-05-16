@@ -6,9 +6,10 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { Addr, InstantiateMsg, ExecuteMsg, QueryMsg, MigrateMsg, LastClaimedResponse } from "./Faucet.types";
+import { InstantiateMsg, ExecuteMsg, QueryMsg, MigrateMsg, String, LastClaimedResponse } from "./Faucet.types";
 export interface FaucetReadOnlyInterface {
   contractAddress: string;
+  denom: () => Promise<String>;
   lastClaimed: ({
     addr
   }: {
@@ -22,9 +23,15 @@ export class FaucetQueryClient implements FaucetReadOnlyInterface {
   constructor(client: CosmWasmClient, contractAddress: string) {
     this.client = client;
     this.contractAddress = contractAddress;
+    this.denom = this.denom.bind(this);
     this.lastClaimed = this.lastClaimed.bind(this);
   }
 
+  denom = async (): Promise<String> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      denom: {}
+    });
+  };
   lastClaimed = async ({
     addr
   }: {

@@ -9,4 +9,5 @@ mod math;
 
 /// state on the blockchain
 pub mod state;
+pub mod external_queriers;
 pub use crate::error::ContractError;
