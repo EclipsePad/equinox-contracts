@@ -10,3 +10,5 @@ pub mod entry {
     pub mod instantiate;
     pub mod query;
 }
+
+pub mod external_queriers;

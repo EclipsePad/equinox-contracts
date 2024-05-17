@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
 
 use crate::{
@@ -18,35 +18,49 @@ pub fn try_instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            token: deps.api.addr_validate(&msg.token)?,
-            reward_contract: Addr::unchecked(""),
+            token: msg.token,
+            beclip: msg.beclip,
             timelock_config: msg.timelock_config.unwrap_or(vec![
+                TimeLockConfig {
+                    duration: 0,
+                    early_unlock_penalty_bps: 0,
+                    reward_multiplier: 1,
+                },
                 TimeLockConfig {
                     duration: 86400 * 30,
                     early_unlock_penalty_bps: 5000,
+                    reward_multiplier: 2,
                 },
                 TimeLockConfig {
                     duration: 86400 * 30 * 3,
                     early_unlock_penalty_bps: 5000,
+                    reward_multiplier: 6,
                 },
                 TimeLockConfig {
                     duration: 86400 * 30 * 6,
                     early_unlock_penalty_bps: 5000,
+                    reward_multiplier: 12,
                 },
                 TimeLockConfig {
                     duration: 86400 * 30 * 9,
                     early_unlock_penalty_bps: 5000,
+                    reward_multiplier: 18,
                 },
                 TimeLockConfig {
                     duration: 86400 * 365,
                     early_unlock_penalty_bps: 5000,
+                    reward_multiplier: 24,
                 },
             ]),
-            dao_treasury_address: deps.api.addr_validate(&msg.dao_treasury_address)?,
+            token_converter: msg.token_converter,
+            beclip_daily_reward: msg
+                .beclip_daily_reward
+                .unwrap_or(Uint128::from(1_000_000_000u128)),
+            treasury: msg.treasury,
         },
     )?;
 
-    let owner = deps.api.addr_validate(&msg.owner)?;
+    let owner = deps.api.addr_validate(&msg.owner.to_string())?;
     OWNER.set(deps.branch(), Some(owner))?;
     Ok(Response::new().add_attributes([("action", "instantiate token converter")]))
 }

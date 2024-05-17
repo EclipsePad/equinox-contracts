@@ -8,7 +8,7 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            allow_users, block_users, claim, claim_all, receive_cw20, relock, unlock,
+            allow_users, block_users, claim, claim_all, receive_cw20, restake, unstake,
             update_config, update_owner,
         },
         instantiate::try_instantiate,
@@ -21,7 +21,7 @@ use crate::{
     state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION},
 };
 use equinox_msg::single_sided_staking::{
-    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RelockingDetail,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RestakeData,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -53,28 +53,32 @@ pub fn execute(
             locked_at,
         } => claim(deps, env, info, duration, locked_at),
         ExecuteMsg::ClaimAll {} => claim_all(deps, env, info),
-        ExecuteMsg::Unlock {
+        ExecuteMsg::Unstake {
             duration,
             locked_at,
             amount,
             recipient,
-        } => unlock(deps, env, info, duration, locked_at, amount, recipient),
-        ExecuteMsg::Relock {
+        } => unstake(deps, env, info, duration, locked_at, amount, recipient),
+        ExecuteMsg::Restake {
             from_duration,
+            locked_at,
+            amount,
             to_duration,
-            relocks,
             recipient,
         } => {
             let recipient = recipient.unwrap_or(info.sender.to_string());
-            relock(
+            let locked_at = locked_at.unwrap_or_default();
+            restake(
                 deps,
                 env,
-                RelockingDetail {
-                    sender: info.sender,
-                    recipient,
-                    relocks,
+                RestakeData {
                     from_duration,
+                    locked_at,
+                    amount,
                     to_duration,
+                    add_amount: None,
+                    sender: info.sender.to_string(),
+                    recipient,
                 },
             )
         }

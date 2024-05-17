@@ -1,28 +1,22 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Decimal256, Uint128};
 use cw20::Cw20ReceiveMsg;
-
-use crate::reward_distributor::TimelockReward;
-
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
-    pub owner: String,
+    pub owner: Addr,
     /// eclipASTRO token
-    pub token: String,
+    pub token: Addr,
     /// bECLIP token
     pub beclip: AssetInfo,
     /// timelock config
     pub timelock_config: Option<Vec<TimeLockConfig>>,
-    /// EclipseFi Treasury address
-    pub treasury_address: String,
     /// ASTRO/eclipASTRO converter contract
-    pub token_converter: String,
+    pub token_converter: Addr,
     /// bECLIP daily reward
     pub beclip_daily_reward: Option<Uint128>,
-    /// reward_config
-    pub reward_config: Option<Vec<RewardConfig>>,
+    pub treasury: Addr,
 }
 
 #[cw_serde]
@@ -40,20 +34,21 @@ pub enum ExecuteMsg {
     /// Claim rewards of user.
     Claim {
         duration: u64,
-        locked_at: u64,
+        locked_at: Option<u64>,
     },
     ClaimAll {},
-    Unlock {
+    Unstake {
         duration: u64,
-        locked_at: u64,
+        locked_at: Option<u64>,
         amount: Option<Uint128>,
         recipient: Option<String>,
     },
     /// update locking period from short one to long one
-    Relock {
+    Restake {
         from_duration: u64,
+        locked_at: Option<u64>,
+        amount: Option<Uint128>,
         to_duration: u64,
-        relocks: Vec<(u64, Option<Uint128>)>,
         recipient: Option<String>,
     },
     AllowUsers {
@@ -83,7 +78,7 @@ pub enum QueryMsg {
     #[returns(Vec<UserStaking>)]
     Staking { user: String },
     /// query pending_rewards
-    #[returns(Vec<TimelockReward>)]
+    #[returns(Vec<UserRewardByDuration>)]
     Reward { user: String },
     /// query calculating penalty
     #[returns(Uint128)]
@@ -104,14 +99,15 @@ pub struct MigrateMsg {
 #[cw_serde]
 pub enum Cw20HookMsg {
     /// timelock eclipASTRO token
-    Lock {
-        duration: u64,
+    Stake {
+        lock_duration: u64,
         recipient: Option<String>,
     },
-    Relock {
+    Restake {
         from_duration: u64,
+        locked_at: Option<u64>,
+        amount: Option<Uint128>,
         to_duration: u64,
-        relocks: Vec<(u64, Option<Uint128>)>,
         recipient: Option<String>,
     },
 }
@@ -119,56 +115,72 @@ pub enum Cw20HookMsg {
 #[cw_serde]
 pub struct UpdateConfigMsg {
     pub token: Option<String>,
-    pub reward_contract: Option<String>,
     pub timelock_config: Option<Vec<TimeLockConfig>>,
+    pub token_converter: Option<Addr>,
+    pub beclip_daily_reward: Option<Uint128>,
+    pub treasury: Option<Addr>,
 }
 
 #[cw_serde]
 pub struct Config {
     /// eclipASTRO token
     pub token: Addr,
-    /// reward_contract address
-    pub reward_contract: Addr,
+    /// beclip token
+    pub beclip: AssetInfo,
     /// lock config
     pub timelock_config: Vec<TimeLockConfig>,
-    /// EclipseFi Treasury address
-    pub dao_treasury_address: Addr,
     /// ASTRO/eclipASTRO converter contract
-    pub token_converter: String,
+    pub token_converter: Addr,
     /// bECLIP daily reward
     pub beclip_daily_reward: Uint128,
-    /// reward_config
-    pub reward_config: Vec<RewardConfig>,
-}
-
-
-#[cw_serde]
-#[derive(Default)]
-pub struct RewardConfig {
-    pub duration: u64,
-    pub multiplier: u64,
-}
-
-impl Default for &RewardConfig {
-    fn default() -> Self {
-        &RewardConfig {
-            duration: 0u64,
-            multiplier: 0u64,
-        }
-    }
+    pub treasury: Addr,
 }
 
 #[cw_serde]
 pub struct TimeLockConfig {
     pub duration: u64,
     pub early_unlock_penalty_bps: u64,
+    pub reward_multiplier: u64,
 }
 
 #[cw_serde]
-pub struct UserStakingByDuration {
-    pub amount: Uint128,
-    pub locked_at: u64,
+pub struct RewardWeights {
+    pub eclipastro: Decimal256,
+    pub beclip: Decimal256,
 }
+
+impl Default for RewardWeights {
+    fn default() -> Self {
+        RewardWeights {
+            eclipastro: Decimal256::zero(),
+            beclip: Decimal256::zero(),
+        }
+    }
+}
+#[cw_serde]
+pub struct UserStaked {
+    pub staked: Uint128,
+    pub reward_weights: RewardWeights,
+}
+
+#[cw_serde]
+pub struct UserReward {
+    pub eclipastro: Uint128,
+    pub beclip: Uint128,
+}
+
+#[cw_serde]
+pub struct UserRewardByLockedAt {
+    pub locked_at: u64,
+    pub rewards: UserReward,
+}
+
+#[cw_serde]
+pub struct UserRewardByDuration {
+    pub duration: u64,
+    pub rewards: Vec<UserRewardByLockedAt>,
+}
+
 
 #[cw_serde]
 pub struct UserStaking {
@@ -177,16 +189,24 @@ pub struct UserStaking {
 }
 
 #[cw_serde]
-pub struct StakingWithDuration {
+pub struct UserStakingByDuration {
     pub amount: Uint128,
-    pub duration: u64,
+    pub locked_at: Option<u64>,
 }
 
 #[cw_serde]
-pub struct RelockingDetail {
-    pub sender: Addr,
-    pub recipient: String,
-    pub relocks: Vec<(u64, Option<Uint128>)>,
+pub struct RestakeData {
     pub from_duration: u64,
+    pub locked_at: u64,
+    pub amount: Option<Uint128>,
     pub to_duration: u64,
+    pub add_amount: Option<Uint128>,
+    pub sender: String,
+    pub recipient: String,
+}
+
+#[cw_serde]
+pub struct StakingWithDuration {
+    pub amount: Uint128,
+    pub duration: u64,
 }
