@@ -2,13 +2,19 @@ use cosmwasm_std::{Addr, Decimal256, Deps, Env, Order, StdResult, Uint128};
 use cw_storage_plus::Bound;
 use std::cmp::{max, min};
 
-use crate::{config::REWARD_DISTRIBUTION_PERIOD, state::{
-    CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS,
-    REWARD_WEIGHTS, TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED,
-}};
-use equinox_msg::single_sided_staking::{
-    Config, RewardWeights, StakingWithDuration, UserReward, UserRewardByDuration,
-    UserRewardByLockedAt, UserStaked, UserStaking, UserStakingByDuration,
+use crate::{
+    config::REWARD_DISTRIBUTION_PERIOD,
+    state::{
+        CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD_WEIGHTS, TOTAL_STAKING,
+        TOTAL_STAKING_BY_DURATION, USER_STAKED,
+    },
+};
+use equinox_msg::{
+    single_sided_staking::{
+        Config, RewardWeights, StakingWithDuration, UserReward, UserRewardByDuration,
+        UserRewardByLockedAt, UserStaked, UserStaking, UserStakingByDuration,
+    },
+    token_converter::{QueryMsg as ConverterQueryMsg, RewardResponse},
 };
 
 /// query owner
@@ -284,4 +290,14 @@ pub fn calculate_total_user_reward(
         });
     }
     Ok(total_user_reward)
+}
+pub fn query_eclipastro_pending_rewards(
+    deps: Deps,
+    converter_contract: String,
+) -> StdResult<Uint128> {
+    let rewards: RewardResponse = deps
+        .querier
+        .query_wasm_smart(converter_contract.clone(), &ConverterQueryMsg::Rewards {})
+        .unwrap();
+    Ok(rewards.users_reward.amount)
 }

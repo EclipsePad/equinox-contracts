@@ -8,7 +8,6 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use crate::{
     entry::query::calculate_penalty,
     error::ContractError,
-    external_queriers::query_eclipastro_pending_rewards,
     state::{
         ALLOWED_USERS, CONFIG, OWNER, REWARD_WEIGHTS, TOTAL_STAKING, TOTAL_STAKING_BY_DURATION,
         USER_STAKED,
@@ -21,7 +20,7 @@ use equinox_msg::{
 };
 
 use super::query::{
-    calculate_total_user_reward, calculate_updated_reward_weights, calculate_user_reward,
+    calculate_total_user_reward, calculate_updated_reward_weights, calculate_user_reward, query_eclipastro_pending_rewards,
 };
 
 /// Update config

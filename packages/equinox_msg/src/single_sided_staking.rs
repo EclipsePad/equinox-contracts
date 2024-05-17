@@ -210,3 +210,8 @@ pub struct StakingWithDuration {
     pub amount: Uint128,
     pub duration: u64,
 }
+
+pub struct AstroStaking {
+    pub total_shares: Uint128,
+    pub total_deposit: Uint128,
+}
