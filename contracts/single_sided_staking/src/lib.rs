@@ -11,4 +11,5 @@ pub mod entry {
     pub mod query;
 }
 
+pub mod config;
 pub mod external_queriers;

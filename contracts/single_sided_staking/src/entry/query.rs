@@ -2,10 +2,10 @@ use cosmwasm_std::{Addr, Decimal256, Deps, Env, Order, StdResult, Uint128};
 use cw_storage_plus::Bound;
 use std::cmp::{max, min};
 
-use crate::state::{
-    CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD_DISTRIBUTION_PERIOD,
+use crate::{config::REWARD_DISTRIBUTION_PERIOD, state::{
+    CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS,
     REWARD_WEIGHTS, TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED,
-};
+}};
 use equinox_msg::single_sided_staking::{
     Config, RewardWeights, StakingWithDuration, UserReward, UserRewardByDuration,
     UserRewardByLockedAt, UserStaked, UserStaking, UserStakingByDuration,

@@ -2,10 +2,9 @@ use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
 
 use crate::{
-    error::ContractError,
-    state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER},
+    config::{DEFAULT_BECLIP_DAILY_REWARD, DEFAULT_TIMELOCK_CONFIG}, error::ContractError, state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER}
 };
-use equinox_msg::single_sided_staking::{Config, InstantiateMsg, TimeLockConfig};
+use equinox_msg::single_sided_staking::{Config, InstantiateMsg};
 
 pub fn try_instantiate(
     mut deps: DepsMut,
@@ -20,42 +19,11 @@ pub fn try_instantiate(
         &Config {
             token: msg.token,
             beclip: msg.beclip,
-            timelock_config: msg.timelock_config.unwrap_or(vec![
-                TimeLockConfig {
-                    duration: 0,
-                    early_unlock_penalty_bps: 0,
-                    reward_multiplier: 1,
-                },
-                TimeLockConfig {
-                    duration: 86400 * 30,
-                    early_unlock_penalty_bps: 5000,
-                    reward_multiplier: 2,
-                },
-                TimeLockConfig {
-                    duration: 86400 * 30 * 3,
-                    early_unlock_penalty_bps: 5000,
-                    reward_multiplier: 6,
-                },
-                TimeLockConfig {
-                    duration: 86400 * 30 * 6,
-                    early_unlock_penalty_bps: 5000,
-                    reward_multiplier: 12,
-                },
-                TimeLockConfig {
-                    duration: 86400 * 30 * 9,
-                    early_unlock_penalty_bps: 5000,
-                    reward_multiplier: 18,
-                },
-                TimeLockConfig {
-                    duration: 86400 * 365,
-                    early_unlock_penalty_bps: 5000,
-                    reward_multiplier: 24,
-                },
-            ]),
+            timelock_config: msg.timelock_config.unwrap_or(DEFAULT_TIMELOCK_CONFIG.to_vec()),
             token_converter: msg.token_converter,
             beclip_daily_reward: msg
                 .beclip_daily_reward
-                .unwrap_or(Uint128::from(1_000_000_000u128)),
+                .unwrap_or(Uint128::from(DEFAULT_BECLIP_DAILY_REWARD)),
             treasury: msg.treasury,
         },
     )?;

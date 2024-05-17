@@ -4,9 +4,6 @@ use cw_storage_plus::{Item, Map};
 
 use equinox_msg::single_sided_staking::{Config, RewardWeights, UserStaked};
 
-pub const REWARD_DISTRIBUTION_PERIOD: u64 = 8 * 86_400; // 8 days
-pub const REWARD_DISTRIBUTION_TIME_DIFF: u64 = 6 * 3_600; // 6 hours
-
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = "eclipASTRO staking contract";
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
