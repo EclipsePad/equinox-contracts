@@ -2,7 +2,9 @@ use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
 
 use crate::{
-    config::{DEFAULT_BECLIP_DAILY_REWARD, DEFAULT_TIMELOCK_CONFIG}, error::ContractError, state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER}
+    config::{DEFAULT_BECLIP_DAILY_REWARD, DEFAULT_TIMELOCK_CONFIG},
+    error::ContractError,
+    state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER},
 };
 use equinox_msg::single_sided_staking::{Config, InstantiateMsg};
 
@@ -19,7 +21,9 @@ pub fn try_instantiate(
         &Config {
             token: msg.token,
             beclip: msg.beclip,
-            timelock_config: msg.timelock_config.unwrap_or(DEFAULT_TIMELOCK_CONFIG.to_vec()),
+            timelock_config: msg
+                .timelock_config
+                .unwrap_or(DEFAULT_TIMELOCK_CONFIG.to_vec()),
             token_converter: msg.token_converter,
             beclip_daily_reward: msg
                 .beclip_daily_reward
@@ -28,7 +32,7 @@ pub fn try_instantiate(
         },
     )?;
 
-    let owner = deps.api.addr_validate(&msg.owner.to_string())?;
+    let owner = msg.owner;
     OWNER.set(deps.branch(), Some(owner))?;
     Ok(Response::new().add_attributes([("action", "instantiate token converter")]))
 }

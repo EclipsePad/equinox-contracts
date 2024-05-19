@@ -1,5 +1,8 @@
-use cosmwasm_std::{Decimal, Decimal256, StdResult, Uint128, Uint256};
+use cosmwasm_std::{Decimal256, StdResult, Uint128, Uint256};
 use equinox_msg::lockdrop::Config;
+use std::cmp::min;
+
+use crate::config::MAX_WITHDRAW_BPS;
 
 pub fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> StdResult<Uint256> {
     let lock_config = config
@@ -14,22 +17,16 @@ pub fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> StdR
         .to_uint_floor())
 }
 
-pub fn calculate_max_withdrawal_percent_allowed(
+pub fn calculate_max_withdrawal_amount_allowed(
     current_timestamp: u64,
     config: &Config,
-) -> Decimal {
+    amount: Uint128,
+) -> Uint128 {
     let withdrawal_cutoff_init_point = config.init_timestamp + config.deposit_window;
 
     // Deposit window :: 100% withdrawals allowed
     if current_timestamp < withdrawal_cutoff_init_point {
-        return Decimal::from_ratio(100u32, 100u32);
-    }
-
-    let withdrawal_cutoff_second_point =
-        withdrawal_cutoff_init_point + (config.withdrawal_window / 2u64);
-    // Deposit window closed, 1st half of withdrawal window :: 50% withdrawals allowed
-    if current_timestamp <= withdrawal_cutoff_second_point {
-        return Decimal::from_ratio(50u32, 100u32);
+        return amount;
     }
 
     // max withdrawal allowed decreasing linearly from 50% to 0% vs time elapsed
@@ -37,13 +34,13 @@ pub fn calculate_max_withdrawal_percent_allowed(
     //  Deposit window closed, 2nd half of withdrawal window :: max withdrawal allowed decreases linearly from 50% to 0% vs time elapsed
     if current_timestamp < withdrawal_cutoff_final {
         let time_left = withdrawal_cutoff_final - current_timestamp;
-        Decimal::from_ratio(
-            50u64 * time_left,
-            100u64 * (withdrawal_cutoff_final - withdrawal_cutoff_second_point),
+        min(
+            amount.multiply_ratio(MAX_WITHDRAW_BPS, 10000u64),
+            amount.multiply_ratio(time_left, config.withdrawal_window),
         )
     }
     // Withdrawals not allowed
     else {
-        Decimal::from_ratio(0u32, 100u32)
+        Uint128::zero()
     }
 }

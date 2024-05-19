@@ -36,7 +36,9 @@ pub enum ExecuteMsg {
         duration: u64,
         locked_at: Option<u64>,
     },
-    ClaimAll {},
+    ClaimAll {
+        with_flexible: bool,
+    },
     Unstake {
         duration: u64,
         locked_at: Option<u64>,
@@ -180,7 +182,6 @@ pub struct UserRewardByDuration {
     pub duration: u64,
     pub rewards: Vec<UserRewardByLockedAt>,
 }
-
 
 #[cw_serde]
 pub struct UserStaking {

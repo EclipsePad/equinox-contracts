@@ -1,11 +1,11 @@
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::Uint128;
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
 use equinox_msg::{
     common::OwnershipProposal,
     lockdrop::{
-        Config, LockupInfo, LpLockupState, LpStakingAssetRewardWeights, LpUserLockupInfo,
-        RewardDistributionConfig, SingleLockupState, SingleStakingAssetRewardWeights,
+        Config, LockupInfo, LpLockupState, LpStakingRewardWeights, LpUserLockupInfo,
+        RewardDistributionConfig, SingleLockupState, SingleStakingRewardWeights,
         SingleUserLockupInfo,
     },
 };
@@ -23,18 +23,18 @@ pub const LP_LOCKUP_STATE: Item<LpLockupState> = Item::new("lp_lockup_state");
 pub const SINGLE_LOCKUP_INFO: Map<u64, LockupInfo> = Map::new("single_lockup_info");
 pub const LP_LOCKUP_INFO: Map<u64, LockupInfo> = Map::new("lp_lockup_info");
 /// Map of lockup info according to user address, duration
-pub const SINGLE_USER_LOCKUP_INFO: Map<(&Addr, u64), SingleUserLockupInfo> =
+pub const SINGLE_USER_LOCKUP_INFO: Map<(&String, u64), SingleUserLockupInfo> =
     Map::new("single_user_lockup_info");
-pub const LP_USER_LOCKUP_INFO: Map<(&Addr, u64), LpUserLockupInfo> =
+pub const LP_USER_LOCKUP_INFO: Map<(&String, u64), LpUserLockupInfo> =
     Map::new("lp_user_lockup_info");
 
 /// Reward weights for asset rewards
-pub const SINGLE_STAKING_ASSET_REWARD_WEIGHTS: Item<SingleStakingAssetRewardWeights> =
-    Item::new("single_staking_asset_reward_weights");
-pub const LP_STAKING_ASSET_REWARD_WEIGHTS: Item<LpStakingAssetRewardWeights> =
-    Item::new("lp_staking_asset_reward_weights");
+pub const SINGLE_STAKING_REWARD_WEIGHTS: Map<u64, SingleStakingRewardWeights> =
+    Map::new("single_staking_reward_weights");
+pub const LP_STAKING_REWARD_WEIGHTS: Item<LpStakingRewardWeights> =
+    Item::new("lp_staking_reward_weights");
 
 pub const REWARD_DISTRIBUTION_CONFIG: Item<RewardDistributionConfig> =
     Item::new("reward_distribution_config");
 
-pub const TOTAL_ECLIP_INCENTIVES: Item<Uint128> = Item::new("total_eclip_incentives");
+pub const TOTAL_BECLIP_INCENTIVES: Item<Uint128> = Item::new("total_beclip_incentives");

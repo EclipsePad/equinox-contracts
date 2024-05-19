@@ -1,4 +1,5 @@
 use cosmwasm_std::StdError;
+use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
 use cw_controllers::AdminError;
@@ -37,6 +38,9 @@ pub enum ContractError {
 
     #[error("Can't extend from duration {0} to duration {1}")]
     ExtendDurationErr(u64, u64),
+
+    #[error("Extend Lockup only allowed on deposit phase or when Equinox is live")]
+    ExtendLockupError {},
 
     #[error("Failed to parse or process reply message")]
     FailedToParseReply {},
@@ -91,6 +95,12 @@ pub enum ContractError {
 
     #[error("Ownership proposal expired")]
     OwnershipProposalExpired {},
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
+
+    #[error("{0}")]
+    ParseReplyError(#[from] ParseReplyError),
 
     #[error("Relock is not allowed yet")]
     RelockNotAllowed {},

@@ -20,7 +20,8 @@ use equinox_msg::{
 };
 
 use super::query::{
-    calculate_total_user_reward, calculate_updated_reward_weights, calculate_user_reward, query_eclipastro_pending_rewards,
+    calculate_total_user_reward, calculate_updated_reward_weights, calculate_user_reward,
+    query_eclipastro_pending_rewards,
 };
 
 /// Update config
@@ -504,8 +505,13 @@ pub fn claim(
     _claim_single(deps, env, info.sender.to_string(), duration, locked_at)
 }
 
-pub fn claim_all(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    _claim_all(deps, env, info.sender.to_string(), false)
+pub fn claim_all(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    with_flexible: bool,
+) -> Result<Response, ContractError> {
+    _claim_all(deps, env, info.sender.to_string(), with_flexible)
 }
 
 /// Unlock amount and claim rewards of user

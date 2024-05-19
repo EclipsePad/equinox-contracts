@@ -1,6 +1,5 @@
 use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult,
+    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
 use crate::{
@@ -50,7 +49,7 @@ pub fn execute(
             duration,
             locked_at,
         } => claim(deps, env, info, duration, locked_at),
-        ExecuteMsg::ClaimAll {} => claim_all(deps, env, info),
+        ExecuteMsg::ClaimAll { with_flexible } => claim_all(deps, env, info, with_flexible),
         ExecuteMsg::Unstake {
             duration,
             locked_at,
