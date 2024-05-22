@@ -105,7 +105,7 @@ pub fn withdraw(
         //     funds: vec![],
         // },
         CosmosMsg::Bank(BankMsg::Send {
-            to_address: config.converter_contract.to_string(),
+            to_address: recipient.to_string(),
             amount: vec![xastro_amount_to_send],
         }),
     ];

@@ -186,9 +186,13 @@ pub fn try_extend_lockup(
         ContractError::InvalidDuration(to_duration)
     );
 
-    let received_token = &received_tokens[0];
+    ensure!(
+        from_duration < to_duration,
+        ContractError::ExtendDurationErr(from_duration, to_duration)
+    );
 
     if deposit_existing {
+        let received_token = &received_tokens[0];
         ensure!(
             received_token.denom == cfg.astro_token || received_token.denom == cfg.xastro_token,
             ContractError::InvalidAsset {}
@@ -201,6 +205,7 @@ pub fn try_extend_lockup(
     {
         let mut add_amount = Uint128::zero();
         if deposit_existing {
+            let received_token = &received_tokens[0];
             if received_token.denom == cfg.astro_token {
                 let xastro_balance = deps
                     .querier
@@ -237,6 +242,7 @@ pub fn try_extend_lockup(
         match stake_type {
             StakeType::SingleStaking => {
                 if deposit_existing {
+                    let received_token = &received_tokens[0];
                     let eclipastro_balance: BalanceResponse = deps.querier.query_wasm_smart(
                         &cfg.eclipastro_token,
                         &Cw20QueryMsg::Balance {
@@ -514,6 +520,13 @@ pub fn extend_single_lockup_after_lockdrop(
     let mut lockup_info_from = SINGLE_LOCKUP_INFO.load(deps.storage, from_duration)?;
     let mut user_lockup_info_from =
         SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, from_duration))?;
+    let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
+
+    if user_lockup_info_from.total_eclipastro_staked.is_zero() {
+        user_lockup_info_from.total_eclipastro_staked = user_lockup_info_from
+            .xastro_amount_in_lockups
+            .multiply_ratio(state.total_eclipastro_lockup, state.total_xastro);
+    }
 
     let existing_eclipastro_amount = user_lockup_info_from.total_eclipastro_staked
         - user_lockup_info_from.total_eclipastro_withdrawed;
@@ -763,6 +776,10 @@ pub fn receive_cw20(
                 ContractError::InvalidAsset {}
             );
             OWNER.assert_admin(deps.as_ref(), &sender)?;
+            ensure!(
+                env.block.time.seconds() < cfg.init_timestamp + cfg.deposit_window,
+                ContractError::DepositWindowClosed {}
+            );
 
             let mut total_beclip_incentives = TOTAL_BECLIP_INCENTIVES
                 .load(deps.storage)
@@ -1435,11 +1452,6 @@ pub fn _claim_all_single_sided_rewards(
         let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO
             .load(deps.storage, (&sender, duration))
             .unwrap_or_default();
-        if user_lockup_info.total_eclipastro_staked - user_lockup_info.total_eclipastro_withdrawed
-            == Uint128::zero()
-        {
-            continue;
-        }
         if user_lockup_info.total_beclip_incentives == Uint128::zero() {
             user_lockup_info.total_beclip_incentives =
                 calculate_user_beclip_incentives_for_single_lockup(
@@ -1536,11 +1548,6 @@ pub fn _claim_all_lp_rewards(
         let mut user_lockup_info = LP_USER_LOCKUP_INFO
             .load(deps.storage, (&sender, duration))
             .unwrap_or_default();
-        if user_lockup_info.total_lp_staked - user_lockup_info.total_lp_withdrawed
-            == Uint128::zero()
-        {
-            continue;
-        }
         if user_lockup_info.total_beclip_incentives == Uint128::zero() {
             user_lockup_info.total_beclip_incentives =
                 calculate_user_beclip_incentives_for_lp_lockup(
@@ -1605,7 +1612,7 @@ pub fn try_unlock(
 }
 
 pub fn _unlock_single_lockup(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     _info: MessageInfo,
     sender: String,
@@ -1629,7 +1636,7 @@ pub fn _unlock_single_lockup(
             );
             withdraw_amount = amount;
         }
-        if current_time > cfg.init_timestamp + cfg.deposit_window {
+        if current_time >= cfg.init_timestamp + cfg.deposit_window {
             ensure!(
                 !user_lockup_info.withdrawal_flag,
                 ContractError::AlreadyWithdrawed {}
@@ -1651,8 +1658,9 @@ pub fn _unlock_single_lockup(
         Ok(Response::new().add_message(msg))
     } else {
         ensure!(cfg.claims_allowed, ContractError::ClaimRewardNotAllowed {});
+        let response = _claim_single_sided_rewards(deps.branch(), env, sender.clone(), duration)?;
         let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
-        if user_lockup_info.total_eclipastro_staked.is_zero() && !user_lockup_info.withdrawal_flag {
+        if user_lockup_info.total_eclipastro_staked.is_zero() {
             user_lockup_info.total_eclipastro_staked = user_lockup_info
                 .xastro_amount_in_lockups
                 .multiply_ratio(state.total_eclipastro_lockup, state.total_xastro);
@@ -1698,12 +1706,12 @@ pub fn _unlock_single_lockup(
         SINGLE_LOCKUP_INFO.save(deps.storage, duration, &lockup_info)?;
         SINGLE_USER_LOCKUP_INFO.save(deps.storage, (&sender, duration), &user_lockup_info)?;
 
-        Ok(Response::new().add_messages(msgs))
+        Ok(response.add_messages(msgs))
     }
 }
 
 pub fn _unlock_lp_lockup(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     _info: MessageInfo,
     sender: String,
@@ -1727,7 +1735,7 @@ pub fn _unlock_lp_lockup(
             );
             withdraw_amount = amount;
         }
-        if current_time > cfg.init_timestamp + cfg.deposit_window {
+        if current_time >= cfg.init_timestamp + cfg.deposit_window {
             ensure!(
                 !user_lockup_info.withdrawal_flag,
                 ContractError::AlreadyWithdrawed {}
@@ -1749,8 +1757,9 @@ pub fn _unlock_lp_lockup(
         Ok(Response::new().add_message(msg))
     } else {
         ensure!(cfg.claims_allowed, ContractError::ClaimRewardNotAllowed {});
+        let response = _claim_lp_rewards(deps.branch(), env, sender.clone(), duration)?;
         let state = LP_LOCKUP_STATE.load(deps.storage)?;
-        if user_lockup_info.total_lp_staked.is_zero() && !user_lockup_info.withdrawal_flag {
+        if user_lockup_info.total_lp_staked.is_zero() {
             user_lockup_info.total_lp_staked = user_lockup_info
                 .xastro_amount_in_lockups
                 .multiply_ratio(state.total_lp_lockdrop, state.total_xastro);
@@ -1804,7 +1813,7 @@ pub fn _unlock_lp_lockup(
         LP_LOCKUP_INFO.save(deps.storage, duration, &lockup_info)?;
         LP_USER_LOCKUP_INFO.save(deps.storage, (&sender, duration), &user_lockup_info)?;
 
-        Ok(Response::new().add_messages(msgs))
+        Ok(response.add_messages(msgs))
     }
 }
 

@@ -94,7 +94,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserLpLockupInfo { user } => Ok(to_json_binary(&query_user_lp_lockup_info(
             deps, env, user,
         )?)?),
-        QueryMsg::TotalEclipIncentives {} => {
+        QueryMsg::TotalbEclipIncentives {} => {
             Ok(to_json_binary(&query_total_beclip_incentives(deps)?)?)
         }
     }

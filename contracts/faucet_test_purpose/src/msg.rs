@@ -4,7 +4,7 @@ use cosmwasm_std::Addr;
 #[cw_serde]
 pub struct InstantiateMsg {
     pub astro_token: String,
-    pub xastr_token: String,
+    pub xastro_token: String,
     pub astro_generator: Addr,
     pub staking_contract: Addr,
 }

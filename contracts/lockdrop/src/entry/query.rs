@@ -8,7 +8,7 @@ use equinox_msg::{
         SingleStakingRewardWeights, SingleStakingRewards, SingleStakingRewardsByDuration,
         SingleUserLockupInfo, UserLpLockupInfoResponse, UserSingleLockupInfoResponse,
     },
-    lp_staking::{QueryMsg as LpStakingQueryMsg, UserRewardResponse},
+    lp_staking::{QueryMsg as LpStakingQueryMsg, RewardAmount},
     single_sided_staking::{QueryMsg as SingleSidedQueryMsg, UserRewardByDuration},
 };
 
@@ -102,6 +102,7 @@ pub fn query_user_single_lockup_info(
     user_address: String,
 ) -> StdResult<Vec<UserSingleLockupInfoResponse>> {
     let cfg = CONFIG.load(deps.storage)?;
+    let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
 
     if cfg.claims_allowed {
         let single_staking_rewards =
@@ -110,7 +111,23 @@ pub fn query_user_single_lockup_info(
             .prefix(&user_address)
             .range(deps.storage, None, None, Order::Ascending)
             .map(|r| {
-                let (duration, user_lockup_info) = r.unwrap();
+                let (duration, mut user_lockup_info) = r.unwrap();
+                if user_lockup_info.total_eclipastro_staked.is_zero() {
+                    user_lockup_info.total_eclipastro_staked = user_lockup_info
+                        .xastro_amount_in_lockups
+                        .multiply_ratio(state.total_eclipastro_lockup, state.total_xastro);
+                }
+                user_lockup_info.total_beclip_incentives =
+                    if user_lockup_info.total_beclip_incentives.is_zero() {
+                        calculate_user_beclip_incentives_for_single_lockup(
+                            deps,
+                            user_address.clone(),
+                            duration,
+                        )
+                        .unwrap_or_default()
+                    } else {
+                        user_lockup_info.total_beclip_incentives
+                    };
                 let pending_beclip_incentives = calculate_single_staking_beclip_incentives(
                     deps,
                     env.block.time.seconds(),
@@ -140,8 +157,7 @@ pub fn query_user_single_lockup_info(
                     pending_beclip_incentives,
                     withdrawal_flag: user_lockup_info.withdrawal_flag,
                     total_beclip_incentives: user_lockup_info.total_beclip_incentives,
-                    claimed_beclip_incentives: user_lockup_info.claimed_beclip_incentives
-                        + pending_beclip_incentives,
+                    claimed_beclip_incentives: user_lockup_info.claimed_beclip_incentives,
                     staking_rewards: vec![
                         Asset {
                             info: AssetInfo::Token {
@@ -171,8 +187,13 @@ pub fn query_user_single_lockup_info(
                     eclipastro_withdrawed: Uint128::zero(),
                     pending_beclip_incentives: Uint128::zero(),
                     withdrawal_flag: user_lockup_info.withdrawal_flag,
-                    total_beclip_incentives: user_lockup_info.total_beclip_incentives,
-                    claimed_beclip_incentives: user_lockup_info.claimed_beclip_incentives,
+                    total_beclip_incentives: calculate_user_beclip_incentives_for_single_lockup(
+                        deps,
+                        user_address.clone(),
+                        duration,
+                    )
+                    .unwrap_or_default(),
+                    claimed_beclip_incentives: Uint128::zero(),
                     staking_rewards: vec![],
                     countdown_start_at: cfg.countdown_start_at,
                 }
@@ -188,6 +209,7 @@ pub fn query_user_lp_lockup_info(
     user_address: String,
 ) -> StdResult<Vec<UserLpLockupInfoResponse>> {
     let cfg = CONFIG.load(deps.storage)?;
+    let state = LP_LOCKUP_STATE.load(deps.storage)?;
 
     if cfg.claims_allowed {
         let lp_total_rewards = calculate_lp_total_rewards(deps, env.contract.address.to_string())?;
@@ -195,7 +217,23 @@ pub fn query_user_lp_lockup_info(
             .prefix(&user_address)
             .range(deps.storage, None, None, Order::Ascending)
             .map(|r| {
-                let (duration, user_lockup_info) = r.unwrap();
+                let (duration, mut user_lockup_info) = r.unwrap();
+                if user_lockup_info.total_lp_staked.is_zero() {
+                    user_lockup_info.total_lp_staked = user_lockup_info
+                        .xastro_amount_in_lockups
+                        .multiply_ratio(state.total_lp_lockdrop, state.total_xastro);
+                }
+                user_lockup_info.total_beclip_incentives =
+                    if user_lockup_info.total_beclip_incentives.is_zero() {
+                        calculate_user_beclip_incentives_for_lp_lockup(
+                            deps,
+                            user_address.clone(),
+                            duration,
+                        )
+                        .unwrap_or_default()
+                    } else {
+                        user_lockup_info.total_beclip_incentives
+                    };
                 let pending_beclip_incentives = calculate_lp_staking_beclip_incentives(
                     deps,
                     env.block.time.seconds(),
@@ -249,8 +287,13 @@ pub fn query_user_lp_lockup_info(
                     lp_token_staked: Uint128::zero(),
                     lp_token_withdrawed: Uint128::zero(),
                     withdrawal_flag: user_lockup_info.withdrawal_flag,
-                    total_beclip_incentives: user_lockup_info.total_beclip_incentives,
-                    claimed_beclip_incentives: user_lockup_info.claimed_beclip_incentives,
+                    total_beclip_incentives: calculate_user_beclip_incentives_for_lp_lockup(
+                        deps,
+                        user_address.clone(),
+                        duration,
+                    )
+                    .unwrap_or_default(),
+                    claimed_beclip_incentives: Uint128::zero(),
                     pending_beclip_incentives: Uint128::zero(),
                     staking_rewards: vec![],
                     countdown_start_at: cfg.countdown_start_at,
@@ -305,7 +348,12 @@ pub fn calculate_updated_single_staking_reward_weights(
     let mut reward_weights = SINGLE_STAKING_REWARD_WEIGHTS
         .load(deps.storage, duration)
         .unwrap_or_default();
-    let lockup_info = SINGLE_LOCKUP_INFO.load(deps.storage, duration)?;
+    let lockup_info = SINGLE_LOCKUP_INFO
+        .load(deps.storage, duration)
+        .unwrap_or_default();
+    if lockup_info.total_staked - lockup_info.total_withdrawed == Uint128::zero() {
+        return Ok(reward_weights);
+    }
     reward_weights.eclipastro += Decimal256::from_ratio(
         rewards_by_duration.rewards.eclipastro,
         lockup_info.total_staked - lockup_info.total_withdrawed,
@@ -352,7 +400,8 @@ pub fn calculate_user_beclip_incentives_for_single_lockup(
     duration: u64,
 ) -> Result<Uint128, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
-    let total_eclip_incentives = TOTAL_BECLIP_INCENTIVES
+    let lock_configs = cfg.lock_configs.clone();
+    let total_beclip_incentives = TOTAL_BECLIP_INCENTIVES
         .load(deps.storage)
         .unwrap_or_default();
     let single_sided_state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
@@ -364,16 +413,62 @@ pub fn calculate_user_beclip_incentives_for_single_lockup(
         .find(|c| c.duration == duration)
         .unwrap_or_default()
         .multiplier;
-    // convert user xastro amount to eclipastro amount, multiply duration multiplier, calculate eclip incentives
-    let amount = Uint256::from(user_lockup_info.xastro_amount_in_lockups)
-        .checked_mul(Uint256::from(duration_multiplier))
-        .unwrap()
-        .multiply_ratio(
-            total_eclip_incentives,
-            single_sided_state.weighted_total_xastro + lp_state.weighted_total_xastro,
-        )
-        .try_into()
-        .unwrap();
+    let amount = if cfg.claims_allowed {
+        Uint256::from(user_lockup_info.xastro_amount_in_lockups)
+            .checked_mul(Uint256::from(duration_multiplier))
+            .unwrap()
+            .multiply_ratio(
+                total_beclip_incentives,
+                single_sided_state.weighted_total_xastro + lp_state.weighted_total_xastro,
+            )
+            .try_into()
+            .unwrap()
+    } else {
+        let total_weighted_xastro_amount_for_single_staking = SINGLE_LOCKUP_INFO
+            .range(deps.storage, None, None, Order::Ascending)
+            .fold(Uint128::zero(), |acc, cur| {
+                let (duration, info) = cur.unwrap();
+                let duration_multiplier = lock_configs
+                    .clone()
+                    .into_iter()
+                    .find(|c| c.duration == duration)
+                    .unwrap_or_default()
+                    .multiplier;
+                acc.checked_add(
+                    info.xastro_amount_in_lockups
+                        .checked_mul(Uint128::from(duration_multiplier))
+                        .unwrap(),
+                )
+                .unwrap()
+            });
+        let total_weighted_xastro_amount_for_lp_staking = LP_LOCKUP_INFO
+            .range(deps.storage, None, None, Order::Ascending)
+            .fold(Uint128::zero(), |acc, cur| {
+                let (duration, info) = cur.unwrap();
+                let duration_multiplier = lock_configs
+                    .clone()
+                    .into_iter()
+                    .find(|c| c.duration == duration)
+                    .unwrap_or_default()
+                    .multiplier;
+                acc.checked_add(
+                    info.xastro_amount_in_lockups
+                        .checked_mul(Uint128::from(duration_multiplier))
+                        .unwrap(),
+                )
+                .unwrap()
+            });
+        Uint256::from(user_lockup_info.xastro_amount_in_lockups)
+            .checked_mul(Uint256::from(duration_multiplier))
+            .unwrap()
+            .multiply_ratio(
+                total_beclip_incentives,
+                total_weighted_xastro_amount_for_single_staking
+                    + total_weighted_xastro_amount_for_lp_staking,
+            )
+            .try_into()
+            .unwrap()
+    };
     Ok(amount)
 }
 
@@ -418,7 +513,8 @@ pub fn calculate_user_beclip_incentives_for_lp_lockup(
     duration: u64,
 ) -> Result<Uint128, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
-    let total_eclip_incentives = TOTAL_BECLIP_INCENTIVES
+    let lock_configs = cfg.lock_configs.clone();
+    let total_beclip_incentives = TOTAL_BECLIP_INCENTIVES
         .load(deps.storage)
         .unwrap_or_default();
     let single_sided_state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
@@ -430,15 +526,63 @@ pub fn calculate_user_beclip_incentives_for_lp_lockup(
         .find(|c| c.duration == duration)
         .unwrap_or_default()
         .multiplier;
-    let amount = Uint256::from(user_lockup_info.xastro_amount_in_lockups)
-        .checked_mul(Uint256::from(duration_multiplier))
-        .unwrap()
-        .multiply_ratio(
-            total_eclip_incentives,
-            single_sided_state.weighted_total_xastro + lp_state.weighted_total_xastro,
-        )
-        .try_into()
-        .unwrap();
+
+    let amount = if cfg.claims_allowed {
+        Uint256::from(user_lockup_info.xastro_amount_in_lockups)
+            .checked_mul(Uint256::from(duration_multiplier))
+            .unwrap()
+            .multiply_ratio(
+                total_beclip_incentives,
+                single_sided_state.weighted_total_xastro + lp_state.weighted_total_xastro,
+            )
+            .try_into()
+            .unwrap()
+    } else {
+        let total_weighted_xastro_amount_for_single_staking = SINGLE_LOCKUP_INFO
+            .range(deps.storage, None, None, Order::Ascending)
+            .fold(Uint128::zero(), |acc, cur| {
+                let (duration, info) = cur.unwrap();
+                let duration_multiplier = lock_configs
+                    .clone()
+                    .into_iter()
+                    .find(|c| c.duration == duration)
+                    .unwrap_or_default()
+                    .multiplier;
+                acc.checked_add(
+                    info.xastro_amount_in_lockups
+                        .checked_mul(Uint128::from(duration_multiplier))
+                        .unwrap(),
+                )
+                .unwrap()
+            });
+        let total_weighted_xastro_amount_for_lp_staking = LP_LOCKUP_INFO
+            .range(deps.storage, None, None, Order::Ascending)
+            .fold(Uint128::zero(), |acc, cur| {
+                let (duration, info) = cur.unwrap();
+                let duration_multiplier = lock_configs
+                    .clone()
+                    .into_iter()
+                    .find(|c| c.duration == duration)
+                    .unwrap_or_default()
+                    .multiplier;
+                acc.checked_add(
+                    info.xastro_amount_in_lockups
+                        .checked_mul(Uint128::from(duration_multiplier))
+                        .unwrap(),
+                )
+                .unwrap()
+            });
+        Uint256::from(user_lockup_info.xastro_amount_in_lockups)
+            .checked_mul(Uint256::from(duration_multiplier))
+            .unwrap()
+            .multiply_ratio(
+                total_beclip_incentives,
+                total_weighted_xastro_amount_for_single_staking
+                    + total_weighted_xastro_amount_for_lp_staking,
+            )
+            .try_into()
+            .unwrap()
+    };
     Ok(amount)
 }
 
@@ -473,17 +617,17 @@ pub fn calculate_lp_staking_beclip_incentives(
 
 pub fn calculate_lp_total_rewards(deps: Deps, user: String) -> StdResult<LpStakingRewards> {
     let cfg = CONFIG.load(deps.storage)?;
-    let rewards: Vec<UserRewardResponse> = deps.querier.query_wasm_smart(
+    let rewards: Vec<RewardAmount> = deps.querier.query_wasm_smart(
         cfg.lp_staking.to_string(),
         &LpStakingQueryMsg::Reward { user },
     )?;
     let mut astro_reward = Uint128::zero();
     let mut beclip_reward = Uint128::zero();
     for user_reward in rewards {
-        if user_reward.asset.to_string() == cfg.astro_token {
+        if user_reward.info.to_string() == cfg.astro_token {
             astro_reward = user_reward.amount;
         }
-        if user_reward.asset == cfg.beclip {
+        if user_reward.info == cfg.beclip {
             beclip_reward = user_reward.amount;
         }
     }

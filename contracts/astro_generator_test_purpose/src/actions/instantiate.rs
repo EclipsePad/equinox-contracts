@@ -5,7 +5,6 @@ use crate::{
     error::ContractError,
     msg::InstantiateMsg,
     state::{CONTRACT_NAME, OWNER, TOKEN},
-    utils::one_coin,
 };
 
 use osmosis_std::types::osmosis::tokenfactory::v1beta1 as OsmosisFactory;
@@ -18,8 +17,6 @@ pub fn try_instantiate(
     info: MessageInfo,
     _msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    one_coin(&info)?;
-
     OWNER.set(deps.branch(), Some(info.sender))?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;

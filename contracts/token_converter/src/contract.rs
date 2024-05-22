@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult,
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
+    Response, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use equinox_msg::token_converter::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -12,9 +12,9 @@ use crate::{
             _handle_callback, claim, claim_treasury_reward, try_convert, update_config,
             update_owner, update_reward_config, withdraw_xtoken,
         },
-        instantiate::try_instantiate,
+        instantiate::{handle_instantiate_reply, try_instantiate},
         query::{
-            query_config, query_owner, query_reward_config, query_rewards,
+            query_config, query_owner, query_reward_config, query_rewards, query_stake_info,
             query_withdrawable_balance,
         },
     },
@@ -69,6 +69,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::RewardConfig {} => Ok(to_json_binary(&query_reward_config(deps)?)?),
         QueryMsg::Rewards {} => Ok(to_json_binary(&query_rewards(deps)?)?),
         QueryMsg::WithdrawableBalance {} => Ok(to_json_binary(&query_withdrawable_balance(deps)?)?),
+        QueryMsg::StakeInfo {} => Ok(to_json_binary(&query_stake_info(deps)?)?),
     }
 }
 
@@ -103,4 +104,15 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     Ok(Response::new()
         .add_attribute("new_contract_name", CONTRACT_NAME)
         .add_attribute("new_contract_version", CONTRACT_VERSION))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg {
+        Reply {
+            id: INSTANTIATE_TOKEN_REPLY_ID,
+            result: _,
+        } => handle_instantiate_reply(deps, env, msg),
+        _ => Err(ContractError::FailedToParseReply {}),
+    }
 }

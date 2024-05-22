@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use cosmwasm_std::{Addr, Deps, StdResult, Uint128};
-use equinox_msg::token_converter::{Config, Reward, RewardConfig, RewardResponse};
+use equinox_msg::token_converter::{Config, Reward, RewardConfig, RewardResponse, StakeInfo};
 
 /// query owner
 pub fn query_owner(deps: Deps) -> StdResult<Addr> {
@@ -101,4 +101,9 @@ pub fn query_treasury_reward(deps: Deps) -> StdResult<Uint128> {
 pub fn query_withdrawable_balance(deps: Deps) -> StdResult<Uint128> {
     let withdrawable_balance = WITHDRAWABLE_BALANCE.load(deps.storage).unwrap_or_default();
     Ok(withdrawable_balance)
+}
+
+pub fn query_stake_info(deps: Deps) -> StdResult<StakeInfo> {
+    let total_stake_info = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
+    Ok(total_stake_info)
 }

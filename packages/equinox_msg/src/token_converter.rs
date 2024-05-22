@@ -64,6 +64,8 @@ pub enum QueryMsg {
     /// query withdrawable xASTRO balance
     #[returns(Uint128)]
     WithdrawableBalance {},
+    #[returns(StakeInfo)]
+    StakeInfo {},
 }
 
 #[cw_serde]
@@ -79,8 +81,8 @@ pub struct UpdateConfig {
     pub treasury: Option<Addr>,
     /// eclipASTRO / ASTRO stability pool
     pub stability_pool: Option<Addr>,
-    /// eclipASTRO staking reward distributor
-    pub staking_reward_distributor: Option<Addr>,
+    /// eclipASTRO single sided staking contract
+    pub single_staking_contract: Option<Addr>,
     /// cosmic essence reward distributor
     pub ce_reward_distributor: Option<Addr>,
 }
@@ -127,8 +129,8 @@ pub struct Config {
     pub treasury: Addr,
     /// eclipASTRO / ASTRO stability pool
     pub stability_pool: Option<Addr>,
-    /// eclipASTRO staking reward distributor
-    pub staking_reward_distributor: Option<Addr>,
+    /// eclipASTRO single_sided_staking_contract
+    pub single_staking_contract: Option<Addr>,
     /// cosmic essence reward distributor
     pub ce_reward_distributor: Option<Addr>,
 }
@@ -149,5 +151,25 @@ impl CallbackMsg {
             msg: to_json_binary(&ExecuteMsg::Callback(self))?,
             funds: vec![],
         }))
+    }
+}
+
+#[cw_serde]
+pub struct StakeInfo {
+    /// initial ASTRO stake
+    pub astro: Uint128,
+    /// user's xASTRO amount
+    pub xastro: Uint128,
+    /// claimed xASTRO amount
+    pub claimed_xastro: Uint128,
+}
+
+impl Default for StakeInfo {
+    fn default() -> Self {
+        StakeInfo {
+            astro: Uint128::zero(),
+            xastro: Uint128::zero(),
+            claimed_xastro: Uint128::zero(),
+        }
     }
 }

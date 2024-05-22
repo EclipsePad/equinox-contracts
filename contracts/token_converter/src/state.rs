@@ -1,8 +1,7 @@
-use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Uint128;
 use cw_controllers::Admin;
 use cw_storage_plus::Item;
-use equinox_msg::token_converter::{Config, RewardConfig};
+use equinox_msg::token_converter::{Config, RewardConfig, StakeInfo};
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = "token_converter";
@@ -20,32 +19,3 @@ pub const TOTAL_STAKE_INFO: Item<StakeInfo> = Item::new("total_stake_info");
 pub const WITHDRAWABLE_BALANCE: Item<Uint128> = Item::new("withdrawable_balance");
 /// withdrawable treasury reward
 pub const TREASURY_REWARD: Item<Uint128> = Item::new("treasury_reward");
-
-/// Staking user
-pub const USER_STAKING: Item<UserStake> = Item::new("staking_user");
-
-#[cw_serde]
-pub struct StakeInfo {
-    /// initial ASTRO stake
-    pub astro: Uint128,
-    /// user's xASTRO amount
-    pub xastro: Uint128,
-    /// claimed xASTRO amount
-    pub claimed_xastro: Uint128,
-}
-
-impl Default for StakeInfo {
-    fn default() -> Self {
-        StakeInfo {
-            astro: Uint128::zero(),
-            xastro: Uint128::zero(),
-            claimed_xastro: Uint128::zero(),
-        }
-    }
-}
-
-#[cw_serde]
-pub struct UserStake {
-    pub user: String,
-    pub stake: Uint128,
-}

@@ -113,7 +113,7 @@ pub enum QueryMsg {
     #[returns(Vec<UserLpLockupInfoResponse>)]
     UserLpLockupInfo { user: String },
     #[returns(BalanceResponse)]
-    TotalEclipIncentives {},
+    TotalbEclipIncentives {},
 }
 
 #[cw_serde]

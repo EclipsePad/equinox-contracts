@@ -1,6 +1,6 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, from_json, to_json_binary, BankMsg, CosmosMsg, Deps, DepsMut, Env,
+    coin, ensure, ensure_eq, from_json, to_json_binary, BankMsg, CosmosMsg, DepsMut, Env,
     MessageInfo, Response, StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -9,8 +9,8 @@ use crate::{
     entry::query::calculate_penalty,
     error::ContractError,
     state::{
-        ALLOWED_USERS, CONFIG, OWNER, REWARD_WEIGHTS, TOTAL_STAKING, TOTAL_STAKING_BY_DURATION,
-        USER_STAKED,
+        ALLOWED_USERS, CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD_WEIGHTS,
+        TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED,
     },
 };
 
@@ -152,7 +152,8 @@ pub fn receive_cw20(
             lock_duration,
             recipient,
         } => {
-            let recipient = recipient.unwrap_or(msg.sender);
+            let sender = msg.sender;
+            let recipient = recipient.unwrap_or(sender.clone());
             ensure!(
                 config
                     .timelock_config
@@ -172,18 +173,7 @@ pub fn receive_cw20(
                 _ => current_time,
             };
 
-            if lock_duration == 0u64 {
-                let user_staking = USER_STAKED
-                    .load(deps.storage, (&recipient, lock_duration, 0))
-                    .unwrap_or(UserStaked {
-                        staked: Uint128::zero(),
-                        reward_weights: updated_reward_weights.clone(),
-                    });
-                if !user_staking.staked.is_zero() {
-                    response =
-                        _claim_single(deps.branch(), env, recipient.clone(), lock_duration, 0u64)?;
-                }
-            }
+            let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
 
             let mut user_staking = USER_STAKED
                 .load(deps.storage, (&recipient, lock_duration, locked_at))
@@ -191,8 +181,18 @@ pub fn receive_cw20(
                     staked: Uint128::zero(),
                     reward_weights: updated_reward_weights.clone(),
                 });
+            if !user_staking.staked.is_zero() {
+                response = _claim_single(
+                    deps.branch(),
+                    env.clone(),
+                    sender.clone(),
+                    lock_duration,
+                    locked_at,
+                )?;
+            } else {
+                LAST_CLAIM_TIME.save(deps.storage, &env.block.time.seconds())?;
+            }
 
-            let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
             let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION
                 .load(deps.storage, lock_duration)
                 .unwrap_or_default();
@@ -291,7 +291,7 @@ pub fn restake(mut deps: DepsMut, env: Env, data: RestakeData) -> Result<Respons
     let updated_reward_weights = calculate_updated_reward_weights(deps.as_ref(), current_time)?;
     let response = _claim_single(
         deps.branch(),
-        env,
+        env.clone(),
         sender.to_string(),
         from_duration,
         locked_at,
@@ -375,8 +375,10 @@ pub fn _claim_single(
     user_staking.reward_weights = updated_reward_weights.clone();
     REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
     USER_STAKED.save(deps.storage, (&sender, duration, locked_at), &user_staking)?;
+    LAST_CLAIM_TIME.save(deps.storage, &env.block.time.seconds())?;
     _claim(
-        deps.as_ref(),
+        deps,
+        env,
         sender,
         user_reward.eclipastro,
         user_reward.beclip,
@@ -384,7 +386,8 @@ pub fn _claim_single(
 }
 
 pub fn _claim(
-    deps: Deps,
+    deps: DepsMut,
+    env: Env,
     sender: String,
     eclipastro: Uint128,
     beclip: Uint128,
@@ -392,7 +395,7 @@ pub fn _claim(
     let config = CONFIG.load(deps.storage)?;
 
     let pending_eclipastro_rewards =
-        query_eclipastro_pending_rewards(deps, config.token_converter.to_string())?;
+        query_eclipastro_pending_rewards(deps.as_ref(), config.token_converter.to_string())?;
 
     let mut response = Response::new().add_attribute("action", "claim rewards");
     let mut msgs = vec![];
@@ -403,6 +406,11 @@ pub fn _claim(
             msg: to_json_binary(&ConverterExecuteMsg::Claim {})?,
             funds: vec![],
         }));
+        PENDING_ECLIPASTRO_REWARDS.save(
+            deps.storage,
+            env.block.time.seconds(),
+            &pending_eclipastro_rewards,
+        )?;
         response = response
             .add_attribute("action", "claim eclipastro rewards")
             .add_attribute("amount", pending_eclipastro_rewards.to_string());
@@ -484,9 +492,11 @@ pub fn _claim_all(
     }
 
     REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
+    LAST_CLAIM_TIME.save(deps.storage, &env.block.time.seconds())?;
 
     _claim(
-        deps.as_ref(),
+        deps,
+        env,
         sender,
         total_eclipastro_reward,
         total_beclip_reward,

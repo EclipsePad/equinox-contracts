@@ -10,8 +10,8 @@ use crate::{
         },
         instantiate::try_instantiate,
         query::{
-            calculate_penalty, query_config, query_owner, query_reward, query_staking,
-            query_total_staking, query_total_staking_by_duration,
+            calculate_penalty, query_config, query_eclipastro_rewards, query_owner, query_reward,
+            query_staking, query_total_staking, query_total_staking_by_duration,
         },
     },
     error::ContractError,
@@ -106,6 +106,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::IsAllowed { user } => {
             let is_allowed = ALLOWED_USERS.load(deps.storage, &user).unwrap_or_default();
             Ok(to_json_binary(&is_allowed)?)
+        }
+        QueryMsg::EclipastroRewards {} => {
+            Ok(to_json_binary(&query_eclipastro_rewards(deps, env)?)?)
         }
     }
 }

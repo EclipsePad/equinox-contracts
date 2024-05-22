@@ -70,8 +70,11 @@ pub enum QueryMsg {
     #[returns(UserStaking)]
     Staking { user: String },
     /// query pending_rewards
-    #[returns(Vec<UserRewardResponse>)]
+    #[returns(Vec<RewardAmount>)]
     Reward { user: String },
+
+    #[returns(Vec<RewardWeight>)]
+    RewardWeights {},
 }
 
 #[cw_serde]
@@ -196,10 +199,4 @@ pub struct UserAstroportReward {
     pub asset: AssetInfo,
     pub amount: Uint128,
     pub reward_weight: Decimal256,
-}
-
-#[cw_serde]
-pub struct UserRewardResponse {
-    pub asset: AssetInfo,
-    pub amount: Uint128,
 }

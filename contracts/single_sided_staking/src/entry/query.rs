@@ -132,6 +132,9 @@ pub fn calculate_updated_reward_weights(deps: Deps, current_time: u64) -> StdRes
     let mut reward_weights = REWARD_WEIGHTS.load(deps.storage).unwrap_or_default();
     let last_claim_time = LAST_CLAIM_TIME.load(deps.storage).unwrap_or(current_time);
     let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
+    if total_staking.is_zero() {
+        return Ok(reward_weights);
+    }
 
     let total_staking_with_multiplier = calculate_total_staking_with_multiplier(deps)?;
     let pending_eclipastro_reward =
@@ -300,4 +303,22 @@ pub fn query_eclipastro_pending_rewards(
         .query_wasm_smart(converter_contract.clone(), &ConverterQueryMsg::Rewards {})
         .unwrap();
     Ok(rewards.users_reward.amount)
+}
+
+pub fn query_eclipastro_rewards(deps: Deps, env: Env) -> StdResult<Vec<(u64, Uint128)>> {
+    let start_bound = Some(Bound::exclusive(
+        env.block.time.seconds() - REWARD_DISTRIBUTION_PERIOD,
+    ));
+    let keys = PENDING_ECLIPASTRO_REWARDS
+        .keys(deps.storage, start_bound, None, Order::Ascending)
+        .collect::<StdResult<Vec<u64>>>()
+        .unwrap_or(vec![]);
+    let mut pending_rewards = vec![];
+    for k in keys.into_iter() {
+        let pending_reward = PENDING_ECLIPASTRO_REWARDS
+            .load(deps.storage, k)
+            .unwrap_or_default();
+        pending_rewards.push((k, pending_reward));
+    }
+    Ok(pending_rewards)
 }

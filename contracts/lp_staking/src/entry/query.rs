@@ -51,6 +51,14 @@ pub fn query_reward(deps: Deps, env: Env, user: String) -> StdResult<Vec<RewardA
     }
 }
 
+pub fn query_reward_weights(deps: Deps, env: Env) -> StdResult<Vec<RewardWeight>> {
+    let astroport_rewards = calculate_incentive_pending_rewards(deps, env.contract.address)?;
+    let beclip_reward = calculate_beclip_reward(deps, env.block.time.seconds())?;
+    let updated_reward_weights =
+        calculate_updated_reward_weights(deps, astroport_rewards, beclip_reward)?;
+    Ok(updated_reward_weights)
+}
+
 pub fn calculate_user_staking_rewards(
     deps: Deps,
     user: String,

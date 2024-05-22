@@ -42,9 +42,9 @@ pub fn update_config(
         config.stability_pool = Some(stability_pool.clone());
         res = res.add_attribute("stability_pool", stability_pool.to_string());
     }
-    if let Some(staking_reward_distributor) = new_config.staking_reward_distributor {
-        config.staking_reward_distributor = Some(staking_reward_distributor.clone());
-        res = res.add_attribute("staking_reward_distributor", staking_reward_distributor);
+    if let Some(single_staking_contract) = new_config.single_staking_contract {
+        config.single_staking_contract = Some(single_staking_contract.clone());
+        res = res.add_attribute("single_staking_contract", single_staking_contract);
     }
     if let Some(ce_reward_distributor) = new_config.ce_reward_distributor {
         config.ce_reward_distributor = Some(ce_reward_distributor.clone());
@@ -107,13 +107,9 @@ pub fn _claim(deps: DepsMut, treasury_claim_amount: Uint128) -> Result<Response,
         Uint128::zero(),
         ContractError::NoRewardClaimable {}
     );
-    // add message to mint eclipASTRO to staking_reward_distributor
+    // add message to mint eclipASTRO to single_staking_contract
     let mut msgs = vec![mint_eclipastro_msg(
-        config
-            .staking_reward_distributor
-            .clone()
-            .unwrap()
-            .to_string(),
+        config.single_staking_contract.clone().unwrap().to_string(),
         res.0.users_reward.amount,
         config.eclipastro.to_string(),
     )?];
@@ -130,12 +126,8 @@ pub fn _claim(deps: DepsMut, treasury_claim_amount: Uint128) -> Result<Response,
     if reward_stability_pool.gt(&Uint128::zero()) {
         msgs.push(withdraw_xastro_msg(
             config.vxastro_holder.clone().unwrap().to_string(),
-            config
-                .staking_reward_distributor
-                .clone()
-                .unwrap()
-                .to_string(),
-            reward_ce_holders,
+            config.stability_pool.clone().unwrap().to_string(),
+            reward_stability_pool,
         )?);
     }
     // deduct claimable
@@ -147,7 +139,7 @@ pub fn _claim(deps: DepsMut, treasury_claim_amount: Uint128) -> Result<Response,
         .add_attribute("token", "eclipASTRO")
         .add_attribute(
             "recipient",
-            config.staking_reward_distributor.unwrap().to_string(),
+            config.single_staking_contract.unwrap().to_string(),
         )
         .add_attribute("amount", users_reward.to_string())
         .add_attribute("token", "xASTRO")
@@ -188,7 +180,7 @@ pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, Co
     // only staking reward distributor contract can execute this function
     ensure_eq!(
         info.sender,
-        config.staking_reward_distributor.unwrap(),
+        config.single_staking_contract.unwrap(),
         ContractError::Unauthorized {}
     );
     _claim(deps, Uint128::zero())
@@ -267,7 +259,7 @@ fn handle_convert_astro(
     receiver: String,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let mut total_staking = TOTAL_STAKE_INFO.load(deps.storage)?;
+    let mut total_staking = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
 
     let xastro_balance = deps
         .querier

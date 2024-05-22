@@ -26,7 +26,7 @@ pub fn try_instantiate(
         deps.storage,
         &Config {
             astro_token: msg.astro_token,
-            xastro_token: msg.xastr_token,
+            xastro_token: msg.xastro_token,
             astro_generator: msg.astro_generator,
             staking_contract: msg.staking_contract,
         },

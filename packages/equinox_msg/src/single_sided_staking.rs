@@ -91,6 +91,8 @@ pub enum QueryMsg {
     },
     #[returns(bool)]
     IsAllowed { user: String },
+    #[returns(Vec<(u64, Uint128)>)]
+    EclipastroRewards {},
 }
 
 #[cw_serde]

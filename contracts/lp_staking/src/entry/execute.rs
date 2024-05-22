@@ -176,6 +176,8 @@ pub fn receive_cw20(
 
             if total_staking.gt(&Uint128::zero()) {
                 response = _claim(deps.branch(), env, msg.sender.clone())?;
+            } else {
+                LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
             }
 
             total_staking += msg.amount;

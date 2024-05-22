@@ -38,7 +38,7 @@ pub fn try_instantiate(
             vxastro_holder: None,
             treasury: deps.api.addr_validate(&msg.treasury)?,
             stability_pool: None,
-            staking_reward_distributor: None,
+            single_staking_contract: None,
             ce_reward_distributor: None,
         },
     )?;
