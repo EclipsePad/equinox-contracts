@@ -124,10 +124,12 @@ fn handle_lockdrop() {
         .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[0].duration, 0u64);
+    assert_eq!(single_lockup_info.single_lockups[0].duration, 0u64);
     let (total_deposit, total_shares) = suite.query_astro_staking_data().unwrap();
     assert_eq!(
-        single_lockup_info[0].xastro_amount_in_lockups.u128(),
+        single_lockup_info.single_lockups[0]
+            .xastro_amount_in_lockups
+            .u128(),
         1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
@@ -141,9 +143,9 @@ fn handle_lockdrop() {
         .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let lp_lockup_info = suite.query_lp_lockup_info().unwrap();
-    assert_eq!(lp_lockup_info[0].duration, 0u64);
+    assert_eq!(lp_lockup_info.lp_lockups[0].duration, 0u64);
     assert_eq!(
-        lp_lockup_info[0].xastro_amount_in_lockups.u128(),
+        lp_lockup_info.lp_lockups[0].xastro_amount_in_lockups.u128(),
         1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_lp_lockup_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
@@ -157,9 +159,11 @@ fn handle_lockdrop() {
         .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[0].duration, 0u64);
+    assert_eq!(single_lockup_info.single_lockups[0].duration, 0u64);
     assert_eq!(
-        single_lockup_info[0].xastro_amount_in_lockups.u128(),
+        single_lockup_info.single_lockups[0]
+            .xastro_amount_in_lockups
+            .u128(),
         2_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
@@ -173,9 +177,9 @@ fn handle_lockdrop() {
         .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let lp_lockup_info = suite.query_lp_lockup_info().unwrap();
-    assert_eq!(lp_lockup_info[0].duration, 0u64);
+    assert_eq!(lp_lockup_info.lp_lockups[0].duration, 0u64);
     assert_eq!(
-        lp_lockup_info[0].xastro_amount_in_lockups.u128(),
+        lp_lockup_info.lp_lockups[0].xastro_amount_in_lockups.u128(),
         2_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_lp_lockup_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
@@ -189,9 +193,11 @@ fn handle_lockdrop() {
         .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, ONE_MONTH)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[1].duration, ONE_MONTH);
+    assert_eq!(single_lockup_info.single_lockups[1].duration, ONE_MONTH);
     assert_eq!(
-        single_lockup_info[1].xastro_amount_in_lockups.u128(),
+        single_lockup_info.single_lockups[1]
+            .xastro_amount_in_lockups
+            .u128(),
         1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
@@ -205,9 +211,11 @@ fn handle_lockdrop() {
         .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, THREE_MONTH)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[2].duration, THREE_MONTH);
+    assert_eq!(single_lockup_info.single_lockups[2].duration, THREE_MONTH);
     assert_eq!(
-        single_lockup_info[2].xastro_amount_in_lockups.u128(),
+        single_lockup_info.single_lockups[2]
+            .xastro_amount_in_lockups
+            .u128(),
         1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
@@ -221,9 +229,11 @@ fn handle_lockdrop() {
         .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, SIX_MONTH)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[3].duration, SIX_MONTH);
+    assert_eq!(single_lockup_info.single_lockups[3].duration, SIX_MONTH);
     assert_eq!(
-        single_lockup_info[3].xastro_amount_in_lockups.u128(),
+        single_lockup_info.single_lockups[3]
+            .xastro_amount_in_lockups
+            .u128(),
         1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
@@ -237,9 +247,11 @@ fn handle_lockdrop() {
         .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, ONE_YEAR)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[4].duration, ONE_YEAR);
+    assert_eq!(single_lockup_info.single_lockups[4].duration, ONE_YEAR);
     assert_eq!(
-        single_lockup_info[4].xastro_amount_in_lockups.u128(),
+        single_lockup_info.single_lockups[4]
+            .xastro_amount_in_lockups
+            .u128(),
         1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
@@ -254,9 +266,11 @@ fn handle_lockdrop() {
         .single_staking_increase_lockdrop(ALICE, suite.xastro(), 1_000u128, ONE_MONTH)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[1].duration, ONE_MONTH);
+    assert_eq!(single_lockup_info.single_lockups[1].duration, ONE_MONTH);
     assert_eq!(
-        single_lockup_info[1].xastro_amount_in_lockups.u128(),
+        single_lockup_info.single_lockups[1]
+            .xastro_amount_in_lockups
+            .u128(),
         1_000u128 + 1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
@@ -270,8 +284,11 @@ fn handle_lockdrop() {
         .lp_staking_increase_lockdrop(ALICE, suite.xastro(), 1_000u128, ONE_MONTH)
         .unwrap();
     let lp_lockup_info = suite.query_lp_lockup_info().unwrap();
-    assert_eq!(lp_lockup_info[1].duration, ONE_MONTH);
-    assert_eq!(lp_lockup_info[1].xastro_amount_in_lockups.u128(), 1_000u128);
+    assert_eq!(lp_lockup_info.lp_lockups[1].duration, ONE_MONTH);
+    assert_eq!(
+        lp_lockup_info.lp_lockups[1].xastro_amount_in_lockups.u128(),
+        1_000u128
+    );
     let alice_lp_lockup_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(alice_lp_lockup_info[1].duration, ONE_MONTH);
     assert_eq!(
@@ -918,43 +935,48 @@ fn stake_assets_to_vaults() {
 
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
-            .total_staked
+            .total_eclipastro_staked
             .u128(),
         999u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
-            .total_staked
+            .total_eclipastro_staked
             .u128(),
         999u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
-            .total_staked
+            .total_eclipastro_staked
             .u128(),
         999u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
-            .total_staked
+            .total_eclipastro_staked
             .u128(),
         999u128
     );
 
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
@@ -964,6 +986,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
@@ -973,6 +996,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
@@ -982,6 +1006,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
@@ -992,37 +1017,41 @@ fn stake_assets_to_vaults() {
 
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
-            .total_withdrawed
+            .total_eclipastro_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_eclipastro_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_eclipastro_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_eclipastro_withdrawed
             .u128(),
         0u128
     );
@@ -1036,43 +1065,48 @@ fn stake_assets_to_vaults() {
 
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
-            .total_staked
+            .total_lp_staked
             .u128(),
         476u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
-            .total_staked
+            .total_lp_staked
             .u128(),
         476u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
-            .total_staked
+            .total_lp_staked
             .u128(),
         476u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
-            .total_staked
+            .total_lp_staked
             .u128(),
         476u128
     );
 
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
@@ -1082,6 +1116,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
@@ -1091,6 +1126,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
@@ -1100,6 +1136,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
@@ -1110,37 +1147,41 @@ fn stake_assets_to_vaults() {
 
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
-            .total_withdrawed
+            .total_lp_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_lp_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_lp_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_lp_withdrawed
             .u128(),
         0u128
     );

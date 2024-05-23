@@ -66,11 +66,13 @@ pub fn execute(
         ExecuteMsg::ClaimRewards {
             stake_type,
             duration,
-        } => try_claim_rewards(deps, env, info, stake_type, duration),
+            assets,
+        } => try_claim_rewards(deps, env, info, stake_type, duration, assets),
         ExecuteMsg::ClaimAllRewards {
             stake_type,
             with_flexible,
-        } => try_claim_all_rewards(deps, env, info, stake_type, with_flexible),
+            assets,
+        } => try_claim_all_rewards(deps, env, info, stake_type, with_flexible, assets),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
     }
 }

@@ -24,9 +24,10 @@ use equinox_msg::{
     lockdrop::{
         Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
         ExecuteMsg as LockdropExecuteMsg, InstantiateMsg as LockdropInstantiateMsg,
-        LockupInfoResponse, LpLockupStateResponse, QueryMsg as LockdropQueryMsg,
-        SingleLockupStateResponse, StakeType, UpdateConfigMsg as LockdropUpdateConfigMsg,
-        UserLpLockupInfoResponse, UserSingleLockupInfoResponse,
+        LpLockupInfoResponse, LpLockupStateResponse, QueryMsg as LockdropQueryMsg,
+        SingleLockupInfoResponse, SingleLockupStateResponse, StakeType,
+        UpdateConfigMsg as LockdropUpdateConfigMsg, UserLpLockupInfoResponse,
+        UserSingleLockupInfoResponse,
     },
     lp_staking::{
         Config as LpStakingConfig, Cw20HookMsg as LpStakingCw20HookMsg,
@@ -1203,8 +1204,8 @@ impl Suite {
             &[coin(amount, token)],
         )
     }
-    pub fn query_single_lockup_info(&self) -> StdResult<Vec<LockupInfoResponse>> {
-        let res: Vec<LockupInfoResponse> = self.app.wrap().query_wasm_smart(
+    pub fn query_single_lockup_info(&self) -> StdResult<SingleLockupInfoResponse> {
+        let res: SingleLockupInfoResponse = self.app.wrap().query_wasm_smart(
             self.lockdrop_contract.clone(),
             &LockdropQueryMsg::SingleLockupInfo {},
         )?;
@@ -1239,8 +1240,8 @@ impl Suite {
             &[coin(amount, token)],
         )
     }
-    pub fn query_lp_lockup_info(&self) -> StdResult<Vec<LockupInfoResponse>> {
-        let res: Vec<LockupInfoResponse> = self.app.wrap().query_wasm_smart(
+    pub fn query_lp_lockup_info(&self) -> StdResult<LpLockupInfoResponse> {
+        let res: LpLockupInfoResponse = self.app.wrap().query_wasm_smart(
             self.lockdrop_contract.clone(),
             &LockdropQueryMsg::LpLockupInfo {},
         )?;
@@ -1419,6 +1420,7 @@ impl Suite {
             &LockdropExecuteMsg::ClaimRewards {
                 stake_type: StakeType::SingleStaking,
                 duration,
+                assets: None,
             },
             &[],
         )
@@ -1430,6 +1432,7 @@ impl Suite {
             &LockdropExecuteMsg::ClaimAllRewards {
                 stake_type: StakeType::SingleStaking,
                 with_flexible: true,
+                assets: None,
             },
             &[],
         )
@@ -1445,6 +1448,7 @@ impl Suite {
             &LockdropExecuteMsg::ClaimRewards {
                 stake_type: StakeType::LpStaking,
                 duration,
+                assets: None,
             },
             &[],
         )
@@ -1456,6 +1460,7 @@ impl Suite {
             &LockdropExecuteMsg::ClaimAllRewards {
                 stake_type: StakeType::LpStaking,
                 with_flexible: true,
+                assets: None,
             },
             &[],
         )

@@ -72,11 +72,13 @@ pub enum ExecuteMsg {
     ClaimRewards {
         stake_type: StakeType,
         duration: u64,
+        assets: Option<Vec<AssetInfo>>,
     },
     Callback(CallbackMsg),
     ClaimAllRewards {
         stake_type: StakeType,
         with_flexible: bool,
+        assets: Option<Vec<AssetInfo>>,
     },
 }
 
@@ -98,9 +100,9 @@ pub enum QueryMsg {
     #[returns(Addr)]
     Owner {},
     /// query lockup info
-    #[returns(Vec<LockupInfoResponse>)]
+    #[returns(SingleLockupInfoResponse)]
     SingleLockupInfo {},
-    #[returns(Vec<LockupInfoResponse>)]
+    #[returns(LpLockupInfoResponse)]
     LpLockupInfo {},
     /// query lockup state
     #[returns(SingleLockupStateResponse)]
@@ -388,6 +390,7 @@ impl Default for SingleStakingRewards {
     }
 }
 
+#[cw_serde]
 pub struct SingleStakingRewardsByDuration {
     pub duration: u64,
     pub rewards: SingleStakingRewards,
@@ -408,20 +411,48 @@ impl Default for LpStakingRewardWeights {
     }
 }
 
+#[cw_serde]
 pub struct LpStakingRewards {
     pub astro: Uint128,
     pub beclip: Uint128,
 }
 
 #[cw_serde]
-pub struct LockupInfoResponse {
+pub struct SingleLockupInfoResponse {
+    pub single_lockups: Vec<DetailedSingleLockupInfo>,
+    pub pending_rewards: Vec<SingleStakingRewardsByDuration>,
+}
+
+#[cw_serde]
+pub struct LpLockupInfoResponse {
+    pub lp_lockups: Vec<DetailedLpLockupInfo>,
+    pub pending_rewards: LpStakingRewards,
+    pub reward_weights: LpStakingRewardWeights,
+}
+
+#[cw_serde]
+pub struct DetailedSingleLockupInfo {
     pub duration: u64,
     /// total xastro amount received
     pub xastro_amount_in_lockups: Uint128,
     /// total staked balance
-    pub total_staked: Uint128,
+    pub total_eclipastro_staked: Uint128,
     /// withdrawed balance
-    pub total_withdrawed: Uint128,
+    pub total_eclipastro_withdrawed: Uint128,
+    pub reward_multiplier: u64,
+    pub reward_weights: SingleStakingRewardWeights,
+}
+
+#[cw_serde]
+pub struct DetailedLpLockupInfo {
+    pub duration: u64,
+    /// total xastro amount received
+    pub xastro_amount_in_lockups: Uint128,
+    /// total staked balance
+    pub total_lp_staked: Uint128,
+    /// withdrawed balance
+    pub total_lp_withdrawed: Uint128,
+    pub reward_multiplier: u64,
 }
 
 #[cw_serde]
@@ -450,6 +481,7 @@ pub struct UserSingleLockupInfoResponse {
     pub pending_beclip_incentives: Uint128,
     pub staking_rewards: Vec<Asset>,
     pub countdown_start_at: u64,
+    pub reward_weights: SingleStakingRewardWeights,
 }
 
 #[cw_serde]
@@ -464,6 +496,7 @@ pub struct UserLpLockupInfoResponse {
     pub pending_beclip_incentives: Uint128,
     pub staking_rewards: Vec<Asset>,
     pub countdown_start_at: u64,
+    pub reward_weights: LpStakingRewardWeights,
 }
 
 #[cw_serde]

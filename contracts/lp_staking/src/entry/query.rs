@@ -38,7 +38,7 @@ pub fn query_total_staking(deps: Deps, _env: Env) -> StdResult<Uint128> {
 
 /// query user reward
 pub fn query_reward(deps: Deps, env: Env, user: String) -> StdResult<Vec<RewardAmount>> {
-    let user_staking = STAKING.load(deps.storage, &user)?;
+    let user_staking = STAKING.load(deps.storage, &user).unwrap_or_default();
     if user_staking.staked.is_zero() {
         Ok(vec![])
     } else {

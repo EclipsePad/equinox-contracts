@@ -3,8 +3,9 @@ use cosmwasm_std::{Addr, Decimal256, Deps, Env, Order, StdResult, Uint128, Uint2
 use cw20::BalanceResponse;
 use equinox_msg::{
     lockdrop::{
-        Config, LockupInfoResponse, LpLockupStateResponse, LpStakingRewardWeights,
-        LpStakingRewards, LpUserLockupInfo, RewardDistributionConfig, SingleLockupStateResponse,
+        Config, DetailedLpLockupInfo, DetailedSingleLockupInfo, LpLockupInfoResponse,
+        LpLockupStateResponse, LpStakingRewardWeights, LpStakingRewards, LpUserLockupInfo,
+        RewardDistributionConfig, SingleLockupInfoResponse, SingleLockupStateResponse,
         SingleStakingRewardWeights, SingleStakingRewards, SingleStakingRewardsByDuration,
         SingleUserLockupInfo, UserLpLockupInfoResponse, UserSingleLockupInfoResponse,
     },
@@ -40,37 +41,68 @@ pub fn query_reward_config(deps: Deps, _env: Env) -> StdResult<RewardDistributio
 }
 
 /// query eclipASTRO Lockdrop info
-pub fn query_single_lockup_info(deps: Deps, _env: Env) -> StdResult<Vec<LockupInfoResponse>> {
-    let single_lockup = SINGLE_LOCKUP_INFO
+pub fn query_single_lockup_info(deps: Deps, env: Env) -> StdResult<SingleLockupInfoResponse> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let single_staking_rewards =
+        calculate_single_sided_total_rewards(deps, env.contract.address.to_string())?;
+    let single_lockups = SINGLE_LOCKUP_INFO
         .range(deps.storage, None, None, Order::Ascending)
         .map(|r| {
             let (duration, lockup_info) = r.unwrap();
-            LockupInfoResponse {
+            let reward_weights = SINGLE_STAKING_REWARD_WEIGHTS
+                .load(deps.storage, duration)
+                .unwrap_or_default();
+            let lock_config = cfg
+                .lock_configs
+                .iter()
+                .find(|c| c.duration == duration)
+                .unwrap();
+            DetailedSingleLockupInfo {
                 duration,
                 xastro_amount_in_lockups: lockup_info.xastro_amount_in_lockups,
-                total_staked: lockup_info.total_staked,
-                total_withdrawed: lockup_info.total_withdrawed,
+                total_eclipastro_staked: lockup_info.total_staked,
+                total_eclipastro_withdrawed: lockup_info.total_withdrawed,
+                reward_multiplier: lock_config.multiplier,
+                reward_weights,
             }
         })
-        .collect::<Vec<LockupInfoResponse>>();
-    Ok(single_lockup)
+        .collect::<Vec<DetailedSingleLockupInfo>>();
+    Ok(SingleLockupInfoResponse {
+        single_lockups,
+        pending_rewards: single_staking_rewards,
+    })
 }
 
 /// query eclipASTRO/xASTRO Lp token Lockdrop info
-pub fn query_lp_lockup_info(deps: Deps, _env: Env) -> StdResult<Vec<LockupInfoResponse>> {
-    let lp_lockup = LP_LOCKUP_INFO
+pub fn query_lp_lockup_info(deps: Deps, env: Env) -> StdResult<LpLockupInfoResponse> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let lp_staking_rewards = calculate_lp_total_rewards(deps, env.contract.address.to_string())?;
+    let reward_weights = LP_STAKING_REWARD_WEIGHTS
+        .load(deps.storage)
+        .unwrap_or_default();
+    let lp_lockups = LP_LOCKUP_INFO
         .range(deps.storage, None, None, Order::Ascending)
         .map(|r| {
             let (duration, lockup_info) = r.unwrap();
-            LockupInfoResponse {
+            let lock_config = cfg
+                .lock_configs
+                .iter()
+                .find(|c| c.duration == duration)
+                .unwrap();
+            DetailedLpLockupInfo {
                 duration,
                 xastro_amount_in_lockups: lockup_info.xastro_amount_in_lockups,
-                total_staked: lockup_info.total_staked,
-                total_withdrawed: lockup_info.total_withdrawed,
+                total_lp_staked: lockup_info.total_staked,
+                total_lp_withdrawed: lockup_info.total_withdrawed,
+                reward_multiplier: lock_config.multiplier,
             }
         })
-        .collect::<Vec<LockupInfoResponse>>();
-    Ok(lp_lockup)
+        .collect::<Vec<DetailedLpLockupInfo>>();
+    Ok(LpLockupInfoResponse {
+        lp_lockups,
+        pending_rewards: lp_staking_rewards,
+        reward_weights,
+    })
 }
 
 /// query eclipASTRO lockup state
@@ -171,6 +203,7 @@ pub fn query_user_single_lockup_info(
                         },
                     ],
                     countdown_start_at: cfg.countdown_start_at,
+                    reward_weights: user_lockup_info.reward_weights,
                 }
             })
             .collect::<Vec<UserSingleLockupInfoResponse>>())
@@ -196,6 +229,7 @@ pub fn query_user_single_lockup_info(
                     claimed_beclip_incentives: Uint128::zero(),
                     staking_rewards: vec![],
                     countdown_start_at: cfg.countdown_start_at,
+                    reward_weights: user_lockup_info.reward_weights,
                 }
             })
             .collect::<Vec<UserSingleLockupInfoResponse>>())
@@ -272,6 +306,7 @@ pub fn query_user_lp_lockup_info(
                         },
                     ],
                     countdown_start_at: cfg.countdown_start_at,
+                    reward_weights: user_lockup_info.reward_weights,
                 }
             })
             .collect::<Vec<UserLpLockupInfoResponse>>())
@@ -297,6 +332,7 @@ pub fn query_user_lp_lockup_info(
                     pending_beclip_incentives: Uint128::zero(),
                     staking_rewards: vec![],
                     countdown_start_at: cfg.countdown_start_at,
+                    reward_weights: user_lockup_info.reward_weights,
                 }
             })
             .collect::<Vec<UserLpLockupInfoResponse>>())
