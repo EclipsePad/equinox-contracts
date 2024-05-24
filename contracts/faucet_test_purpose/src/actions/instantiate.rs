@@ -1,11 +1,11 @@
 use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
+use cw_utils::one_coin;
 
 use crate::{
     error::ContractError,
     msg::InstantiateMsg,
     state::{Config, CONFIG, CONTRACT_NAME, OWNER},
-    utils::one_coin,
 };
 
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");

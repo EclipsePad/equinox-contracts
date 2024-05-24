@@ -1,11 +1,11 @@
 use cosmwasm_std::{coin, Addr, DepsMut, Env, MessageInfo, Response, Uint128};
 
+use cw_utils::nonpayable;
 use osmosis_std::types::osmosis::tokenfactory::v1beta1 as OsmosisFactory;
 
 use crate::{
     error::ContractError,
     state::{OWNER, TOKEN},
-    utils::nonpayable,
 };
 
 pub fn update_owner(

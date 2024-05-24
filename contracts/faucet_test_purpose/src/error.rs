@@ -1,5 +1,6 @@
 use cosmwasm_std::StdError;
 use cw_controllers::AdminError;
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -9,6 +10,9 @@ pub enum ContractError {
 
     #[error("Custom Error val: {val:?}")]
     CustomError { val: String },
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
 
     #[error("Semver parsing error: {0}")]
     SemVer(String),

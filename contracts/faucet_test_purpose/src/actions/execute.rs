@@ -4,11 +4,11 @@ use cosmwasm_std::{
     coin, to_json_binary, Addr, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128,
     WasmMsg,
 };
+use cw_utils::nonpayable;
 
 use crate::{
     error::ContractError,
     state::{CONFIG, LAST_CLAIMED, OWNER},
-    utils::nonpayable,
 };
 
 pub fn update_owner(
@@ -93,37 +93,4 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     Ok(Response::new()
         .add_messages(msg_list)
         .add_attributes([("action", "try_claim")]))
-}
-
-pub fn try_mint(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    nonpayable(&info)?;
-    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-    let config = CONFIG.load(deps.storage)?;
-    let astro_amount_to_convert = coin(1_000_000_000_000, config.astro_token.clone());
-    let astro_amount_to_send = coin(1_000_000_000_000, config.astro_token.clone());
-    let msg_list = vec![
-        WasmMsg::Execute {
-            contract_addr: config.astro_generator.to_string(),
-            msg: to_json_binary(&AstroGeneratorExecuteMsg::Mint {
-                amount: Uint128::from(2_000_000_000_000u128),
-            })?,
-            funds: vec![],
-        }
-        .into(),
-        WasmMsg::Execute {
-            contract_addr: config.staking_contract.to_string(),
-            msg: to_json_binary(&ExecuteMsg::Enter {
-                receiver: Some(info.sender.to_string()),
-            })?,
-            funds: vec![astro_amount_to_convert],
-        }
-        .into(),
-        CosmosMsg::Bank(BankMsg::Send {
-            to_address: info.sender.to_string(),
-            amount: vec![astro_amount_to_send],
-        }),
-    ];
-    Ok(Response::new()
-        .add_messages(msg_list)
-        .add_attributes([("action", "try_mint")]))
 }

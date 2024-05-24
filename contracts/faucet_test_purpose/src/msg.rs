@@ -13,7 +13,6 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     UpdateOwner { owner: Addr },
     Claim {},
-    Mint {},
 }
 
 #[cw_serde]

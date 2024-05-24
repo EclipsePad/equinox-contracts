@@ -4,7 +4,7 @@ use cosmwasm_std::{
 
 use crate::{
     actions::{
-        execute::{try_claim, try_mint, update_owner},
+        execute::{try_claim, update_owner},
         instantiate::try_instantiate,
         other::migrate_contract,
         query::{last_claimed, query_config, query_owner},
@@ -35,7 +35,6 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
         ExecuteMsg::Claim {} => try_claim(deps, env, info),
-        ExecuteMsg::Mint {} => try_mint(deps, env, info),
     }
 }
 
