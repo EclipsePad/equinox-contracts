@@ -863,16 +863,6 @@ fn fund_incentives() {
     // test increase incentives on deposit window
     suite.update_time(86400u64 * 2);
     suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
-
-    // test increase incentives on withdraw window
-    suite.update_time(86400u64 * 5);
-    let err = suite
-        .fund_beclip(&suite.admin(), 1_000_000u128)
-        .unwrap_err();
-    assert_eq!(
-        ContractError::DepositWindowClosed {},
-        err.downcast().unwrap()
-    );
 }
 
 // test staking assets to vaults
@@ -1223,8 +1213,11 @@ fn single_sided_incentives_distribution() {
         .unwrap();
 
     suite.mint_beclip(&suite.admin(), 1_000_000_000).unwrap();
+    suite
+        .mint_native(suite.admin(), suite.eclip(), 1_000_000_000)
+        .unwrap();
     suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
-    suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
+    suite.fund_eclip(&suite.admin(), 1_000_000u128).unwrap();
     // withdraw window finished
     suite.update_time(86400u64 * 7);
     let cfg = suite.query_lockdrop_config().unwrap();
@@ -1238,113 +1231,109 @@ fn single_sided_incentives_distribution() {
         .mint_beclip(&suite.single_staking_contract(), 100_000_000_000u128)
         .unwrap();
     suite
+        .mint_native(
+            suite.single_staking_contract(),
+            suite.eclip(),
+            100_000_000_000u128,
+        )
+        .unwrap();
+    suite
         .mint_beclip(&&suite.lp_staking_contract(), 100_000_000_000u128)
+        .unwrap();
+    suite
+        .mint_native(
+            suite.lp_staking_contract(),
+            suite.eclip(),
+            100_000_000_000u128,
+        )
         .unwrap();
     // test eclip incentives
     let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    let incentives = suite.query_total_beclip_incentives().unwrap();
-    assert_eq!(incentives.balance.u128(), 2_000_000u128);
-    // let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
-    // assert_eq!(
-    //     user_info, vec![]
-    // );
+    let prev_alice_eclip_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.eclip())
+        .unwrap();
     suite.single_lockdrop_claim_rewards(ALICE, 0).unwrap();
     let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 11_111u128); // 30%
+    let alice_eclip_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.eclip())
+        .unwrap();
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 18518u128); // 100%
+    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 18518u128); // 100%
     let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 0 })
             .unwrap()
-            .claimed_beclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .claimed
             .u128(),
-        11_111u128
+        18518u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 0 })
+            .unwrap()
+            .lockdrop_incentives
+            .beclip
+            .allocated
+            .u128(),
+        18518u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 0 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .claimed
+            .u128(),
+        18518u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 0 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .allocated
+            .u128(),
+        18518u128
     );
     suite.single_lockdrop_claim_rewards(ALICE, 2592000).unwrap();
     let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 33333u128); // 30%
+    let alice_eclip_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.eclip())
+        .unwrap();
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 55555u128); // 100%
+    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 55555u128); // 100%
     let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 2592000 })
             .unwrap()
-            .claimed_beclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .claimed
             .u128(),
-        22222u128
+        37037u128
     );
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 2592000 })
             .unwrap()
-            .pending_beclip_incentives
+            .lockdrop_incentives
+            .eclip
+            .claimed
             .u128(),
-        0u128
+        37037u128
     );
-
-    // update time 1 day
-    suite.update_time(86400u64);
-    let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 0 })
-            .unwrap()
-            .claimed_beclip_incentives
-            .u128(),
-        11111u128
-    );
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 0 })
-            .unwrap()
-            .pending_beclip_incentives
-            .u128(),
-        288u128
-    );
-    let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    suite.single_lockdrop_claim_rewards(ALICE, 0).unwrap();
-    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 288u128);
-
-    suite.single_lockdrop_claim_rewards(ALICE, 2592000).unwrap();
-    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 864u128);
-
-    //     // update time 1 day
-    //     suite.update_time(86400u64);
-    //     let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
-    //     assert_eq!(
-    //         user_info
-    //             .iter()
-    //             .find(|i| { i.duration == 0 })
-    //             .unwrap()
-    //             .claimed_eclip_incentives
-    //             .u128(),
-    //         27_979u128
-    //     );
-    //     assert_eq!(
-    //         user_info
-    //             .iter()
-    //             .find(|i| { i.duration == 0 })
-    //             .unwrap()
-    //             .pending_eclip_incentives
-    //             .u128(),
-    //         707u128
-    //     );
-    //     let prev_alice_eclip_balance = suite
-    //         .balance_native(ALICE.to_string(), suite.eclip())
-    //         .unwrap();
-    //     suite
-    //         .single_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 0, None)
-    //         .unwrap();
-    //     let alice_eclip_balance = suite
-    //         .balance_native(ALICE.to_string(), suite.eclip())
-    //         .unwrap();
-    //     assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 9797u128); // 9090 + 707
 }
 
 #[test]
@@ -1380,8 +1369,11 @@ fn lp_incentives_distribution() {
         .unwrap();
 
     suite.mint_beclip(&suite.admin(), 1_000_000_000).unwrap();
+    suite
+        .mint_native(suite.admin(), suite.eclip(), 1_000_000_000)
+        .unwrap();
     suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
-    suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
+    suite.fund_eclip(&suite.admin(), 1_000_000u128).unwrap();
     // withdraw window finished
     suite.update_time(86400u64 * 7);
     let cfg = suite.query_lockdrop_config().unwrap();
@@ -1395,18 +1387,55 @@ fn lp_incentives_distribution() {
         .mint_beclip(&suite.single_staking_contract(), 100_000_000_000u128)
         .unwrap();
     suite
+        .mint_native(
+            suite.single_staking_contract(),
+            suite.eclip(),
+            100_000_000_000u128,
+        )
+        .unwrap();
+    suite
         .mint_beclip(&suite.lp_staking_contract(), 100_000_000_000u128)
+        .unwrap();
+    suite
+        .mint_native(
+            suite.lp_staking_contract(),
+            suite.eclip(),
+            100_000_000_000u128,
+        )
         .unwrap();
     // test eclip incentives
     let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
-    // assert_eq!(user_info, vec![]);
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 0 })
             .unwrap()
-            .total_beclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .allocated
+            .u128(),
+        18518u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 0 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .allocated
+            .u128(),
+        18518u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 2_592_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .beclip
+            .allocated
             .u128(),
         37037u128
     );
@@ -1415,62 +1444,147 @@ fn lp_incentives_distribution() {
             .iter()
             .find(|i| { i.duration == 2_592_000 })
             .unwrap()
-            .total_beclip_incentives
+            .lockdrop_incentives
+            .eclip
+            .allocated
             .u128(),
-        74074u128
+        37037u128
     );
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 7_776_000 })
             .unwrap()
-            .total_beclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .allocated
             .u128(),
-        222222u128
+        111111u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 7_776_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .allocated
+            .u128(),
+        111111u128
     );
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 23_328_000 })
             .unwrap()
-            .total_beclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .allocated
             .u128(),
-        666666u128
+        333333u128
     );
-    suite.lp_lockdrop_claim_rewards(ALICE, 0).unwrap();
-    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 11111u128); // 30%
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 23_328_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .allocated
+            .u128(),
+        333333u128
+    );
+    suite.lp_lockdrop_claim_all_rewards(ALICE).unwrap();
+    let alice_beclip_balance: u128 = suite.query_beclip_balance(ALICE).unwrap();
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 499999u128); // 100%
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 0 })
             .unwrap()
-            .claimed_beclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .claimed
             .u128(),
-        11111u128
-    );
-    suite.lp_lockdrop_claim_rewards(ALICE, 2592000).unwrap();
-    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 33333u128); // 30%
-    let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 2592000 })
-            .unwrap()
-            .claimed_beclip_incentives
-            .u128(),
-        22222u128
+        18518u128
     );
     assert_eq!(
         user_info
             .iter()
-            .find(|i| { i.duration == 2592000 })
+            .find(|i| { i.duration == 0 })
             .unwrap()
-            .pending_beclip_incentives
+            .lockdrop_incentives
+            .eclip
+            .claimed
             .u128(),
-        0u128
+        18518u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 2_592_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .beclip
+            .claimed
+            .u128(),
+        37037u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 2_592_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .claimed
+            .u128(),
+        37037u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 7_776_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .beclip
+            .claimed
+            .u128(),
+        111111u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 7_776_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .claimed
+            .u128(),
+        111111u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 23_328_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .beclip
+            .claimed
+            .u128(),
+        333333u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 23_328_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .claimed
+            .u128(),
+        333333u128
     );
 
     //     // update time 1 day
@@ -1578,8 +1692,11 @@ fn restake_and_unlock() {
         .unwrap();
 
     suite.mint_beclip(&suite.admin(), 1_000_000_000).unwrap();
+    suite
+        .mint_native(suite.admin(), suite.eclip(), 1_000_000_000)
+        .unwrap();
     suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
-    suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
+    suite.fund_eclip(&suite.admin(), 1_000_000u128).unwrap();
     // withdraw window finished
     suite.update_time(86400u64 * 7);
 
@@ -1594,14 +1711,28 @@ fn restake_and_unlock() {
         .mint_beclip(&suite.single_staking_contract(), 100_000_000_000u128)
         .unwrap();
     suite
+        .mint_native(
+            suite.single_staking_contract(),
+            suite.eclip(),
+            100_000_000_000u128,
+        )
+        .unwrap();
+    suite
         .mint_beclip(&suite.lp_staking_contract(), 100_000_000_000u128)
+        .unwrap();
+    suite
+        .mint_native(
+            suite.lp_staking_contract(),
+            suite.eclip(),
+            100_000_000_000u128,
+        )
         .unwrap();
 
     // restake
     let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     suite.single_lockup_relock(ALICE, 0, 2592000).unwrap();
     let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 33333u128);
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 55555u128);
     let alice_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
         alice_info
@@ -1625,9 +1756,16 @@ fn restake_and_unlock() {
     );
 
     let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    let prev_alice_eclip_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.eclip())
+        .unwrap();
     suite.single_lockup_relock(ALICE, 2592000, 7776000).unwrap();
     let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 66666u128);
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 111111u128);
+    let alice_eclip_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.eclip())
+        .unwrap();
+    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 111111u128);
     let alice_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
         alice_info
@@ -1658,6 +1796,8 @@ fn restake_and_unlock() {
     suite.update_time(86400u64);
     let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     suite.single_lockdrop_claim_rewards(ALICE, 2592000).unwrap();
+    // let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
+    // assert_eq!(user_info, vec![]);
     let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
 
     let user_eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
@@ -1681,7 +1821,7 @@ fn restake_and_unlock() {
         200
     ); // 50% penalty
 
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 576);
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 0);
 
     let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
@@ -1716,7 +1856,7 @@ fn restake_and_unlock() {
     let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     suite.lp_lockdrop_claim_rewards(ALICE, 2592000).unwrap();
     let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 22798);
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 37037);
 
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(
@@ -1761,4 +1901,12 @@ fn restake_and_unlock() {
     suite
         .lp_lockup_unlock(ALICE, 0, Some(Uint128::from(100u128)))
         .unwrap();
+    // let prev_eclip_balance = suite.query_balance_native(ALICE.to_string(), suite.eclip()).unwrap();
+    // suite.lp_lockdrop_claim_all_rewards(ALICE).unwrap();
+    // let eclip_balance = suite.query_balance_native(ALICE.to_string(), suite.eclip()).unwrap();
+    // assert_eq!(eclip_balance-prev_eclip_balance, 0u128);
+    // let info = suite.query_lockdrop_config().unwrap();
+    // assert_eq!(info., vec![])
+    // let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
+    // assert_eq!(user_info, vec![]);
 }

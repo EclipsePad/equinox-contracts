@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{
     to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, Uint128, Uint256, WasmMsg,
 };
-use cw20::{BalanceResponse, Cw20ReceiveMsg};
+use cw20::Cw20ReceiveMsg;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -23,8 +23,10 @@ pub struct InstantiateMsg {
     pub xastro_token: String,
     /// eclipASTRO token address
     pub eclipastro_token: Addr,
-    /// bECLIP address
+    /// bECLIP
     pub beclip: AssetInfo,
+    /// ECLIP
+    pub eclip: AssetInfo,
     /// astro staking pool
     pub astro_staking: Addr,
     /// Equinox ASTRO/eclipASTRO converter contract
@@ -80,6 +82,7 @@ pub enum ExecuteMsg {
         with_flexible: bool,
         assets: Option<Vec<AssetInfo>>,
     },
+    IncreaseIncentives {},
 }
 
 #[cw_serde]
@@ -114,8 +117,8 @@ pub enum QueryMsg {
     UserSingleLockupInfo { user: String },
     #[returns(Vec<UserLpLockupInfoResponse>)]
     UserLpLockupInfo { user: String },
-    #[returns(BalanceResponse)]
-    TotalbEclipIncentives {},
+    #[returns(IncentiveAmounts)]
+    TotalIncentives {},
 }
 
 #[cw_serde]
@@ -125,7 +128,7 @@ pub enum Cw20HookMsg {
         from: u64,
         to: u64,
     },
-    IncreasebEclipIncentives {},
+    IncreaseIncentives {},
 }
 
 #[cw_serde]
@@ -180,8 +183,10 @@ pub struct Config {
     pub astro_token: String,
     /// xASTRO Token address
     pub xastro_token: String,
-    /// bECLIP address
+    /// bECLIP
     pub beclip: AssetInfo,
+    /// ECLIP
+    pub eclip: AssetInfo,
     /// eclipASTRO Token address
     pub eclipastro_token: Addr,
     /// ASTRO/eclipASTRO converter contract address
@@ -254,14 +259,31 @@ pub struct SingleUserLockupInfo {
     pub xastro_amount_in_lockups: Uint128,
     /// Boolean value indicating if the user's has withdrawn funds post the only 1 withdrawal limit cutoff
     pub withdrawal_flag: bool,
-    /// ECLIP incentives for participation in the lockdrop, zero before lockdrop ends
-    pub total_beclip_incentives: Uint128,
-    /// ECLIP incentives for participation in the lockdrop, zero before lockdrop ends
-    pub claimed_beclip_incentives: Uint128,
+    pub lockdrop_incentives: LockdropIncentives,
     /// Asset rewards weights
     pub reward_weights: SingleStakingRewardWeights,
     pub total_eclipastro_staked: Uint128,
     pub total_eclipastro_withdrawed: Uint128,
+}
+
+#[cw_serde]
+#[derive(Default)]
+pub struct IncentiveAmounts {
+    pub beclip: Uint128,
+    pub eclip: Uint128,
+}
+
+#[cw_serde]
+pub struct LockdropIncentives {
+    pub beclip: LockdropIncentive,
+    pub eclip: LockdropIncentive,
+}
+
+#[cw_serde]
+#[derive(Default)]
+pub struct LockdropIncentive {
+    pub allocated: Uint128,
+    pub claimed: Uint128,
 }
 
 impl Default for SingleUserLockupInfo {
@@ -269,8 +291,10 @@ impl Default for SingleUserLockupInfo {
         SingleUserLockupInfo {
             xastro_amount_in_lockups: Uint128::zero(),
             withdrawal_flag: false,
-            total_beclip_incentives: Uint128::zero(),
-            claimed_beclip_incentives: Uint128::zero(),
+            lockdrop_incentives: LockdropIncentives {
+                beclip: LockdropIncentive::default(),
+                eclip: LockdropIncentive::default(),
+            },
             reward_weights: SingleStakingRewardWeights::default(),
             total_eclipastro_staked: Uint128::zero(),
             total_eclipastro_withdrawed: Uint128::zero(),
@@ -284,10 +308,7 @@ pub struct LpUserLockupInfo {
     pub xastro_amount_in_lockups: Uint128,
     /// Boolean value indicating if the user's has withdrawn funds post the only 1 withdrawal limit cutoff
     pub withdrawal_flag: bool,
-    /// ECLIP incentives for participation in the lockdrop, zero before lockdrop ends
-    pub total_beclip_incentives: Uint128,
-    /// ECLIP incentives for participation in the lockdrop, zero before lockdrop ends
-    pub claimed_beclip_incentives: Uint128,
+    pub lockdrop_incentives: LockdropIncentives,
     /// Asset rewards weights
     pub reward_weights: LpStakingRewardWeights,
     pub total_lp_staked: Uint128,
@@ -299,8 +320,10 @@ impl Default for LpUserLockupInfo {
         LpUserLockupInfo {
             xastro_amount_in_lockups: Uint128::zero(),
             withdrawal_flag: false,
-            total_beclip_incentives: Uint128::zero(),
-            claimed_beclip_incentives: Uint128::zero(),
+            lockdrop_incentives: LockdropIncentives {
+                beclip: LockdropIncentive::default(),
+                eclip: LockdropIncentive::default(),
+            },
             reward_weights: LpStakingRewardWeights::default(),
             total_lp_staked: Uint128::zero(),
             total_lp_withdrawed: Uint128::zero(),
@@ -363,6 +386,7 @@ pub enum StakeType {
 #[cw_serde]
 pub struct SingleStakingRewardWeights {
     pub eclipastro: Decimal256,
+    pub eclip: Decimal256,
     pub beclip: Decimal256,
 }
 
@@ -370,6 +394,7 @@ impl Default for SingleStakingRewardWeights {
     fn default() -> Self {
         SingleStakingRewardWeights {
             eclipastro: Decimal256::zero(),
+            eclip: Decimal256::zero(),
             beclip: Decimal256::zero(),
         }
     }
@@ -378,12 +403,14 @@ impl Default for SingleStakingRewardWeights {
 #[cw_serde]
 pub struct SingleStakingRewards {
     pub eclipastro: Uint128,
+    pub eclip: Uint128,
     pub beclip: Uint128,
 }
 
 impl Default for SingleStakingRewards {
     fn default() -> Self {
         SingleStakingRewards {
+            eclip: Uint128::zero(),
             eclipastro: Uint128::zero(),
             beclip: Uint128::zero(),
         }
@@ -399,6 +426,7 @@ pub struct SingleStakingRewardsByDuration {
 #[cw_serde]
 pub struct LpStakingRewardWeights {
     pub astro: Decimal256,
+    pub eclip: Decimal256,
     pub beclip: Decimal256,
 }
 
@@ -406,6 +434,7 @@ impl Default for LpStakingRewardWeights {
     fn default() -> Self {
         LpStakingRewardWeights {
             astro: Decimal256::zero(),
+            eclip: Decimal256::zero(),
             beclip: Decimal256::zero(),
         }
     }
@@ -414,7 +443,18 @@ impl Default for LpStakingRewardWeights {
 #[cw_serde]
 pub struct LpStakingRewards {
     pub astro: Uint128,
+    pub eclip: Uint128,
     pub beclip: Uint128,
+}
+
+impl Default for LpStakingRewards {
+    fn default() -> Self {
+        LpStakingRewards {
+            astro: Uint128::zero(),
+            eclip: Uint128::zero(),
+            beclip: Uint128::zero(),
+        }
+    }
 }
 
 #[cw_serde]
@@ -476,9 +516,7 @@ pub struct UserSingleLockupInfoResponse {
     pub eclipastro_staked: Uint128,
     pub eclipastro_withdrawed: Uint128,
     pub withdrawal_flag: bool,
-    pub total_beclip_incentives: Uint128,
-    pub claimed_beclip_incentives: Uint128,
-    pub pending_beclip_incentives: Uint128,
+    pub lockdrop_incentives: LockdropIncentives,
     pub staking_rewards: Vec<Asset>,
     pub countdown_start_at: u64,
     pub reward_weights: SingleStakingRewardWeights,
@@ -491,9 +529,7 @@ pub struct UserLpLockupInfoResponse {
     pub lp_token_staked: Uint128,
     pub lp_token_withdrawed: Uint128,
     pub withdrawal_flag: bool,
-    pub total_beclip_incentives: Uint128,
-    pub claimed_beclip_incentives: Uint128,
-    pub pending_beclip_incentives: Uint128,
+    pub lockdrop_incentives: LockdropIncentives,
     pub staking_rewards: Vec<Asset>,
     pub countdown_start_at: u64,
     pub reward_weights: LpStakingRewardWeights,

@@ -1,8 +1,8 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
 
 use crate::{
-    config::{DEFAULT_BECLIP_DAILY_REWARD, DEFAULT_TIMELOCK_CONFIG},
+    config::DEFAULT_TIMELOCK_CONFIG,
     error::ContractError,
     state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER},
 };
@@ -20,14 +20,11 @@ pub fn try_instantiate(
         deps.storage,
         &Config {
             token: msg.token,
-            beclip: msg.beclip,
+            rewards: msg.rewards,
             timelock_config: msg
                 .timelock_config
                 .unwrap_or(DEFAULT_TIMELOCK_CONFIG.to_vec()),
             token_converter: msg.token_converter,
-            beclip_daily_reward: msg
-                .beclip_daily_reward
-                .unwrap_or(Uint128::from(DEFAULT_BECLIP_DAILY_REWARD)),
             treasury: msg.treasury,
         },
     )?;

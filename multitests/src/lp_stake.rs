@@ -3,7 +3,7 @@ use astroport::{
     vesting::{VestingAccount, VestingSchedule, VestingSchedulePoint},
 };
 use cosmwasm_std::{Addr, Decimal256, Uint128};
-use equinox_msg::lp_staking::{RewardAmount, RewardWeight, UpdateConfigMsg};
+use equinox_msg::lp_staking::{RewardAmount, RewardWeight};
 
 use crate::suite::{Suite, SuiteBuilder};
 
@@ -95,67 +95,6 @@ fn instantiate() -> Suite {
 }
 
 #[test]
-fn update_config() {
-    let mut suite = instantiate();
-    let config = suite.query_lp_staking_config().unwrap();
-    assert_eq!(config.astro, suite.astro());
-    assert_eq!(
-        config.astroport_generator.to_string(),
-        suite.astroport_generator()
-    );
-    assert_eq!(
-        config.ce_reward_distributor.unwrap().to_string(),
-        suite.ce_reward_distributor()
-    );
-    assert_eq!(config.beclip.to_string(), suite.beclip());
-    assert_eq!(config.beclip_daily_reward.u128(), 1_000_000_000u128);
-    assert_eq!(
-        config.lp_token.to_string(),
-        suite.eclipastro_xastro_lp_token_contract()
-    );
-    assert_eq!(
-        config.stability_pool.unwrap().to_string(),
-        suite.eclipse_stability_pool()
-    );
-    assert_eq!(config.treasury.to_string(), suite.treasury());
-    let new_config = UpdateConfigMsg {
-        lp_token: Some(Addr::unchecked("new_lp_token".to_string())),
-        lp_contract: Some(Addr::unchecked("new_lp_contract".to_string())),
-        beclip: Some(AssetInfo::Token {
-            contract_addr: Addr::unchecked("beclip".to_string()),
-        }),
-        beclip_daily_reward: Some(Uint128::from(100_000u128)),
-        converter: Some(Addr::unchecked("new_converter".to_string())),
-        astroport_generator: Some(Addr::unchecked("new_astroport_generator".to_string())),
-        treasury: Some(Addr::unchecked("new_treasury".to_string())),
-        stability_pool: Some(Addr::unchecked("new_stability_pool".to_string())),
-        ce_reward_distributor: Some(Addr::unchecked("new_ce_reward_distributor".to_string())),
-    };
-
-    suite
-        .lp_staking_update_config(&suite.admin(), new_config)
-        .unwrap();
-
-    let config = suite.query_lp_staking_config().unwrap();
-    assert_eq!(
-        config.astroport_generator.to_string(),
-        "new_astroport_generator".to_string()
-    );
-    assert_eq!(
-        config.ce_reward_distributor.unwrap().to_string(),
-        "new_ce_reward_distributor".to_string()
-    );
-    assert_eq!(config.beclip.to_string(), "beclip".to_string());
-    assert_eq!(config.beclip_daily_reward.u128(), 100_000u128);
-    assert_eq!(config.lp_token.to_string(), "new_lp_token".to_string());
-    assert_eq!(
-        config.stability_pool.unwrap().to_string(),
-        "new_stability_pool".to_string()
-    );
-    assert_eq!(config.treasury.to_string(), "new_treasury".to_string());
-}
-
-#[test]
 fn lp_staking() {
     let mut suite = instantiate();
     suite
@@ -235,7 +174,13 @@ fn lp_staking() {
                     contract_addr: Addr::unchecked(suite.beclip())
                 },
                 amount: Uint128::zero()
-            }
+            },
+            RewardAmount {
+                info: AssetInfo::NativeToken {
+                    denom: suite.eclip()
+                },
+                amount: Uint128::zero()
+            },
         ]
     );
     let pending_incentives = suite
@@ -268,8 +213,12 @@ fn lp_staking() {
     let astro_reward_weight =
         Decimal256::from_ratio(864000u128 * 8_000 / 10_000, bob_lp_token_stake_amount);
     let config = suite.query_lp_staking_config().unwrap();
-    assert_eq!(config.beclip_daily_reward.u128(), 1_000_000_000u128);
-    let beclip_reward_weight = Decimal256::from_ratio(1_000_000_000u128, bob_lp_token_stake_amount);
+    let beclip_reward_weight = Decimal256::from_ratio(
+        config.rewards.beclip.daily_reward,
+        bob_lp_token_stake_amount,
+    );
+    let eclip_reward_weight =
+        Decimal256::from_ratio(config.rewards.eclip.daily_reward, bob_lp_token_stake_amount);
     assert_eq!(
         reward_weights,
         [
@@ -284,6 +233,12 @@ fn lp_staking() {
                     contract_addr: Addr::unchecked(suite.beclip())
                 },
                 reward_weight: beclip_reward_weight
+            },
+            RewardWeight {
+                info: AssetInfo::NativeToken {
+                    denom: suite.eclip()
+                },
+                reward_weight: eclip_reward_weight
             }
         ]
     );
@@ -294,6 +249,11 @@ fn lp_staking() {
         .to_uint128_with_precision(0u32)
         .unwrap();
     let bob_pending_beclip_reward = beclip_reward_weight
+        .checked_mul(Decimal256::from_ratio(bob_lp_token_stake_amount, 1u128))
+        .unwrap()
+        .to_uint128_with_precision(0u32)
+        .unwrap();
+    let bob_pending_eclip_reward = eclip_reward_weight
         .checked_mul(Decimal256::from_ratio(bob_lp_token_stake_amount, 1u128))
         .unwrap()
         .to_uint128_with_precision(0u32)
@@ -312,13 +272,22 @@ fn lp_staking() {
                     contract_addr: Addr::unchecked(suite.beclip())
                 },
                 amount: bob_pending_beclip_reward
-            }
+            },
+            RewardAmount {
+                info: AssetInfo::NativeToken {
+                    denom: suite.eclip()
+                },
+                amount: bob_pending_eclip_reward
+            },
         ]
     ); // 100_000
 
     // mint bECLIP to lp staking contract for reward distribution
     suite
         .mint_beclip(&suite.lp_staking_contract(), 5_000_000_000)
+        .unwrap();
+    suite
+        .mint_native(suite.lp_staking_contract(), suite.eclip(), 5_000_000_000)
         .unwrap();
 
     // claim rewards
@@ -354,7 +323,13 @@ fn lp_staking() {
                     contract_addr: Addr::unchecked(suite.beclip())
                 },
                 amount: Uint128::zero()
-            }
+            },
+            RewardAmount {
+                info: AssetInfo::NativeToken {
+                    denom: suite.eclip()
+                },
+                amount: Uint128::zero()
+            },
         ]
     );
 

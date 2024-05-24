@@ -1,5 +1,5 @@
 use astroport::{asset::PairInfo, pair::QueryMsg as AstroportPairQueryMsg};
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
+use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
 use equinox_msg::lockdrop::{Config, InstantiateMsg, LpLockupState, SingleLockupState};
 
@@ -17,16 +17,16 @@ use crate::{
 
 pub fn try_instantiate(
     mut deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     // CHECK :: init_timestamp needs to be valid
-    // ensure!(
-    //     msg.init_timestamp >= env.block.time.seconds(),
-    //     ContractError::InvalidInitTimestamp(env.block.time.seconds())
-    // );
+    ensure!(
+        msg.init_timestamp >= env.block.time.seconds(),
+        ContractError::InvalidInitTimestamp(env.block.time.seconds())
+    );
 
     let pool_info: PairInfo = deps
         .querier
@@ -36,6 +36,7 @@ pub fn try_instantiate(
         astro_token: msg.astro_token,
         xastro_token: msg.xastro_token,
         beclip: msg.beclip,
+        eclip: msg.eclip,
         eclipastro_token: msg.eclipastro_token,
         converter: msg.converter,
         single_sided_staking: msg.single_sided_staking,

@@ -10,15 +10,14 @@ use crate::{
     entry::{
         execute::{
             _handle_callback, receive_cw20, try_claim_all_rewards, try_claim_rewards,
-            try_extend_lockup, try_increase_lockup, try_stake_to_vaults, try_unlock,
-            try_update_config, try_update_reward_distribution_config,
+            try_extend_lockup, try_increase_incentives, try_increase_lockup, try_stake_to_vaults,
+            try_unlock, try_update_config, try_update_reward_distribution_config,
         },
         instantiate::try_instantiate,
         query::{
             query_config, query_lp_lockup_info, query_lp_lockup_state, query_owner,
             query_reward_config, query_single_lockup_info, query_single_lockup_state,
-            query_total_beclip_incentives, query_user_lp_lockup_info,
-            query_user_single_lockup_info,
+            query_total_incentives, query_user_lp_lockup_info, query_user_single_lockup_info,
         },
     },
     error::ContractError,
@@ -74,6 +73,7 @@ pub fn execute(
             assets,
         } => try_claim_all_rewards(deps, env, info, stake_type, with_flexible, assets),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
+        ExecuteMsg::IncreaseIncentives {} => try_increase_incentives(deps, env, info),
     }
 }
 
@@ -96,9 +96,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserLpLockupInfo { user } => Ok(to_json_binary(&query_user_lp_lockup_info(
             deps, env, user,
         )?)?),
-        QueryMsg::TotalbEclipIncentives {} => {
-            Ok(to_json_binary(&query_total_beclip_incentives(deps)?)?)
-        }
+        QueryMsg::TotalIncentives {} => Ok(to_json_binary(&query_total_incentives(deps)?)?),
     }
 }
 

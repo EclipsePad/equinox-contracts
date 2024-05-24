@@ -2,7 +2,6 @@ use equinox_msg::single_sided_staking::TimeLockConfig;
 
 pub const REWARD_DISTRIBUTION_PERIOD: u64 = 8 * 86_400; // 8 days
 pub const REWARD_DISTRIBUTION_TIME_DIFF: u64 = 6 * 3_600; // 6 hours
-pub const DEFAULT_BECLIP_DAILY_REWARD: u128 = 1_000_000_000u128;
 
 pub const DEFAULT_TIMELOCK_CONFIG: &[TimeLockConfig] = &[
     TimeLockConfig {

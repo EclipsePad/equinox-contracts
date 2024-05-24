@@ -15,7 +15,7 @@ use crate::{
 };
 
 use equinox_msg::{
-    single_sided_staking::{Cw20HookMsg, RestakeData, UpdateConfigMsg, UserStaked},
+    single_sided_staking::{Cw20HookMsg, RestakeData, UpdateConfigMsg, UserStaked, VaultRewards},
     token_converter::ExecuteMsg as ConverterExecuteMsg,
 };
 
@@ -47,9 +47,9 @@ pub fn update_config(
         config.treasury = treasury.clone();
         res = res.add_attribute("treasury", treasury.to_string());
     }
-    if let Some(beclip_daily_reward) = new_config.beclip_daily_reward {
-        config.beclip_daily_reward = beclip_daily_reward;
-        res = res.add_attribute("beclip_daily_reward", beclip_daily_reward.to_string());
+    if let Some(rewards) = new_config.rewards {
+        config.rewards = rewards;
+        res = res.add_attribute("rewards", "update rewards");
     }
     if let Some(timelock_config) = new_config.timelock_config {
         config.timelock_config = timelock_config.clone();
@@ -381,7 +381,10 @@ pub fn _claim_single(
         env,
         sender,
         user_reward.eclipastro,
-        user_reward.beclip,
+        VaultRewards {
+            eclip: user_reward.eclip,
+            beclip: user_reward.beclip,
+        },
     )
 }
 
@@ -390,7 +393,7 @@ pub fn _claim(
     env: Env,
     sender: String,
     eclipastro: Uint128,
-    beclip: Uint128,
+    vault_rewards: VaultRewards,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -430,28 +433,52 @@ pub fn _claim(
             .add_attribute("amount", eclipastro.to_string());
     }
 
-    if !beclip.is_zero() {
-        match config.beclip {
+    if !vault_rewards.beclip.is_zero() {
+        match config.rewards.beclip.info {
             AssetInfo::Token { contract_addr } => {
                 msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: contract_addr.to_string(),
                     msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                        recipient: sender,
-                        amount: beclip,
+                        recipient: sender.clone(),
+                        amount: vault_rewards.beclip,
                     })?,
                     funds: vec![],
                 }));
             }
             AssetInfo::NativeToken { denom } => {
                 msgs.push(CosmosMsg::Bank(BankMsg::Send {
-                    to_address: sender,
-                    amount: [coin(beclip.u128(), denom)].to_vec(),
+                    to_address: sender.clone(),
+                    amount: [coin(vault_rewards.beclip.u128(), denom)].to_vec(),
                 }));
             }
         }
         response = response
             .add_attribute("action", "claim user beclip reward")
-            .add_attribute("amount", beclip.to_string());
+            .add_attribute("amount", vault_rewards.beclip.to_string());
+    }
+
+    if !vault_rewards.eclip.is_zero() {
+        match config.rewards.eclip.info {
+            AssetInfo::Token { contract_addr } => {
+                msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: contract_addr.to_string(),
+                    msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+                        recipient: sender.clone(),
+                        amount: vault_rewards.eclip,
+                    })?,
+                    funds: vec![],
+                }));
+            }
+            AssetInfo::NativeToken { denom } => {
+                msgs.push(CosmosMsg::Bank(BankMsg::Send {
+                    to_address: sender.clone(),
+                    amount: [coin(vault_rewards.eclip.u128(), denom)].to_vec(),
+                }));
+            }
+        }
+        response = response
+            .add_attribute("action", "claim user eclip reward")
+            .add_attribute("amount", vault_rewards.eclip.to_string());
     }
 
     Ok(response.add_messages(msgs))
@@ -469,6 +496,7 @@ pub fn _claim_all(
         calculate_total_user_reward(deps.as_ref(), sender.clone(), current_time)?;
     let mut total_eclipastro_reward = Uint128::zero();
     let mut total_beclip_reward = Uint128::zero();
+    let mut total_eclip_reward = Uint128::zero();
 
     for reward_duration in total_user_reward {
         if !with_flexible {
@@ -479,6 +507,7 @@ pub fn _claim_all(
             let locked_at = reward_locked_at.locked_at;
             total_eclipastro_reward += reward_locked_at.rewards.eclipastro;
             total_beclip_reward += reward_locked_at.rewards.beclip;
+            total_eclip_reward += reward_locked_at.rewards.eclip;
             USER_STAKED.update(
                 deps.storage,
                 (&sender, duration, locked_at),
@@ -499,7 +528,10 @@ pub fn _claim_all(
         env,
         sender,
         total_eclipastro_reward,
-        total_beclip_reward,
+        VaultRewards {
+            eclip: total_eclip_reward,
+            beclip: total_beclip_reward,
+        },
     )
 }
 

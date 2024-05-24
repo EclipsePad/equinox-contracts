@@ -3,8 +3,8 @@ use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::AdminError;
 use equinox_msg::{
     single_sided_staking::{
-        Config, TimeLockConfig, UpdateConfigMsg, UserReward, UserRewardByDuration,
-        UserRewardByLockedAt, UserStaking, UserStakingByDuration,
+        Config, RewardConfig, RewardDetail, TimeLockConfig, UpdateConfigMsg, UserReward,
+        UserRewardByDuration, UserRewardByLockedAt, UserStaking, UserStakingByDuration,
     },
     token_converter::{Reward, RewardResponse as ConverterRewardResponse},
 };
@@ -50,7 +50,20 @@ fn update_config() {
             early_unlock_penalty_bps: 200,
             reward_multiplier: 1,
         }]),
-        beclip_daily_reward: Some(Uint128::from(10u128)),
+        rewards: Some(RewardConfig {
+            eclip: RewardDetail {
+                info: AssetInfo::NativeToken {
+                    denom: "eclip".to_string(),
+                },
+                daily_reward: Uint128::from(2_000_000u128),
+            },
+            beclip: RewardDetail {
+                info: AssetInfo::Token {
+                    contract_addr: Addr::unchecked("beclip"),
+                },
+                daily_reward: Uint128::from(2_000_000u128),
+            },
+        }),
         token_converter: Some(Addr::unchecked("token_converter")),
         treasury: Some(Addr::unchecked("treasury")),
     };
@@ -76,12 +89,22 @@ fn update_config() {
                 early_unlock_penalty_bps: 200,
                 reward_multiplier: 1,
             }],
-            beclip_daily_reward: Uint128::from(10u128),
+            rewards: RewardConfig {
+                eclip: RewardDetail {
+                    info: AssetInfo::NativeToken {
+                        denom: "eclip".to_string(),
+                    },
+                    daily_reward: Uint128::from(2_000_000u128),
+                },
+                beclip: RewardDetail {
+                    info: AssetInfo::Token {
+                        contract_addr: Addr::unchecked("beclip"),
+                    },
+                    daily_reward: Uint128::from(2_000_000u128),
+                }
+            },
             token_converter: Addr::unchecked("token_converter"),
             treasury: Addr::unchecked("treasury"),
-            beclip: AssetInfo::Token {
-                contract_addr: Addr::unchecked(suite.beclip())
-            }
         }
     );
 }
@@ -94,6 +117,13 @@ fn stake() {
     // mint beclip
     suite
         .mint_beclip(&suite.single_staking_contract(), 1_000_000_000_000)
+        .unwrap();
+    suite
+        .mint_native(
+            suite.single_staking_contract(),
+            suite.eclip(),
+            1_000_000_000_000,
+        )
         .unwrap();
 
     suite
@@ -301,6 +331,13 @@ fn claim() {
     suite
         .mint_beclip(&suite.single_staking_contract(), 1_000_000_000_000)
         .unwrap();
+    suite
+        .mint_native(
+            suite.single_staking_contract(),
+            suite.eclip(),
+            1_000_000_000_000,
+        )
+        .unwrap();
 
     suite
         .mint_native(BOB.to_string(), suite.astro(), 10_000_000_000)
@@ -328,7 +365,8 @@ fn claim() {
                     locked_at: 0,
                     rewards: UserReward {
                         beclip: Uint128::zero(),
-                        eclipastro: Uint128::zero()
+                        eclipastro: Uint128::zero(),
+                        eclip: Uint128::zero()
                     }
                 }]
             },
@@ -338,7 +376,8 @@ fn claim() {
                     locked_at: suite.get_time(),
                     rewards: UserReward {
                         beclip: Uint128::zero(),
-                        eclipastro: Uint128::zero()
+                        eclipastro: Uint128::zero(),
+                        eclip: Uint128::zero()
                     }
                 }]
             },
@@ -406,7 +445,8 @@ fn claim() {
                     locked_at: 0,
                     rewards: UserReward {
                         beclip: Uint128::zero(),
-                        eclipastro: Uint128::zero()
+                        eclipastro: Uint128::zero(),
+                        eclip: Uint128::zero()
                     }
                 }]
             },
@@ -416,7 +456,8 @@ fn claim() {
                     locked_at: suite.get_time(),
                     rewards: UserReward {
                         beclip: Uint128::zero(),
-                        eclipastro: Uint128::zero()
+                        eclipastro: Uint128::zero(),
+                        eclip: Uint128::zero()
                     }
                 }]
             },
@@ -450,8 +491,9 @@ fn claim() {
                 rewards: vec![UserRewardByLockedAt {
                     locked_at: 0,
                     rewards: UserReward {
-                        beclip: Uint128::from(71428571u128),
-                        eclipastro: Uint128::zero()
+                        beclip: Uint128::from(142857u128),
+                        eclipastro: Uint128::zero(),
+                        eclip: Uint128::from(71428u128)
                     }
                 }]
             },
@@ -460,8 +502,9 @@ fn claim() {
                 rewards: vec![UserRewardByLockedAt {
                     locked_at: suite.get_time() - 43200,
                     rewards: UserReward {
-                        beclip: Uint128::from(428571428u128), // 6 times than duration 0
-                        eclipastro: Uint128::zero()
+                        beclip: Uint128::from(857142u128), // 6 times than duration 0
+                        eclipastro: Uint128::zero(),
+                        eclip: Uint128::from(428571u128)
                     }
                 }]
             },
@@ -527,7 +570,7 @@ fn claim() {
         8315
     );
 
-    assert_eq!(suite.query_beclip_balance(BOB).unwrap(), 71428571u128);
+    assert_eq!(suite.query_beclip_balance(BOB).unwrap(), 142857u128);
 
     assert_eq!(
         suite.query_converter_rewards().unwrap(),
@@ -560,7 +603,8 @@ fn claim() {
                     locked_at: 0,
                     rewards: UserReward {
                         beclip: Uint128::zero(),
-                        eclipastro: Uint128::zero()
+                        eclipastro: Uint128::zero(),
+                        eclip: Uint128::zero()
                     }
                 }]
             },
@@ -569,8 +613,9 @@ fn claim() {
                 rewards: vec![UserRewardByLockedAt {
                     locked_at: suite.get_time() - 43200,
                     rewards: UserReward {
-                        beclip: Uint128::from(428571428u128), // 6 times than duration 0
-                        eclipastro: Uint128::zero()
+                        beclip: Uint128::from(857142u128), // 6 times than duration 0
+                        eclipastro: Uint128::zero(),
+                        eclip: Uint128::from(428571u128)
                     }
                 }]
             },
@@ -580,7 +625,8 @@ fn claim() {
                     locked_at: suite.get_time(),
                     rewards: UserReward {
                         beclip: Uint128::zero(), // 6 times than duration 0
-                        eclipastro: Uint128::zero()
+                        eclipastro: Uint128::zero(),
+                        eclip: Uint128::zero()
                     }
                 }]
             },
@@ -794,8 +840,9 @@ fn claim() {
                 rewards: vec![UserRewardByLockedAt {
                     locked_at: 0,
                     rewards: UserReward {
-                        beclip: Uint128::from(20000000u128),
-                        eclipastro: Uint128::from(7u128)
+                        beclip: Uint128::from(40000u128),
+                        eclipastro: Uint128::from(7u128),
+                        eclip: Uint128::from(20000u128)
                     }
                 }]
             },
@@ -808,8 +855,9 @@ fn claim() {
                 rewards: vec![UserRewardByLockedAt {
                     locked_at: suite.get_time() - 43200,
                     rewards: UserReward {
-                        beclip: Uint128::from(480000000u128),
-                        eclipastro: Uint128::from(28u128)
+                        beclip: Uint128::from(960000u128),
+                        eclipastro: Uint128::from(28u128),
+                        eclip: Uint128::from(480000u128)
                     }
                 }]
             },

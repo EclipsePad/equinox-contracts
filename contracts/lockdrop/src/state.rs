@@ -1,11 +1,10 @@
-use cosmwasm_std::Uint128;
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
 use equinox_msg::{
     common::OwnershipProposal,
     lockdrop::{
-        Config, LockupInfo, LpLockupState, LpStakingRewardWeights, LpUserLockupInfo,
-        RewardDistributionConfig, SingleLockupState, SingleStakingRewardWeights,
+        Config, IncentiveAmounts, LockupInfo, LpLockupState, LpStakingRewardWeights,
+        LpUserLockupInfo, RewardDistributionConfig, SingleLockupState, SingleStakingRewardWeights,
         SingleUserLockupInfo,
     },
 };
@@ -37,4 +36,5 @@ pub const LP_STAKING_REWARD_WEIGHTS: Item<LpStakingRewardWeights> =
 pub const REWARD_DISTRIBUTION_CONFIG: Item<RewardDistributionConfig> =
     Item::new("reward_distribution_config");
 
-pub const TOTAL_BECLIP_INCENTIVES: Item<Uint128> = Item::new("total_beclip_incentives");
+pub const TOTAL_LOCKDROP_INCENTIVES: Item<IncentiveAmounts> =
+    Item::new("total_lockdrop_incentives");

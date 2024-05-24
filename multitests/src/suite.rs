@@ -23,16 +23,17 @@ use cw_multi_test::{
 use equinox_msg::{
     lockdrop::{
         Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
-        ExecuteMsg as LockdropExecuteMsg, InstantiateMsg as LockdropInstantiateMsg,
-        LpLockupInfoResponse, LpLockupStateResponse, QueryMsg as LockdropQueryMsg,
-        SingleLockupInfoResponse, SingleLockupStateResponse, StakeType,
-        UpdateConfigMsg as LockdropUpdateConfigMsg, UserLpLockupInfoResponse,
+        ExecuteMsg as LockdropExecuteMsg, IncentiveAmounts,
+        InstantiateMsg as LockdropInstantiateMsg, LpLockupInfoResponse, LpLockupStateResponse,
+        QueryMsg as LockdropQueryMsg, SingleLockupInfoResponse, SingleLockupStateResponse,
+        StakeType, UpdateConfigMsg as LockdropUpdateConfigMsg, UserLpLockupInfoResponse,
         UserSingleLockupInfoResponse,
     },
     lp_staking::{
         Config as LpStakingConfig, Cw20HookMsg as LpStakingCw20HookMsg,
         ExecuteMsg as LpStakingExecuteMsg, InstantiateMsg as LpStakingInstantiateMsg,
         QueryMsg as LpStakingQueryMsg, RewardAmount as LpStakingRewardAmount,
+        RewardDetail as LpStakingRewardDetail, RewardDetails as LpStakingRewardDetails,
         RewardWeight as LpStakingRewardWeight, UpdateConfigMsg as LpStakingUpdateConfigMsg,
         UserStaking as LpStakingUserStaking,
     },
@@ -40,6 +41,7 @@ use equinox_msg::{
         Config as SingleStakingConfig, Cw20HookMsg as SingleStakingCw20HookMsg,
         ExecuteMsg as SingleSidedStakingExecuteMsg,
         InstantiateMsg as SingleSidedStakingInstantiateMsg, QueryMsg as SingleStakingQueryMsg,
+        RewardConfig as SingleStakingRewardConfig, RewardDetail as SingleStakingRewardDetail,
         UpdateConfigMsg as SingleStakingUpdateConfigMsg,
         UserRewardByDuration as SingleStakingUserRewardByDuration,
         UserStaking as SingleSidedUserStaking,
@@ -216,6 +218,7 @@ pub const TREASURY: &str = "treasury";
 pub const VXASTRO: &str = "vxastro";
 pub const STABILITY_POOL_REWARD_HOLDER: &str = "stability_pool_reward_holder";
 pub const CE_REWARD_HOLDER: &str = "ce_reward_holder";
+pub const ECLIP_DENOM: &str = "factory/admin/eclip";
 
 pub type CustomizedApp = App<
     BankKeeper,
@@ -400,13 +403,23 @@ impl SuiteBuilder {
                 admin.clone(),
                 &SingleSidedStakingInstantiateMsg {
                     owner: admin.clone(),
-                    beclip: AssetInfo::Token {
-                        contract_addr: beclip.clone(),
+                    rewards: SingleStakingRewardConfig {
+                        eclip: SingleStakingRewardDetail {
+                            info: AssetInfo::NativeToken {
+                                denom: ECLIP_DENOM.to_string(),
+                            },
+                            daily_reward: Uint128::from(1_000_000u128),
+                        },
+                        beclip: SingleStakingRewardDetail {
+                            info: AssetInfo::Token {
+                                contract_addr: beclip.clone(),
+                            },
+                            daily_reward: Uint128::from(2_000_000u128),
+                        },
                     },
                     token: eclipastro.clone(),
                     timelock_config: None,
                     token_converter: converter_contract.clone(),
-                    beclip_daily_reward: None,
                     treasury: Addr::unchecked(TREASURY.to_string()),
                 },
                 &[],
@@ -479,14 +492,24 @@ impl SuiteBuilder {
                 &LpStakingInstantiateMsg {
                     lp_token: eclipastro_xastro_lp_token_contract.clone(),
                     lp_contract: eclipastro_xastro_lp_contract.clone(),
-                    beclip: AssetInfo::Token {
-                        contract_addr: beclip.clone(),
+                    rewards: LpStakingRewardDetails {
+                        eclip: LpStakingRewardDetail {
+                            info: AssetInfo::NativeToken {
+                                denom: ECLIP_DENOM.to_string(),
+                            },
+                            daily_reward: Uint128::from(1_000_000u128),
+                        },
+                        beclip: LpStakingRewardDetail {
+                            info: AssetInfo::Token {
+                                contract_addr: beclip.clone(),
+                            },
+                            daily_reward: Uint128::from(2_000_000u128),
+                        },
                     },
                     astro: ASTRO_DENOM.to_string(),
                     xastro: xastro.clone(),
                     astro_staking: astro_staking_contract.clone(),
                     converter: converter_contract.clone(),
-                    beclip_daily_reward: None,
                     astroport_generator: astroport_generator.clone(),
                     treasury: Addr::unchecked(TREASURY.to_string()),
                     stability_pool: Some(Addr::unchecked(STABILITY_POOL_REWARD_HOLDER.to_string())),
@@ -519,6 +542,9 @@ impl SuiteBuilder {
                     beclip: AssetInfo::Token {
                         contract_addr: beclip.clone(),
                     },
+                    eclip: AssetInfo::NativeToken {
+                        denom: ECLIP_DENOM.to_string(),
+                    },
                     single_sided_staking: single_staking_contract.clone(),
                     lp_staking: lp_staking_contract.clone(),
                     dao_treasury_address: Addr::unchecked(TREASURY.to_string()),
@@ -542,6 +568,7 @@ impl SuiteBuilder {
             eclipastro,
             converter_contract,
             beclip,
+            eclip: ECLIP_DENOM.to_string(),
             single_staking_contract,
             lp_staking_contract,
             lockdrop_contract,
@@ -566,6 +593,7 @@ pub struct Suite {
     eclipastro: Addr,
     converter_contract: Addr,
     beclip: Addr,
+    eclip: String,
     single_staking_contract: Addr,
     lp_staking_contract: Addr,
     lockdrop_contract: Addr,
@@ -600,6 +628,9 @@ impl Suite {
     }
     pub fn beclip(&self) -> String {
         self.beclip.to_string()
+    }
+    pub fn eclip(&self) -> String {
+        self.eclip.clone()
     }
     pub fn single_staking_contract(&self) -> String {
         self.single_staking_contract.to_string()
@@ -1187,6 +1218,13 @@ impl Suite {
             .query_wasm_smart(self.lockdrop_contract.clone(), &LockdropQueryMsg::Config {})?;
         Ok(res)
     }
+    // pub fn query_lockdrop_reward_weights(&self) -> StdResult<LockdropConfig> {
+    //     let res: LockdropConfig = self
+    //         .app
+    //         .wrap()
+    //         .query_wasm_smart(self.lockdrop_contract.clone(), &LockdropQueryMsg::reward {})?;
+    //     Ok(res)
+    // }
     pub fn single_staking_increase_lockdrop(
         &mut self,
         sender: &str,
@@ -1374,9 +1412,17 @@ impl Suite {
             &Cw20ExecuteMsg::Send {
                 contract: self.lockdrop_contract().to_string(),
                 amount: Uint128::from(amount),
-                msg: to_json_binary(&LockdropCw20HookMsg::IncreasebEclipIncentives {})?,
+                msg: to_json_binary(&LockdropCw20HookMsg::IncreaseIncentives {})?,
             },
             &[],
+        )
+    }
+    pub fn fund_eclip(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop_contract.clone(),
+            &LockdropCw20HookMsg::IncreaseIncentives {},
+            &[coin(amount, self.eclip.clone())],
         )
     }
     pub fn lockdrop_stake_to_vaults(&mut self, sender: &str) -> AnyResult<AppResponse> {
@@ -1402,10 +1448,10 @@ impl Suite {
         )?;
         Ok(res)
     }
-    pub fn query_total_beclip_incentives(&self) -> StdResult<BalanceResponse> {
-        let res: BalanceResponse = self.app.wrap().query_wasm_smart(
+    pub fn query_total_lockdrop_incentives(&self) -> StdResult<IncentiveAmounts> {
+        let res: IncentiveAmounts = self.app.wrap().query_wasm_smart(
             self.lockdrop_contract.clone(),
-            &LockdropQueryMsg::TotalbEclipIncentives {},
+            &LockdropQueryMsg::TotalIncentives {},
         )?;
         Ok(res)
     }

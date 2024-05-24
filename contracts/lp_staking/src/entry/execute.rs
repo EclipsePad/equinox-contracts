@@ -15,9 +15,8 @@ use equinox_msg::{
 
 use crate::{
     entry::query::{
-        calculate_beclip_reward, calculate_incentive_pending_rewards,
-        calculate_pending_eclipse_rewards, calculate_updated_reward_weights,
-        calculate_user_staking_rewards,
+        calculate_incentive_pending_rewards, calculate_pending_eclipse_rewards,
+        calculate_updated_reward_weights, calculate_user_staking_rewards, calculate_vault_rewards,
     },
     error::ContractError,
     state::{CONFIG, LAST_CLAIMED, OWNER, REWARD_CONFIG, REWARD_WEIGHTS, STAKING, TOTAL_STAKING},
@@ -42,13 +41,9 @@ pub fn update_config(
         config.lp_contract = lp_contract.clone();
         res = res.add_attribute("lp_contract", lp_contract.to_string());
     }
-    if let Some(beclip) = new_config.beclip {
-        config.beclip = beclip.clone();
-        res = res.add_attribute("beclip", beclip.to_string());
-    }
-    if let Some(beclip_daily_reward) = new_config.beclip_daily_reward {
-        config.beclip_daily_reward = beclip_daily_reward;
-        res = res.add_attribute("beclip_daily_reward", beclip_daily_reward.to_string());
+    if let Some(rewards) = new_config.rewards {
+        config.rewards = rewards.clone();
+        res = res.add_attribute("rewards", "update rewards");
     }
     if let Some(converter) = new_config.converter {
         config.converter = converter.clone();
@@ -221,11 +216,11 @@ pub fn _claim(deps: DepsMut, env: Env, sender: String) -> Result<Response, Contr
 
     let astroport_rewards =
         calculate_incentive_pending_rewards(deps.as_ref(), env.contract.address.clone())?;
-    let beclip_reward = calculate_beclip_reward(deps.as_ref(), env.block.time.seconds())?;
+    let vault_rewards = calculate_vault_rewards(deps.as_ref(), env.block.time.seconds())?;
     let pending_eclipse_rewards =
         calculate_pending_eclipse_rewards(deps.as_ref(), astroport_rewards.clone())?;
     let updated_reward_weights =
-        calculate_updated_reward_weights(deps.as_ref(), astroport_rewards, beclip_reward)?;
+        calculate_updated_reward_weights(deps.as_ref(), astroport_rewards, vault_rewards)?;
     if !user_staking.staked.is_zero() {
         let user_rewards = calculate_user_staking_rewards(
             deps.as_ref(),

@@ -12,7 +12,7 @@ use crate::{
 use equinox_msg::{
     single_sided_staking::{
         Config, RewardWeights, StakingWithDuration, UserReward, UserRewardByDuration,
-        UserRewardByLockedAt, UserStaked, UserStaking, UserStakingByDuration,
+        UserRewardByLockedAt, UserStaked, UserStaking, UserStakingByDuration, VaultRewards,
     },
     token_converter::{QueryMsg as ConverterQueryMsg, RewardResponse},
 };
@@ -139,10 +139,12 @@ pub fn calculate_updated_reward_weights(deps: Deps, current_time: u64) -> StdRes
     let total_staking_with_multiplier = calculate_total_staking_with_multiplier(deps)?;
     let pending_eclipastro_reward =
         calculate_eclipastro_reward(deps, last_claim_time, current_time)?;
-    let pending_beclip_reward = calculate_beclip_reward(deps, last_claim_time, current_time)?;
+    let pending_vault_rewards = calculate_vault_rewards(deps, last_claim_time, current_time)?;
     reward_weights.eclipastro += Decimal256::from_ratio(pending_eclipastro_reward, total_staking);
+    reward_weights.eclip +=
+        Decimal256::from_ratio(pending_vault_rewards.eclip, total_staking_with_multiplier);
     reward_weights.beclip +=
-        Decimal256::from_ratio(pending_beclip_reward, total_staking_with_multiplier);
+        Decimal256::from_ratio(pending_vault_rewards.beclip, total_staking_with_multiplier);
     Ok(reward_weights)
 }
 
@@ -174,15 +176,24 @@ pub fn calculate_eclipastro_reward(
     Ok(pending_rewards)
 }
 
-pub fn calculate_beclip_reward(
+pub fn calculate_vault_rewards(
     deps: Deps,
     last_claim_time: u64,
     current_time: u64,
-) -> StdResult<Uint128> {
+) -> StdResult<VaultRewards> {
     let config = CONFIG.load(deps.storage)?;
-    Ok(config
-        .beclip_daily_reward
-        .multiply_ratio(current_time - last_claim_time, 86400u64))
+    Ok(VaultRewards {
+        eclip: config
+            .rewards
+            .eclip
+            .daily_reward
+            .multiply_ratio(current_time - last_claim_time, 86400u64),
+        beclip: config
+            .rewards
+            .beclip
+            .daily_reward
+            .multiply_ratio(current_time - last_claim_time, 86400u64),
+    })
 }
 
 pub fn calculate_total_staking_with_multiplier(deps: Deps) -> StdResult<Uint128> {
@@ -242,6 +253,16 @@ pub fn calculate_user_reward(
             .unwrap()
             .to_uint_floor()
             .try_into()?,
+        eclip: updated_reward_weights
+            .eclip
+            .checked_sub(user_staking.reward_weights.eclip)
+            .unwrap_or_default()
+            .checked_mul(Decimal256::from_ratio(user_staking.staked, 1u128))
+            .unwrap()
+            .checked_mul(Decimal256::from_ratio(multiplier, 1u128))
+            .unwrap()
+            .to_uint_floor()
+            .try_into()?,
     })
 }
 
@@ -275,6 +296,16 @@ pub fn calculate_total_user_reward(
                         beclip: updated_reward_weights
                             .beclip
                             .checked_sub(staking_data.reward_weights.beclip)
+                            .unwrap_or_default()
+                            .checked_mul(Decimal256::from_ratio(staking_data.staked, 1u128))
+                            .unwrap()
+                            .checked_mul(Decimal256::from_ratio(multiplier, 1u128))
+                            .unwrap()
+                            .to_uint_floor()
+                            .try_into()?,
+                        eclip: updated_reward_weights
+                            .eclip
+                            .checked_sub(staking_data.reward_weights.eclip)
                             .unwrap_or_default()
                             .checked_mul(Decimal256::from_ratio(staking_data.staked, 1u128))
                             .unwrap()

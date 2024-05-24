@@ -9,8 +9,7 @@ pub struct InstantiateMsg {
     pub lp_token: Addr,
     /// lp contract
     pub lp_contract: Addr,
-    /// bECLIP token
-    pub beclip: AssetInfo,
+    pub rewards: RewardDetails,
     /// ASTRO token
     pub astro: String,
     /// xASTRO token
@@ -19,8 +18,6 @@ pub struct InstantiateMsg {
     pub astro_staking: Addr,
     /// eclipASTRO converter
     pub converter: Addr,
-    /// bECLIP daily reward
-    pub beclip_daily_reward: Option<Uint128>,
     /// Astroport generator
     pub astroport_generator: Addr,
     /// Eclipse treasury. send 67.5% of 20% of generator rewards
@@ -107,8 +104,7 @@ impl CallbackMsg {
 pub struct UpdateConfigMsg {
     pub lp_token: Option<Addr>,
     pub lp_contract: Option<Addr>,
-    pub beclip: Option<AssetInfo>,
-    pub beclip_daily_reward: Option<Uint128>,
+    pub rewards: Option<RewardDetails>,
     pub converter: Option<Addr>,
     pub astroport_generator: Option<Addr>,
     pub treasury: Option<Addr>,
@@ -130,8 +126,7 @@ pub struct Config {
     pub lp_token: Addr,
     /// lp contract
     pub lp_contract: Addr,
-    /// bECLIP token
-    pub beclip: AssetInfo,
+    pub rewards: RewardDetails,
     /// ASTRO token
     pub astro: String,
     /// xASTRO token
@@ -140,8 +135,6 @@ pub struct Config {
     pub astro_staking: Addr,
     /// eclipASTRO converter
     pub converter: Addr,
-    /// bECLIP daily reward
-    pub beclip_daily_reward: Uint128,
     /// Astroport generator
     pub astroport_generator: Addr,
     pub treasury: Addr,
@@ -165,6 +158,24 @@ pub struct RewardConfig {
 pub struct LpRewards {
     pub eclip: Uint128,
     pub astro: Uint128,
+}
+
+#[cw_serde]
+pub struct RewardDetails {
+    pub eclip: RewardDetail,
+    pub beclip: RewardDetail,
+}
+
+#[cw_serde]
+pub struct RewardDetail {
+    pub info: AssetInfo,
+    pub daily_reward: Uint128,
+}
+
+#[cw_serde]
+pub struct VaultRewards {
+    pub eclip: Uint128,
+    pub beclip: Uint128,
 }
 
 #[cw_serde]

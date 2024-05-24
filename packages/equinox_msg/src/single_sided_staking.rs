@@ -8,14 +8,11 @@ pub struct InstantiateMsg {
     pub owner: Addr,
     /// eclipASTRO token
     pub token: Addr,
-    /// bECLIP token
-    pub beclip: AssetInfo,
+    pub rewards: RewardConfig,
     /// timelock config
     pub timelock_config: Option<Vec<TimeLockConfig>>,
     /// ASTRO/eclipASTRO converter contract
     pub token_converter: Addr,
-    /// bECLIP daily reward
-    pub beclip_daily_reward: Option<Uint128>,
     pub treasury: Addr,
 }
 
@@ -121,7 +118,7 @@ pub struct UpdateConfigMsg {
     pub token: Option<String>,
     pub timelock_config: Option<Vec<TimeLockConfig>>,
     pub token_converter: Option<Addr>,
-    pub beclip_daily_reward: Option<Uint128>,
+    pub rewards: Option<RewardConfig>,
     pub treasury: Option<Addr>,
 }
 
@@ -129,15 +126,30 @@ pub struct UpdateConfigMsg {
 pub struct Config {
     /// eclipASTRO token
     pub token: Addr,
-    /// beclip token
-    pub beclip: AssetInfo,
+    pub rewards: RewardConfig,
     /// lock config
     pub timelock_config: Vec<TimeLockConfig>,
     /// ASTRO/eclipASTRO converter contract
     pub token_converter: Addr,
-    /// bECLIP daily reward
-    pub beclip_daily_reward: Uint128,
     pub treasury: Addr,
+}
+
+#[cw_serde]
+pub struct RewardConfig {
+    pub eclip: RewardDetail,
+    pub beclip: RewardDetail,
+}
+
+#[cw_serde]
+pub struct RewardDetail {
+    pub info: AssetInfo,
+    pub daily_reward: Uint128,
+}
+
+#[cw_serde]
+pub struct VaultRewards {
+    pub eclip: Uint128,
+    pub beclip: Uint128,
 }
 
 #[cw_serde]
@@ -151,11 +163,13 @@ pub struct TimeLockConfig {
 pub struct RewardWeights {
     pub eclipastro: Decimal256,
     pub beclip: Decimal256,
+    pub eclip: Decimal256,
 }
 
 impl Default for RewardWeights {
     fn default() -> Self {
         RewardWeights {
+            eclip: Decimal256::zero(),
             eclipastro: Decimal256::zero(),
             beclip: Decimal256::zero(),
         }
@@ -171,6 +185,7 @@ pub struct UserStaked {
 pub struct UserReward {
     pub eclipastro: Uint128,
     pub beclip: Uint128,
+    pub eclip: Uint128,
 }
 
 #[cw_serde]

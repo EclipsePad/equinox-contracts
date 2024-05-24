@@ -1,4 +1,4 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
 use equinox_msg::lp_staking::{Config, InstantiateMsg, RewardConfig};
 
@@ -21,14 +21,11 @@ pub fn try_instantiate(
         &Config {
             lp_token: msg.lp_token,
             lp_contract: msg.lp_contract,
-            beclip: msg.beclip,
+            rewards: msg.rewards,
             astro: msg.astro,
             xastro: msg.xastro,
             astro_staking: msg.astro_staking,
             converter: msg.converter,
-            beclip_daily_reward: msg
-                .beclip_daily_reward
-                .unwrap_or(Uint128::from(1_000_000_000u128)),
             astroport_generator: msg.astroport_generator,
             treasury: msg.treasury,
             stability_pool: msg.stability_pool,

@@ -38,6 +38,6 @@ pub const DEFAULT_LOCK_CONFIGS: &[LockConfig] = &[
 ];
 
 pub const DEFAULT_REWARD_DISTRIBUTION_CONFIG: RewardDistributionConfig = RewardDistributionConfig {
-    instant: 3000,           // bps
-    vesting_period: 7776000, // 3 months
+    instant: 10000,    // bps
+    vesting_period: 0, // no vesting
 };
