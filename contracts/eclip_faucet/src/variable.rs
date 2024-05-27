@@ -1,1 +1,4 @@
 pub const SUB_DENOM: &str = "eclip";
+pub const CLAIM_DURATION: u64 = 3600;
+pub const DEFAULT_USER_CLAIM_AMOUNT: u128 = 10_000_000_000;
+pub const DEFAULT_ADMIN_CLAIM_AMOUNT: u128 = 1_000_000_000_000;
