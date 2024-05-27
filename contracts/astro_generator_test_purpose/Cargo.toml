@@ -26,6 +26,7 @@ serde               = { workspace = true }
 thiserror           = { workspace = true }
 anyhow              = { workspace = true }
 semver              = { workspace = true }
+equinox-msg         = { workspace = true }
 
 osmosis-std         = "0.21.0"
 getrandom           = { version = "0.2.9", features = ["js"] }

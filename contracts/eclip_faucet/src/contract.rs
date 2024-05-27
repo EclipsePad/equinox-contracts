@@ -11,7 +11,7 @@ use crate::{
 use crate::actions::{
     execute::try_claim,
     instantiate::try_instantiate,
-    other::migrate_contract,
+    migrate::migrate_contract,
     query::{last_claimed, query_denom},
 };
 

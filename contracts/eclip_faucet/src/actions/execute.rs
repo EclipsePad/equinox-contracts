@@ -12,14 +12,14 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     nonpayable(&info)?;
 
     let sender_address = &info.sender;
+    let is_admin = OWNER
+        .is_admin(deps.as_ref(), sender_address)
+        .unwrap_or_default();
     let now_in_seconds = env.block.time.seconds();
     let creator = &env.contract.address;
     let denom = TOKEN.load(deps.storage)?;
     let mut amount = coin(10_000_000_000, denom.clone());
-    if OWNER
-        .is_admin(deps.as_ref(), &sender_address)
-        .unwrap_or_default()
-    {
+    if is_admin {
         amount = coin(1_000_000_000_000, denom);
     }
 
@@ -27,11 +27,7 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         .load(deps.storage, sender_address)
         .unwrap_or_default();
 
-    if now_in_seconds < last_claimed + 3600
-        && !OWNER
-            .is_admin(deps.as_ref(), &sender_address)
-            .unwrap_or_default()
-    {
+    if now_in_seconds < last_claimed + 3600 && !is_admin {
         Err(cosmwasm_std::StdError::GenericErr {
             msg: "Come back later".to_owned(),
         })?;

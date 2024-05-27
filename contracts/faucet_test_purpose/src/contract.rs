@@ -6,7 +6,7 @@ use crate::{
     actions::{
         execute::{try_claim, update_owner},
         instantiate::try_instantiate,
-        other::migrate_contract,
+        migrate::migrate_contract,
         query::{last_claimed, query_config, query_owner},
     },
     error::ContractError,
