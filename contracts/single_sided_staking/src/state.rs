@@ -5,7 +5,7 @@ use cw_storage_plus::{Item, Map};
 use equinox_msg::single_sided_staking::{Config, RewardWeights, UserStaked};
 
 /// Contract name that is used for migration.
-pub const CONTRACT_NAME: &str = "eclipASTRO staking contract";
+pub const CONTRACT_NAME: &str = "single sided staking contract";
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const OWNER: Admin = Admin::new("owner");

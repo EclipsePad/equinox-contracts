@@ -57,7 +57,7 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         )
     }
 
-    let astro_amount_to_convert = coin(10_000_000_000, config.xastro_token.clone());
+    let astro_amount_to_convert = coin(10_000_000_000, config.astro_token.clone());
 
     if xastro_balance.amount < Uint128::from(1_000_000_000u128) {
         msg_list.push(
@@ -77,16 +77,14 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
             msg: "Come back later".to_owned(),
         })?;
     }
-    let msg_list = vec![
-        CosmosMsg::Bank(BankMsg::Send {
-            to_address: sender_address.to_string(),
-            amount: vec![astro_amount_to_mint],
-        }),
-        CosmosMsg::Bank(BankMsg::Send {
-            to_address: sender_address.to_string(),
-            amount: vec![xastro_amount_to_mint],
-        }),
-    ];
+    msg_list.push(CosmosMsg::Bank(BankMsg::Send {
+        to_address: sender_address.to_string(),
+        amount: vec![astro_amount_to_mint],
+    }));
+    msg_list.push(CosmosMsg::Bank(BankMsg::Send {
+        to_address: sender_address.to_string(),
+        amount: vec![xastro_amount_to_mint],
+    }));
 
     LAST_CLAIMED.save(deps.storage, &sender_address, &now_in_seconds)?;
 

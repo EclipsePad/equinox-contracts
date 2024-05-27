@@ -69,7 +69,9 @@ Updates treasury address which receives early unlock penalty assets
 ```json
 {
   "update_config": {
-    "dao_treasury_address": "neutron..."
+    "new_config": {
+      "dao_treasury_address": "neutron..."
+    }
   }
 }
 ```
@@ -83,6 +85,18 @@ Updates reward vesting config. There is no vesting in default config
   "update_reward_distribution_config": {
     "instant": 10000,
     "vesting_period": 0
+  }
+}
+```
+
+### `update_owner`
+
+Updates contract owner
+
+```json
+{
+  "update_owner": {
+    "new_owner": "neutron..."
   }
 }
 ```

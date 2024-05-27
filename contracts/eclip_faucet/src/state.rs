@@ -2,7 +2,7 @@ use cosmwasm_std::Addr;
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
 
-pub const CONTRACT_NAME: &str = "crates.io:eclipsefi-astro-generator";
+pub const CONTRACT_NAME: &str = "crates.io:eclip-faucet";
 
 pub const TOKEN: Item<String> = Item::new("token");
 

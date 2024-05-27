@@ -5,6 +5,8 @@ use cw20::Cw20ReceiveMsg;
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    /// contract owner
+    pub owner: Option<Addr>,
     /// lp token
     pub lp_token: Addr,
     /// lp contract

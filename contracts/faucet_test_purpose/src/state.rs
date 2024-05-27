@@ -11,7 +11,7 @@ pub struct Config {
     pub staking_contract: Addr,
 }
 
-pub const CONTRACT_NAME: &str = "crates.io:eclipsepad-faucet";
+pub const CONTRACT_NAME: &str = "crates.io:eclipsefi-faucet";
 
 pub const CONFIG: Item<Config> = Item::new("config");
 

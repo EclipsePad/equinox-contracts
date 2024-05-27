@@ -490,6 +490,7 @@ impl SuiteBuilder {
                 lp_staking_code_id,
                 admin.clone(),
                 &LpStakingInstantiateMsg {
+                    owner: None,
                     lp_token: eclipastro_xastro_lp_token_contract.clone(),
                     lp_contract: eclipastro_xastro_lp_contract.clone(),
                     rewards: LpStakingRewardDetails {

@@ -26,7 +26,7 @@ serde               = { workspace = true }
 thiserror           = { workspace = true }
 anyhow              = { workspace = true }
 semver              = { workspace = true }
-astro-generator     = { workspace = true }
+astro-generator     = { workspace = true, features = ["library"] }
 
 astroport           = { workspace = true }
 equinox-msg         = { workspace = true }

@@ -43,7 +43,7 @@ pub fn try_instantiate(
         },
     )?;
     // update owner
-    let owner = info.sender;
+    let owner = msg.owner.unwrap_or(info.sender);
     OWNER.set(deps.branch(), Some(owner))?;
     Ok(Response::new())
 }

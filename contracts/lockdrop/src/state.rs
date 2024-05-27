@@ -10,7 +10,7 @@ use equinox_msg::{
 };
 
 /// Contract name that is used for migration.
-pub const CONTRACT_NAME: &str = "eclipASTRO staking contract";
+pub const CONTRACT_NAME: &str = "eclipsefi lockdrop contract";
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const OWNER: Admin = Admin::new("owner");
