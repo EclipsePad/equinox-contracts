@@ -169,13 +169,13 @@ pub fn _handle_callback(
 pub fn stake(
     deps: DepsMut,
     env: Env,
-    msg: MessageInfo,
+    info: MessageInfo,
     duration: u64,
     recipient: Option<String>,
 ) -> Result<Response, ContractError> {
-    let sender = msg.sender.to_string();
+    let sender = info.sender.to_string();
     let recipient = recipient.unwrap_or(sender.clone());
-    let received_asset = one_coin(&msg)?;
+    let received_asset = one_coin(&info)?;
     let config = CONFIG.load(deps.storage)?;
     let eclipastro_balance: BalanceResponse = deps.querier.query_wasm_smart(
         &config.token,
