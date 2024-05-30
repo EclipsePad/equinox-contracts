@@ -334,7 +334,9 @@ pub fn query_user_lp_lockup_info(
 }
 
 pub fn query_total_incentives(deps: Deps) -> StdResult<IncentiveAmounts> {
-    TOTAL_LOCKDROP_INCENTIVES.load(deps.storage)
+    Ok(TOTAL_LOCKDROP_INCENTIVES
+        .load(deps.storage)
+        .unwrap_or_default())
 }
 
 pub fn calculate_single_sided_total_rewards(

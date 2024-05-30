@@ -3,7 +3,8 @@ use cosmwasm_std::{
     coin, ensure, ensure_eq, from_json, to_json_binary, BankMsg, CosmosMsg, DepsMut, Env,
     MessageInfo, Response, StdResult, Uint128, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
+use cw_utils::one_coin;
 
 use crate::{
     entry::query::calculate_penalty,
@@ -15,7 +16,9 @@ use crate::{
 };
 
 use equinox_msg::{
-    single_sided_staking::{Cw20HookMsg, RestakeData, UpdateConfigMsg, UserStaked, VaultRewards},
+    single_sided_staking::{
+        CallbackMsg, Cw20HookMsg, RestakeData, UpdateConfigMsg, UserStaked, VaultRewards,
+    },
     token_converter::ExecuteMsg as ConverterExecuteMsg,
 };
 
@@ -125,6 +128,145 @@ pub fn update_owner(
         .add_attribute("to", new_owner))
 }
 
+pub fn _handle_callback(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: CallbackMsg,
+) -> Result<Response, ContractError> {
+    // Only the contract itself can call callbacks
+    ensure_eq!(
+        info.sender,
+        env.contract.address,
+        ContractError::InvalidCallbackInvoke {}
+    );
+    match msg {
+        CallbackMsg::Convert {
+            prev_eclipastro_balance,
+            duration,
+            sender,
+            recipient,
+        } => {
+            let config = CONFIG.load(deps.storage)?;
+            let eclipastro_balance: BalanceResponse = deps.querier.query_wasm_smart(
+                config.token,
+                &Cw20QueryMsg::Balance {
+                    address: env.contract.address.to_string(),
+                },
+            )?;
+            _stake(
+                deps,
+                env,
+                duration,
+                sender,
+                recipient,
+                prev_eclipastro_balance - eclipastro_balance.balance,
+            )
+        }
+    }
+}
+
+pub fn stake(
+    deps: DepsMut,
+    env: Env,
+    msg: MessageInfo,
+    duration: u64,
+    recipient: Option<String>,
+) -> Result<Response, ContractError> {
+    let sender = msg.sender.to_string();
+    let recipient = recipient.unwrap_or(sender.clone());
+    let received_asset = one_coin(&msg)?;
+    let config = CONFIG.load(deps.storage)?;
+    let eclipastro_balance: BalanceResponse = deps.querier.query_wasm_smart(
+        &config.token,
+        &Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        },
+    )?;
+    Ok(Response::new()
+        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.token_converter.to_string(),
+            msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
+            funds: vec![received_asset],
+        }))
+        .add_message(
+            CallbackMsg::Convert {
+                prev_eclipastro_balance: eclipastro_balance.balance,
+                duration,
+                sender,
+                recipient,
+            }
+            .to_cosmos_msg(&env)?,
+        ))
+}
+
+pub fn _stake(
+    mut deps: DepsMut,
+    env: Env,
+    lock_duration: u64,
+    sender: String,
+    recipient: String,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    ensure!(
+        config
+            .timelock_config
+            .into_iter()
+            .any(|i| i.duration == lock_duration),
+        ContractError::NoLockingPeriodFound(lock_duration)
+    );
+
+    let current_time = env.block.time.seconds();
+    let updated_reward_weights = calculate_updated_reward_weights(deps.as_ref(), current_time)?;
+
+    let mut response = Response::new();
+
+    let locked_at = match lock_duration {
+        0u64 => 0u64,
+        _ => current_time,
+    };
+
+    let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
+
+    let mut user_staking = USER_STAKED
+        .load(deps.storage, (&recipient, lock_duration, locked_at))
+        .unwrap_or(UserStaked {
+            staked: Uint128::zero(),
+            reward_weights: updated_reward_weights.clone(),
+        });
+    if !user_staking.staked.is_zero() {
+        response = _claim_single(
+            deps.branch(),
+            env.clone(),
+            sender.clone(),
+            lock_duration,
+            locked_at,
+        )?;
+    } else {
+        LAST_CLAIM_TIME.save(deps.storage, &env.block.time.seconds())?;
+    }
+
+    let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION
+        .load(deps.storage, lock_duration)
+        .unwrap_or_default();
+    user_staking.staked = user_staking.staked.checked_add(amount).unwrap();
+    total_staking = total_staking.checked_add(amount).unwrap();
+    total_staking_by_duration = total_staking_by_duration.checked_add(amount).unwrap();
+    USER_STAKED.save(
+        deps.storage,
+        (&recipient.to_string(), lock_duration, locked_at),
+        &user_staking,
+    )?;
+    TOTAL_STAKING.save(deps.storage, &total_staking)?;
+    TOTAL_STAKING_BY_DURATION.save(deps.storage, lock_duration, &total_staking_by_duration)?;
+    REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
+    Ok(response
+        .add_attribute("action", "stake eclipastro")
+        .add_attribute("duration", lock_duration.to_string())
+        .add_attribute("amount", amount.to_string()))
+}
+
 /// Cw20 Receive hook msg handler.
 pub fn receive_cw20(
     mut deps: DepsMut,
@@ -154,67 +296,14 @@ pub fn receive_cw20(
         } => {
             let sender = msg.sender;
             let recipient = recipient.unwrap_or(sender.clone());
-            ensure!(
-                config
-                    .timelock_config
-                    .into_iter()
-                    .any(|i| i.duration == lock_duration),
-                ContractError::NoLockingPeriodFound(lock_duration)
-            );
-
-            let current_time = env.block.time.seconds();
-            let updated_reward_weights =
-                calculate_updated_reward_weights(deps.as_ref(), current_time)?;
-
-            let mut response = Response::new();
-
-            let locked_at = match lock_duration {
-                0u64 => 0u64,
-                _ => current_time,
-            };
-
-            let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
-
-            let mut user_staking = USER_STAKED
-                .load(deps.storage, (&recipient, lock_duration, locked_at))
-                .unwrap_or(UserStaked {
-                    staked: Uint128::zero(),
-                    reward_weights: updated_reward_weights.clone(),
-                });
-            if !user_staking.staked.is_zero() {
-                response = _claim_single(
-                    deps.branch(),
-                    env.clone(),
-                    sender.clone(),
-                    lock_duration,
-                    locked_at,
-                )?;
-            } else {
-                LAST_CLAIM_TIME.save(deps.storage, &env.block.time.seconds())?;
-            }
-
-            let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION
-                .load(deps.storage, lock_duration)
-                .unwrap_or_default();
-            user_staking.staked = user_staking.staked.checked_add(msg.amount).unwrap();
-            total_staking = total_staking.checked_add(msg.amount).unwrap();
-            total_staking_by_duration = total_staking_by_duration.checked_add(msg.amount).unwrap();
-            USER_STAKED.save(
-                deps.storage,
-                (&recipient.to_string(), lock_duration, locked_at),
-                &user_staking,
-            )?;
-            TOTAL_STAKING.save(deps.storage, &total_staking)?;
-            TOTAL_STAKING_BY_DURATION.save(
-                deps.storage,
+            _stake(
+                deps.branch(),
+                env,
                 lock_duration,
-                &total_staking_by_duration,
-            )?;
-            REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
-            Ok(response
-                .add_attribute("action", "stake eclipastro")
-                .add_attribute("duration", lock_duration.to_string())
-                .add_attribute("amount", msg.amount.to_string()))
+                sender,
+                recipient,
+                msg.amount,
+            )
         }
         Cw20HookMsg::Restake {
             from_duration,

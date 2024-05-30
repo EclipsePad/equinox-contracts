@@ -96,13 +96,16 @@ pub fn calculate_user_staking_rewards(
 
 pub fn calculate_incentive_pending_rewards(deps: Deps, contract: Addr) -> StdResult<Vec<Asset>> {
     let cfg = CONFIG.load(deps.storage)?;
-    deps.querier.query_wasm_smart(
-        &cfg.astroport_generator,
-        &IncentivesQueryMsg::PendingRewards {
-            lp_token: cfg.lp_token.to_string(),
-            user: contract.to_string(),
-        },
-    )
+    Ok(deps
+        .querier
+        .query_wasm_smart(
+            &cfg.astroport_generator,
+            &IncentivesQueryMsg::PendingRewards {
+                lp_token: cfg.lp_token.to_string(),
+                user: contract.to_string(),
+            },
+        )
+        .unwrap_or_default())
 }
 
 pub fn calculate_vault_rewards(deps: Deps, current_time: u64) -> StdResult<VaultRewards> {
@@ -146,7 +149,10 @@ pub fn calculate_updated_reward_weights(
 ) -> StdResult<Vec<RewardWeight>> {
     let config = CONFIG.load(deps.storage)?;
     let reward_cfg = REWARD_CONFIG.load(deps.storage)?;
-    let total_staking = TOTAL_STAKING.load(deps.storage)?;
+    let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
+    if total_staking.is_zero() {
+        return Ok(vec![]);
+    }
     let mut reward_weights = REWARD_WEIGHTS.load(deps.storage).unwrap_or_default();
     let mut is_beclip = false;
     let mut is_eclip = false;

@@ -1,6 +1,6 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Decimal256, Uint128};
+use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, Uint128, WasmMsg};
 use cw20::Cw20ReceiveMsg;
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -35,6 +35,11 @@ pub enum ExecuteMsg {
     },
     ClaimAll {
         with_flexible: bool,
+    },
+    Callback(CallbackMsg),
+    Stake {
+        duration: u64,
+        recipient: Option<String>,
     },
     Unstake {
         duration: u64,
@@ -120,6 +125,26 @@ pub struct UpdateConfigMsg {
     pub token_converter: Option<Addr>,
     pub rewards: Option<RewardConfig>,
     pub treasury: Option<Addr>,
+}
+
+#[cw_serde]
+pub enum CallbackMsg {
+    Convert {
+        prev_eclipastro_balance: Uint128,
+        duration: u64,
+        sender: String,
+        recipient: String,
+    },
+}
+
+impl CallbackMsg {
+    pub fn to_cosmos_msg(self, env: &Env) -> StdResult<CosmosMsg> {
+        Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_json_binary(&ExecuteMsg::Callback(self))?,
+            funds: vec![],
+        }))
+    }
 }
 
 #[cw_serde]

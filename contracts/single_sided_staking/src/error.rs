@@ -1,4 +1,5 @@
 use cosmwasm_std::StdError;
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 use cw_controllers::AdminError;
@@ -28,6 +29,9 @@ pub enum ContractError {
     #[error("Exceed locked amount")]
     ExceedAmount {},
 
+    #[error("Callbacks cannot be invoked externally")]
+    InvalidCallbackInvoke {},
+
     #[error("No locking period found: {0}")]
     NoLockingPeriodFound(u64),
 
@@ -36,6 +40,9 @@ pub enum ContractError {
 
     #[error("Not allowed address: {0}")]
     NotAllowed(String),
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
 
     #[error("Semver parsing error: {0}")]
     SemVer(String),

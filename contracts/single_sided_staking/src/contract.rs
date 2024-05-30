@@ -5,8 +5,8 @@ use cosmwasm_std::{
 use crate::{
     entry::{
         execute::{
-            allow_users, block_users, claim, claim_all, receive_cw20, restake, unstake,
-            update_config, update_owner,
+            _handle_callback, allow_users, block_users, claim, claim_all, receive_cw20, restake,
+            stake, unstake, update_config, update_owner,
         },
         instantiate::try_instantiate,
         query::{
@@ -50,6 +50,10 @@ pub fn execute(
             locked_at,
         } => claim(deps, env, info, duration, locked_at),
         ExecuteMsg::ClaimAll { with_flexible } => claim_all(deps, env, info, with_flexible),
+        ExecuteMsg::Stake {
+            duration,
+            recipient,
+        } => stake(deps, env, info, duration, recipient),
         ExecuteMsg::Unstake {
             duration,
             locked_at,
@@ -81,6 +85,7 @@ pub fn execute(
         }
         ExecuteMsg::AllowUsers { users } => allow_users(deps, info, users),
         ExecuteMsg::BlockUsers { users } => block_users(deps, info, users),
+        ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
     }
 }
 

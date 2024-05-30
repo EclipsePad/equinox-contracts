@@ -23,6 +23,7 @@ cosmwasm-std    = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cw-controllers  = { workspace = true }
 cw-storage-plus = { workspace = true }
+cw-utils        = { workspace = true }
 semver          = { workspace = true }
 thiserror       = { workspace = true }
 equinox-msg     = { workspace = true }
