@@ -160,7 +160,7 @@ pub fn _handle_callback(
                 duration,
                 sender,
                 recipient,
-                prev_eclipastro_balance - eclipastro_balance.balance,
+                eclipastro_balance.balance - prev_eclipastro_balance,
             )
         }
     }

@@ -73,7 +73,7 @@ pub fn try_instantiate(
                 marketing: msg.marketing,
             })?,
             funds: vec![],
-            label: String::from("Staked Astroport Token"),
+            label: String::from("eclipASTRO Token"),
         }
         .into(),
         id: INSTANTIATE_TOKEN_REPLY_ID,
