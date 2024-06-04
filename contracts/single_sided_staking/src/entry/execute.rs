@@ -17,7 +17,8 @@ use crate::{
 
 use equinox_msg::{
     single_sided_staking::{
-        CallbackMsg, Cw20HookMsg, RestakeData, UpdateConfigMsg, UserStaked, VaultRewards,
+        CallbackMsg, Cw20HookMsg, RestakeData, UpdateConfigMsg, UserReward, UserStaked,
+        VaultRewards,
     },
     token_converter::ExecuteMsg as ConverterExecuteMsg,
 };
@@ -55,7 +56,7 @@ pub fn update_config(
         res = res.add_attribute("rewards", "update rewards");
     }
     if let Some(timelock_config) = new_config.timelock_config {
-        config.timelock_config = timelock_config.clone();
+        config.timelock_config.clone_from(&timelock_config);
         res = res.add_attribute(
             "timelock_config",
             timelock_config
@@ -242,6 +243,7 @@ pub fn _stake(
             sender.clone(),
             lock_duration,
             locked_at,
+            None,
         )?;
     } else {
         LAST_CLAIM_TIME.save(deps.storage, &env.block.time.seconds())?;
@@ -264,6 +266,7 @@ pub fn _stake(
     Ok(response
         .add_attribute("action", "stake eclipastro")
         .add_attribute("duration", lock_duration.to_string())
+        .add_attribute("locked_at", locked_at.to_string())
         .add_attribute("amount", amount.to_string()))
 }
 
@@ -384,6 +387,7 @@ pub fn restake(mut deps: DepsMut, env: Env, data: RestakeData) -> Result<Respons
         sender.to_string(),
         from_duration,
         locked_at,
+        None,
     )?;
 
     let mut user_staking_to = UserStaked {
@@ -449,8 +453,10 @@ pub fn _claim_single(
     sender: String,
     duration: u64,
     locked_at: u64,
+    assets: Option<Vec<AssetInfo>>,
 ) -> Result<Response, ContractError> {
     let current_time = env.block.time.seconds();
+    let config = CONFIG.load(deps.storage)?;
     let mut user_staking = USER_STAKED.load(deps.storage, (&sender, duration, locked_at))?;
     let updated_reward_weights = calculate_updated_reward_weights(deps.as_ref(), current_time)?;
     let user_reward = calculate_user_reward(
@@ -460,8 +466,30 @@ pub fn _claim_single(
         locked_at,
         current_time,
     )?;
-
-    user_staking.reward_weights = updated_reward_weights.clone();
+    let mut user_reward_to_claim = UserReward::default();
+    if let Some(assets) = assets {
+        for asset in assets {
+            if asset.equal(&AssetInfo::Token {
+                contract_addr: config.token.clone(),
+            }) {
+                user_staking
+                    .reward_weights
+                    .eclipastro
+                    .clone_from(&updated_reward_weights.eclipastro);
+                user_reward_to_claim.eclipastro = user_reward.eclipastro;
+            }
+            if asset.equal(&config.rewards.eclip.info) {
+                user_staking.reward_weights.eclip = updated_reward_weights.eclip;
+                user_reward_to_claim.eclip = user_reward.eclip;
+            }
+            if asset.equal(&config.rewards.beclip.info) {
+                user_staking.reward_weights.beclip = updated_reward_weights.beclip;
+                user_reward_to_claim.beclip = user_reward.beclip;
+            }
+        }
+    } else {
+        user_reward_to_claim = user_reward;
+    }
     REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
     USER_STAKED.save(deps.storage, (&sender, duration, locked_at), &user_staking)?;
     LAST_CLAIM_TIME.save(deps.storage, &env.block.time.seconds())?;
@@ -469,10 +497,10 @@ pub fn _claim_single(
         deps,
         env,
         sender,
-        user_reward.eclipastro,
+        user_reward_to_claim.eclipastro,
         VaultRewards {
-            eclip: user_reward.eclip,
-            beclip: user_reward.beclip,
+            eclip: user_reward_to_claim.eclip,
+            beclip: user_reward_to_claim.beclip,
         },
     )
 }
@@ -631,9 +659,17 @@ pub fn claim(
     info: MessageInfo,
     duration: u64,
     locked_at: Option<u64>,
+    assets: Option<Vec<AssetInfo>>,
 ) -> Result<Response, ContractError> {
     let locked_at = locked_at.unwrap_or_default();
-    _claim_single(deps, env, info.sender.to_string(), duration, locked_at)
+    _claim_single(
+        deps,
+        env,
+        info.sender.to_string(),
+        duration,
+        locked_at,
+        assets,
+    )
 }
 
 pub fn claim_all(
@@ -663,6 +699,7 @@ pub fn unstake(
         sender.clone(),
         duration,
         locked_at,
+        None,
     )?;
 
     let config = CONFIG.load(deps.storage)?;

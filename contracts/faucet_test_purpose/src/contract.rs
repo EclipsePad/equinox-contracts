@@ -4,7 +4,7 @@ use cosmwasm_std::{
 
 use crate::{
     actions::{
-        execute::{try_claim, update_owner},
+        execute::{try_claim, update_config, update_owner},
         instantiate::try_instantiate,
         migrate::migrate_contract,
         query::{last_claimed, query_config, query_owner},
@@ -34,6 +34,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
+        ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
         ExecuteMsg::Claim {} => try_claim(deps, env, info),
     }
 }

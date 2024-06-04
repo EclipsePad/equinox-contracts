@@ -1014,7 +1014,7 @@ impl Suite {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lp_staking_contract.clone(),
-            &LpStakingExecuteMsg::Claim {},
+            &LpStakingExecuteMsg::Claim { assets: None },
             &[],
         )
     }
@@ -1169,6 +1169,7 @@ impl Suite {
             &SingleSidedStakingExecuteMsg::Claim {
                 duration,
                 locked_at: Some(locked_at),
+                assets: None,
             },
             &[],
         )

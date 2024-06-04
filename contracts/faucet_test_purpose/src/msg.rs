@@ -7,11 +7,16 @@ pub struct InstantiateMsg {
     pub xastro_token: String,
     pub astro_generator: Addr,
     pub staking_contract: Addr,
+    pub lp_contract: Addr,
+    pub lp_token: Addr,
+    pub converter: Addr,
+    pub eclipastro_token: Addr,
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
     UpdateOwner { owner: Addr },
+    UpdateConfig { config: UpdateConfig },
     Claim {},
 }
 
@@ -42,4 +47,16 @@ pub struct ConfigResponse {
     pub xastro_token: String,
     pub astro_generator: Addr,
     pub staking_contract: Addr,
+}
+
+#[cw_serde]
+pub struct UpdateConfig {
+    pub astro_token: Option<String>,
+    pub xastro_token: Option<String>,
+    pub eclipastro_token: Option<Addr>,
+    pub lp_token: Option<Addr>,
+    pub astro_generator: Option<Addr>,
+    pub staking_contract: Option<Addr>,
+    pub lp_contract: Option<Addr>,
+    pub converter: Option<Addr>,
 }

@@ -1,5 +1,5 @@
 use astroport::{
-    asset::Asset,
+    asset::{Asset, AssetInfo},
     incentives::{Cw20Msg as IncentivesCw20Msg, ExecuteMsg as IncentivesExecuteMsg},
     staking::ExecuteMsg as StakingExecuteMsg,
 };
@@ -8,9 +8,8 @@ use cosmwasm_std::{
     MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use equinox_msg::{
-    lp_staking::{CallbackMsg, Cw20HookMsg, RewardConfig, UpdateConfigMsg},
-    // token_converter::ExecuteMsg as ConverterExecuteMsg,
+use equinox_msg::lp_staking::{
+    CallbackMsg, Cw20HookMsg, RewardConfig, RewardWeight, UpdateConfigMsg,
 };
 
 use crate::{
@@ -138,6 +137,7 @@ pub fn receive_cw20(
         Cw20HookMsg::Stake {} => {
             let cfg = CONFIG.load(deps.storage)?;
             let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
+            let reward_weights = REWARD_WEIGHTS.load(deps.storage).unwrap_or_default();
             let mut user_staking = STAKING
                 .load(deps.storage, &msg.sender.to_string())
                 .unwrap_or_default();
@@ -170,9 +170,10 @@ pub fn receive_cw20(
             }));
 
             if total_staking.gt(&Uint128::zero()) {
-                response = _claim(deps.branch(), env, msg.sender.clone())?;
+                response = _claim(deps.branch(), env, msg.sender.clone(), None)?;
             } else {
                 LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
+                user_staking.reward_weights = reward_weights;
             }
 
             total_staking += msg.amount;
@@ -190,7 +191,12 @@ pub fn receive_cw20(
     }
 }
 
-pub fn _claim(deps: DepsMut, env: Env, sender: String) -> Result<Response, ContractError> {
+pub fn _claim(
+    deps: DepsMut,
+    env: Env,
+    sender: String,
+    assets: Option<Vec<AssetInfo>>,
+) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
     let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
     let mut user_staking = STAKING.load(deps.storage, &sender).unwrap_or_default();
@@ -229,23 +235,16 @@ pub fn _claim(deps: DepsMut, env: Env, sender: String) -> Result<Response, Contr
         )?;
         let mut coins = vec![];
         for r in user_rewards {
-            if !r.amount.is_zero() {
+            let claimable = assets.clone().is_none()
+                || (assets.clone().is_some()
+                    && assets.clone().unwrap().iter().any(|a| a.equal(&r.info)));
+            if !r.amount.is_zero() && claimable {
                 if r.info.is_native_token() {
-                    // if r.info.to_string() == cfg.astro {
-                    //     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                    //         contract_addr: cfg.converter.clone().into_string(),
-                    //         msg: to_json_binary(&ConverterExecuteMsg::Convert {
-                    //             recipient: Some(sender.clone()),
-                    //         })?,
-                    //         funds: vec![coin(r.amount.u128(), r.info.to_string())],
-                    //     }));
-                    // } else {
                     coins.push(coin(r.amount.u128(), r.info.to_string()));
                     response = response
                         .add_attribute("action", "claim")
                         .add_attribute("denom", r.info.to_string())
                         .add_attribute("amount", r.amount);
-                    // }
                 } else {
                     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: r.info.to_string(),
@@ -260,6 +259,20 @@ pub fn _claim(deps: DepsMut, env: Env, sender: String) -> Result<Response, Contr
                         .add_attribute("address", r.info.to_string())
                         .add_attribute("amount", r.amount);
                 }
+                user_staking.reward_weights = user_staking
+                    .reward_weights
+                    .into_iter()
+                    .map(|w| {
+                        if w.info.equal(&r.info) {
+                            return updated_reward_weights
+                                .clone()
+                                .into_iter()
+                                .find(|u| u.info == r.info)
+                                .unwrap_or(w);
+                        }
+                        w
+                    })
+                    .collect::<Vec<RewardWeight>>();
             }
         }
         if !coins.is_empty() {
@@ -268,8 +281,11 @@ pub fn _claim(deps: DepsMut, env: Env, sender: String) -> Result<Response, Contr
                 amount: coins,
             }));
         }
+    } else {
+        user_staking
+            .reward_weights
+            .clone_from(&updated_reward_weights);
     }
-    user_staking.reward_weights = updated_reward_weights.clone();
 
     if !pending_eclipse_rewards.is_empty() {
         msgs.push(
@@ -293,8 +309,9 @@ pub fn claim(
     env: Env,
     _info: MessageInfo,
     sender: String,
+    assets: Option<Vec<AssetInfo>>,
 ) -> Result<Response, ContractError> {
-    _claim(deps, env, sender)
+    _claim(deps, env, sender, assets)
 }
 
 /// Unstake amount and claim rewards of user
@@ -324,7 +341,7 @@ pub fn unstake(
     );
 
     if total_staking.gt(&Uint128::zero()) {
-        response = _claim(deps.branch(), env, receiver.clone())?;
+        response = _claim(deps.branch(), env, receiver.clone(), None)?;
     }
 
     total_staking = total_staking.checked_sub(amount).unwrap();

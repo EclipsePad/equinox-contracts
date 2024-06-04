@@ -41,7 +41,9 @@ pub fn execute(
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::Claim {} => claim(deps, env, info.clone(), info.sender.to_string()),
+        ExecuteMsg::Claim { assets } => {
+            claim(deps, env, info.clone(), info.sender.to_string(), assets)
+        }
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
         ExecuteMsg::Unstake { amount, recipient } => unstake(deps, env, info, amount, recipient),
         ExecuteMsg::UpdateRewardConfig { config } => update_reward_config(deps, env, info, config),

@@ -32,6 +32,7 @@ pub enum ExecuteMsg {
     Claim {
         duration: u64,
         locked_at: Option<u64>,
+        assets: Option<Vec<AssetInfo>>,
     },
     ClaimAll {
         with_flexible: bool,
@@ -207,6 +208,7 @@ pub struct UserStaked {
 }
 
 #[cw_serde]
+#[derive(Default)]
 pub struct UserReward {
     pub eclipastro: Uint128,
     pub beclip: Uint128,

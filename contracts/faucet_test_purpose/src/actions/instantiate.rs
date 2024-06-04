@@ -27,8 +27,12 @@ pub fn try_instantiate(
         &Config {
             astro_token: msg.astro_token,
             xastro_token: msg.xastro_token,
+            eclipastro_token: msg.eclipastro_token,
             astro_generator: msg.astro_generator,
             staking_contract: msg.staking_contract,
+            lp_token: msg.lp_token,
+            lp_contract: msg.lp_contract,
+            converter: msg.converter,
         },
     )?;
 

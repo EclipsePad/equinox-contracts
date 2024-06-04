@@ -43,6 +43,6 @@ pub fn try_mint(
         .add_attributes([
             ("action", "mint"),
             ("amount", &amount.to_string()),
-            ("recipient", &info.sender.as_ref()),
+            ("recipient", info.sender.as_ref()),
         ]))
 }

@@ -41,7 +41,7 @@ pub enum ExecuteMsg {
     /// This accepts a properly-encoded ReceiveMsg from a cw20 contract
     Receive(Cw20ReceiveMsg),
     /// Claim rewards of user.
-    Claim {},
+    Claim { assets: Option<Vec<AssetInfo>> },
     /// Callbacks; only callable by the contract itself.
     Callback(CallbackMsg),
     Unstake {

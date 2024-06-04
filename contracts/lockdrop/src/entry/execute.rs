@@ -1492,7 +1492,7 @@ pub fn _claim_lp_rewards(
 
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: cfg.lp_staking.clone().to_string(),
-        msg: to_json_binary(&LpExecuteMsg::Claim {})?,
+        msg: to_json_binary(&LpExecuteMsg::Claim { assets: None })?,
         funds: vec![],
     }));
 
@@ -1753,7 +1753,7 @@ pub fn _claim_all_lp_rewards(
 
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: cfg.lp_staking.clone().to_string(),
-        msg: to_json_binary(&LpExecuteMsg::Claim {})?,
+        msg: to_json_binary(&LpExecuteMsg::Claim { assets: None })?,
         funds: vec![],
     }));
 

@@ -21,15 +21,15 @@ pub fn update_config(
     let mut config = CONFIG.load(deps.storage)?;
     let mut res: Response = Response::new().add_attribute("action", "update config");
     if let Some(astro) = new_config.astro {
-        config.astro = astro.clone();
+        config.astro.clone_from(&astro);
         res = res.add_attribute("astro", astro);
     }
     if let Some(xastro) = new_config.xastro {
-        config.xastro = xastro.clone();
+        config.xastro.clone_from(&xastro);
         res = res.add_attribute("xastro", xastro);
     }
     if let Some(vxastro) = new_config.vxastro {
-        config.vxastro = vxastro.clone();
+        config.vxastro.clone_from(&vxastro);
         res = res.add_attribute("vxastro", vxastro);
     }
     if let Some(staking_contract) = new_config.staking_contract {
