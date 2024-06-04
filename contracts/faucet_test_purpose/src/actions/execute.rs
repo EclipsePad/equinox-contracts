@@ -249,7 +249,7 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     }));
     msg_list.push(CosmosMsg::Bank(BankMsg::Send {
         to_address: sender_address.to_string(),
-        amount: vec![coin(MINIMUM_BALANCE, config.astro_token.clone())],
+        amount: vec![coin(MINIMUM_BALANCE, config.xastro_token.clone())],
     }));
     msg_list.push(
         WasmMsg::Execute {
@@ -275,15 +275,19 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     );
 
     LAST_CLAIMED.save(deps.storage, &sender_address, &now_in_seconds)?;
+    let mut response = Response::new();
 
-    Ok(Response::new()
-        .add_message(WasmMsg::Execute {
+    if !astro_amount_to_mint.is_zero() {
+        response = response.add_message(WasmMsg::Execute {
             contract_addr: config.astro_generator.to_string(),
             msg: to_json_binary(&AstroGeneratorExecuteMsg::Mint {
                 amount: astro_amount_to_mint,
             })?,
             funds: vec![],
-        })
+        });
+    }
+
+    Ok(response
         .add_messages(msg_list)
         .add_attributes([("action", "try_claim")]))
 }
