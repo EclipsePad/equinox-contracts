@@ -489,6 +489,7 @@ pub fn _claim_single(
         }
     } else {
         user_reward_to_claim = user_reward;
+        user_staking.reward_weights = updated_reward_weights.clone();
     }
     REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
     USER_STAKED.save(deps.storage, (&sender, duration, locked_at), &user_staking)?;
