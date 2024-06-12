@@ -361,6 +361,13 @@ impl SuiteBuilder {
     pub fn build(self) -> Suite {
         let mut app: App = App::default();
 
+        // set time
+        app.update_block(|x| {
+            x.time = x
+                .time
+                .plus_seconds(astroport_governance::utils::EPOCH_START);
+        });
+
         let admin = Addr::unchecked("admin");
         let eclipse_treasury = Addr::unchecked("eclipse_treasury");
         let eclipse_stability_pool = Addr::unchecked("eclipse_stability_pool");
