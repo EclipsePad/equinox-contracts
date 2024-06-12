@@ -1,10 +1,9 @@
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
 use equinox_msg::lockdrop::{
-        Config, IncentiveAmounts, LockupInfo, LpLockupState, LpStakingRewardWeights,
-        LpUserLockupInfo, RewardDistributionConfig, SingleLockupState, SingleStakingRewardWeights,
-        SingleUserLockupInfo,
-    };
+    Config, IncentiveAmounts, LockupInfo, LpLockupState, LpStakingRewardWeights, LpUserLockupInfo,
+    RewardDistributionConfig, SingleLockupState, SingleStakingRewardWeights, SingleUserLockupInfo,
+};
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = "eclipASTRO staking contract";

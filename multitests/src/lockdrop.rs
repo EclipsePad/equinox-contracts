@@ -1304,7 +1304,9 @@ fn single_sided_incentives_distribution() {
             .u128(),
         18518u128
     );
-    suite.single_lockdrop_claim_rewards(ALICE, 2592000, None).unwrap();
+    suite
+        .single_lockdrop_claim_rewards(ALICE, 2592000, None)
+        .unwrap();
     let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     let alice_eclip_balance = suite
         .query_balance_native(ALICE.to_string(), suite.eclip())
@@ -1795,7 +1797,9 @@ fn restake_and_unlock() {
 
     suite.update_time(86400u64);
     let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    suite.single_lockdrop_claim_rewards(ALICE, 2592000, None).unwrap();
+    suite
+        .single_lockdrop_claim_rewards(ALICE, 2592000, None)
+        .unwrap();
     // let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     // assert_eq!(user_info, vec![]);
     let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
@@ -1854,7 +1858,9 @@ fn restake_and_unlock() {
     suite.single_lockdrop_claim_rewards(ALICE, 0, None).unwrap();
 
     let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    suite.lp_lockdrop_claim_rewards(ALICE, 2592000, None).unwrap();
+    suite
+        .lp_lockdrop_claim_rewards(ALICE, 2592000, None)
+        .unwrap();
     let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 37037);
 
@@ -1909,14 +1915,64 @@ fn restake_and_unlock() {
     // assert_eq!(info., vec![])
     // let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     // assert_eq!(user_info, vec![]);
-    
+
     // check claim with duplicated assets
-    let err = suite.single_lockdrop_claim_rewards(ALICE, 0, Some(vec![AssetInfo::NativeToken { denom: suite.eclip() }, AssetInfo::NativeToken { denom: suite.eclip() }])).unwrap_err();
+    let err = suite
+        .single_lockdrop_claim_rewards(
+            ALICE,
+            0,
+            Some(vec![
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+            ]),
+        )
+        .unwrap_err();
     assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
-    let err = suite.lp_lockdrop_claim_rewards(ALICE, 0, Some(vec![AssetInfo::NativeToken { denom: suite.eclip() }, AssetInfo::NativeToken { denom: suite.eclip() }])).unwrap_err();
+    let err = suite
+        .lp_lockdrop_claim_rewards(
+            ALICE,
+            0,
+            Some(vec![
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+            ]),
+        )
+        .unwrap_err();
     assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
-    let err = suite.single_lockdrop_claim_all_rewards(ALICE, Some(vec![AssetInfo::NativeToken { denom: suite.eclip() }, AssetInfo::NativeToken { denom: suite.eclip() }])).unwrap_err();
+    let err = suite
+        .single_lockdrop_claim_all_rewards(
+            ALICE,
+            Some(vec![
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+            ]),
+        )
+        .unwrap_err();
     assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
-    let err = suite.lp_lockdrop_claim_all_rewards(ALICE, Some(vec![AssetInfo::NativeToken { denom: suite.eclip() }, AssetInfo::NativeToken { denom: suite.eclip() }])).unwrap_err();
+    let err = suite
+        .lp_lockdrop_claim_all_rewards(
+            ALICE,
+            Some(vec![
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+            ]),
+        )
+        .unwrap_err();
     assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
 }
