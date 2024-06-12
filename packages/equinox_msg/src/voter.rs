@@ -20,7 +20,7 @@ pub struct InstantiateMsg {
     pub owner: String,
 
     /// Astroport Voting Escrow contract
-    pub astroport_voting_escrow_contract: Addr,
+    pub astroport_voting_escrow_contract: String,
 }
 
 #[cw_serde]

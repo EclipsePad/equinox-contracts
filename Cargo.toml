@@ -4,6 +4,10 @@ members = [
     "packages/*",
     "multitests",
 ]
+# exclude = [
+#     "packages/astroport-voting-escrow-mock",
+#     "packages/astroport-escrow-fee-distributor-mock",
+# ]
 resolver = "2"
 
 [workspace.package]
@@ -51,7 +55,10 @@ astroport-xastro-token  = { git = "https://github.com/astroport-fi/astroport-cor
 astroport               = { git = "https://github.com/astroport-fi/astroport-core.git", version = "3.10.0" }
 # astroport-pair-stable   = { git = "https://github.com/astroport-fi/astroport-core.git", version = "3.4.0" }
 astroport-governance    = { git = "https://github.com/astroport-fi/astroport-governance.git" }
-voting-escrow           = { git = "https://github.com/astroport-fi/astroport-governance.git", version = "1.3.0" }
+
+# updated astroport contracts for integration testing
+astroport-voting-escrow = { path = "./packages/astroport_voting_escrow" }
+astroport-escrow-fee-distributor = { path = "./packages/astroport_escrow_fee_distributor" }
 
 [profile.release]
 opt-level = "z"

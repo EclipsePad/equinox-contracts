@@ -17,6 +17,7 @@ use astroport_governance::voting_escrow::{
     Cw20HookMsg as AstroportVotingEscrowCw20HookMsg, ExecuteMsg as AstroportVotingEscrowExecuteMsg,
     QueryMsg as AstroportVotingEscrowQueryMsg,
 };
+use astroport_voting_escrow;
 use cosmwasm_std::{coin, to_json_binary, Addr, Binary, Coin, Decimal, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
@@ -62,7 +63,6 @@ use equinox_msg::{
         UpdateConfig as VoterUpdateConfig,
     },
 };
-use voting_escrow;
 
 fn store_astro(app: &mut App) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
@@ -158,9 +158,9 @@ fn store_astroport_vesting(app: &mut App) -> u64 {
 
 fn store_astroport_voting_escrow(app: &mut App) -> u64 {
     app.store_code(Box::new(ContractWrapper::new_with_empty(
-        voting_escrow::contract::execute,
-        voting_escrow::contract::instantiate,
-        voting_escrow::contract::query,
+        astroport_voting_escrow::contract::execute,
+        astroport_voting_escrow::contract::instantiate,
+        astroport_voting_escrow::contract::query,
     )))
 }
 
@@ -437,7 +437,6 @@ impl SuiteBuilder {
             )
             .unwrap();
         let vesting_code_id = store_astroport_vesting(&mut app);
-        let voting_escrow_id = store_astroport_voting_escrow(&mut app);
         let astroport_vesting = app
             .instantiate_contract(
                 vesting_code_id,
@@ -453,6 +452,7 @@ impl SuiteBuilder {
                 None,
             )
             .unwrap();
+
         let generator_code_id = store_astroport_generator(&mut app);
         let astroport_generator = app
             .instantiate_contract(
@@ -485,6 +485,24 @@ impl SuiteBuilder {
                 share_token_addr: Addr::unchecked(""),
             });
         let xastro_contract = astro_staking_config.share_token_addr;
+
+        let astroport_voting_escrow_id = store_astroport_voting_escrow(&mut app);
+        let astroport_voting_escrow_address = app
+            .instantiate_contract(
+                astroport_voting_escrow_id,
+                admin.clone(),
+                &astroport_governance::voting_escrow::InstantiateMsg {
+                    owner: admin.to_string(),
+                    guardian_addr: Some("guardian".to_string()),
+                    deposit_token_addr: xastro_contract.to_string(),
+                    marketing: None,
+                    logo_urls_whitelist: vec![],
+                },
+                &[],
+                "Astroport voting escrow",
+                None,
+            )
+            .unwrap();
 
         let eclipastro_id = store_eclipastro(&mut app);
         let converter_id = store_converter(&mut app);
@@ -586,9 +604,7 @@ impl SuiteBuilder {
                     vxtoken: vxastro_contract.clone().into_string(),
                     staking_contract: astro_staking_contract.clone().into_string(),
                     converter_contract: converter_contract.clone().into_string(),
-                    astroport_voting_escrow_contract: astroport_voting_escrow_contract
-                        .clone()
-                        .into_string(),
+                    astroport_voting_escrow_contract: astroport_voting_escrow_address.to_string(),
                 },
                 &[],
                 "voter",

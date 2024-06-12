@@ -45,4 +45,6 @@ astroport-vesting       = { workspace = true }
 astroport-xastro-token  = { workspace = true }
 astroport               = { workspace = true }
 astroport-governance    = { workspace = true }
-voting-escrow           = { workspace = true }
+
+astroport-voting-escrow = { workspace = true }
+astroport-escrow-fee-distributor = { workspace = true }
