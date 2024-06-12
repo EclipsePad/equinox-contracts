@@ -2,6 +2,8 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
+pub const MAX_ESCROW_VOTING_LOCK_PERIOD: u64 = 2 * 365 * 24 * 3600;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// ASTRO token address
@@ -16,6 +18,9 @@ pub struct InstantiateMsg {
     pub converter_contract: String,
     /// contract owner for update
     pub owner: String,
+
+    /// Astroport Voting Escrow contract
+    pub astroport_voting_escrow_contract: Addr,
 }
 
 #[cw_serde]
@@ -34,6 +39,16 @@ pub struct UpdateConfig {
     pub gauge_contract: Option<String>,
     /// Astroport Gauge contract
     pub astroport_gauge_contract: Option<String>,
+
+    /// Astroport Voting Escrow contract
+    pub astroport_voting_escrow_contract: Option<String>,
+}
+
+#[cw_serde]
+pub enum Cw20HookMsg {
+    Stake {},
+    /// a user can lock xASTRO for 2 years to get eclipASTRO and boost voting power for essence holders
+    Lock {},
 }
 
 #[cw_serde]
@@ -76,11 +91,6 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-pub enum Cw20HookMsg {
-    Stake {},
-}
-
-#[cw_serde]
 pub struct Vote {
     /// Option voted for.
     pub option: String,
@@ -104,4 +114,7 @@ pub struct Config {
     pub gauge_contract: Addr,
     /// Astroport Gauge contract
     pub astroport_gauge_contract: Addr,
+
+    /// Astroport Voting Escrow contract
+    pub astroport_voting_escrow_contract: Addr,
 }

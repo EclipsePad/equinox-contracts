@@ -64,6 +64,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-governance"
+version = "3.0.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git#c3f3de1c9b7d3d9ea6734a8836df7c6ecd42d40d"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw20 1.1.2",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-incentives"
 version = "1.0.1"
 source = "git+https://github.com/astroport-fi/astroport-core.git#514d83331da3232111c5c590fd8086ef62025ca9"
@@ -1024,6 +1036,7 @@ dependencies = [
  "anyhow",
  "astroport",
  "astroport-factory",
+ "astroport-governance",
  "astroport-incentives",
  "astroport-pair",
  "astroport-pair-stable",
@@ -1047,6 +1060,7 @@ dependencies = [
  "timelock-staking",
  "token-converter",
  "voter",
+ "voting-escrow",
 ]
 
 [[package]]
@@ -1513,6 +1527,7 @@ name = "voter"
 version = "0.1.1"
 dependencies = [
  "astroport",
+ "astroport-governance",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-controllers",
@@ -1521,6 +1536,21 @@ dependencies = [
  "cw20 1.1.2",
  "equinox-msg",
  "semver",
+ "thiserror",
+]
+
+[[package]]
+name = "voting-escrow"
+version = "1.3.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git#c3f3de1c9b7d3d9ea6734a8836df7c6ecd42d40d"
+dependencies = [
+ "astroport-governance",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw2 0.15.1",
+ "cw20 0.15.1",
+ "cw20-base 0.15.1",
  "thiserror",
 ]
 

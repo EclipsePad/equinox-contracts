@@ -62,6 +62,7 @@ fn instantiate() {
             converter_contract: Addr::unchecked(suite.converter_contract()),
             gauge_contract: Addr::unchecked(""),
             astroport_gauge_contract: Addr::unchecked(""),
+            astroport_voting_escrow_contract: Addr::unchecked(""),
         }
     );
 }
@@ -109,6 +110,7 @@ fn update_config() {
         converter_contract: Some(Addr::unchecked("test").into_string()),
         gauge_contract: Some(Addr::unchecked("test").into_string()),
         astroport_gauge_contract: Some(Addr::unchecked("test").into_string()),
+        astroport_voting_escrow_contract: Some(Addr::unchecked("test").into_string()),
     };
 
     // attacker
@@ -133,6 +135,7 @@ fn update_config() {
             converter_contract: Addr::unchecked("test"),
             gauge_contract: Addr::unchecked("test"),
             astroport_gauge_contract: Addr::unchecked("test"),
+            astroport_voting_escrow_contract: Addr::unchecked("test"),
         }
     );
 }

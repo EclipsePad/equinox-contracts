@@ -27,6 +27,8 @@ pub fn try_instantiate(
             converter_contract: deps.api.addr_validate(&msg.converter_contract)?,
             gauge_contract: Addr::unchecked(""),
             astroport_gauge_contract: Addr::unchecked(""),
+
+            astroport_voting_escrow_contract: Addr::unchecked(""),
         },
     )?;
 

@@ -24,6 +24,6 @@ cw2                     = { workspace = true }
 cw20                    = { workspace = true }
 semver                  = { workspace = true }
 thiserror               = { workspace = true }
-# astroport-governance    = { workspace = true }
+astroport-governance    = { workspace = true }
 astroport               = { workspace = true }
 equinox-msg             = { workspace = true }
