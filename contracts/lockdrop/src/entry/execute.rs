@@ -16,7 +16,7 @@ use equinox_msg::{
     single_sided_staking::{
         Cw20HookMsg as SingleSidedCw20HookMsg, ExecuteMsg as SingleSidedExecuteMsg,
     },
-    token_converter::ExecuteMsg as ConverterExecuteMsg,
+    token_converter::ExecuteMsg as ConverterExecuteMsg, utils::has_unique_elements,
 };
 
 use crate::{
@@ -1302,6 +1302,9 @@ pub fn _claim_single_sided_rewards(
         ContractError::ClaimRewardNotAllowed {}
     );
 
+    let assets_list = assets.clone().unwrap_or_default().into_iter().map(|a| {a.to_string()});
+    ensure!(has_unique_elements(assets_list), ContractError::DuplicatedAssets {});
+
     let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
     user_lockup_info.lockdrop_incentives = get_user_lockdrop_incentives(
         deps.as_ref(),
@@ -1441,6 +1444,8 @@ pub fn _claim_lp_rewards(
         true,
         ContractError::ClaimRewardNotAllowed {}
     );
+    let assets_list = assets.clone().unwrap_or_default().into_iter().map(|a| {a.to_string()});
+    ensure!(has_unique_elements(assets_list), ContractError::DuplicatedAssets {});
 
     let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
     user_lockup_info.lockdrop_incentives = get_user_lockdrop_incentives(
@@ -1567,6 +1572,8 @@ pub fn _claim_all_single_sided_rewards(
         true,
         ContractError::ClaimRewardNotAllowed {}
     );
+    let assets_list = assets.clone().unwrap_or_default().into_iter().map(|a| {a.to_string()});
+    ensure!(has_unique_elements(assets_list), ContractError::DuplicatedAssets {});
 
     let single_staking_rewards =
         calculate_single_sided_total_rewards(deps.as_ref(), env.contract.address.to_string())?;
@@ -1725,6 +1732,8 @@ pub fn _claim_all_lp_rewards(
         true,
         ContractError::ClaimRewardNotAllowed {}
     );
+    let assets_list = assets.clone().unwrap_or_default().into_iter().map(|a| {a.to_string()});
+    ensure!(has_unique_elements(assets_list), ContractError::DuplicatedAssets {});
 
     let lp_staking_rewards =
         calculate_lp_total_rewards(deps.as_ref(), env.contract.address.to_string())?;

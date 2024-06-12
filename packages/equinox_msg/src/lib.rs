@@ -1,4 +1,4 @@
-pub mod common;
+pub mod utils;
 pub mod lockdrop;
 pub mod lp_staking;
 pub mod single_sided_staking;
