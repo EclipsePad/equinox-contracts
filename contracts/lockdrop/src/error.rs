@@ -36,6 +36,9 @@ pub enum ContractError {
     #[error("Deposit window is not started")]
     DepositWindowNotStarted {},
 
+    #[error("Ensure list contains unique assets")]
+    DuplicatedAssets {},
+
     #[error("Can't extend from duration {0} to duration {1}")]
     ExtendDurationErr(u64, u64),
 

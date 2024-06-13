@@ -1,12 +1,8 @@
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
-use equinox_msg::{
-    common::OwnershipProposal,
-    lockdrop::{
-        Config, IncentiveAmounts, LockupInfo, LpLockupState, LpStakingRewardWeights,
-        LpUserLockupInfo, RewardDistributionConfig, SingleLockupState, SingleStakingRewardWeights,
-        SingleUserLockupInfo,
-    },
+use equinox_msg::lockdrop::{
+    Config, IncentiveAmounts, LockupInfo, LpLockupState, LpStakingRewardWeights, LpUserLockupInfo,
+    RewardDistributionConfig, SingleLockupState, SingleStakingRewardWeights, SingleUserLockupInfo,
 };
 
 /// Contract name that is used for migration.
@@ -15,7 +11,6 @@ pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const OWNER: Admin = Admin::new("owner");
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 pub const SINGLE_LOCKUP_STATE: Item<SingleLockupState> = Item::new("single_lockup_state");
 pub const LP_LOCKUP_STATE: Item<LpLockupState> = Item::new("lp_lockup_state");
 /// Map of lockup info according to asset address, duration

@@ -1461,6 +1461,7 @@ impl Suite {
         &mut self,
         sender: &str,
         duration: u64,
+        assets: Option<Vec<AssetInfo>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -1468,19 +1469,23 @@ impl Suite {
             &LockdropExecuteMsg::ClaimRewards {
                 stake_type: StakeType::SingleStaking,
                 duration,
-                assets: None,
+                assets,
             },
             &[],
         )
     }
-    pub fn single_lockdrop_claim_all_rewards(&mut self, sender: &str) -> AnyResult<AppResponse> {
+    pub fn single_lockdrop_claim_all_rewards(
+        &mut self,
+        sender: &str,
+        assets: Option<Vec<AssetInfo>>,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lockdrop_contract.clone(),
             &LockdropExecuteMsg::ClaimAllRewards {
                 stake_type: StakeType::SingleStaking,
                 with_flexible: true,
-                assets: None,
+                assets,
             },
             &[],
         )
@@ -1489,6 +1494,7 @@ impl Suite {
         &mut self,
         sender: &str,
         duration: u64,
+        assets: Option<Vec<AssetInfo>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -1496,19 +1502,23 @@ impl Suite {
             &LockdropExecuteMsg::ClaimRewards {
                 stake_type: StakeType::LpStaking,
                 duration,
-                assets: None,
+                assets,
             },
             &[],
         )
     }
-    pub fn lp_lockdrop_claim_all_rewards(&mut self, sender: &str) -> AnyResult<AppResponse> {
+    pub fn lp_lockdrop_claim_all_rewards(
+        &mut self,
+        sender: &str,
+        assets: Option<Vec<AssetInfo>>,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lockdrop_contract.clone(),
             &LockdropExecuteMsg::ClaimAllRewards {
                 stake_type: StakeType::LpStaking,
                 with_flexible: true,
-                assets: None,
+                assets,
             },
             &[],
         )
