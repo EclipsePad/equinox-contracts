@@ -11,7 +11,10 @@ use cosmwasm_std::{
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
 use equinox_msg::{
-    lockdrop::{CallbackMsg, Cw20HookMsg, RewardDistributionConfig, StakeType, UpdateConfigMsg},
+    lockdrop::{
+        CallbackMsg, Cw20HookMsg, IncentiveDistribution, RewardDistributionConfig, StakeType,
+        UpdateConfigMsg,
+    },
     lp_staking::{Cw20HookMsg as LpStakingCw20HookMsg, ExecuteMsg as LpExecuteMsg},
     single_sided_staking::{
         Cw20HookMsg as SingleSidedCw20HookMsg, ExecuteMsg as SingleSidedExecuteMsg,
@@ -25,14 +28,16 @@ use crate::{
         calculate_lp_staking_user_rewards, calculate_lp_total_rewards,
         calculate_pending_lockdrop_incentives, calculate_single_sided_total_rewards,
         calculate_single_staking_user_rewards, calculate_updated_lp_reward_weights,
-        calculate_updated_single_staking_reward_weights, get_user_lockdrop_incentives,
+        calculate_updated_single_staking_reward_weights, get_user_lp_lockdrop_incentives,
+        get_user_single_lockdrop_incentives,
     },
     error::ContractError,
     math::{calculate_max_withdrawal_amount_allowed, calculate_weight},
     state::{
-        CONFIG, LP_LOCKUP_INFO, LP_LOCKUP_STATE, LP_STAKING_REWARD_WEIGHTS, LP_USER_LOCKUP_INFO,
-        OWNER, REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKUP_INFO, SINGLE_LOCKUP_STATE,
-        SINGLE_STAKING_REWARD_WEIGHTS, SINGLE_USER_LOCKUP_INFO, TOTAL_LOCKDROP_INCENTIVES,
+        CONFIG, LP_LOCKDROP_INCENTIVES, LP_LOCKUP_INFO, LP_LOCKUP_STATE, LP_STAKING_REWARD_WEIGHTS,
+        LP_USER_LOCKUP_INFO, OWNER, REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKDROP_INCENTIVES,
+        SINGLE_LOCKUP_INFO, SINGLE_LOCKUP_STATE, SINGLE_STAKING_REWARD_WEIGHTS,
+        SINGLE_USER_LOCKUP_INFO,
     },
 };
 
@@ -792,7 +797,7 @@ pub fn receive_cw20(
                 ))),
             }
         }
-        Cw20HookMsg::IncreaseIncentives {} => {
+        Cw20HookMsg::IncreaseIncentives { distribution } => {
             OWNER.assert_admin(deps.as_ref(), &sender)?;
             ensure!(
                 info.sender == cfg.beclip.to_string() || info.sender == cfg.eclip.to_string(),
@@ -804,27 +809,58 @@ pub fn receive_cw20(
                 ContractError::LockdropFinished {}
             );
 
-            let mut total_lockdrop_incentives = TOTAL_LOCKDROP_INCENTIVES
+            let single_distribution = distribution
+                .iter()
+                .find(|d| d.stake_type == StakeType::SingleStaking)
+                .unwrap();
+            let lp_distribution = distribution
+                .iter()
+                .find(|d| d.stake_type == StakeType::LpStaking)
+                .unwrap();
+            ensure!(
+                single_distribution.bps + lp_distribution.bps == 10000u64,
+                ContractError::BpsSumErr {}
+            );
+
+            let mut single_lockdrop_incentives = SINGLE_LOCKDROP_INCENTIVES
+                .load(deps.storage)
+                .unwrap_or_default();
+            let mut lp_lockdrop_incentives = LP_LOCKDROP_INCENTIVES
                 .load(deps.storage)
                 .unwrap_or_default();
             if info.sender == cfg.beclip.to_string() {
-                total_lockdrop_incentives.beclip += amount;
-            } else {
-                total_lockdrop_incentives.eclip += amount;
+                single_lockdrop_incentives.beclip +=
+                    amount.multiply_ratio(single_distribution.bps, 10000u64);
+                lp_lockdrop_incentives.beclip +=
+                    amount.multiply_ratio(lp_distribution.bps, 10000u64);
+            } else if info.sender == cfg.eclip.to_string() {
+                single_lockdrop_incentives.eclip +=
+                    amount.multiply_ratio(single_distribution.bps, 10000u64);
+                lp_lockdrop_incentives.eclip +=
+                    amount.multiply_ratio(lp_distribution.bps, 10000u64);
             }
             let assets = info.funds;
             if !assets.is_empty() {
                 for asset in assets {
                     if cfg.beclip.is_native_token() && asset.denom == cfg.beclip.to_string() {
-                        total_lockdrop_incentives.beclip += asset.amount;
+                        single_lockdrop_incentives.beclip += asset
+                            .amount
+                            .multiply_ratio(single_distribution.bps, 10000u64);
+                        lp_lockdrop_incentives.beclip +=
+                            asset.amount.multiply_ratio(lp_distribution.bps, 10000u64);
                     } else if cfg.eclip.is_native_token() && asset.denom == cfg.eclip.to_string() {
-                        total_lockdrop_incentives.eclip += asset.amount;
+                        single_lockdrop_incentives.eclip += asset
+                            .amount
+                            .multiply_ratio(single_distribution.bps, 10000u64);
+                        lp_lockdrop_incentives.eclip +=
+                            asset.amount.multiply_ratio(lp_distribution.bps, 10000u64);
                     } else {
                         return Err(ContractError::InvalidAsset {});
                     }
                 }
             }
-            TOTAL_LOCKDROP_INCENTIVES.save(deps.storage, &total_lockdrop_incentives)?;
+            SINGLE_LOCKDROP_INCENTIVES.save(deps.storage, &single_lockdrop_incentives)?;
+            LP_LOCKDROP_INCENTIVES.save(deps.storage, &lp_lockdrop_incentives)?;
             Ok(Response::new().add_attribute("action", "increase Lockdrop incentives"))
         }
     }
@@ -834,6 +870,7 @@ pub fn try_increase_incentives(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    distribution: Vec<IncentiveDistribution>,
 ) -> Result<Response, ContractError> {
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let cfg = CONFIG.load(deps.storage)?;
@@ -841,22 +878,47 @@ pub fn try_increase_incentives(
         env.block.time.seconds() < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window,
         ContractError::LockdropFinished {}
     );
+    let single_distribution = distribution
+        .iter()
+        .find(|d| d.stake_type == StakeType::SingleStaking)
+        .unwrap();
+    let lp_distribution = distribution
+        .iter()
+        .find(|d| d.stake_type == StakeType::LpStaking)
+        .unwrap();
+    ensure!(
+        single_distribution.bps + lp_distribution.bps == 10000u64,
+        ContractError::BpsSumErr {}
+    );
 
-    let mut total_lockdrop_incentives = TOTAL_LOCKDROP_INCENTIVES
+    let mut single_lockdrop_incentives = SINGLE_LOCKDROP_INCENTIVES
         .load(deps.storage)
         .unwrap_or_default();
+    let mut lp_lockdrop_incentives = LP_LOCKDROP_INCENTIVES
+        .load(deps.storage)
+        .unwrap_or_default();
+
     let assets = info.funds;
     ensure!(!assets.is_empty(), ContractError::InvalidAsset {});
     for asset in assets {
         if cfg.beclip.is_native_token() && asset.denom == cfg.beclip.to_string() {
-            total_lockdrop_incentives.beclip += asset.amount;
+            single_lockdrop_incentives.beclip += asset
+                .amount
+                .multiply_ratio(single_distribution.bps, 10000u64);
+            lp_lockdrop_incentives.beclip +=
+                asset.amount.multiply_ratio(lp_distribution.bps, 10000u64);
         } else if cfg.eclip.is_native_token() && asset.denom == cfg.eclip.to_string() {
-            total_lockdrop_incentives.eclip += asset.amount;
+            single_lockdrop_incentives.eclip += asset
+                .amount
+                .multiply_ratio(single_distribution.bps, 10000u64);
+            lp_lockdrop_incentives.eclip +=
+                asset.amount.multiply_ratio(lp_distribution.bps, 10000u64);
         } else {
             return Err(ContractError::InvalidAsset {});
         }
     }
-    TOTAL_LOCKDROP_INCENTIVES.save(deps.storage, &total_lockdrop_incentives)?;
+    SINGLE_LOCKDROP_INCENTIVES.save(deps.storage, &single_lockdrop_incentives)?;
+    LP_LOCKDROP_INCENTIVES.save(deps.storage, &lp_lockdrop_incentives)?;
     Ok(Response::new().add_attribute("action", "increase Lockdrop incentives"))
 }
 
@@ -1332,7 +1394,7 @@ pub fn _claim_single_sided_rewards(
 
     // calculate lockdrop incentives
     let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
-    user_lockup_info.lockdrop_incentives = get_user_lockdrop_incentives(
+    user_lockup_info.lockdrop_incentives = get_user_single_lockdrop_incentives(
         deps.as_ref(),
         user_lockup_info.lockdrop_incentives,
         user_lockup_info.xastro_amount_in_lockups,
@@ -1469,7 +1531,7 @@ pub fn _claim_lp_rewards(
     );
 
     let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
-    user_lockup_info.lockdrop_incentives = get_user_lockdrop_incentives(
+    user_lockup_info.lockdrop_incentives = get_user_lp_lockdrop_incentives(
         deps.as_ref(),
         user_lockup_info.lockdrop_incentives,
         user_lockup_info.xastro_amount_in_lockups,
@@ -1631,7 +1693,7 @@ pub fn _claim_all_single_sided_rewards(
         let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO
             .load(deps.storage, (&sender, duration))
             .unwrap_or_default();
-        user_lockup_info.lockdrop_incentives = get_user_lockdrop_incentives(
+        user_lockup_info.lockdrop_incentives = get_user_single_lockdrop_incentives(
             deps.as_ref(),
             user_lockup_info.lockdrop_incentives,
             user_lockup_info.xastro_amount_in_lockups,
@@ -1777,7 +1839,7 @@ pub fn _claim_all_lp_rewards(
             .unwrap_or_default();
 
         // calculate user lockdrop incentives
-        user_lockup_info.lockdrop_incentives = get_user_lockdrop_incentives(
+        user_lockup_info.lockdrop_incentives = get_user_lp_lockdrop_incentives(
             deps.as_ref(),
             user_lockup_info.lockdrop_incentives,
             user_lockup_info.xastro_amount_in_lockups,

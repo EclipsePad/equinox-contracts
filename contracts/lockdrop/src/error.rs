@@ -131,6 +131,9 @@ pub enum ContractError {
 
     #[error("Token amount must not be zero")]
     ZeroAmount {},
+
+    #[error("The sum must be 100%(10000)")]
+    BpsSumErr {},
 }
 
 impl From<semver::Error> for ContractError {

@@ -86,7 +86,9 @@ pub enum ExecuteMsg {
         with_flexible: bool,
         assets: Option<Vec<AssetInfo>>,
     },
-    IncreaseIncentives {},
+    IncreaseIncentives {
+        distribution: Vec<IncentiveDistribution>,
+    },
 }
 
 #[cw_serde]
@@ -122,7 +124,7 @@ pub enum QueryMsg {
     #[returns(Vec<UserLpLockupInfoResponse>)]
     UserLpLockupInfo { user: String },
     #[returns(IncentiveAmounts)]
-    TotalIncentives {},
+    Incentives { stake_type: StakeType },
 }
 
 #[cw_serde]
@@ -132,7 +134,9 @@ pub enum Cw20HookMsg {
         from: u64,
         to: u64,
     },
-    IncreaseIncentives {},
+    IncreaseIncentives {
+        distribution: Vec<IncentiveDistribution>,
+    },
 }
 
 #[cw_serde]
@@ -543,4 +547,10 @@ pub struct UserLpLockupInfoResponse {
 pub struct RewardDistributionConfig {
     pub instant: u64,        // bps
     pub vesting_period: u64, // seconds
+}
+
+#[cw_serde]
+pub struct IncentiveDistribution {
+    pub stake_type: StakeType,
+    pub bps: u64,
 }

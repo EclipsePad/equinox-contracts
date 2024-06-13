@@ -31,5 +31,7 @@ pub const LP_STAKING_REWARD_WEIGHTS: Item<LpStakingRewardWeights> =
 pub const REWARD_DISTRIBUTION_CONFIG: Item<RewardDistributionConfig> =
     Item::new("reward_distribution_config");
 
-pub const TOTAL_LOCKDROP_INCENTIVES: Item<IncentiveAmounts> =
-    Item::new("total_lockdrop_incentives");
+pub const SINGLE_LOCKDROP_INCENTIVES: Item<IncentiveAmounts> =
+    Item::new("single_lockdrop_incentives");
+
+pub const LP_LOCKDROP_INCENTIVES: Item<IncentiveAmounts> = Item::new("lp_lockdrop_incentives");
