@@ -62,7 +62,7 @@ fn instantiate() {
             converter_contract: Addr::unchecked(suite.converter_contract()),
             gauge_contract: Addr::unchecked(""),
             astroport_gauge_contract: Addr::unchecked(""),
-            astroport_voting_escrow_contract: Addr::unchecked(""),
+            astroport_voting_escrow_contract: Addr::unchecked(suite.astro_voting_escrow_contract()),
         }
     );
 }
@@ -240,3 +240,95 @@ fn stake() {
 }
 
 // withdraw function was checked on token_converter.
+
+#[test]
+fn swap_to_eclip_astro_default() {
+    let astro_staking_initiator = "astro_staking_initiator";
+    let astro_initial_balances = vec![
+        (astro_staking_initiator, 1_000_000_000),
+        (ALICE, 1_000_000),
+        (BOB, 1_000_000),
+        (CAROL, 1_000_000),
+        (ATTACKER, 1_000),
+    ];
+    let timelock_config = vec![
+        (ONE_MONTH, 100),
+        (THREE_MONTH, 100),
+        (SIX_MONTH, 100),
+        (NINE_MONTH, 100),
+        (ONE_YEAR, 100),
+    ];
+    let eclip_daily_reward = 1_000_000;
+    let locking_reward_config = vec![
+        (0, 1),
+        (ONE_MONTH, 2),
+        (THREE_MONTH, 3),
+        (SIX_MONTH, 4),
+        (NINE_MONTH, 5),
+        (ONE_YEAR, 6),
+    ];
+
+    let mut suite = SuiteBuilder::new()
+        .with_initial_balances(astro_initial_balances)
+        .with_timelock_config(timelock_config)
+        .with_eclip_daily_reward(eclip_daily_reward)
+        .with_locking_reward_config(locking_reward_config)
+        .build();
+    suite.update_config();
+    suite.stake_astro(astro_staking_initiator, 10_000).unwrap();
+
+    let astro = &Addr::unchecked(suite.astro_contract());
+    let xastro = &Addr::unchecked(suite.xastro_contract());
+
+    suite.stake_astro(CAROL, 3_000).unwrap();
+
+    let alice_astro = suite.query_astro_balance(ALICE).unwrap();
+    let alice_xastro = suite.query_xastro_balance(ALICE).unwrap();
+    let alice_eclip_astro = suite.query_eclipastro_balance(ALICE).unwrap();
+    assert_eq!(alice_astro, 1_000_000);
+    assert_eq!(alice_xastro, 0);
+    assert_eq!(alice_eclip_astro, 0);
+
+    let bob_astro = suite.query_astro_balance(BOB).unwrap();
+    let bob_xastro = suite.query_xastro_balance(BOB).unwrap();
+    let bob_eclip_astro = suite.query_eclipastro_balance(BOB).unwrap();
+    assert_eq!(bob_astro, 1_000_000);
+    assert_eq!(bob_xastro, 0);
+    assert_eq!(bob_eclip_astro, 0);
+
+    let carol_astro = suite.query_astro_balance(CAROL).unwrap();
+    let carol_xastro = suite.query_xastro_balance(CAROL).unwrap();
+    let carol_eclip_astro = suite.query_eclipastro_balance(CAROL).unwrap();
+    assert_eq!(carol_astro, 997_000);
+    assert_eq!(carol_xastro, 3_000);
+    assert_eq!(carol_eclip_astro, 0);
+
+    suite
+        .voter_swap_to_eclip_astro(ALICE, 1_000, astro)
+        .unwrap();
+    suite.voter_swap_to_eclip_astro(BOB, 2_000, astro).unwrap();
+    suite
+        .voter_swap_to_eclip_astro(CAROL, 3_000, xastro)
+        .unwrap();
+
+    let alice_astro = suite.query_astro_balance(ALICE).unwrap();
+    let alice_xastro = suite.query_xastro_balance(ALICE).unwrap();
+    let alice_eclip_astro = suite.query_eclipastro_balance(ALICE).unwrap();
+    assert_eq!(alice_astro, 999_000);
+    assert_eq!(alice_xastro, 0);
+    assert_eq!(alice_eclip_astro, 1_000);
+
+    let bob_astro = suite.query_astro_balance(BOB).unwrap();
+    let bob_xastro = suite.query_xastro_balance(BOB).unwrap();
+    let bob_eclip_astro = suite.query_eclipastro_balance(BOB).unwrap();
+    assert_eq!(bob_astro, 998_000);
+    assert_eq!(bob_xastro, 0);
+    assert_eq!(bob_eclip_astro, 2_000);
+
+    let carol_astro = suite.query_astro_balance(CAROL).unwrap();
+    let carol_xastro = suite.query_xastro_balance(CAROL).unwrap();
+    let carol_eclip_astro = suite.query_eclipastro_balance(CAROL).unwrap();
+    assert_eq!(carol_astro, 997_000);
+    assert_eq!(carol_xastro, 0);
+    assert_eq!(carol_eclip_astro, 3_000);
+}

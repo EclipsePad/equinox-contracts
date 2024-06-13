@@ -1,25 +1,20 @@
 use std::str::FromStr;
 
 use cosmwasm_std::{
-    ensure, ensure_eq, to_json_binary, CosmosMsg, DepsMut, Env, MessageInfo, Reply, ReplyOn,
-    Response, SubMsg, Uint128, WasmMsg,
+    ensure, ensure_eq, to_json_binary, Addr, CosmosMsg, DepsMut, Env, MessageInfo, ReplyOn,
+    Response, SubMsg, SubMsgResult, Uint128, WasmMsg,
 };
 
 use astroport::staking::Cw20HookMsg as AstroportStakingCw20HookMsg;
-
-use astroport_governance::voting_escrow::{
-    Cw20HookMsg as AstroportVotingEscrowCw20HookMsg, ExecuteMsg as AstroportVotingEscrowExecuteMsg,
-    QueryMsg as AstroportVotingEscrowQueryMsg,
-};
 
 use cw20::Cw20ExecuteMsg;
 
 use equinox_msg::voter::{Config, UpdateConfig, Vote, MAX_ESCROW_VOTING_LOCK_PERIOD};
 
 use crate::{
-    contract::STAKE_TOKEN_REPLY_ID,
+    contract::{STAKE_ASTRO_REPLY_ID, STAKE_TOKEN_REPLY_ID},
     error::ContractError,
-    state::{CONFIG, OWNER},
+    state::{CONFIG, OWNER, RECIPIENT},
 };
 
 /// Update config
@@ -214,13 +209,15 @@ pub fn try_stake(
 pub fn handle_stake_reply(
     _deps: DepsMut,
     _env: Env,
-    msg: Reply,
+    result: &SubMsgResult,
 ) -> Result<Response, ContractError> {
-    if msg.result.is_err() {
-        return Err(ContractError::StakeError {});
-    }
+    let res = result
+        .to_owned()
+        .into_result()
+        .map_err(|_| ContractError::StakeError {})?;
+
     let mut xtoken_amount = Uint128::zero();
-    for event in msg.result.unwrap().events.iter() {
+    for event in res.events.iter() {
         for attr in event.attributes.iter() {
             if attr.key == "xastro_amount" {
                 xtoken_amount = Uint128::from_str(&attr.value).unwrap();
@@ -245,23 +242,25 @@ pub fn handle_stake_reply(
         .add_attribute("xASTRO", xtoken_amount.to_string()))
 }
 
-pub fn try_lock(
+pub fn try_swap_to_eclip_astro(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     sender: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let sender_address = deps.api.addr_validate(&sender)?;
+    let token_in = &info.sender;
+    let user_address = &deps.api.addr_validate(&sender)?;
     let Config {
-        xtoken,
-        astroport_voting_escrow_contract,
+        base_token: astro,
+        xtoken: xastro,
+        staking_contract,
         ..
     } = CONFIG.load(deps.storage)?;
 
-    // check if xAstro was sent
-    if sender_address != xtoken {
-        Err(ContractError::UnknownToken(sender_address.to_string()))?;
+    // check if ASTRO or xASTRO was sent
+    if token_in != astro && token_in != xastro {
+        Err(ContractError::UnknownToken(token_in.to_string()))?;
     }
 
     // check if amount isn't zero
@@ -269,22 +268,125 @@ pub fn try_lock(
         Err(ContractError::ZeroAmount {})?;
     }
 
-    // lock xAstro for 2 years
-    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: xtoken.to_string(),
-        msg: to_json_binary(&Cw20ExecuteMsg::Send {
-            contract: astroport_voting_escrow_contract.to_string(),
-            amount,
-            msg: to_json_binary(&AstroportVotingEscrowCw20HookMsg::CreateLock {
-                time: MAX_ESCROW_VOTING_LOCK_PERIOD,
-            })?,
-        })?,
-        funds: vec![],
-    });
+    // get xastro first
+    if token_in == astro {
+        RECIPIENT.save(deps.storage, user_address)?;
 
-    // mint eclipAstro to user
+        let msg = SubMsg {
+            id: STAKE_ASTRO_REPLY_ID,
+            msg: WasmMsg::Execute {
+                contract_addr: astro.to_string(),
+                msg: to_json_binary(&Cw20ExecuteMsg::Send {
+                    contract: staking_contract.to_string(),
+                    amount,
+                    msg: to_json_binary(&AstroportStakingCw20HookMsg::Enter {})?,
+                })?,
+                funds: vec![],
+            }
+            .into(),
+            gas_limit: None,
+            reply_on: ReplyOn::Success,
+        };
+
+        return Ok(Response::new().add_submessage(msg));
+    }
+
+    lock_xastro(deps, env, amount, user_address)
+}
+
+pub fn handle_stake_astro_reply(
+    deps: DepsMut,
+    env: Env,
+    result: &SubMsgResult,
+) -> Result<Response, ContractError> {
+    let res = result
+        .to_owned()
+        .into_result()
+        .map_err(|_| ContractError::StakeError {})?;
+
+    let mut xastro_amount = Uint128::zero();
+    for event in res.events.iter() {
+        for attr in event.attributes.iter() {
+            if attr.key == "xastro_amount" {
+                xastro_amount = Uint128::from_str(&attr.value).unwrap();
+            }
+        }
+    }
+
+    let recipient = &RECIPIENT.load(deps.storage)?;
+    lock_xastro(deps, env, xastro_amount, recipient)
+}
+
+fn lock_xastro(
+    deps: DepsMut,
+    env: Env,
+    xastro_amount: Uint128,
+    recipient: &Addr,
+) -> Result<Response, ContractError> {
+    let Config {
+        xtoken: xastro,
+        astroport_voting_escrow_contract,
+        converter_contract,
+        staking_contract,
+        ..
+    } = CONFIG.load(deps.storage)?;
+
+    // calculate eclipASTRO amount
+    let total_xastro_amount: Uint128 = deps.querier.query_wasm_smart(
+        staking_contract.to_string(),
+        &astroport::staking::QueryMsg::TotalShares {},
+    )?;
+    let total_astro_amount: Uint128 = deps.querier.query_wasm_smart(
+        staking_contract.to_string(),
+        &astroport::staking::QueryMsg::TotalDeposit {},
+    )?;
+    let eclip_astro_amount = total_astro_amount * xastro_amount / total_xastro_amount;
+
+    // check lock position
+    let lock_info = deps
+        .querier
+        .query_wasm_smart::<astroport_governance::voting_escrow::LockInfoResponse>(
+            astroport_voting_escrow_contract.to_string(),
+            &astroport_governance::voting_escrow::QueryMsg::LockInfo {
+                user: env.contract.address.to_string(),
+            },
+        );
+
+    let hook_msg = match lock_info {
+        Ok(_) => {
+            to_json_binary(&astroport_governance::voting_escrow::Cw20HookMsg::ExtendLockAmount {})
+        }
+        Err(_) => to_json_binary(
+            &astroport_governance::voting_escrow::Cw20HookMsg::CreateLock {
+                time: MAX_ESCROW_VOTING_LOCK_PERIOD,
+            },
+        ),
+    };
+
+    let msg_list = vec![
+        // replenish existent lock or create new one for 2 years
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: xastro.to_string(),
+            msg: to_json_binary(&Cw20ExecuteMsg::Send {
+                contract: astroport_voting_escrow_contract.to_string(),
+                amount: xastro_amount,
+                msg: hook_msg?,
+            })?,
+            funds: vec![],
+        }),
+        // mint eclipAstro to user
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: converter_contract.to_string(),
+            msg: to_json_binary(&equinox_msg::token_converter::ExecuteMsg::MintEclipAstro {
+                amount: eclip_astro_amount,
+                recipient: recipient.to_string(),
+            })?,
+            funds: vec![],
+        }),
+    ];
 
     Ok(Response::new()
-        .add_message(msg)
-        .add_attribute("action", "try_lock"))
+        .add_messages(msg_list)
+        .add_attribute("action", "try_swap_to_eclip_astro")
+        .add_attribute("eclip_astro_amount", eclip_astro_amount))
 }

@@ -34,6 +34,9 @@ serde                   = { version = "1.0.103", default-features = false, featu
 thiserror               = "1.0.23"
 
 equinox-msg             = { path = "./packages/equinox_msg" }
+eclipse-base            = { path = "./packages/eclipse-base" }
+minter-mocks            = { path = "./packages/minter-mocks" }
+cw20-gift               = { path = "./packages/cw20-gift" }
 eclipastro-token        = { path = "./contracts/token" }
 token-converter         = { path = "./contracts/token_converter" }
 flexible-staking        = { path = "./contracts/flexible_staking" }

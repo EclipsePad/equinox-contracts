@@ -331,6 +331,31 @@ pub fn withdraw_xtoken(
         .add_attribute("amount", amount.to_string()))
 }
 
+pub fn try_mint_eclip_astro(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    amount: Uint128,
+    recipient: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // only voter contract can mint eclipAstro
+    if info.sender != config.vxtoken_holder {
+        Err(ContractError::Unauthorized {})?;
+    }
+
+    let msg = WasmMsg::Execute {
+        contract_addr: config.token_out.to_string(),
+        msg: to_json_binary(&Cw20ExecuteMsg::Mint { recipient, amount })?,
+        funds: vec![],
+    };
+
+    Ok(Response::new()
+        .add_message(msg)
+        .add_attribute("action", "try_mint_eclip_astro"))
+}
+
 /// Cw20 Receive hook msg handler.
 pub fn receive_cw20(
     deps: DepsMut,

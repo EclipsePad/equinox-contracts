@@ -9,8 +9,8 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            claim, claim_treasury_reward, handle_stake_reply, receive_cw20, update_config,
-            update_owner, update_reward_config, withdraw_xtoken,
+            claim, claim_treasury_reward, handle_stake_reply, receive_cw20, try_mint_eclip_astro,
+            update_config, update_owner, update_reward_config, withdraw_xtoken,
         },
         instantiate::{handle_instantiate_reply, try_instantiate},
         query::{
@@ -55,6 +55,9 @@ pub fn execute(
         }
         ExecuteMsg::WithdrawAvailableBalance { amount, recipient } => {
             withdraw_xtoken(deps, env, info, amount, recipient)
+        }
+        ExecuteMsg::MintEclipAstro { amount, recipient } => {
+            try_mint_eclip_astro(deps, env, info, amount, recipient)
         }
     }
 }

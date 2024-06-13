@@ -27,3 +27,4 @@ thiserror               = { workspace = true }
 astroport-governance    = { workspace = true }
 astroport               = { workspace = true }
 equinox-msg             = { workspace = true }
+eclipse-base            = { workspace = true }

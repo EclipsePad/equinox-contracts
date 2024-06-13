@@ -20,6 +20,7 @@ use crate::{
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const STAKE_TOKEN_REPLY_ID: u64 = 1;
+pub const STAKE_ASTRO_REPLY_ID: u64 = 2;
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -47,7 +48,10 @@ pub fn execute(
             msg,
         }) => match from_json(msg)? {
             Cw20HookMsg::Stake {} => e::try_stake(deps, env, info, sender, amount),
-            Cw20HookMsg::Lock {} => e::try_lock(deps, env, info, sender, amount),
+
+            Cw20HookMsg::SwapToEclipAstro {} => {
+                e::try_swap_to_eclip_astro(deps, env, info, sender, amount)
+            }
         },
 
         ExecuteMsg::UpdateConfig { config } => e::update_config(deps, env, info, config),
@@ -93,9 +97,12 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id {
-        STAKE_TOKEN_REPLY_ID => e::handle_stake_reply(deps, env, msg),
-        id => Err(ContractError::UnknownReplyId(id)),
+pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, ContractError> {
+    let Reply { id, result } = reply;
+
+    match id {
+        STAKE_TOKEN_REPLY_ID => e::handle_stake_reply(deps, env, &result),
+        STAKE_ASTRO_REPLY_ID => e::handle_stake_astro_reply(deps, env, &result),
+        _ => Err(ContractError::UnknownReplyId(id)),
     }
 }

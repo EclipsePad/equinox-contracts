@@ -47,8 +47,10 @@ pub struct UpdateConfig {
 #[cw_serde]
 pub enum Cw20HookMsg {
     Stake {},
+
     /// a user can lock xASTRO for 2 years to get eclipASTRO and boost voting power for essence holders
-    Lock {},
+    /// swap ASTRO -> xASTRO will be provided first if it's required
+    SwapToEclipAstro {},
 }
 
 #[cw_serde]

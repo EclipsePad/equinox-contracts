@@ -36,6 +36,9 @@ pub enum ExecuteMsg {
     ClaimTreasuryReward { amount: Uint128 },
     /// withdraw xASTRO
     WithdrawAvailableBalance { amount: Uint128, recipient: String },
+
+    /// mint eclipAstro
+    MintEclipAstro { amount: Uint128, recipient: String },
 }
 
 #[cw_serde]

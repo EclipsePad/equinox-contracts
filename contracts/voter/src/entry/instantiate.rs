@@ -28,7 +28,9 @@ pub fn try_instantiate(
             gauge_contract: Addr::unchecked(""),
             astroport_gauge_contract: Addr::unchecked(""),
 
-            astroport_voting_escrow_contract: Addr::unchecked(""),
+            astroport_voting_escrow_contract: deps
+                .api
+                .addr_validate(&msg.astroport_voting_escrow_contract)?,
         },
     )?;
 

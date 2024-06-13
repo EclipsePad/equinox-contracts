@@ -13,10 +13,10 @@ use astroport::{
     },
     vesting::{self, Cw20HookMsg as VestingCw20HookMsg, VestingAccount},
 };
-use astroport_governance::voting_escrow::{
-    Cw20HookMsg as AstroportVotingEscrowCw20HookMsg, ExecuteMsg as AstroportVotingEscrowExecuteMsg,
-    QueryMsg as AstroportVotingEscrowQueryMsg,
-};
+// use astroport_governance::voting_escrow::{
+//     Cw20HookMsg as AstroportVotingEscrowCw20HookMsg, ExecuteMsg as AstroportVotingEscrowExecuteMsg,
+//     QueryMsg as AstroportVotingEscrowQueryMsg,
+// };
 use astroport_voting_escrow;
 use cosmwasm_std::{coin, to_json_binary, Addr, Binary, Coin, Decimal, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
@@ -717,6 +717,7 @@ impl SuiteBuilder {
             admin,
             astro_contract,
             astro_staking_contract,
+            astro_voting_escrow_contract: astroport_voting_escrow_address,
             xastro_contract,
             vxastro_contract,
             astroport_factory,
@@ -745,6 +746,7 @@ pub struct Suite {
     admin: Addr,
     astro_contract: Addr,
     astro_staking_contract: Addr,
+    astro_voting_escrow_contract: Addr,
     xastro_contract: Addr,
     vxastro_contract: Addr,
     astroport_factory: Addr,
@@ -775,6 +777,9 @@ impl Suite {
     }
     pub fn astro_staking_contract(&self) -> String {
         self.astro_staking_contract.to_string()
+    }
+    pub fn astro_voting_escrow_contract(&self) -> String {
+        self.astro_voting_escrow_contract.to_string()
     }
     pub fn xastro_contract(&self) -> String {
         self.xastro_contract.to_string()
@@ -1324,6 +1329,24 @@ impl Suite {
     }
 
     // voter contract
+    pub fn voter_swap_to_eclip_astro(
+        &mut self,
+        sender: &str,
+        amount: u128,
+        token: &Addr,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            token.to_owned(),
+            &Cw20ExecuteMsg::Send {
+                contract: self.voter_contract(),
+                amount: Uint128::from(amount),
+                msg: to_json_binary(&VoterCw20HookMsg::SwapToEclipAstro {})?,
+            },
+            &[],
+        )
+    }
+
     pub fn update_voter_config(
         &mut self,
         sender: &str,
