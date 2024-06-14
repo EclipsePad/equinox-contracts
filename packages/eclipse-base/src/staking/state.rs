@@ -38,8 +38,9 @@ pub const MAX_REWARDS_TIER_4: u64 = 3_024_000_000_000; // 365 days, $ECLIP in mi
 pub const TIER_4: usize = 4;
 
 // TODO: set on migration
-// pub const ECLIP_PER_SECOND: u64 = 136_889; // calc for mainnet
-pub const ECLIP_PER_SECOND: u64 = 245; // testnet
+pub const ECLIP_PER_SECOND: u64 = 136_889; // calc for mainnet
+
+// pub const ECLIP_PER_SECOND: u64 = 245; // testnet
 
 pub const ECLIP_PER_SECOND_MULTIPLIER: &str = "0.99";
 pub const DECREASING_REWARDS_PERIOD: u64 = 7 * DAY_IN_SECONDS;

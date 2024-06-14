@@ -65,6 +65,7 @@ astroport-governance    = { git = "https://github.com/astroport-fi/astroport-gov
 # updated astroport contracts for integration testing
 astroport-voting-escrow = { path = "./packages/astroport_voting_escrow" }
 astroport-generator-controller = { path = "./packages/astroport_generator_controller" }
+eclipsepad-staking = { path = "./packages/eclipsepad-staking" }
 # astroport-escrow-fee-distributor = { path = "./packages/astroport_escrow_fee_distributor" }
 
 [profile.release]

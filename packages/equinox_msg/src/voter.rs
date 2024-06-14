@@ -21,6 +21,8 @@ pub struct InstantiateMsg {
 
     /// Astroport Voting Escrow contract
     pub astroport_voting_escrow_contract: String,
+    /// Eclipsepad staking v3 contract
+    pub eclipsepad_staking_contract: String,
 }
 
 #[cw_serde]
@@ -42,6 +44,8 @@ pub struct UpdateConfig {
 
     /// Astroport Voting Escrow contract
     pub astroport_voting_escrow_contract: Option<String>,
+    /// Eclipsepad staking v3 contract
+    pub eclipsepad_staking_contract: Option<String>,
 }
 
 #[cw_serde]
@@ -86,7 +90,7 @@ pub enum QueryMsg {
     Owner {},
     /// query total vxASTRO
     #[returns(Uint128)]
-    VotingPower {},
+    VotingPower { address: String },
     /// query ASTRO/xASTRO ratio
     #[returns((Uint128, Uint128))]
     ConvertRatio {},
@@ -119,4 +123,6 @@ pub struct Config {
 
     /// Astroport Voting Escrow contract
     pub astroport_voting_escrow_contract: Addr,
+    /// Eclipsepad staking v3 contract
+    pub eclipsepad_staking_contract: Addr,
 }

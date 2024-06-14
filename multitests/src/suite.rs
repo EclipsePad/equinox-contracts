@@ -18,7 +18,7 @@ use astroport::{
 //     QueryMsg as AstroportVotingEscrowQueryMsg,
 // };
 use astroport_voting_escrow;
-use cosmwasm_std::{coin, to_json_binary, Addr, Binary, Coin, Decimal, StdResult, Uint128};
+use cosmwasm_std::{coin, coins, to_json_binary, Addr, Binary, Coin, Decimal, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 use equinox_msg::{
@@ -223,6 +223,14 @@ fn store_reward_distributor(app: &mut App) -> u64 {
     ));
 
     app.store_code(contract)
+}
+
+fn store_eclipsepad_staking(app: &mut App) -> u64 {
+    app.store_code(Box::new(ContractWrapper::new_with_empty(
+        eclipsepad_staking::contract::execute,
+        eclipsepad_staking::contract::instantiate,
+        eclipsepad_staking::contract::query,
+    )))
 }
 
 fn store_voter(app: &mut App) -> u64 {
@@ -626,6 +634,30 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        let eclipsepad_staking_id = store_eclipsepad_staking(&mut app);
+        let eclipsepad_staking_contract = app
+            .instantiate_contract(
+                eclipsepad_staking_id,
+                admin.clone(),
+                &eclipse_base::staking::msg::InstantiateMsg {
+                    beclip_minter: None,
+                    staking_token: None,
+                    beclip_address: None,
+                    beclip_whitelist: None,
+                    lock_schedule: None,
+                    seconds_per_essence: None,
+                    dao_treasury_address: None,
+                    penalty_multiplier: None,
+                    pagintaion_config: None,
+                    eclip_per_second: None,
+                    eclip_per_second_multiplier: None,
+                },
+                &[],
+                "eclipsepad staking",
+                Some(admin.clone().to_string()),
+            )
+            .unwrap();
+
         let voter_id = store_voter(&mut app);
         let voter_contract = app
             .instantiate_contract(
@@ -639,6 +671,7 @@ impl SuiteBuilder {
                     staking_contract: astro_staking_contract.clone().into_string(),
                     converter_contract: converter_contract.clone().into_string(),
                     astroport_voting_escrow_contract: astroport_voting_escrow_address.to_string(),
+                    eclipsepad_staking_contract: eclipsepad_staking_contract.to_string(),
                 },
                 &[],
                 "voter",
@@ -756,6 +789,7 @@ impl SuiteBuilder {
             flexible_staking_contract,
             timelock_staking_contract,
             reward_distributor_contract,
+            eclipsepad_staking: eclipsepad_staking_contract,
             voter_contract,
             eclipse_stability_pool,
             ce_reward_distributor,
@@ -786,6 +820,7 @@ pub struct Suite {
     flexible_staking_contract: Addr,
     timelock_staking_contract: Addr,
     reward_distributor_contract: Addr,
+    eclipsepad_staking: Addr,
     voter_contract: Addr,
     eclipse_stability_pool: Addr,
     ce_reward_distributor: Addr,
@@ -842,6 +877,9 @@ impl Suite {
     }
     pub fn reward_distributor_contract(&self) -> String {
         self.reward_distributor_contract.to_string()
+    }
+    pub fn eclipsepad_staking_contract(&self) -> String {
+        self.eclipsepad_staking.to_string()
     }
     pub fn voter_contract(&self) -> String {
         self.voter_contract.to_string()
@@ -1360,6 +1398,59 @@ impl Suite {
         Ok(reward.u128())
     }
 
+    // eclipsepad staking contract
+    pub fn eclipsepad_staking_try_stake(
+        &mut self,
+        sender: &str,
+        amount: u128,
+        denom: &str,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            Addr::unchecked(&self.eclipsepad_staking_contract()),
+            &eclipse_base::staking::msg::ExecuteMsg::Stake {},
+            &coins(amount, denom.to_string()),
+        )
+    }
+
+    pub fn eclipsepad_staking_try_lock(
+        &mut self,
+        sender: &str,
+        amount: u128,
+        lock_tier: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            Addr::unchecked(&self.eclipsepad_staking_contract()),
+            &eclipse_base::staking::msg::ExecuteMsg::Lock {
+                amount: Uint128::new(amount),
+                lock_tier,
+            },
+            &[],
+        )
+    }
+
+    pub fn eclipsepad_staking_query_essence(
+        &self,
+        user: &str,
+    ) -> StdResult<eclipse_base::staking::msg::QueryEssenceResponse> {
+        self.app.wrap().query_wasm_smart(
+            Addr::unchecked(&self.eclipsepad_staking_contract()),
+            &eclipse_base::staking::msg::QueryMsg::QueryEssence {
+                user: user.to_string(),
+            },
+        )
+    }
+
+    pub fn eclipsepad_staking_query_total_essence(
+        &self,
+    ) -> StdResult<eclipse_base::staking::msg::QueryEssenceResponse> {
+        self.app.wrap().query_wasm_smart(
+            Addr::unchecked(&self.eclipsepad_staking_contract()),
+            &eclipse_base::staking::msg::QueryMsg::QueryTotalEssence {},
+        )
+    }
+
     // voter contract
     pub fn voter_swap_to_eclip_astro(
         &mut self,
@@ -1438,6 +1529,15 @@ impl Suite {
             .wrap()
             .query_wasm_smart(self.voter_contract.clone(), &VoterQueryMsg::Owner {})?;
         Ok(owner.into_string())
+    }
+
+    pub fn voter_query_voting_power(&self, address: &str) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract.clone(),
+            &VoterQueryMsg::VotingPower {
+                address: address.to_string(),
+            },
+        )
     }
 
     // flexible_stake contract

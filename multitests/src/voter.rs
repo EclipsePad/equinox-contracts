@@ -1,5 +1,6 @@
 use cosmwasm_std::Addr;
 use cw_controllers::AdminError;
+use eclipse_base::staking::state::ECLIP_MAINNET;
 use equinox_msg::voter::{Config, UpdateConfig};
 use voter::ContractError;
 
@@ -65,6 +66,7 @@ fn instantiate() {
             astroport_voting_escrow_contract: Addr::unchecked(
                 suite.astroport_voting_escrow_contract()
             ),
+            eclipsepad_staking_contract: Addr::unchecked(suite.eclipsepad_staking_contract())
         }
     );
 }
@@ -113,6 +115,7 @@ fn update_config() {
         gauge_contract: Some(Addr::unchecked("test").into_string()),
         astroport_gauge_contract: Some(Addr::unchecked("test").into_string()),
         astroport_voting_escrow_contract: Some(Addr::unchecked("test").into_string()),
+        eclipsepad_staking_contract: Some(Addr::unchecked("test").into_string()),
     };
 
     // attacker
@@ -138,6 +141,7 @@ fn update_config() {
             gauge_contract: Addr::unchecked("test"),
             astroport_gauge_contract: Addr::unchecked("test"),
             astroport_voting_escrow_contract: Addr::unchecked("test"),
+            eclipsepad_staking_contract: Addr::unchecked("test"),
         }
     );
 }
@@ -333,4 +337,90 @@ fn swap_to_eclip_astro_default() {
     assert_eq!(carol_astro, 997_000);
     assert_eq!(carol_xastro, 0);
     assert_eq!(carol_eclip_astro, 3_000);
+}
+
+#[test]
+fn voting_power_default() {
+    let astro_staking_initiator = "astro_staking_initiator";
+    let astro_initial_balances = vec![
+        (astro_staking_initiator, 1_000_000_000),
+        (ALICE, 1_000_000),
+        (BOB, 1_000_000),
+        (CAROL, 1_000_000),
+        (ATTACKER, 1_000),
+    ];
+    let timelock_config = vec![
+        (ONE_MONTH, 100),
+        (THREE_MONTH, 100),
+        (SIX_MONTH, 100),
+        (NINE_MONTH, 100),
+        (ONE_YEAR, 100),
+    ];
+    let eclip_daily_reward = 1_000_000;
+    let locking_reward_config = vec![
+        (0, 1),
+        (ONE_MONTH, 2),
+        (THREE_MONTH, 3),
+        (SIX_MONTH, 4),
+        (NINE_MONTH, 5),
+        (ONE_YEAR, 6),
+    ];
+
+    let mut suite = SuiteBuilder::new()
+        .with_initial_balances(astro_initial_balances)
+        .with_timelock_config(timelock_config)
+        .with_eclip_daily_reward(eclip_daily_reward)
+        .with_locking_reward_config(locking_reward_config)
+        .build();
+    suite.update_config();
+    suite.stake_astro(astro_staking_initiator, 10_000).unwrap();
+
+    let astro = &Addr::unchecked(suite.astro_contract());
+
+    suite
+        .voter_swap_to_eclip_astro(CAROL, 1_000, astro)
+        .unwrap();
+
+    // stake and lock in eclipsepad staking
+    for user in [ALICE, BOB] {
+        suite
+            .mint_native(user.to_string(), ECLIP_MAINNET.to_string(), 1_000)
+            .unwrap();
+    }
+
+    suite
+        .eclipsepad_staking_try_stake(ALICE, 1_000, ECLIP_MAINNET)
+        .unwrap();
+    suite
+        .eclipsepad_staking_try_stake(BOB, 1_000, ECLIP_MAINNET)
+        .unwrap();
+    suite.eclipsepad_staking_try_lock(BOB, 1_000, 0).unwrap();
+
+    // check essence after 2 months
+    suite.update_time(2 * 30 * 24 * 3600);
+
+    let alice_essence = suite.eclipsepad_staking_query_essence(ALICE).unwrap();
+    let bob_essence = suite.eclipsepad_staking_query_essence(BOB).unwrap();
+    let total_essence = suite.eclipsepad_staking_query_total_essence().unwrap();
+    assert_eq!(alice_essence.essence.u128(), 164);
+    assert_eq!(bob_essence.essence.u128(), 82);
+    assert_eq!(total_essence.essence.u128(), 246);
+
+    // check voting power
+    let alice_voting_power = suite.voter_query_voting_power(ALICE).unwrap();
+    let bob_voting_power = suite.voter_query_voting_power(BOB).unwrap();
+    let voter_voting_power = suite
+        .voter_query_voting_power(&suite.voter_contract())
+        .unwrap();
+    assert_eq!(alice_voting_power.u128(), 1_520);
+    assert_eq!(bob_voting_power.u128(), 760);
+    assert_eq!(voter_voting_power.u128(), 2_280);
+
+    // voting power must decreasing over time
+    suite.update_time(2 * 30 * 24 * 3600);
+
+    let voter_voting_power = suite
+        .voter_query_voting_power(&suite.voter_contract())
+        .unwrap();
+    assert_eq!(voter_voting_power.u128(), 2_064);
 }

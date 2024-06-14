@@ -50,4 +50,5 @@ astroport-governance    = { workspace = true }
 
 astroport-voting-escrow = { workspace = true }
 astroport-generator-controller = { workspace = true }
+eclipsepad-staking = { workspace = true }
 # astroport-escrow-fee-distributor = { workspace = true }

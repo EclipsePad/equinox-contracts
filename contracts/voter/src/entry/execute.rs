@@ -63,6 +63,11 @@ pub fn update_config(
             astroport_voting_escrow_contract,
         );
     }
+    if let Some(eclipsepad_staking_contract) = new_config.eclipsepad_staking_contract {
+        config.eclipsepad_staking_contract =
+            deps.api.addr_validate(&eclipsepad_staking_contract)?;
+        res = res.add_attribute("eclipsepad_staking_contract", eclipsepad_staking_contract);
+    }
     CONFIG.save(deps.storage, &config)?;
     Ok(res)
 }

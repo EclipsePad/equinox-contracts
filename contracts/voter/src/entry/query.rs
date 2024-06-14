@@ -16,12 +16,6 @@ pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
     Ok(config)
 }
 
-/// query voting power
-pub fn query_voting_power(_deps: Deps, _env: Env) -> StdResult<Uint128> {
-    // to do (balance of vxASTRO)
-    Ok(Uint128::zero())
-}
-
 /// query convert ratio
 pub fn query_convert_ratio(deps: Deps, _env: Env) -> StdResult<(Uint128, Uint128)> {
     let config = CONFIG.load(deps.storage)?;
@@ -36,4 +30,51 @@ pub fn query_convert_ratio(deps: Deps, _env: Env) -> StdResult<(Uint128, Uint128
         &AstroStakingQueryMsg::TotalDeposit {},
     )?;
     Ok((total_deposit, total_shares))
+}
+
+/// query voting power
+pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
+    let voter_address = &env.contract.address;
+    let address = &deps.api.addr_validate(&address)?;
+    let Config {
+        astroport_voting_escrow_contract,
+        eclipsepad_staking_contract,
+        ..
+    } = CONFIG.load(deps.storage)?;
+
+    // query total vxASTRO owned by voter contract
+    let astroport_governance::voting_escrow::VotingPowerResponse {
+        voting_power: vxastro_amount,
+    } = deps.querier.query_wasm_smart(
+        astroport_voting_escrow_contract,
+        &astroport_governance::voting_escrow::QueryMsg::UserVotingPower {
+            user: voter_address.to_string(),
+        },
+    )?;
+
+    // voter contract has full voting power
+    if address == voter_address {
+        return Ok(vxastro_amount);
+    }
+
+    // query essence from eclipsepad-staking v3
+    let eclipse_base::staking::msg::QueryEssenceResponse { essence, .. } =
+        deps.querier.query_wasm_smart(
+            eclipsepad_staking_contract.clone(),
+            &eclipse_base::staking::msg::QueryMsg::QueryEssence {
+                user: address.to_string(),
+            },
+        )?;
+
+    let eclipse_base::staking::msg::QueryEssenceResponse {
+        essence: total_essence,
+        ..
+    } = deps.querier.query_wasm_smart(
+        eclipsepad_staking_contract,
+        &eclipse_base::staking::msg::QueryMsg::QueryTotalEssence {},
+    )?;
+
+    let voting_power = vxastro_amount * essence / total_essence;
+
+    Ok(voting_power)
 }

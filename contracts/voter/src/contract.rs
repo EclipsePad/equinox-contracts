@@ -70,7 +70,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
-        QueryMsg::VotingPower {} => Ok(to_json_binary(&query_voting_power(deps, env)?)?),
+        QueryMsg::VotingPower { address } => {
+            Ok(to_json_binary(&query_voting_power(deps, env, address)?)?)
+        }
         QueryMsg::ConvertRatio {} => Ok(to_json_binary(&query_convert_ratio(deps, env)?)?),
     }
 }

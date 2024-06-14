@@ -30,7 +30,6 @@ pub mod staking {
     pub mod msg;
     pub mod state;
     pub mod types;
-    pub mod types_previous;
 }
 
 pub mod vesting {

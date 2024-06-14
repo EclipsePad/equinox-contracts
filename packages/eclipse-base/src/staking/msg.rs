@@ -135,9 +135,6 @@ pub enum QueryMsg {
     #[returns(StakerInfoResponse)]
     QueryStakerInfo { staker: String },
 
-    #[returns(StakerInfoResponse)]
-    QueryStakerInfoV3 { staker: String },
-
     #[returns(UsersAmountResponse)]
     QueryUsersAmount {},
 
@@ -178,12 +175,6 @@ pub enum QueryMsg {
 
     #[returns(QueryAprInfoResponse)]
     QueryAprInfo {
-        amount_to_add: Option<Uint128>,
-        staker_address: Option<String>,
-    },
-
-    #[returns(QueryAprInfoResponse)]
-    QueryAprInfoV3 {
         amount_to_add: Option<Uint128>,
         staker_address: Option<String>,
     },

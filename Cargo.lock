@@ -808,6 +808,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "eclipsepad-staking"
+version = "3.2.0"
+dependencies = [
+ "anyhow",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw2 1.1.2",
+ "cw20 1.1.2",
+ "eclipse-base",
+ "semver",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "ed25519-zebra"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1143,6 +1159,7 @@ dependencies = [
  "cw20-base 1.1.2",
  "eclipastro-token",
  "eclipse-base",
+ "eclipsepad-staking",
  "equinox-msg",
  "flexible-staking",
  "itertools 0.11.0",
