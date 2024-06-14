@@ -164,6 +164,14 @@ fn store_astroport_voting_escrow(app: &mut App) -> u64 {
     )))
 }
 
+fn store_astroport_generator_controller(app: &mut App) -> u64 {
+    app.store_code(Box::new(ContractWrapper::new_with_empty(
+        astroport_generator_controller::contract::execute,
+        astroport_generator_controller::contract::instantiate,
+        astroport_generator_controller::contract::query,
+    )))
+}
+
 fn store_eclipastro(app: &mut App) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
         eclipastro_token::contract::execute,
@@ -511,6 +519,25 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        let astroport_generator_controller_id = store_astroport_generator_controller(&mut app);
+        let astroport_generator_controller_address = app
+            .instantiate_contract(
+                astroport_generator_controller_id,
+                admin.clone(),
+                &astroport_governance::generator_controller::InstantiateMsg {
+                    owner: admin.to_string(),
+                    escrow_addr: astroport_voting_escrow_address.to_string(),
+                    generator_addr: astroport_generator.to_string(),
+                    factory_addr: astroport_factory.to_string(),
+                    pools_limit: 10,
+                    whitelisted_pools: vec![],
+                },
+                &[],
+                "Astroport generator controller",
+                None,
+            )
+            .unwrap();
+
         let eclipastro_id = store_eclipastro(&mut app);
         let converter_id = store_converter(&mut app);
         let converter_contract = app
@@ -717,7 +744,8 @@ impl SuiteBuilder {
             admin,
             astro_contract,
             astro_staking_contract,
-            astro_voting_escrow_contract: astroport_voting_escrow_address,
+            astroport_voting_escrow: astroport_voting_escrow_address,
+            astroport_generator_controller: astroport_generator_controller_address,
             xastro_contract,
             vxastro_contract,
             astroport_factory,
@@ -746,7 +774,8 @@ pub struct Suite {
     admin: Addr,
     astro_contract: Addr,
     astro_staking_contract: Addr,
-    astro_voting_escrow_contract: Addr,
+    astroport_voting_escrow: Addr,
+    astroport_generator_controller: Addr,
     xastro_contract: Addr,
     vxastro_contract: Addr,
     astroport_factory: Addr,
@@ -778,8 +807,11 @@ impl Suite {
     pub fn astro_staking_contract(&self) -> String {
         self.astro_staking_contract.to_string()
     }
-    pub fn astro_voting_escrow_contract(&self) -> String {
-        self.astro_voting_escrow_contract.to_string()
+    pub fn astroport_voting_escrow_contract(&self) -> String {
+        self.astroport_voting_escrow.to_string()
+    }
+    pub fn astroport_generator_controller_contract(&self) -> String {
+        self.astroport_generator_controller.to_string()
     }
     pub fn xastro_contract(&self) -> String {
         self.xastro_contract.to_string()

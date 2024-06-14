@@ -49,4 +49,5 @@ astroport               = { workspace = true }
 astroport-governance    = { workspace = true }
 
 astroport-voting-escrow = { workspace = true }
-astroport-escrow-fee-distributor = { workspace = true }
+astroport-generator-controller = { workspace = true }
+# astroport-escrow-fee-distributor = { workspace = true }

@@ -78,6 +78,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-generator-controller"
+version = "1.3.0"
+dependencies = [
+ "astroport",
+ "astroport-governance",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw2 1.1.2",
+ "cw20 1.1.2",
+ "itertools 0.10.5",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-governance"
 version = "3.0.0"
 source = "git+https://github.com/astroport-fi/astroport-governance.git#c3f3de1c9b7d3d9ea6734a8836df7c6ecd42d40d"
@@ -1109,8 +1124,8 @@ version = "0.1.1"
 dependencies = [
  "anyhow",
  "astroport",
- "astroport-escrow-fee-distributor",
  "astroport-factory",
+ "astroport-generator-controller",
  "astroport-governance",
  "astroport-incentives",
  "astroport-pair",

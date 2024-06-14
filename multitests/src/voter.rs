@@ -62,7 +62,9 @@ fn instantiate() {
             converter_contract: Addr::unchecked(suite.converter_contract()),
             gauge_contract: Addr::unchecked(""),
             astroport_gauge_contract: Addr::unchecked(""),
-            astroport_voting_escrow_contract: Addr::unchecked(suite.astro_voting_escrow_contract()),
+            astroport_voting_escrow_contract: Addr::unchecked(
+                suite.astroport_voting_escrow_contract()
+            ),
         }
     );
 }
