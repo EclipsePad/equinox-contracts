@@ -233,8 +233,8 @@ pub struct UpdateConfigMsg {
 #[derive(Default)]
 pub struct LockConfig {
     pub duration: u64,
-    pub multiplier: u64, // basis points
-    pub early_unlock_penalty_bps: u64,
+    pub multiplier: u64,               // basis points
+    pub early_unlock_penalty_bps: u64, // basis points
 }
 
 // change when user deposit/withdraw
@@ -487,7 +487,7 @@ pub struct DetailedSingleLockupInfo {
     pub total_eclipastro_staked: Uint128,
     /// withdrawed balance
     pub total_eclipastro_withdrawed: Uint128,
-    pub reward_multiplier: u64,
+    pub reward_multiplier: u64, //basis point
     pub reward_weights: SingleStakingRewardWeights,
 }
 
@@ -500,7 +500,7 @@ pub struct DetailedLpLockupInfo {
     pub total_lp_staked: Uint128,
     /// withdrawed balance
     pub total_lp_withdrawed: Uint128,
-    pub reward_multiplier: u64,
+    pub reward_multiplier: u64, //basis point
 }
 
 #[cw_serde]

@@ -10,7 +10,7 @@ pub fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> StdR
         .iter()
         .find(|c| c.duration == duration)
         .unwrap();
-    let lock_weight = Decimal256::from_ratio(lock_config.multiplier, 1u128);
+    let lock_weight = Decimal256::from_ratio(lock_config.multiplier, 10000u128);
     Ok(lock_weight
         .checked_mul(Decimal256::from_ratio(amount, 1u128))
         .unwrap()

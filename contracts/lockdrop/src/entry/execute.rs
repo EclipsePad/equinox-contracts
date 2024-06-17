@@ -1037,8 +1037,7 @@ pub fn handle_stake_single_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMs
                 .multiplier;
             acc.checked_add(
                 info.xastro_amount_in_lockups
-                    .checked_mul(Uint128::from(duration_multiplier))
-                    .unwrap(),
+                    .multiply_ratio(duration_multiplier, 10000u128),
             )
             .unwrap()
         });
@@ -1109,8 +1108,7 @@ pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, 
                 .multiplier;
             acc.checked_add(
                 info.xastro_amount_in_lockups
-                    .checked_mul(Uint128::from(duration_multiplier))
-                    .unwrap(),
+                    .multiply_ratio(duration_multiplier, 10000u128),
             )
             .unwrap()
         });
