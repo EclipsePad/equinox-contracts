@@ -671,6 +671,8 @@ impl SuiteBuilder {
                     staking_contract: astro_staking_contract.clone().into_string(),
                     converter_contract: converter_contract.clone().into_string(),
                     astroport_voting_escrow_contract: astroport_voting_escrow_address.to_string(),
+                    astroport_generator_controller: astroport_generator_controller_address
+                        .to_string(),
                     eclipsepad_staking_contract: eclipsepad_staking_contract.to_string(),
                 },
                 &[],

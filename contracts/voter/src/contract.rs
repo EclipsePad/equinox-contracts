@@ -61,6 +61,8 @@ pub fn execute(
         }
         ExecuteMsg::WithdrawBribeRewards {} => e::withdraw_bribe_rewards(deps, env, info),
         ExecuteMsg::PlaceVote { gauge, votes } => e::place_vote(deps, env, info, gauge, votes),
+
+        ExecuteMsg::Vote { voting_list } => e::try_vote(deps, env, info, voting_list),
     }
 }
 

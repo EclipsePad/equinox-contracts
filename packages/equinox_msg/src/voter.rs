@@ -21,6 +21,8 @@ pub struct InstantiateMsg {
 
     /// Astroport Voting Escrow contract
     pub astroport_voting_escrow_contract: String,
+    /// Astroport generator controller contract
+    pub astroport_generator_controller: String,
     /// Eclipsepad staking v3 contract
     pub eclipsepad_staking_contract: String,
 }
@@ -44,6 +46,8 @@ pub struct UpdateConfig {
 
     /// Astroport Voting Escrow contract
     pub astroport_voting_escrow_contract: Option<String>,
+    /// Astroport generator controller contract
+    pub astroport_generator_controller: Option<String>,
     /// Eclipsepad staking v3 contract
     pub eclipsepad_staking_contract: Option<String>,
 }
@@ -62,11 +66,18 @@ pub enum ExecuteMsg {
     /// stake ASTRO from user
     Receive(Cw20ReceiveMsg),
     /// update config
-    UpdateConfig { config: UpdateConfig },
+    UpdateConfig {
+        config: UpdateConfig,
+    },
     /// update owner
-    UpdateOwner { owner: String },
+    UpdateOwner {
+        owner: String,
+    },
     /// withdraw xASTRO
-    Withdraw { amount: Uint128, recipient: String },
+    Withdraw {
+        amount: Uint128,
+        recipient: String,
+    },
     /// withdraw bribe rewards
     WithdrawBribeRewards {},
     /// gauge vote
@@ -74,6 +85,16 @@ pub enum ExecuteMsg {
         gauge: u64,
         votes: Option<Vec<Vote>>,
     },
+
+    Vote {
+        voting_list: Vec<VotingListItem>,
+    },
+}
+
+#[cw_serde]
+pub struct VotingListItem {
+    pub pool_address: String,
+    pub voting_power: Decimal,
 }
 
 #[cw_serde]
@@ -121,8 +142,10 @@ pub struct Config {
     /// Astroport Gauge contract
     pub astroport_gauge_contract: Addr,
 
-    /// Astroport Voting Escrow contract
+    /// Astroport voting escrow contract
     pub astroport_voting_escrow_contract: Addr,
+    /// Astroport generator controller contract
+    pub astroport_generator_controller: Addr,
     /// Eclipsepad staking v3 contract
     pub eclipsepad_staking_contract: Addr,
 }

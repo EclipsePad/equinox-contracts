@@ -26,6 +26,18 @@ pub enum ContractError {
     Unauthorized {},
     #[error("Zero amount")]
     ZeroAmount {},
+
+    #[error("Empty voting list!")]
+    EmptyVotingList,
+
+    #[error("Voting list has pool addresses duplicaion!")]
+    VotingListDuplication,
+
+    #[error("Sum of weights is not equal one!")]
+    WeightsAreUnbalanced,
+
+    #[error("Weight is out of range!")]
+    WeightIsOutOfRange,
 }
 
 impl From<semver::Error> for ContractError {

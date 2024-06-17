@@ -66,6 +66,9 @@ fn instantiate() {
             astroport_voting_escrow_contract: Addr::unchecked(
                 suite.astroport_voting_escrow_contract()
             ),
+            astroport_generator_controller: Addr::unchecked(
+                suite.astroport_generator_controller_contract()
+            ),
             eclipsepad_staking_contract: Addr::unchecked(suite.eclipsepad_staking_contract())
         }
     );
@@ -115,6 +118,7 @@ fn update_config() {
         gauge_contract: Some(Addr::unchecked("test").into_string()),
         astroport_gauge_contract: Some(Addr::unchecked("test").into_string()),
         astroport_voting_escrow_contract: Some(Addr::unchecked("test").into_string()),
+        astroport_generator_controller: Some(Addr::unchecked("test").to_string()),
         eclipsepad_staking_contract: Some(Addr::unchecked("test").into_string()),
     };
 
@@ -141,6 +145,7 @@ fn update_config() {
             gauge_contract: Addr::unchecked("test"),
             astroport_gauge_contract: Addr::unchecked("test"),
             astroport_voting_escrow_contract: Addr::unchecked("test"),
+            astroport_generator_controller: Addr::unchecked("test"),
             eclipsepad_staking_contract: Addr::unchecked("test"),
         }
     );

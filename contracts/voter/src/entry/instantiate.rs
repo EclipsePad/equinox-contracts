@@ -31,6 +31,9 @@ pub fn try_instantiate(
             astroport_voting_escrow_contract: deps
                 .api
                 .addr_validate(&msg.astroport_voting_escrow_contract)?,
+            astroport_generator_controller: deps
+                .api
+                .addr_validate(&msg.astroport_generator_controller)?,
             eclipsepad_staking_contract: deps
                 .api
                 .addr_validate(&msg.eclipsepad_staking_contract)?,

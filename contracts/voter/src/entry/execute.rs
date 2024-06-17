@@ -1,15 +1,18 @@
 use std::str::FromStr;
 
 use cosmwasm_std::{
-    ensure, ensure_eq, to_json_binary, Addr, CosmosMsg, DepsMut, Env, MessageInfo, ReplyOn,
-    Response, SubMsg, SubMsgResult, Uint128, WasmMsg,
+    ensure, ensure_eq, to_json_binary, Addr, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
+    ReplyOn, Response, SubMsg, SubMsgResult, Uint128, WasmMsg,
 };
 
 use astroport::staking::Cw20HookMsg as AstroportStakingCw20HookMsg;
 
 use cw20::Cw20ExecuteMsg;
 
-use equinox_msg::voter::{Config, UpdateConfig, Vote, MAX_ESCROW_VOTING_LOCK_PERIOD};
+use eclipse_base::converters::u128_to_dec;
+use equinox_msg::voter::{
+    Config, UpdateConfig, Vote, VotingListItem, MAX_ESCROW_VOTING_LOCK_PERIOD,
+};
 
 use crate::{
     contract::{STAKE_ASTRO_REPLY_ID, STAKE_TOKEN_REPLY_ID},
@@ -61,6 +64,14 @@ pub fn update_config(
         res = res.add_attribute(
             "astroport_voting_escrow_contract",
             astroport_voting_escrow_contract,
+        );
+    }
+    if let Some(astroport_generator_controller) = new_config.astroport_generator_controller {
+        config.astroport_generator_controller =
+            deps.api.addr_validate(&astroport_generator_controller)?;
+        res = res.add_attribute(
+            "astroport_generator_controller",
+            astroport_generator_controller,
         );
     }
     if let Some(eclipsepad_staking_contract) = new_config.eclipsepad_staking_contract {
@@ -394,4 +405,81 @@ fn lock_xastro(
         .add_messages(msg_list)
         .add_attribute("action", "try_swap_to_eclip_astro")
         .add_attribute("eclip_astro_amount", eclip_astro_amount))
+}
+
+pub fn try_vote(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    voting_list: Vec<VotingListItem>,
+) -> Result<Response, ContractError> {
+    // 100 % = 10_000 BP
+    const BP_MULTIPLIER: u128 = 10_000;
+
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    let Config {
+        astroport_generator_controller,
+        ..
+    } = CONFIG.load(deps.storage)?;
+
+    // check voting list
+
+    // empty
+    if voting_list.is_empty() {
+        Err(ContractError::EmptyVotingList)?;
+    }
+
+    // diplications
+    let mut pool_list: Vec<String> = voting_list
+        .iter()
+        .map(|x| x.pool_address.to_string())
+        .collect();
+    pool_list.sort_unstable();
+    pool_list.dedup();
+
+    if pool_list.len() != voting_list.len() {
+        Err(ContractError::VotingListDuplication)?;
+    }
+
+    // out of range
+    if voting_list
+        .iter()
+        .any(|x| x.voting_power.is_zero() || x.voting_power > Decimal::one())
+    {
+        Err(ContractError::WeightIsOutOfRange)?;
+    }
+
+    // wrong sum
+    let votes: Vec<(String, u16)> = voting_list
+        .into_iter()
+        .map(|x| {
+            (
+                x.pool_address,
+                (x.voting_power * u128_to_dec(BP_MULTIPLIER))
+                    .to_uint_floor()
+                    .u128() as u16,
+            )
+        })
+        .collect();
+
+    if (votes
+        .iter()
+        .fold(0, |acc, (_, voting_power)| acc + voting_power)) as u128
+        != BP_MULTIPLIER
+    {
+        Err(ContractError::WeightsAreUnbalanced)?;
+    }
+
+    // send vote msg
+    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: astroport_generator_controller.to_string(),
+        msg: to_json_binary(
+            &astroport_governance::generator_controller::ExecuteMsg::Vote { votes },
+        )?,
+        funds: vec![],
+    });
+
+    Ok(Response::new()
+        .add_message(msg)
+        .add_attribute("action", "try_vote"))
 }
