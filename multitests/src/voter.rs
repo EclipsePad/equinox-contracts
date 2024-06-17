@@ -1,7 +1,8 @@
-use cosmwasm_std::Addr;
+use astroport_governance::generator_controller::UserInfoResponse;
+use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::AdminError;
-use eclipse_base::staking::state::ECLIP_MAINNET;
-use equinox_msg::voter::{Config, UpdateConfig};
+use eclipse_base::{converters::str_to_dec, staking::state::ECLIP_MAINNET};
+use equinox_msg::voter::{Config, UpdateConfig, VotingListItem};
 use voter::ContractError;
 
 use crate::suite::SuiteBuilder;
@@ -16,6 +17,9 @@ const ALICE: &str = "alice";
 const BOB: &str = "bob";
 const CAROL: &str = "carol";
 const ATTACKER: &str = "attacker";
+
+const ECLIP: &str = "eclip";
+const ATOM: &str = "atom";
 
 #[test]
 fn instantiate() {
@@ -428,4 +432,120 @@ fn voting_power_default() {
         .voter_query_voting_power(&suite.voter_contract())
         .unwrap();
     assert_eq!(voter_voting_power.u128(), 2_064);
+}
+
+#[test]
+fn vote_default() {
+    let astro_staking_initiator = "astro_staking_initiator";
+    let astro_initial_balances = vec![
+        (astro_staking_initiator, 1_000_000_000),
+        (ALICE, 1_000_000),
+        (BOB, 1_000_000),
+        (CAROL, 1_000_000),
+        (ATTACKER, 1_000),
+    ];
+    let timelock_config = vec![
+        (ONE_MONTH, 100),
+        (THREE_MONTH, 100),
+        (SIX_MONTH, 100),
+        (NINE_MONTH, 100),
+        (ONE_YEAR, 100),
+    ];
+    let eclip_daily_reward = 1_000_000;
+    let locking_reward_config = vec![
+        (0, 1),
+        (ONE_MONTH, 2),
+        (THREE_MONTH, 3),
+        (SIX_MONTH, 4),
+        (NINE_MONTH, 5),
+        (ONE_YEAR, 6),
+    ];
+
+    let mut suite = SuiteBuilder::new()
+        .with_initial_balances(astro_initial_balances)
+        .with_timelock_config(timelock_config)
+        .with_eclip_daily_reward(eclip_daily_reward)
+        .with_locking_reward_config(locking_reward_config)
+        .build();
+    suite.update_config();
+    suite.stake_astro(astro_staking_initiator, 10_000).unwrap();
+
+    let astro = &Addr::unchecked(suite.astro_contract());
+
+    suite
+        .voter_swap_to_eclip_astro(CAROL, 1_000, astro)
+        .unwrap();
+
+    // stake and lock in eclipsepad staking
+    for user in [ALICE, BOB] {
+        suite
+            .mint_native(user.to_string(), ECLIP_MAINNET.to_string(), 1_000)
+            .unwrap();
+    }
+
+    suite
+        .eclipsepad_staking_try_stake(ALICE, 1_000, ECLIP_MAINNET)
+        .unwrap();
+    suite
+        .eclipsepad_staking_try_stake(BOB, 1_000, ECLIP_MAINNET)
+        .unwrap();
+    suite.eclipsepad_staking_try_lock(BOB, 1_000, 0).unwrap();
+
+    // add pairs
+    suite
+        .create_pair_native(
+            &suite.admin(),
+            astroport::factory::PairType::Xyk {},
+            &[ECLIP, ATOM],
+        )
+        .unwrap();
+
+    let astroport::factory::PairsResponse { pairs } =
+        suite.query_pair_list(None, Some(10)).unwrap();
+    let eclip_atom_lp_token = &pairs[0].liquidity_token;
+    let xastro_eclipastro_lp_token = &pairs[1].liquidity_token;
+
+    suite
+        .astroport_generator_controller_update_whitelist(
+            &suite.admin(),
+            &pairs
+                .iter()
+                .map(|x| x.liquidity_token.to_string())
+                .collect::<Vec<String>>(),
+        )
+        .unwrap();
+
+    suite
+        .voter_vote(
+            &suite.admin(),
+            &[
+                VotingListItem {
+                    lp_token: eclip_atom_lp_token.to_string(),
+                    voting_power: str_to_dec("0.7"),
+                },
+                VotingListItem {
+                    lp_token: xastro_eclipastro_lp_token.to_string(),
+                    voting_power: str_to_dec("0.3"),
+                },
+            ],
+        )
+        .unwrap();
+
+    let voter_info = suite
+        .voter_query_voter_info(&suite.voter_contract())
+        .unwrap();
+
+    assert_eq!(
+        voter_info,
+        UserInfoResponse {
+            vote_ts: 3217803819,
+            voting_power: Uint128::new(2496),
+            slope: Uint128::new(24),
+            lock_end: 2702,
+            votes: vec![
+                (eclip_atom_lp_token.to_owned(), 7000),
+                (xastro_eclipastro_lp_token.to_owned(), 3000),
+            ],
+        }
+    );
 }

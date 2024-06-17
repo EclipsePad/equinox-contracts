@@ -12,3 +12,4 @@ cosmwasm-std    = { workspace = true }
 cw20            = { workspace = true }
 cw-storage-plus = { workspace = true }
 astroport       = { workspace = true }
+astroport-governance       = { workspace = true }

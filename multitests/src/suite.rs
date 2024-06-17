@@ -1125,6 +1125,53 @@ impl Suite {
         )
     }
 
+    pub fn create_pair_native(
+        &mut self,
+        sender: &str,
+        pair_type: PairType,
+        tokens: &[&str; 2],
+    ) -> AnyResult<AppResponse> {
+        let asset_infos = vec![
+            AssetInfo::NativeToken {
+                denom: tokens[0].to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: tokens[1].to_string(),
+            },
+        ];
+
+        let msg = astroport::factory::ExecuteMsg::CreatePair {
+            pair_type,
+            asset_infos,
+            init_params: None,
+        };
+
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.astroport_factory.clone(),
+            &msg,
+            &[],
+        )
+    }
+
+    pub fn astroport_generator_controller_update_whitelist(
+        &mut self,
+        sender: &str,
+        lp_token_list: &[String],
+    ) -> AnyResult<AppResponse> {
+        let msg = astroport_governance::generator_controller::ExecuteMsg::UpdateWhitelist {
+            add: Some(lp_token_list.to_owned()),
+            remove: None,
+        };
+
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.astroport_generator_controller.clone(),
+            &msg,
+            &[],
+        )
+    }
+
     pub fn provide_liquidity(
         &mut self,
         sender: &str,
@@ -1217,6 +1264,17 @@ impl Suite {
             &FactoryQueryMsg::Pair { asset_infos },
         )?;
         Ok(info)
+    }
+
+    pub fn query_pair_list(
+        &self,
+        start_after: Option<Vec<AssetInfo>>,
+        limit: Option<u32>,
+    ) -> StdResult<astroport::factory::PairsResponse> {
+        self.app.wrap().query_wasm_smart(
+            self.astroport_factory.clone(),
+            &FactoryQueryMsg::Pairs { start_after, limit },
+        )
     }
 
     pub fn query_lp_token_balance(&self, address: &str) -> StdResult<Uint128> {
@@ -1509,6 +1567,21 @@ impl Suite {
         )
     }
 
+    pub fn voter_vote(
+        &mut self,
+        sender: &str,
+        voting_list: &[equinox_msg::voter::VotingListItem],
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.voter_contract.clone(),
+            &VoterExecuteMsg::Vote {
+                voting_list: voting_list.to_owned(),
+            },
+            &[],
+        )
+    }
+
     pub fn query_voter_config(&self) -> StdResult<VoterConfig> {
         let config: VoterConfig = self
             .app
@@ -1537,6 +1610,18 @@ impl Suite {
         self.app.wrap().query_wasm_smart(
             self.voter_contract.clone(),
             &VoterQueryMsg::VotingPower {
+                address: address.to_string(),
+            },
+        )
+    }
+
+    pub fn voter_query_voter_info(
+        &self,
+        address: &str,
+    ) -> StdResult<astroport_governance::generator_controller::UserInfoResponse> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract.clone(),
+            &VoterQueryMsg::VoterInfo {
                 address: address.to_string(),
             },
         )

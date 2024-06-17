@@ -93,7 +93,7 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 pub struct VotingListItem {
-    pub pool_address: String,
+    pub lp_token: String,
     pub voting_power: Decimal,
 }
 
@@ -115,6 +115,9 @@ pub enum QueryMsg {
     /// query ASTRO/xASTRO ratio
     #[returns((Uint128, Uint128))]
     ConvertRatio {},
+
+    #[returns(astroport_governance::generator_controller::UserInfoResponse)]
+    VoterInfo { address: String },
 }
 
 #[cw_serde]

@@ -430,10 +430,7 @@ pub fn try_vote(
     }
 
     // diplications
-    let mut pool_list: Vec<String> = voting_list
-        .iter()
-        .map(|x| x.pool_address.to_string())
-        .collect();
+    let mut pool_list: Vec<String> = voting_list.iter().map(|x| x.lp_token.to_string()).collect();
     pool_list.sort_unstable();
     pool_list.dedup();
 
@@ -454,7 +451,7 @@ pub fn try_vote(
         .into_iter()
         .map(|x| {
             (
-                x.pool_address,
+                x.lp_token,
                 (x.voting_power * u128_to_dec(BP_MULTIPLIER))
                     .to_uint_floor()
                     .u128() as u16,

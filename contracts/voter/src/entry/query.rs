@@ -78,3 +78,22 @@ pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Ui
 
     Ok(voting_power)
 }
+
+pub fn query_voter_info(
+    deps: Deps,
+    _env: Env,
+    address: String,
+) -> StdResult<astroport_governance::generator_controller::UserInfoResponse> {
+    let address = &deps.api.addr_validate(&address)?;
+    let Config {
+        astroport_generator_controller,
+        ..
+    } = CONFIG.load(deps.storage)?;
+
+    deps.querier.query_wasm_smart(
+        astroport_generator_controller,
+        &astroport_governance::generator_controller::QueryMsg::UserInfo {
+            user: address.to_string(),
+        },
+    )
+}
