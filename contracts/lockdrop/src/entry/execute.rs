@@ -5,8 +5,8 @@ use astroport::{
     token::BalanceResponse,
 };
 use cosmwasm_std::{
-    attr, coin, ensure, ensure_eq, ensure_ne, from_json, to_json_binary, BankMsg, Coin, CosmosMsg,
-    DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, WasmMsg,
+    attr, coin, ensure, ensure_eq, ensure_ne, from_json, to_json_binary, Addr, BankMsg, Coin,
+    CosmosMsg, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
@@ -76,6 +76,22 @@ pub fn try_update_reward_distribution_config(
 
     REWARD_DISTRIBUTION_CONFIG.save(deps.storage, &new_cfg)?;
     Ok(Response::new().add_attributes(attributes))
+}
+
+/// Update owner
+/// Only owner
+pub fn try_update_owner(
+    mut deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    new_owner: Addr,
+) -> Result<Response, ContractError> {
+    // only owner can update owner
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    OWNER.set(deps.branch(), Some(new_owner.clone()))?;
+    Ok(Response::new()
+        .add_attribute("action", "update owner")
+        .add_attribute("to", new_owner.to_string()))
 }
 
 pub fn try_increase_lockup(
