@@ -1865,11 +1865,17 @@ pub fn _unlock_single_lockup(
     let cfg = CONFIG.load(deps.storage)?;
     let mut lockup_info = SINGLE_LOCKUP_INFO.load(deps.storage, duration)?;
     let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
+    let lock_config = cfg
+        .lock_configs
+        .iter()
+        .find(|c| c.duration == duration)
+        .unwrap();
     if current_time < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window {
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             current_time,
             &cfg,
             user_lockup_info.xastro_amount_in_lockups,
+            lock_config.early_unlock_penalty_bps,
         );
         if let Some(amount) = amount {
             ensure!(
@@ -1965,11 +1971,17 @@ pub fn _unlock_lp_lockup(
     let cfg = CONFIG.load(deps.storage)?;
     let mut lockup_info = LP_LOCKUP_INFO.load(deps.storage, duration)?;
     let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
+    let lock_config = cfg
+        .lock_configs
+        .iter()
+        .find(|c| c.duration == duration)
+        .unwrap();
     if current_time < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window {
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             current_time,
             &cfg,
             user_lockup_info.xastro_amount_in_lockups,
+            lock_config.early_unlock_penalty_bps,
         );
         if let Some(amount) = amount {
             ensure!(

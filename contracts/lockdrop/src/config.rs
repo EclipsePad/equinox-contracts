@@ -1,6 +1,5 @@
 use equinox_msg::lockdrop::{LockConfig, RewardDistributionConfig};
 
-pub const MAX_WITHDRAW_BPS: u64 = 5000u64;
 pub const DEFAULT_DEPOSIT_WINDOW: u64 = 86400 * 5;
 pub const DEFAULT_WITHDRAW_WINDOW: u64 = 86400 * 2;
 
