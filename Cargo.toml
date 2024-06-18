@@ -57,6 +57,7 @@ astroport-vesting       = { git = "https://github.com/astroport-fi/astroport-cor
 astroport-xastro-token  = { git = "https://github.com/astroport-fi/astroport-core.git", version = "1.1.0" }
 astroport               = { git = "https://github.com/astroport-fi/astroport-core.git", version = "3.10.0" }
 
+# astroport-tokenfactory-tracker = { git = "https://github.com/astroport-fi/astroport-core", version = "1", branch = "feat/astroport_v4" }
 astroport-generator     = { git = "https://github.com/astroport-fi/astroport-core.git" }
 astroport-whitelist     = { git = "https://github.com/astroport-fi/astroport-core.git" }
 # astroport-pair-stable   = { git = "https://github.com/astroport-fi/astroport-core.git", version = "3.4.0" }
@@ -65,8 +66,10 @@ astroport-governance    = { git = "https://github.com/astroport-fi/astroport-gov
 # updated astroport contracts for integration testing
 astroport-voting-escrow = { path = "./packages/astroport_voting_escrow" }
 astroport-generator-controller = { path = "./packages/astroport_generator_controller" }
+astroport-assembly = { path = "./packages/astroport_assembly" }
 eclipsepad-staking = { path = "./packages/eclipsepad-staking" }
 # astroport-escrow-fee-distributor = { path = "./packages/astroport_escrow_fee_distributor" }
+astroport-tokenfactory-tracker = { path = "./packages/astroport_tokenfactory_tracker" }
 
 [profile.release]
 opt-level = "z"

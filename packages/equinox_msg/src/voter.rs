@@ -80,11 +80,6 @@ pub enum ExecuteMsg {
     },
     /// withdraw bribe rewards
     WithdrawBribeRewards {},
-    /// gauge vote
-    PlaceVote {
-        gauge: u64,
-        votes: Option<Vec<Vote>>,
-    },
 
     Vote {
         voting_list: Vec<VotingListItem>,

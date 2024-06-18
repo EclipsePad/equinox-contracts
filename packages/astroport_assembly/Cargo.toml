@@ -1,0 +1,29 @@
+[package]
+name = "astroport-assembly"
+version = "2.0.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "Astroport DAO Contract"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport-governance"
+homepage = "https://astroport.fi"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+testnet = []
+library = []
+
+[dependencies]
+cw2.workspace = true
+cosmwasm-std = { workspace = true, features = ["ibc3", "cosmwasm_1_1"] }
+cw-storage-plus.workspace = true
+thiserror.workspace = true
+cosmwasm-schema.workspace = true
+cw-utils.workspace = true
+astroport-governance = { workspace = true }
+astroport = { workspace = true }
+astroport-tokenfactory-tracker = { workspace = true }
+ibc-controller-package = "1.0.0"

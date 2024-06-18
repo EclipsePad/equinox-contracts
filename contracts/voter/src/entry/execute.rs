@@ -10,9 +10,7 @@ use astroport::staking::Cw20HookMsg as AstroportStakingCw20HookMsg;
 use cw20::Cw20ExecuteMsg;
 
 use eclipse_base::converters::u128_to_dec;
-use equinox_msg::voter::{
-    Config, UpdateConfig, Vote, VotingListItem, MAX_ESCROW_VOTING_LOCK_PERIOD,
-};
+use equinox_msg::voter::{Config, UpdateConfig, VotingListItem, MAX_ESCROW_VOTING_LOCK_PERIOD};
 
 use crate::{
     contract::{STAKE_ASTRO_REPLY_ID, STAKE_TOKEN_REPLY_ID},
@@ -155,18 +153,6 @@ pub fn withdraw_bribe_rewards(
     _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-) -> Result<Response, ContractError> {
-    // to do
-    Ok(Response::new())
-}
-
-/// Vote
-pub fn place_vote(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _gauge: u64,
-    _votes: Option<Vec<Vote>>,
 ) -> Result<Response, ContractError> {
     // to do
     Ok(Response::new())
