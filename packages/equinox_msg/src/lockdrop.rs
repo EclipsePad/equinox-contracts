@@ -46,6 +46,9 @@ pub enum ExecuteMsg {
     UpdateConfig {
         new_config: UpdateConfigMsg,
     },
+    UpdateOwner {
+        new_owner: Addr,
+    },
     UpdateRewardDistributionConfig {
         new_config: RewardDistributionConfig,
     },
