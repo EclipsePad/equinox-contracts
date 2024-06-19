@@ -640,6 +640,7 @@ impl SuiteBuilder {
                 eclipsepad_staking_id,
                 admin.clone(),
                 &eclipse_base::staking::msg::InstantiateMsg {
+                    equinox_voter: None,
                     beclip_minter: None,
                     staking_token: None,
                     beclip_address: None,

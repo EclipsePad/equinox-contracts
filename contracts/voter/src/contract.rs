@@ -64,6 +64,10 @@ pub fn execute(
         ExecuteMsg::WithdrawBribeRewards {} => e::withdraw_bribe_rewards(deps, env, info),
 
         ExecuteMsg::Vote { voting_list } => e::try_vote(deps, env, info, voting_list),
+        ExecuteMsg::CaptureEssence {
+            user_and_essence_list,
+            total_essence,
+        } => e::try_capture_essence(deps, env, info, user_and_essence_list, total_essence),
     }
 }
 

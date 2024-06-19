@@ -80,6 +80,7 @@ pub fn execute(
 
         ExecuteMsg::UpdateConfig {
             admin,
+            equinox_voter,
             beclip_minter,
             beclip_address,
             beclip_whitelist,
@@ -92,6 +93,7 @@ pub fn execute(
             env,
             info,
             admin,
+            equinox_voter,
             beclip_minter,
             beclip_address,
             beclip_whitelist,

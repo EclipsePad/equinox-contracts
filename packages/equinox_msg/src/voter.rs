@@ -84,6 +84,10 @@ pub enum ExecuteMsg {
     Vote {
         voting_list: Vec<VotingListItem>,
     },
+    CaptureEssence {
+        user_and_essence_list: Vec<(String, Uint128)>,
+        total_essence: Uint128,
+    },
 }
 
 #[cw_serde]

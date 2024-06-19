@@ -4,6 +4,7 @@ use cosmwasm_std::{Addr, Decimal, Uint128};
 #[cw_serde]
 pub struct Config {
     pub admin: Addr,
+    pub equinox_voter: Option<Addr>,
     pub beclip_minter: Option<Addr>,
     /// ECLIP
     pub staking_token: String,

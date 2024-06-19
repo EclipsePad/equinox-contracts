@@ -11,6 +11,7 @@ pub struct MigrateMsg {
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    pub equinox_voter: Option<String>,
     pub beclip_minter: Option<String>,
     /// ECLIP
     pub staking_token: Option<String>,
@@ -77,6 +78,7 @@ pub enum ExecuteMsg {
 
     UpdateConfig {
         admin: Option<String>,
+        equinox_voter: Option<String>,
         beclip_minter: Option<String>,
         beclip_address: Option<String>,
         beclip_whitelist: Option<Vec<String>>,

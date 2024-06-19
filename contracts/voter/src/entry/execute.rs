@@ -9,13 +9,13 @@ use astroport::staking::Cw20HookMsg as AstroportStakingCw20HookMsg;
 
 use cw20::Cw20ExecuteMsg;
 
-use eclipse_base::converters::u128_to_dec;
+use eclipse_base::{converters::u128_to_dec, utils::unwrap_field};
 use equinox_msg::voter::{Config, UpdateConfig, VotingListItem, MAX_ESCROW_VOTING_LOCK_PERIOD};
 
 use crate::{
     contract::{STAKE_ASTRO_REPLY_ID, STAKE_TOKEN_REPLY_ID},
     error::ContractError,
-    state::{CONFIG, OWNER, RECIPIENT},
+    state::{CONFIG, GAUGE_VOTING_PERIOD, OWNER, RECIPIENT, TOTAL_ESSENCE, USER_ESSENCE},
 };
 
 /// Update config
@@ -465,4 +465,36 @@ pub fn try_vote(
     Ok(Response::new()
         .add_message(msg)
         .add_attribute("action", "try_vote"))
+}
+
+pub fn try_capture_essence(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    user_and_essence_list: Vec<(String, Uint128)>,
+    total_essence: Uint128,
+) -> Result<Response, ContractError> {
+    let sender = &info.sender;
+    let admin = unwrap_field(OWNER.query_admin(deps.as_ref())?.admin, "admin")?;
+    let block_time = env.block.time.seconds();
+    let Config {
+        eclipsepad_staking_contract,
+        ..
+    } = CONFIG.load(deps.storage)?;
+
+    if sender != eclipsepad_staking_contract && sender.to_string() != admin {
+        Err(ContractError::Unauthorized {})?;
+    }
+
+    // TODO: query gauge voting start date
+    let gauge_voting_start_date = 10000000000000000u64;
+
+    if block_time > gauge_voting_start_date + GAUGE_VOTING_PERIOD {
+        TOTAL_ESSENCE.save(deps.storage, &(total_essence, block_time))?;
+        for (user_address, user_essence) in user_and_essence_list {
+            USER_ESSENCE.save(deps.storage, &Addr::unchecked(user_address), &user_essence)?;
+        }
+    }
+
+    Ok(Response::new().add_attribute("action", "try_capture_essence"))
 }

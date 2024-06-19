@@ -883,6 +883,7 @@ dependencies = [
  "cw2 1.1.2",
  "cw20 1.1.2",
  "eclipse-base",
+ "equinox-msg",
  "semver",
  "serde",
  "thiserror",

@@ -41,6 +41,7 @@ pub fn try_stake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         seconds_per_essence,
         eclip_per_second,
         eclip_per_second_multiplier,
+        equinox_voter,
         ..
     } = CONFIG.load(deps.storage)?;
 
@@ -133,10 +134,33 @@ pub fn try_stake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 
     helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
-    Ok(Response::new().add_attributes(vec![
+    // send essence snapshot to equinox voter
+    let mut response = Response::new().add_attributes(vec![
         ("action", "try_stake"),
         ("amount", &asset_amount.to_string()),
-    ]))
+    ]);
+
+    if let Some(x) = equinox_voter {
+        let (user_essence, total_essence) = helpers::get_essence_snapshot(
+            deps.storage,
+            &sender_address,
+            block_time,
+            seconds_per_essence,
+        );
+
+        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: x.to_string(),
+            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::CaptureEssence {
+                user_and_essence_list: vec![(sender_address.to_string(), user_essence)],
+                total_essence,
+            })?,
+            funds: vec![],
+        });
+
+        response = response.add_message(msg);
+    }
+
+    Ok(response)
 }
 
 pub fn try_lock(
@@ -156,6 +180,7 @@ pub fn try_lock(
         seconds_per_essence,
         eclip_per_second,
         eclip_per_second_multiplier,
+        equinox_voter,
         ..
     } = CONFIG.load(deps.storage)?;
 
@@ -347,10 +372,29 @@ pub fn try_lock(
 
     helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
-    Ok(Response::new().add_attributes(vec![
+    // send essence snapshot to equinox voter
+    let mut response = Response::new().add_attributes(vec![
         ("action", "try_lock"),
         ("amount", &amount.to_string()),
-    ]))
+    ]);
+
+    if let Some(x) = equinox_voter {
+        let (user_essence, total_essence) =
+            helpers::get_essence_snapshot(deps.storage, sender, block_time, seconds_per_essence);
+
+        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: x.to_string(),
+            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::CaptureEssence {
+                user_and_essence_list: vec![(sender.to_string(), user_essence)],
+                total_essence,
+            })?,
+            funds: vec![],
+        });
+
+        response = response.add_message(msg);
+    }
+
+    Ok(response)
 }
 
 // withdraw staked funds
@@ -365,6 +409,7 @@ pub fn try_unstake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respons
         seconds_per_essence,
         eclip_per_second,
         eclip_per_second_multiplier,
+        equinox_voter,
         ..
     } = CONFIG.load(deps.storage)?;
 
@@ -438,11 +483,30 @@ pub fn try_unstake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respons
         amount: coins((amount_to_withdraw + staking_rewards).u128(), staking_token),
     };
 
-    Ok(Response::new().add_message(msg).add_attributes(vec![
+    // send essence snapshot to equinox voter
+    let mut response = Response::new().add_message(msg).add_attributes(vec![
         ("action", "try_unstake"),
         ("amount", &amount_to_withdraw.to_string()),
         ("rewards", &staking_rewards.to_string()),
-    ]))
+    ]);
+
+    if let Some(x) = equinox_voter {
+        let (user_essence, total_essence) =
+            helpers::get_essence_snapshot(deps.storage, sender, block_time, seconds_per_essence);
+
+        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: x.to_string(),
+            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::CaptureEssence {
+                user_and_essence_list: vec![(sender.to_string(), user_essence)],
+                total_essence,
+            })?,
+            funds: vec![],
+        });
+
+        response = response.add_message(msg);
+    }
+
+    Ok(response)
 }
 
 // withdraw locked funds and claim locking rewards (over all vaults excluding bonded vault)
@@ -461,6 +525,7 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
         seconds_per_essence,
         eclip_per_second,
         eclip_per_second_multiplier,
+        equinox_voter,
         ..
     } = config.clone();
 
@@ -600,11 +665,30 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
         }));
     }
 
-    Ok(Response::new().add_messages(msgs).add_attributes(vec![
+    // send essence snapshot to equinox voter
+    let mut response = Response::new().add_messages(msgs).add_attributes(vec![
         ("action", "try_unlock"),
         ("amount_to_withdraw", &amount_to_withdraw.to_string()),
         ("penalty", &penalty_to_send.to_string()),
-    ]))
+    ]);
+
+    if let Some(x) = equinox_voter {
+        let (user_essence, total_essence) =
+            helpers::get_essence_snapshot(deps.storage, sender, block_time, seconds_per_essence);
+
+        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: x.to_string(),
+            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::CaptureEssence {
+                user_and_essence_list: vec![(sender.to_string(), user_essence)],
+                total_essence,
+            })?,
+            funds: vec![],
+        });
+
+        response = response.add_message(msg);
+    }
+
+    Ok(response)
 }
 
 pub fn try_relock(
@@ -624,6 +708,7 @@ pub fn try_relock(
         seconds_per_essence,
         eclip_per_second,
         eclip_per_second_multiplier,
+        equinox_voter,
         ..
     } = CONFIG.load(deps.storage)?;
 
@@ -755,7 +840,26 @@ pub fn try_relock(
 
     helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
-    Ok(Response::new().add_attributes(vec![("action", "try_relock")]))
+    // send essence snapshot to equinox voter
+    let mut response = Response::new().add_attributes(vec![("action", "try_relock")]);
+
+    if let Some(x) = equinox_voter {
+        let (user_essence, total_essence) =
+            helpers::get_essence_snapshot(deps.storage, sender, block_time, seconds_per_essence);
+
+        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: x.to_string(),
+            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::CaptureEssence {
+                user_and_essence_list: vec![(sender.to_string(), user_essence)],
+                total_essence,
+            })?,
+            funds: vec![],
+        });
+
+        response = response.add_message(msg);
+    }
+
+    Ok(response)
 }
 
 // withdraw locked funds and claim locking rewards for single vault
@@ -779,6 +883,7 @@ pub fn try_withdraw(
         seconds_per_essence,
         eclip_per_second,
         eclip_per_second_multiplier,
+        equinox_voter,
         ..
     } = config.clone();
 
@@ -934,11 +1039,30 @@ pub fn try_withdraw(
         }));
     }
 
-    Ok(Response::new().add_messages(msgs).add_attributes(vec![
+    // send essence snapshot to equinox voter
+    let mut response = Response::new().add_messages(msgs).add_attributes(vec![
         ("action", "try_withdraw"),
         ("amount_to_withdraw", &amount_to_withdraw.to_string()),
         ("penalty", &penalty_to_send.to_string()),
-    ]))
+    ]);
+
+    if let Some(x) = equinox_voter {
+        let (user_essence, total_essence) =
+            helpers::get_essence_snapshot(deps.storage, sender, block_time, seconds_per_essence);
+
+        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: x.to_string(),
+            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::CaptureEssence {
+                user_and_essence_list: vec![(sender.to_string(), user_essence)],
+                total_essence,
+            })?,
+            funds: vec![],
+        });
+
+        response = response.add_message(msg);
+    }
+
+    Ok(response)
 }
 
 // block actions with bonded vault
@@ -964,6 +1088,7 @@ pub fn try_bond(
         seconds_per_essence,
         eclip_per_second,
         eclip_per_second_multiplier,
+        equinox_voter,
         ..
     } = CONFIG.load(deps.storage)?;
     let beclip_minter = unwrap_field(beclip_minter, "beclip_minter")?;
@@ -1072,10 +1197,29 @@ pub fn try_bond(
         funds: vec![],
     });
 
-    Ok(Response::new().add_message(msg).add_attributes(vec![
+    // send essence snapshot to equinox voter
+    let mut response = Response::new().add_message(msg).add_attributes(vec![
         ("action", "try_bond"),
         ("amount", &amount_to_mint.to_string()),
-    ]))
+    ]);
+
+    if let Some(x) = equinox_voter {
+        let (user_essence, total_essence) =
+            helpers::get_essence_snapshot(deps.storage, sender, block_time, seconds_per_essence);
+
+        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: x.to_string(),
+            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::CaptureEssence {
+                user_and_essence_list: vec![(sender.to_string(), user_essence)],
+                total_essence,
+            })?,
+            funds: vec![],
+        });
+
+        response = response.add_message(msg);
+    }
+
+    Ok(response)
 }
 
 /// convert eclip to beclip directly
@@ -1110,6 +1254,7 @@ pub fn try_bond_for(
         seconds_per_essence,
         eclip_per_second,
         eclip_per_second_multiplier,
+        equinox_voter,
         ..
     } = CONFIG.load(deps.storage)?;
     let beclip_minter = unwrap_field(beclip_minter, "beclip_minter")?;
@@ -1252,7 +1397,8 @@ pub fn try_bond_for(
 
     // mint beclip to specified addresses
     let msg_list = address_and_amount_list
-        .into_iter()
+        .iter()
+        .cloned()
         .map(|(recipient, amount_to_mint)| {
             Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: beclip_minter.to_string(),
@@ -1266,10 +1412,41 @@ pub fn try_bond_for(
         })
         .collect::<StdResult<Vec<CosmosMsg>>>()?;
 
-    Ok(Response::new().add_messages(msg_list).add_attributes(vec![
+    // send essence snapshot to equinox voter
+    let mut response = Response::new().add_messages(msg_list).add_attributes(vec![
         ("action", "try_bond_for"),
         ("amount", &asset_amount.to_string()),
-    ]))
+    ]);
+
+    if let Some(x) = equinox_voter {
+        let mut user_and_essence_list: Vec<(String, Uint128)> = vec![];
+        let mut total_essence = Uint128::zero();
+
+        for (sender, _) in address_and_amount_list {
+            let (user_essence, essence) = helpers::get_essence_snapshot(
+                deps.storage,
+                &Addr::unchecked(&sender),
+                block_time,
+                seconds_per_essence,
+            );
+
+            user_and_essence_list.push((sender, user_essence));
+            total_essence = essence;
+        }
+
+        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: x.to_string(),
+            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::CaptureEssence {
+                user_and_essence_list,
+                total_essence,
+            })?,
+            funds: vec![],
+        });
+
+        response = response.add_message(msg);
+    }
+
+    Ok(response)
 }
 
 /// burns bECLIP and creates tier 4 vault
@@ -1299,6 +1476,7 @@ pub fn try_unbond(
         seconds_per_essence,
         eclip_per_second,
         eclip_per_second_multiplier,
+        equinox_voter,
         ..
     } = CONFIG.load(deps.storage)?;
     let beclip_minter = unwrap_field(beclip_minter, "beclip_minter")?;
@@ -1429,10 +1607,33 @@ pub fn try_unbond(
         &[(asset_amount, asset_info)],
     )?;
 
-    Ok(Response::new().add_message(msg).add_attributes(vec![
+    // send essence snapshot to equinox voter
+    let mut response = Response::new().add_message(msg).add_attributes(vec![
         ("action", "try_unbond"),
         ("amount", &asset_amount.to_string()),
-    ]))
+    ]);
+
+    if let Some(x) = equinox_voter {
+        let (user_essence, total_essence) = helpers::get_essence_snapshot(
+            deps.storage,
+            &sender_address,
+            block_time,
+            seconds_per_essence,
+        );
+
+        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: x.to_string(),
+            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::CaptureEssence {
+                user_and_essence_list: vec![(sender_address.to_string(), user_essence)],
+                total_essence,
+            })?,
+            funds: vec![],
+        });
+
+        response = response.add_message(msg);
+    }
+
+    Ok(response)
 }
 
 // claim rewards for locking
@@ -1588,6 +1789,7 @@ pub fn try_aggregate_vaults(
         eclip_per_second,
         lock_schedule,
         eclip_per_second_multiplier,
+        equinox_voter,
         ..
     } = CONFIG.load(deps.storage)?;
 
@@ -1745,7 +1947,26 @@ pub fn try_aggregate_vaults(
 
     helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
-    Ok(Response::new().add_attributes(vec![("action", "try_aggregate_vaults")]))
+    // send essence snapshot to equinox voter
+    let mut response = Response::new().add_attributes(vec![("action", "try_aggregate_vaults")]);
+
+    if let Some(x) = equinox_voter {
+        let (user_essence, total_essence) =
+            helpers::get_essence_snapshot(deps.storage, &sender, block_time, seconds_per_essence);
+
+        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: x.to_string(),
+            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::CaptureEssence {
+                user_and_essence_list: vec![(sender.to_string(), user_essence)],
+                total_essence,
+            })?,
+            funds: vec![],
+        });
+
+        response = response.add_message(msg);
+    }
+
+    Ok(response)
 }
 
 pub fn try_accept_admin_role(
@@ -1787,6 +2008,7 @@ pub fn try_update_config(
     env: Env,
     info: MessageInfo,
     admin: Option<String>,
+    equinox_voter: Option<String>,
     beclip_minter: Option<String>,
     beclip_address: Option<String>,
     beclip_whitelist: Option<Vec<String>>,
@@ -1812,6 +2034,10 @@ pub fn try_update_config(
                 deadline: block_time + TRANSFER_ADMIN_TIMEOUT,
             },
         )?;
+    }
+
+    if let Some(x) = equinox_voter {
+        config.equinox_voter = Some(deps.api.addr_validate(&x)?);
     }
 
     if let Some(x) = beclip_minter {

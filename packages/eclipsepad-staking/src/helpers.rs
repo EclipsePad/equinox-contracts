@@ -7,8 +7,9 @@ use eclipse_base::{
     staking::{
         state::{
             CONFIG, DECREASING_REWARDS_DATE, DECREASING_REWARDS_PERIOD, IS_PAUSED, LOCKER_INFO,
-            LOCK_STATES, PAGINATION_CONFIG, STAKER_INFO, TOTAL_LOCKING_ESSENCE,
-            TOTAL_STAKING_ESSENCE_COMPONENTS, VAULTS_LIMIT,
+            LOCKING_ESSENCE, LOCK_STATES, PAGINATION_CONFIG, STAKER_INFO,
+            STAKING_ESSENCE_COMPONENTS, TOTAL_LOCKING_ESSENCE, TOTAL_STAKING_ESSENCE_COMPONENTS,
+            VAULTS_LIMIT,
         },
         types::{Config, LockerInfo, PaginationConfig, StakerInfo, State},
     },
@@ -22,6 +23,33 @@ pub fn check_pause_state(deps: Deps) -> StdResult<()> {
     }
 
     Ok(())
+}
+
+/// (user_essence, total_essence)
+pub fn get_essence_snapshot(
+    storage: &dyn Storage,
+    user: &Addr,
+    block_time: u64,
+    seconds_per_essence: Uint128,
+) -> (Uint128, Uint128) {
+    let (a, b) = STAKING_ESSENCE_COMPONENTS
+        .load(storage, user)
+        .unwrap_or_default();
+    let staking_essence =
+        math::v3::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
+    let locking_essence = LOCKING_ESSENCE.load(storage, &user).unwrap_or_default();
+
+    let (a, b) = TOTAL_STAKING_ESSENCE_COMPONENTS
+        .load(storage)
+        .unwrap_or_default();
+    let total_staking_essence =
+        math::v3::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
+    let total_locking_essence = TOTAL_LOCKING_ESSENCE.load(storage).unwrap_or_default();
+
+    (
+        staking_essence + locking_essence,
+        total_staking_essence + total_locking_essence,
+    )
 }
 
 pub mod v2 {

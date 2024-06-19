@@ -46,3 +46,4 @@ anyhow = { workspace = true }
 semver = { workspace = true }
 
 eclipse-base = { workspace = true }
+equinox-msg = { workspace = true }

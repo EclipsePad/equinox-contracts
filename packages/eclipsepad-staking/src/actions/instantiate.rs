@@ -76,6 +76,10 @@ pub fn try_instantiate(
         deps.storage,
         &Config {
             admin: sender,
+            equinox_voter: msg
+                .equinox_voter
+                .map(|x| deps.api.addr_validate(&x))
+                .transpose()?,
             beclip_minter: msg
                 .beclip_minter
                 .map(|x| deps.api.addr_validate(&x))
