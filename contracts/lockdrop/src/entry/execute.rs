@@ -71,7 +71,7 @@ pub fn try_update_config(
 
     if let Some(dao_treasury_address) = new_cfg.dao_treasury_address {
         cfg.dao_treasury_address = dao_treasury_address.clone();
-        attributes.push(attr("new_timelock_staking", &dao_treasury_address));
+        attributes.push(attr("new_dao_treasury_address", &dao_treasury_address));
     };
     CONFIG.save(deps.storage, &cfg)?;
     Ok(Response::new().add_attributes(attributes))
@@ -298,7 +298,7 @@ pub fn try_extend_lockup(
                         .to_cosmos_msg(&env)?,
                     ];
                     return Ok(Response::new()
-                        .add_attribute("action", "convert ASTRO to xASTRO")
+                        .add_attribute("action", "convert ASTRO to eclipASTRO")
                         .add_attribute("amount", received_token.amount.to_string())
                         .add_messages(msgs));
                 }
@@ -1265,7 +1265,7 @@ fn handle_deposit_into_pool(
     Ok(Response::new()
         .add_attribute("action", "convert xASTRO to eclipASTRO")
         .add_attribute("from", cfg.xastro_token.to_string())
-        .add_attribute("amount", eclipastro_amount_to_deposit)
+        .add_attribute("amount", xastro_amount_to_deposit)
         .add_attribute("to", cfg.eclipastro_token.to_string())
         .add_attribute("amount", eclipastro_amount_to_deposit)
         .add_attribute(
@@ -1275,7 +1275,7 @@ fn handle_deposit_into_pool(
         .add_attribute("token1", cfg.eclipastro_token.to_string())
         .add_attribute("amount", eclipastro_amount_to_deposit)
         .add_attribute("token2", cfg.xastro_token.to_string())
-        .add_attribute("amount", eclipastro_amount_to_deposit)
+        .add_attribute("amount", xastro_amount_to_deposit)
         .add_messages(msgs))
 }
 

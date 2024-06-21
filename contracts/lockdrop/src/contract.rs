@@ -129,7 +129,5 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     }
 
-    Ok(Response::new()
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+    Ok(Response::new().add_attribute("new_contract_version", CONTRACT_VERSION))
 }

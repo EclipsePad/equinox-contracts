@@ -187,7 +187,7 @@ fn handle_lockdrop() {
     assert_eq!(alice_lp_lockup_info[0].duration, 0u64);
     assert_eq!(
         alice_lp_lockup_info[0].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares.u128() / total_deposit.u128() * 2 
+        1_000u128 * total_shares.u128() / total_deposit.u128() * 2
     );
 
     suite
@@ -921,12 +921,17 @@ fn stake_assets_to_vaults() {
     // test after lockdrop finished
     suite.update_time(86400u64 * 2);
 
-    suite.update_lockdrop_config(&suite.admin(), LockdropUpdateConfigMsg {
-        single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
-        lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
-        liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
-        dao_treasury_address: None
-    }).unwrap();
+    suite
+        .update_lockdrop_config(
+            &suite.admin(),
+            LockdropUpdateConfigMsg {
+                single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
+                lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
+                liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
+                dao_treasury_address: None,
+            },
+        )
+        .unwrap();
 
     suite.lockdrop_stake_to_vaults(&suite.admin()).unwrap();
     let single_state = suite.query_single_lockup_state().unwrap();
@@ -1232,12 +1237,17 @@ fn single_sided_incentives_distribution() {
     let cfg = suite.query_lockdrop_config().unwrap();
     assert!(cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window < suite.get_time());
 
-    suite.update_lockdrop_config(&suite.admin(), LockdropUpdateConfigMsg {
-        single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
-        lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
-        liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
-        dao_treasury_address: None
-    }).unwrap();
+    suite
+        .update_lockdrop_config(
+            &suite.admin(),
+            LockdropUpdateConfigMsg {
+                single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
+                lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
+                liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
+                dao_treasury_address: None,
+            },
+        )
+        .unwrap();
 
     // stake assets to single sided vaults and lp vault
     suite.lockdrop_stake_to_vaults(&suite.admin()).unwrap();
@@ -1397,12 +1407,17 @@ fn lp_incentives_distribution() {
     let cfg = suite.query_lockdrop_config().unwrap();
     assert!(cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window < suite.get_time());
 
-    suite.update_lockdrop_config(&suite.admin(), LockdropUpdateConfigMsg {
-        single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
-        lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
-        liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
-        dao_treasury_address: None
-    }).unwrap();
+    suite
+        .update_lockdrop_config(
+            &suite.admin(),
+            LockdropUpdateConfigMsg {
+                single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
+                lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
+                liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
+                dao_treasury_address: None,
+            },
+        )
+        .unwrap();
 
     // stake assets to single sided vaults and lp vault
     suite.lockdrop_stake_to_vaults(&suite.admin()).unwrap();
@@ -1728,12 +1743,17 @@ fn restake_and_unlock() {
     let err = suite.single_lockup_relock(ALICE, 0, 2592000).unwrap_err();
     assert_eq!(ContractError::ExtendLockupError {}, err.downcast().unwrap());
 
-    suite.update_lockdrop_config(&suite.admin(), LockdropUpdateConfigMsg {
-        single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
-        lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
-        liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
-        dao_treasury_address: None
-    }).unwrap();
+    suite
+        .update_lockdrop_config(
+            &suite.admin(),
+            LockdropUpdateConfigMsg {
+                single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
+                lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
+                liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
+                dao_treasury_address: None,
+            },
+        )
+        .unwrap();
 
     // stake assets to single sided vaults and lp vault
     suite.lockdrop_stake_to_vaults(&suite.admin()).unwrap();
