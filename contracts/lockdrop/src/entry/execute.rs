@@ -835,18 +835,6 @@ pub fn receive_cw20(
             } else {
                 total_lockdrop_incentives.eclip += amount;
             }
-            let assets = info.funds;
-            if !assets.is_empty() {
-                for asset in assets {
-                    if cfg.beclip.is_native_token() && asset.denom == cfg.beclip.to_string() {
-                        total_lockdrop_incentives.beclip += asset.amount;
-                    } else if cfg.eclip.is_native_token() && asset.denom == cfg.eclip.to_string() {
-                        total_lockdrop_incentives.eclip += asset.amount;
-                    } else {
-                        return Err(ContractError::InvalidAsset {});
-                    }
-                }
-            }
             TOTAL_LOCKDROP_INCENTIVES.save(deps.storage, &total_lockdrop_incentives)?;
             Ok(Response::new().add_attribute("action", "increase Lockdrop incentives"))
         }
