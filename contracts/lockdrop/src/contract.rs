@@ -120,7 +120,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     }
 
     ensure_eq!(
-        (version >= storage_version),
+        (version > storage_version),
         true,
         ContractError::VersionErr(storage_version.to_string())
     );
