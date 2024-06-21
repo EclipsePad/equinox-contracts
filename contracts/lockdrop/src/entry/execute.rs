@@ -2132,13 +2132,6 @@ pub fn send_token_msg(
     }))
 }
 
-pub fn send_native_token_msg(recipient: String, funds: Vec<Coin>) -> StdResult<CosmosMsg> {
-    Ok(CosmosMsg::Bank(BankMsg::Send {
-        to_address: recipient,
-        amount: funds,
-    }))
-}
-
 pub fn check_native_token_denom(querier: &QuerierWrapper, denom: String) -> StdResult<bool> {
     let total_supply = query_native_token_supply(querier, denom)?;
     Ok(!total_supply.amount.is_zero())

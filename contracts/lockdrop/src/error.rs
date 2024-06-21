@@ -9,17 +9,8 @@ pub enum ContractError {
     #[error("{0}")]
     Admin(#[from] AdminError),
 
-    #[error("Already allowed")]
-    AlreadyAllowed {},
-
-    #[error("{0} is already set")]
-    AlreadySet(String),
-
     #[error("Lockup assets already staked")]
     AlreadyStaked {},
-
-    #[error("Already unlocked")]
-    AlreadyUnlocked {},
 
     #[error("Withdraw allowes only one time during withdraw window")]
     AlreadyWithdrawed {},
@@ -48,12 +39,6 @@ pub enum ContractError {
     #[error("Extend Lockup only allowed on deposit phase or when Equinox is live")]
     ExtendLockupError {},
 
-    #[error("Failed to parse or process reply message")]
-    FailedToParseReply {},
-
-    #[error("Insufficient ASTRO/xASTRO amount in the contract")]
-    InsufficientAmountInContract {},
-
     #[error("Asset is not allowed")]
     InvalidAsset {},
 
@@ -74,9 +59,6 @@ pub enum ContractError {
 
     #[error("Duplicated duration or invalid reward multiplier")]
     InvalidLockConfig {},
-
-    #[error("Asset {0} is not allowed to lockup")]
-    InvalidLockupAsset(String),
 
     #[error("Invalid lp token balances")]
     InvalidLpTokenBalance {},
@@ -99,23 +81,8 @@ pub enum ContractError {
     #[error("Lockdrop is not finished yet")]
     LockdropNotFinished {},
 
-    #[error("The asset is not staked into lp staking vault")]
-    LpStakingNotHappend {},
-
     #[error("Tokens are not staked")]
     NotStaked {},
-
-    #[error("No deposit from user")]
-    NoDeposit {},
-
-    #[error("No ECLIP reward for user")]
-    NoEclipReward {},
-
-    #[error("Only {expected} is allowed: received {got}")]
-    OnlyEclipAllowed { expected: String, got: String },
-
-    #[error("Ownership proposal expired")]
-    OwnershipProposalExpired {},
 
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
@@ -123,26 +90,14 @@ pub enum ContractError {
     #[error("{0}")]
     ParseReplyError(#[from] ParseReplyError),
 
-    #[error("Relock is not allowed yet")]
-    RelockNotAllowed {},
-
     #[error("Semver parsing error: {0}")]
     SemVer(String),
-
-    #[error("The asset is not staked into staking vault")]
-    StakingNotHappend {},
 
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Unknown reply id: {0}")]
-    UnknownReplyId(u64),
-
     #[error("New version must be greater than previous one: {0}")]
     VersionErr(String),
-
-    #[error("{0} seconds to unlock")]
-    WaitToUnlock(u64),
 
     #[error("Amount exceeds maximum allowed withdrawal limit of {0}")]
     WithdrawLimitExceed(String),
