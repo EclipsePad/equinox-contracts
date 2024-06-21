@@ -17,6 +17,7 @@ use equinox_msg::{
 };
 
 use crate::{
+    config::BPS_DENOMINATOR,
     error::ContractError,
     state::{
         CONFIG, LP_LOCKUP_INFO, LP_LOCKUP_STATE, LP_STAKING_REWARD_WEIGHTS, LP_USER_LOCKUP_INFO,
@@ -428,7 +429,7 @@ pub fn calculate_pending_lockdrop_incentive(
 
     let instant_amount = incentive
         .allocated
-        .multiply_ratio(reward_cfg.instant, 10000u64);
+        .multiply_ratio(reward_cfg.instant, BPS_DENOMINATOR);
     let vesting_amount = incentive.allocated - instant_amount;
     let max_allowed_to_claim = if current_time >= cfg.countdown_start_at + reward_cfg.vesting_period
     {
