@@ -2,6 +2,7 @@ use equinox_msg::lockdrop::{LockConfig, RewardDistributionConfig};
 
 pub const DEFAULT_DEPOSIT_WINDOW: u64 = 86400 * 5;
 pub const DEFAULT_WITHDRAW_WINDOW: u64 = 86400 * 2;
+pub const MINIMUM_WINDOW: u64 = 86400;
 
 pub const DEFAULT_LOCK_CONFIGS: &[LockConfig] = &[
     LockConfig {

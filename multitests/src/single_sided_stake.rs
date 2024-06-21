@@ -405,8 +405,8 @@ fn claim() {
         .mint_native(suite.astro_staking_contract(), suite.astro(), 100_000)
         .unwrap();
     let (total_deposit, total_shares) = suite.query_astro_staking_data().unwrap();
-    assert_eq!(total_deposit.u128(), 1104001);
-    assert_eq!(total_shares.u128(), 1003998);
+    assert_eq!(total_deposit.u128(), 1114001);
+    assert_eq!(total_shares.u128(), 1013898);
     assert_eq!(
         suite
             .query_balance_native(suite.voter_contract(), suite.xastro())
@@ -419,7 +419,7 @@ fn claim() {
         ConverterRewardResponse {
             users_reward: Reward {
                 token: suite.eclipastro(),
-                amount: Uint128::from(316u128) // (3998 * 1104001 / 1003998 - 4000) * 0.8
+                amount: Uint128::from(312u128) // (3998 * 1104001 / 1003998 - 4000) * 0.8
             },
             ce_holders_reward: Reward {
                 token: suite.xastro(),
@@ -543,7 +543,7 @@ fn claim() {
         suite
             .query_balance_native(suite.voter_contract(), suite.xastro())
             .unwrap(),
-        7_612
+        7_615
     );
     assert_eq!(
         suite
@@ -567,7 +567,7 @@ fn claim() {
         suite
             .query_eclipastro_balance(&suite.single_staking_contract())
             .unwrap(),
-        8315
+        8312
     );
 
     assert_eq!(suite.query_beclip_balance(BOB).unwrap(), 142857u128);
@@ -879,7 +879,7 @@ fn claim() {
         suite
             .query_single_sided_staking_eclipastro_rewards()
             .unwrap(),
-        vec![(1571840619, Uint128::from(576u128))]
+        vec![(1571840619, Uint128::from(572u128))]
     );
     suite
         .mint_native(suite.astro_staking_contract(), suite.astro(), 10_000u128)
@@ -890,14 +890,14 @@ fn claim() {
         suite
             .query_eclipastro_balance(&suite.single_staking_contract())
             .unwrap(),
-        5_907
+        5_900
     );
     assert_eq!(
         suite
             .query_single_sided_staking_eclipastro_rewards()
             .unwrap(),
         vec![
-            (1571840619, Uint128::from(576u128)),
+            (1571840619, Uint128::from(572u128)),
             (1571883819, Uint128::from(51u128))
         ]
     );

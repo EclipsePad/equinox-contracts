@@ -253,6 +253,13 @@ impl SuiteBuilder {
 
         let tracking_code_id = store_tracking_code(&mut app);
 
+        let _ = app.sudo(cw_multi_test::SudoMsg::Bank(
+            cw_multi_test::BankSudo::Mint {
+                to_address: admin.to_string(),
+                amount: vec![coin(1, ECLIP_DENOM.to_string())],
+            },
+        ));
+
         let astro_staking_id = store_astro_staking(&mut app);
 
         let astro_staking_contract = app
@@ -270,6 +277,13 @@ impl SuiteBuilder {
                 Some(ADMIN.to_string()),
             )
             .unwrap();
+
+        let _ = app.execute_contract(
+            admin.clone(),
+            astro_staking_contract.clone(),
+            &AstroStakingExecuteMsg::Enter { receiver: None },
+            &[coin(10000u128, ASTRO_DENOM.to_string())],
+        );
 
         let config: AstroStakingConfig = app
             .wrap()
@@ -537,7 +551,7 @@ impl SuiteBuilder {
                     eclipastro_token: eclipastro.clone(),
                     astro_staking: astro_staking_contract.clone(),
                     converter: converter_contract.clone(),
-                    liquidity_pool: eclipastro_xastro_lp_contract.clone(),
+                    // liquidity_pool: eclipastro_xastro_lp_contract.clone(),
                     owner: None,
                     beclip: AssetInfo::Token {
                         contract_addr: beclip.clone(),
@@ -545,8 +559,8 @@ impl SuiteBuilder {
                     eclip: AssetInfo::NativeToken {
                         denom: ECLIP_DENOM.to_string(),
                     },
-                    single_sided_staking: single_staking_contract.clone(),
-                    lp_staking: lp_staking_contract.clone(),
+                    // single_sided_staking: single_staking_contract.clone(),
+                    // lp_staking: lp_staking_contract.clone(),
                     dao_treasury_address: Addr::unchecked(TREASURY.to_string()),
                 },
                 &[],

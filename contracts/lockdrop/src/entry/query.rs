@@ -1,5 +1,8 @@
 use astroport::asset::{Asset, AssetInfo};
-use cosmwasm_std::{Addr, Decimal256, Deps, Env, Order, StdResult, Uint128, Uint256};
+use cosmwasm_std::{
+    Addr, BankQuery, Coin, Decimal256, Deps, Env, Order, QuerierWrapper, QueryRequest, StdResult,
+    SupplyResponse, Uint128, Uint256,
+};
 use equinox_msg::{
     lockdrop::{
         Config, DetailedLpLockupInfo, DetailedSingleLockupInfo, IncentiveAmounts,
@@ -342,8 +345,11 @@ pub fn calculate_single_sided_total_rewards(
     user: String,
 ) -> StdResult<Vec<SingleStakingRewardsByDuration>> {
     let cfg = CONFIG.load(deps.storage)?;
+    if cfg.single_sided_staking.is_none() {
+        return Ok(vec![]);
+    }
     let rewards: Vec<UserRewardByDuration> = deps.querier.query_wasm_smart(
-        cfg.single_sided_staking.to_string(),
+        cfg.single_sided_staking.unwrap().to_string(),
         &SingleSidedQueryMsg::Reward { user },
     )?;
     let mut single_staking_rewards = vec![];
@@ -609,8 +615,11 @@ pub fn calculate_single_staking_user_rewards(
 
 pub fn calculate_lp_total_rewards(deps: Deps, user: String) -> StdResult<LpStakingRewards> {
     let cfg = CONFIG.load(deps.storage)?;
+    if cfg.lp_staking.is_none() {
+        return Ok(LpStakingRewards::default());
+    }
     let rewards: Vec<RewardAmount> = deps.querier.query_wasm_smart(
-        cfg.lp_staking.to_string(),
+        cfg.lp_staking.unwrap().to_string(),
         &LpStakingQueryMsg::Reward { user },
     )?;
     let mut astro_reward = Uint128::zero();
@@ -702,4 +711,9 @@ pub fn calculate_lp_staking_user_rewards(
         beclip: beclip_reward,
         eclip: eclip_reward,
     })
+}
+
+pub fn query_native_token_supply(querier: &QuerierWrapper, denom: String) -> StdResult<Coin> {
+    let supply: SupplyResponse = querier.query(&QueryRequest::Bank(BankQuery::Supply { denom }))?;
+    Ok(supply.amount)
 }

@@ -39,6 +39,9 @@ pub enum ContractError {
     #[error("Ensure list contains unique assets")]
     DuplicatedAssets {},
 
+    #[error("Must be done after Equinox is live and update config")]
+    EquinoxNotLive {},
+
     #[error("Can't extend from duration {0} to duration {1}")]
     ExtendDurationErr(u64, u64),
 
@@ -54,26 +57,41 @@ pub enum ContractError {
     #[error("Asset is not allowed")]
     InvalidAsset {},
 
-    #[error("Asset {0} is not allowed to lockup")]
-    InvalidLockupAsset(String),
-
     #[error("Callbacks cannot be invoked externally")]
     InvalidCallbackInvoke {},
 
+    #[error("Invalid denom {0}")]
+    InvalidDenom(String),
+
     #[error("Invalid token balances for lp deposit")]
     InvalidDepositAmounts {},
-
-    #[error("Invalid token balance")]
-    InvalidTokenBalance {},
-
-    #[error("Invalid lp token balances")]
-    InvalidLpTokenBalance {},
 
     #[error("Duration {0} is not allowed to lockup")]
     InvalidDuration(u64),
 
     #[error("Invalid init_timestamp. Current timestamp : {0}")]
     InvalidInitTimestamp(u64),
+
+    #[error("Duplicated duration or invalid reward multiplier")]
+    InvalidLockConfig {},
+
+    #[error("Asset {0} is not allowed to lockup")]
+    InvalidLockupAsset(String),
+
+    #[error("Invalid lp token balances")]
+    InvalidLpTokenBalance {},
+
+    #[error("Invalid multiplier bps {0}")]
+    InvalidMultiplier(u64),
+
+    #[error("Invalid Penalty bps {0}")]
+    InvalidPenalty(u64),
+
+    #[error("Invalid token balance")]
+    InvalidTokenBalance {},
+
+    #[error("Time window must be greater than 86400, but got {0}")]
+    InvalidTimeWindow(u64),
 
     #[error("Lockdrop is finished")]
     LockdropFinished {},
