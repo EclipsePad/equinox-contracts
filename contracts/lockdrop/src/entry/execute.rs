@@ -26,7 +26,8 @@ use crate::{
         calculate_lp_staking_user_rewards, calculate_lp_total_rewards,
         calculate_pending_lockdrop_incentives, calculate_single_sided_total_rewards,
         calculate_single_staking_user_rewards, calculate_updated_lp_reward_weights,
-        calculate_updated_single_staking_reward_weights, get_user_lockdrop_incentives,
+        calculate_updated_single_staking_reward_weights, check_deposit_window,
+        check_lockdrop_ended, get_user_lockdrop_incentives,
     },
     error::ContractError,
     math::{calculate_max_withdrawal_amount_allowed, calculate_weight},
@@ -37,7 +38,7 @@ use crate::{
     },
 };
 
-use super::query::query_native_token_supply;
+use super::query::{check_withdrawal_window, query_native_token_supply};
 
 pub fn try_update_config(
     deps: DepsMut,
@@ -84,10 +85,9 @@ pub fn try_update_reward_distribution_config(
     new_cfg: RewardDistributionConfig,
 ) -> Result<Response, ContractError> {
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-    let cfg = CONFIG.load(deps.storage)?;
 
     ensure!(
-        env.block.time.seconds() <= cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window,
+        !check_lockdrop_ended(deps.as_ref(), env.block.time.seconds()).unwrap(),
         ContractError::LockdropFinished {}
     );
 
@@ -134,7 +134,7 @@ pub fn try_increase_lockup(
         ContractError::DepositWindowNotStarted {}
     );
     ensure!(
-        current_time < cfg.init_timestamp + cfg.deposit_window,
+        check_deposit_window(deps.as_ref(), current_time).unwrap(),
         ContractError::DepositWindowClosed {}
     );
     ensure_ne!(
@@ -239,8 +239,7 @@ pub fn try_extend_lockup(
 
     let current_time = env.block.time.seconds();
     // deposit window only
-    if current_time >= cfg.init_timestamp && current_time < cfg.init_timestamp + cfg.deposit_window
-    {
+    if check_deposit_window(deps.as_ref(), current_time).unwrap() {
         let mut add_amount = Uint128::zero();
         if deposit_existing {
             let received_token = &received_tokens[0];
@@ -274,9 +273,7 @@ pub fn try_extend_lockup(
                 return extend_lp_lockup(deps, from_duration, to_duration, sender, add_amount);
             }
         }
-    } else if current_time >= cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window
-        && cfg.claims_allowed
-    {
+    } else if check_lockdrop_ended(deps.as_ref(), current_time).unwrap() && cfg.claims_allowed {
         match stake_type {
             StakeType::SingleStaking => {
                 if deposit_existing {
@@ -336,7 +333,7 @@ pub fn try_stake_to_vaults(
 
     // check time window
     ensure!(
-        current_time > (cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window),
+        check_lockdrop_ended(deps.as_ref(), current_time).unwrap(),
         ContractError::LockdropNotFinished {}
     );
 
@@ -822,8 +819,7 @@ pub fn receive_cw20(
                 ContractError::InvalidAsset {}
             );
             ensure!(
-                env.block.time.seconds()
-                    < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window,
+                !check_lockdrop_ended(deps.as_ref(), env.block.time.seconds()).unwrap(),
                 ContractError::LockdropFinished {}
             );
 
@@ -849,7 +845,7 @@ pub fn try_increase_incentives(
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let cfg = CONFIG.load(deps.storage)?;
     ensure!(
-        env.block.time.seconds() < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window,
+        !check_lockdrop_ended(deps.as_ref(), env.block.time.seconds()).unwrap(),
         ContractError::LockdropFinished {}
     );
 
@@ -1905,7 +1901,7 @@ pub fn _unlock_single_lockup(
         .iter()
         .find(|c| c.duration == duration)
         .unwrap();
-    if current_time < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window {
+    if !check_lockdrop_ended(deps.as_ref(), current_time).unwrap() {
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             current_time,
             &cfg,
@@ -1919,7 +1915,7 @@ pub fn _unlock_single_lockup(
             );
             withdraw_amount = amount;
         }
-        if current_time >= cfg.init_timestamp + cfg.deposit_window {
+        if check_withdrawal_window(deps.as_ref(), current_time).unwrap() {
             ensure!(
                 !user_lockup_info.withdrawal_flag,
                 ContractError::AlreadyWithdrawed {}
@@ -2011,7 +2007,7 @@ pub fn _unlock_lp_lockup(
         .iter()
         .find(|c| c.duration == duration)
         .unwrap();
-    if current_time < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window {
+    if !check_lockdrop_ended(deps.as_ref(), current_time).unwrap() {
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             current_time,
             &cfg,
@@ -2025,7 +2021,7 @@ pub fn _unlock_lp_lockup(
             );
             withdraw_amount = amount;
         }
-        if current_time >= cfg.init_timestamp + cfg.deposit_window {
+        if check_withdrawal_window(deps.as_ref(), current_time).unwrap() {
             ensure!(
                 !user_lockup_info.withdrawal_flag,
                 ContractError::AlreadyWithdrawed {}

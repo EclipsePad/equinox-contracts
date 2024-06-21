@@ -718,3 +718,22 @@ pub fn query_native_token_supply(querier: &QuerierWrapper, denom: String) -> Std
     let supply: SupplyResponse = querier.query(&QueryRequest::Bank(BankQuery::Supply { denom }))?;
     Ok(supply.amount)
 }
+
+pub fn check_lockdrop_ended(deps: Deps, current_time: u64) -> StdResult<bool> {
+    let cfg = CONFIG.load(deps.storage)?;
+    Ok(current_time >= (cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window))
+}
+
+pub fn check_deposit_window(deps: Deps, current_time: u64) -> StdResult<bool> {
+    let cfg = CONFIG.load(deps.storage)?;
+    Ok(
+        current_time >= cfg.init_timestamp
+            && current_time < cfg.init_timestamp + cfg.deposit_window,
+    )
+}
+
+pub fn check_withdrawal_window(deps: Deps, current_time: u64) -> StdResult<bool> {
+    let cfg = CONFIG.load(deps.storage)?;
+    Ok(current_time >= cfg.init_timestamp + cfg.deposit_window
+        && current_time < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window)
+}
