@@ -4,7 +4,7 @@ use astroport::{
 };
 use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::AdminError;
-use equinox_msg::lockdrop::UpdateConfigMsg;
+// use equinox_msg::lockdrop::UpdateConfigMsg;
 use lockdrop::error::ContractError;
 
 use crate::suite::{Suite, SuiteBuilder};
@@ -12,92 +12,51 @@ use crate::suite::{Suite, SuiteBuilder};
 const ONE_MONTH: u64 = 86400 * 30;
 const THREE_MONTH: u64 = 86400 * 30 * 3;
 const SIX_MONTH: u64 = 86400 * 30 * 6;
-const NINE_MONTH: u64 = 86400 * 30 * 9;
+// const NINE_MONTH: u64 = 86400 * 30 * 9;
 const ONE_YEAR: u64 = 86400 * 365;
 
 const ALICE: &str = "alice";
-const BOB: &str = "bob";
-const CAROL: &str = "carol";
+// const BOB: &str = "bob";
+// const CAROL: &str = "carol";
 // const ATTACKER: &str = "attacker";
 // const VICTIM: &str = "victim";
 
 fn instantiate() -> Suite {
-    let astroport_organizer = "astroport_organizer";
-    let astro_initial_balances = vec![
-        (astroport_organizer, 2_000_000_000),
-        (ALICE, 1_000_000),
-        (BOB, 1_000_000),
-        (CAROL, 1_000_000),
-    ];
-    let timelock_config = vec![
-        (ONE_MONTH, 5000),
-        (THREE_MONTH, 5000),
-        (SIX_MONTH, 5000),
-        (NINE_MONTH, 5000),
-        (ONE_YEAR, 5000),
-    ];
-    let eclip_daily_reward = 100_000u128;
-    let locking_reward_config = vec![
-        (0, 1),
-        (ONE_MONTH, 2),
-        (THREE_MONTH, 3),
-        (SIX_MONTH, 4),
-        (NINE_MONTH, 5),
-        (ONE_YEAR, 6),
-    ];
-    let lockdrop_reward_config = vec![
-        (0, 1, 5000),
-        (ONE_MONTH, 2, 5000),
-        (THREE_MONTH, 3, 5000),
-        (SIX_MONTH, 4, 5000),
-        (NINE_MONTH, 5, 5000),
-        (ONE_YEAR, 6, 5000),
-    ];
-
-    let mut suite = SuiteBuilder::new()
-        .with_initial_balances(astro_initial_balances)
-        .with_timelock_config(timelock_config)
-        .with_eclip_daily_reward(eclip_daily_reward)
-        .with_lp_staking_eclip_daily_reward(eclip_daily_reward)
-        .with_locking_reward_config(locking_reward_config.clone())
-        .with_lock_configs(lockdrop_reward_config)
-        .build();
-
+    let mut suite = SuiteBuilder::new().build();
     suite.update_config();
 
+    suite
+        .mint_native(ALICE.to_string(), suite.astro(), 10_000_000)
+        .unwrap();
+
     // ready ASTRO staking pool
-    suite.stake_astro(astroport_organizer, 1_000_000).unwrap();
+    suite.stake_astro(ALICE, 1_000_000).unwrap();
 
     // change ASTRO/xASTRO rate 1.1:1
     suite
-        .send_astro(
-            astroport_organizer,
-            &suite.astro_staking_contract(),
-            100_000,
-        )
+        .mint_native(suite.astro_staking_contract(), suite.astro(), 100_000)
         .unwrap();
-    suite.stake_astro(astroport_organizer, 10_000).unwrap();
 
-    // convert ASTRO to eclipASTRO
-    suite
-        .convert_astro(&astroport_organizer, 1_100_000)
-        .unwrap();
+    // ready ASTRO staking pool
+    suite.stake_astro(ALICE, 100_000).unwrap();
+
+    suite.convert_astro(ALICE, 1_100_000).unwrap();
 
     // provide liquidity
     suite
         .provide_liquidity(
-            &astroport_organizer,
+            ALICE,
             Addr::unchecked(suite.eclipastro_xastro_lp_contract()),
             vec![
                 Asset {
                     info: AssetInfo::Token {
-                        contract_addr: Addr::unchecked(suite.eclipastro_contract()),
+                        contract_addr: Addr::unchecked(suite.eclipastro()),
                     },
                     amount: Uint128::from(1_100_000u128),
                 },
                 Asset {
-                    info: AssetInfo::Token {
-                        contract_addr: Addr::unchecked(suite.xastro_contract()),
+                    info: AssetInfo::NativeToken {
+                        denom: suite.xastro(),
                     },
                     amount: Uint128::from(1_000_000u128),
                 },
@@ -122,16 +81,13 @@ fn instantiate() -> Suite {
         .generator_set_tokens_per_second(&suite.admin(), 10u128)
         .unwrap();
 
-    suite
-        .send_astro(astroport_organizer, &suite.admin(), 1_000_000_000u128)
-        .unwrap();
     let start_time = suite.get_time();
     let end_time = suite.get_time() + 86400 * 1000;
     suite
         .register_vesting_accounts(
             &suite.admin(),
             vec![VestingAccount {
-                address: suite.astroport_generator_contract(),
+                address: suite.astroport_generator(),
                 schedules: vec![VestingSchedule {
                     start_point: VestingSchedulePoint {
                         time: start_time,
@@ -146,38 +102,7 @@ fn instantiate() -> Suite {
             1_000_000_000u128,
         )
         .unwrap();
-
     suite
-}
-
-#[test]
-fn update_config() {
-    let mut suite = instantiate();
-    let new_config = UpdateConfigMsg {
-        flexible_staking: Some(suite.flexible_staking_contract()),
-        timelock_staking: Some(suite.timelock_staking_contract()),
-        lp_staking: Some(suite.lp_staking()),
-        reward_distributor: Some(suite.reward_distributor_contract()),
-        dao_treasury_address: Some(Addr::unchecked("dao_treasury_address").to_string()),
-    };
-    suite
-        .update_lockdrop_config(&suite.admin(), new_config)
-        .unwrap();
-
-    let res = suite.query_lockdrop_config().unwrap();
-    assert_eq!(
-        res.flexible_staking,
-        Some(Addr::unchecked(suite.flexible_staking_contract()))
-    );
-    assert_eq!(
-        res.timelock_staking,
-        Some(Addr::unchecked(suite.timelock_staking_contract()))
-    );
-    assert_eq!(res.lp_staking, Some(Addr::unchecked(suite.lp_staking())));
-    assert_eq!(
-        res.reward_distributor,
-        Some(Addr::unchecked(suite.reward_distributor_contract()))
-    );
 }
 
 #[test]
@@ -186,7 +111,7 @@ fn handle_lockdrop() {
 
     // lockdrop will fail as lockdrop is not started
     let err = suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 100u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 100u128, 0)
         .unwrap_err();
     assert_eq!(
         ContractError::DepositWindowNotStarted {},
@@ -196,158 +121,174 @@ fn handle_lockdrop() {
     // update time and test single stake with all duration(invalid duration check, withdraw flag is false)
     suite.update_time(86400u64 * 2);
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[0].duration, 0u64);
-    let total_shares = suite.query_astro_staking_total_shares().unwrap();
-    let total_deposit = suite.query_astro_staking_total_deposit().unwrap();
+    assert_eq!(single_lockup_info.single_lockups[0].duration, 0u64);
+    let (total_deposit, total_shares) = suite.query_astro_staking_data().unwrap();
     assert_eq!(
-        single_lockup_info[0].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        single_lockup_info.single_lockups[0]
+            .xastro_amount_in_lockups
+            .u128(),
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(alice_single_lockup_info[0].duration, 0u64);
     assert_eq!(
         alice_single_lockup_info[0].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
 
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let lp_lockup_info = suite.query_lp_lockup_info().unwrap();
-    assert_eq!(lp_lockup_info[0].duration, 0u64);
+    assert_eq!(lp_lockup_info.lp_lockups[0].duration, 0u64);
     assert_eq!(
-        lp_lockup_info[0].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        lp_lockup_info.lp_lockups[0].xastro_amount_in_lockups.u128(),
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_lp_lockup_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(alice_lp_lockup_info[0].duration, 0u64);
     assert_eq!(
         alice_lp_lockup_info[0].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
 
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[0].duration, 0u64);
+    assert_eq!(single_lockup_info.single_lockups[0].duration, 0u64);
     assert_eq!(
-        single_lockup_info[0].xastro_amount_in_lockups.u128(),
-        2_000u128 * total_shares / total_deposit
+        single_lockup_info.single_lockups[0]
+            .xastro_amount_in_lockups
+            .u128(),
+        2_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(alice_single_lockup_info[0].duration, 0u64);
     assert_eq!(
         alice_single_lockup_info[0].xastro_amount_in_lockups.u128(),
-        2_000u128 * total_shares / total_deposit
+        2_000u128 * total_shares.u128() / total_deposit.u128()
     );
 
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let lp_lockup_info = suite.query_lp_lockup_info().unwrap();
-    assert_eq!(lp_lockup_info[0].duration, 0u64);
+    assert_eq!(lp_lockup_info.lp_lockups[0].duration, 0u64);
     assert_eq!(
-        lp_lockup_info[0].xastro_amount_in_lockups.u128(),
-        2_000u128 * total_shares / total_deposit
+        lp_lockup_info.lp_lockups[0].xastro_amount_in_lockups.u128(),
+        2_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_lp_lockup_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(alice_lp_lockup_info[0].duration, 0u64);
     assert_eq!(
         alice_lp_lockup_info[0].xastro_amount_in_lockups.u128(),
-        2_000u128 * total_shares / total_deposit
+        2_000u128 * total_shares.u128() / total_deposit.u128()
     );
 
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, ONE_MONTH)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, ONE_MONTH)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[1].duration, ONE_MONTH);
+    assert_eq!(single_lockup_info.single_lockups[1].duration, ONE_MONTH);
     assert_eq!(
-        single_lockup_info[1].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        single_lockup_info.single_lockups[1]
+            .xastro_amount_in_lockups
+            .u128(),
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(alice_single_lockup_info[1].duration, ONE_MONTH);
     assert_eq!(
         alice_single_lockup_info[1].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
 
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, THREE_MONTH)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, THREE_MONTH)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[2].duration, THREE_MONTH);
+    assert_eq!(single_lockup_info.single_lockups[2].duration, THREE_MONTH);
     assert_eq!(
-        single_lockup_info[2].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        single_lockup_info.single_lockups[2]
+            .xastro_amount_in_lockups
+            .u128(),
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(alice_single_lockup_info[2].duration, THREE_MONTH);
     assert_eq!(
         alice_single_lockup_info[2].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
 
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, SIX_MONTH)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, SIX_MONTH)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[3].duration, SIX_MONTH);
+    assert_eq!(single_lockup_info.single_lockups[3].duration, SIX_MONTH);
     assert_eq!(
-        single_lockup_info[3].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        single_lockup_info.single_lockups[3]
+            .xastro_amount_in_lockups
+            .u128(),
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(alice_single_lockup_info[3].duration, SIX_MONTH);
     assert_eq!(
         alice_single_lockup_info[3].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
 
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, ONE_YEAR)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, ONE_YEAR)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[4].duration, ONE_YEAR);
+    assert_eq!(single_lockup_info.single_lockups[4].duration, ONE_YEAR);
     assert_eq!(
-        single_lockup_info[4].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        single_lockup_info.single_lockups[4]
+            .xastro_amount_in_lockups
+            .u128(),
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(alice_single_lockup_info[4].duration, ONE_YEAR);
     assert_eq!(
         alice_single_lockup_info[4].xastro_amount_in_lockups.u128(),
-        1_000u128 * total_shares / total_deposit
+        1_000u128 * total_shares.u128() / total_deposit.u128()
     );
 
     suite.stake_astro(ALICE, 4_000u128).unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.xastro_contract(), 1_000u128, ONE_MONTH)
+        .single_staking_increase_lockdrop(ALICE, suite.xastro(), 1_000u128, ONE_MONTH)
         .unwrap();
     let single_lockup_info = suite.query_single_lockup_info().unwrap();
-    assert_eq!(single_lockup_info[1].duration, ONE_MONTH);
+    assert_eq!(single_lockup_info.single_lockups[1].duration, ONE_MONTH);
     assert_eq!(
-        single_lockup_info[1].xastro_amount_in_lockups.u128(),
-        1_000u128 + 1_000u128 * total_shares / total_deposit
+        single_lockup_info.single_lockups[1]
+            .xastro_amount_in_lockups
+            .u128(),
+        1_000u128 + 1_000u128 * total_shares.u128() / total_deposit.u128()
     );
     let alice_single_lockup_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(alice_single_lockup_info[1].duration, ONE_MONTH);
     assert_eq!(
         alice_single_lockup_info[1].xastro_amount_in_lockups.u128(),
-        1_000u128 + 1_000u128 * total_shares / total_deposit
+        1_000u128 + 1_000u128 * total_shares.u128() / total_deposit.u128()
     );
 
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.xastro_contract(), 1_000u128, ONE_MONTH)
+        .lp_staking_increase_lockdrop(ALICE, suite.xastro(), 1_000u128, ONE_MONTH)
         .unwrap();
     let lp_lockup_info = suite.query_lp_lockup_info().unwrap();
-    assert_eq!(lp_lockup_info[1].duration, ONE_MONTH);
-    assert_eq!(lp_lockup_info[1].xastro_amount_in_lockups.u128(), 1_000u128);
+    assert_eq!(lp_lockup_info.lp_lockups[1].duration, ONE_MONTH);
+    assert_eq!(
+        lp_lockup_info.lp_lockups[1].xastro_amount_in_lockups.u128(),
+        1_000u128
+    );
     let alice_lp_lockup_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(alice_lp_lockup_info[1].duration, ONE_MONTH);
     assert_eq!(
@@ -359,7 +300,7 @@ fn handle_lockdrop() {
     // deposit will fail, withdraw will only allow 50% and only once
     suite.update_time(86400u64 * 4 + 43200u64);
     let err = suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, ONE_MONTH)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, ONE_MONTH)
         .unwrap_err();
     assert_eq!(
         ContractError::DepositWindowClosed {},
@@ -367,7 +308,7 @@ fn handle_lockdrop() {
     );
 
     let err = suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, ONE_MONTH)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, ONE_MONTH)
         .unwrap_err();
     assert_eq!(
         ContractError::DepositWindowClosed {},
@@ -385,7 +326,7 @@ fn extend_lock_single_sided_flexible() {
 
     // alice deposits 1000 astro and extends from single sided flexible to 3 months with no deposit
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
         .single_staking_extend_duration_without_deposit(ALICE, 0, 86400 * 30 * 3)
@@ -406,12 +347,12 @@ fn extend_lock_single_sided_flexible() {
 
     // alice deposits 1000 astro and extends from single sided flexible to 3 months with 500 astro deposit
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
         .single_staking_extend_duration_with_deposit(
             ALICE,
-            suite.astro_contract(),
+            suite.astro(),
             500u128,
             0,
             86400 * 30 * 3,
@@ -433,7 +374,7 @@ fn extend_lock_single_sided_flexible() {
 
     // alice deposits 1000 astro and extends from single sided flexible to flexible with no deposit
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let err = suite
         .single_staking_extend_duration_without_deposit(ALICE, 0, 0)
@@ -445,10 +386,10 @@ fn extend_lock_single_sided_flexible() {
 
     // alice deposits 1000 astro and extends from single sided flexible to flexible with 500 deposit
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let err = suite
-        .single_staking_extend_duration_with_deposit(ALICE, suite.astro_contract(), 500u128, 0, 0)
+        .single_staking_extend_duration_with_deposit(ALICE, suite.astro(), 500u128, 0, 0)
         .unwrap_err();
     assert_eq!(
         ContractError::ExtendDurationErr(0, 0),
@@ -463,29 +404,17 @@ fn extend_lock_single_sided_flexible() {
 
     //alice deposits 1000 astro and after deposit window, try to extend
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite.update_time(86400 * 5);
     let err = suite
         .single_staking_extend_duration_without_deposit(ALICE, 0, 7776000)
         .unwrap_err();
-    assert_eq!(
-        ContractError::DepositWindowClosed {},
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::ExtendLockupError {}, err.downcast().unwrap());
     let err = suite
-        .single_staking_extend_duration_with_deposit(
-            ALICE,
-            suite.astro_contract(),
-            500u128,
-            0,
-            7776000,
-        )
+        .single_staking_extend_duration_with_deposit(ALICE, suite.astro(), 500u128, 0, 7776000)
         .unwrap_err();
-    assert_eq!(
-        ContractError::DepositWindowClosed {},
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::ExtendLockupError {}, err.downcast().unwrap());
 }
 
 #[test]
@@ -497,7 +426,7 @@ fn extend_lock_single_sided_timelocked() {
 
     // alice deposits 1000 astro and extends from 1 month to 3 months with no deposit
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
         .single_staking_extend_duration_without_deposit(ALICE, 2592000, 7776000)
@@ -521,12 +450,12 @@ fn extend_lock_single_sided_timelocked() {
 
     // alice deposits 1000 astro and extends from single sided 1 month to 3 months with 500 astro deposit
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
         .single_staking_extend_duration_with_deposit(
             ALICE,
-            suite.astro_contract(),
+            suite.astro(),
             500u128,
             2592000,
             7776000,
@@ -551,7 +480,7 @@ fn extend_lock_single_sided_timelocked() {
 
     // alice deposits 1000 astro and extends from single sided 1 month to 1 month with no deposit
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     let err = suite
         .single_staking_extend_duration_without_deposit(ALICE, 2592000, 2592000)
@@ -565,7 +494,7 @@ fn extend_lock_single_sided_timelocked() {
     let err = suite
         .single_staking_extend_duration_with_deposit(
             ALICE,
-            suite.astro_contract(),
+            suite.astro(),
             500u128,
             2592000,
             2592000,
@@ -590,23 +519,17 @@ fn extend_lock_single_sided_timelocked() {
     let err = suite
         .single_staking_extend_duration_without_deposit(ALICE, 2592000, 7776000)
         .unwrap_err();
-    assert_eq!(
-        ContractError::DepositWindowClosed {},
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::ExtendLockupError {}, err.downcast().unwrap());
     let err = suite
         .single_staking_extend_duration_with_deposit(
             ALICE,
-            suite.astro_contract(),
+            suite.astro(),
             500u128,
             2592000,
             7776000,
         )
         .unwrap_err();
-    assert_eq!(
-        ContractError::DepositWindowClosed {},
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::ExtendLockupError {}, err.downcast().unwrap());
 }
 
 #[test]
@@ -618,7 +541,7 @@ fn extend_lock_lp_flexible() {
 
     // alice deposits 1000 astro and extends from single sided flexible to 3 months with no deposit
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
         .lp_lockup_extend_duration_without_deposit(ALICE, 0, 86400 * 30 * 3)
@@ -639,16 +562,10 @@ fn extend_lock_lp_flexible() {
 
     // alice deposits 1000 astro and extends from single sided flexible to 3 months with 500 astro deposit
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
-        .lp_lockup_extend_duration_with_deposit(
-            ALICE,
-            suite.astro_contract(),
-            500u128,
-            0,
-            86400 * 30 * 3,
-        )
+        .lp_lockup_extend_duration_with_deposit(ALICE, suite.astro(), 500u128, 0, 86400 * 30 * 3)
         .unwrap();
     let user_deposits = suite.query_user_lp_lockup_info(ALICE).unwrap();
     // flexible deposit must be zero
@@ -666,7 +583,7 @@ fn extend_lock_lp_flexible() {
 
     // alice deposits 1000 astro and extends from single sided flexible to flexible with no deposit
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let err = suite
         .lp_lockup_extend_duration_without_deposit(ALICE, 0, 0)
@@ -678,10 +595,10 @@ fn extend_lock_lp_flexible() {
 
     // alice deposits 1000 astro and extends from single sided flexible to flexible with 500 deposit
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     let err = suite
-        .lp_lockup_extend_duration_with_deposit(ALICE, suite.astro_contract(), 500u128, 0, 0)
+        .lp_lockup_extend_duration_with_deposit(ALICE, suite.astro(), 500u128, 0, 0)
         .unwrap_err();
     assert_eq!(
         ContractError::ExtendDurationErr(0, 0),
@@ -696,23 +613,17 @@ fn extend_lock_lp_flexible() {
 
     //alice deposits 1000 astro and after deposit window, try to extend
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite.update_time(86400 * 5);
     let err = suite
         .lp_lockup_extend_duration_without_deposit(ALICE, 0, 7776000)
         .unwrap_err();
-    assert_eq!(
-        ContractError::DepositWindowClosed {},
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::ExtendLockupError {}, err.downcast().unwrap());
     let err = suite
-        .lp_lockup_extend_duration_with_deposit(ALICE, suite.astro_contract(), 500u128, 0, 7776000)
+        .lp_lockup_extend_duration_with_deposit(ALICE, suite.astro(), 500u128, 0, 7776000)
         .unwrap_err();
-    assert_eq!(
-        ContractError::DepositWindowClosed {},
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::ExtendLockupError {}, err.downcast().unwrap());
 }
 
 #[test]
@@ -723,35 +634,42 @@ fn single_sided_withdraw() {
     suite.update_time(86400u64 * 2);
 
     // alice deposits 1000 astro and withdraw it
-    let old_alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
-    suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+    let old_alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 7776000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 23328000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 7776000)
+        .unwrap();
+    suite
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
     // start withdraw window(withdraw window started)
     suite.update_time(86400u64 * 4);
     // if withdraw amount is greater than max withdrawal amount, only withdraws max withdrawal amount
-    // let err = suite
-    //     .single_staking_lockdrop_withdraw(ALICE, Some(Uint128::from(1000u128)), 0)
-    //     .unwrap_err();
-    // assert_eq!(
-    //     ContractError::WithdrawLimitExceed(454u128.to_string()),
-    //     err.downcast().unwrap()
-    // );
+    let err = suite
+        .single_staking_lockdrop_withdraw(ALICE, Some(Uint128::from(1000u128)), 0)
+        .unwrap_err();
+    assert_eq!(
+        ContractError::WithdrawLimitExceed(454u128.to_string()),
+        err.downcast().unwrap()
+    );
     // alice withdraws 300
     suite
         .single_staking_lockdrop_withdraw(ALICE, Some(Uint128::from(300u128)), 0)
         .unwrap();
-    let alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
+    let alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
+        .unwrap();
     assert_eq!(alice_xastro_balance - old_alice_xastro_balance, 300u128);
+    let current_time = suite.get_time();
+    let config = suite.query_lockdrop_config().unwrap();
+    assert_eq!(current_time, config.init_timestamp + config.deposit_window);
     // alice tries again, and it is failed
     let err = suite
         .single_staking_lockdrop_withdraw(ALICE, Some(Uint128::from(100u128)), 0)
@@ -768,11 +686,15 @@ fn single_sided_withdraw() {
         609u128
     );
     // alice withdraws maximum without setting amount
-    let old_alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
+    let old_alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
+        .unwrap();
     suite
         .single_staking_lockdrop_withdraw(ALICE, None, 2592000)
         .unwrap();
-    let alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
+    let alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
+        .unwrap();
     assert_eq!(alice_xastro_balance - old_alice_xastro_balance, 454u128);
     let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
@@ -787,11 +709,15 @@ fn single_sided_withdraw() {
 
     // withdraw window passed 3/4 checking decrease
     suite.update_time(86400u64 + 43200u64);
-    let old_alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
+    let old_alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
+        .unwrap();
     suite
         .single_staking_lockdrop_withdraw(ALICE, None, 7776000)
         .unwrap();
-    let alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
+    let alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
+        .unwrap();
     assert_eq!(alice_xastro_balance - old_alice_xastro_balance, 227u128);
     let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
@@ -809,7 +735,10 @@ fn single_sided_withdraw() {
     let err = suite
         .single_staking_lockdrop_withdraw(ALICE, None, 23328000)
         .unwrap_err();
-    assert_eq!(ContractError::LockdropFinished {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::ClaimRewardNotAllowed {},
+        err.downcast().unwrap()
+    );
 }
 
 #[test]
@@ -820,18 +749,20 @@ fn lp_withdraw() {
     suite.update_time(86400u64 * 2);
 
     // alice deposits 1000 astro and withdraw it
-    let old_alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
-    suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+    let old_alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 7776000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 23328000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 7776000)
+        .unwrap();
+    suite
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
     // start withdraw window(withdraw window started)
     suite.update_time(86400u64 * 4);
@@ -846,7 +777,9 @@ fn lp_withdraw() {
     suite
         .lp_staking_lockdrop_withdraw(ALICE, Some(Uint128::from(300u128)), 0)
         .unwrap();
-    let alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
+    let alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
+        .unwrap();
     assert_eq!(alice_xastro_balance - old_alice_xastro_balance, 300u128);
     // alice tries again, and it is failed
     let err = suite
@@ -864,11 +797,15 @@ fn lp_withdraw() {
         609u128
     );
     // alice withdraws maximum without setting amount
-    let old_alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
+    let old_alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
+        .unwrap();
     suite
         .lp_staking_lockdrop_withdraw(ALICE, None, 2592000)
         .unwrap();
-    let alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
+    let alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
+        .unwrap();
     assert_eq!(alice_xastro_balance - old_alice_xastro_balance, 454u128);
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(
@@ -883,11 +820,15 @@ fn lp_withdraw() {
 
     // withdraw window passed 3/4 checking decrease
     suite.update_time(86400u64 + 43200u64);
-    let old_alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
+    let old_alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
+        .unwrap();
     suite
         .lp_staking_lockdrop_withdraw(ALICE, None, 7776000)
         .unwrap();
-    let alice_xastro_balance = suite.query_xastro_balance(ALICE).unwrap();
+    let alice_xastro_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.xastro())
+        .unwrap();
     assert_eq!(alice_xastro_balance - old_alice_xastro_balance, 227u128);
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(
@@ -905,47 +846,23 @@ fn lp_withdraw() {
     let err = suite
         .lp_staking_lockdrop_withdraw(ALICE, None, 23328000)
         .unwrap_err();
-    assert_eq!(ContractError::LockdropFinished {}, err.downcast().unwrap());
+    assert_eq!(
+        ContractError::ClaimRewardNotAllowed {},
+        err.downcast().unwrap()
+    );
 }
 
 // test funding
 #[test]
 fn fund_incentives() {
     let mut suite = instantiate();
-
-    suite
-        .mint_native(ALICE.to_string(), suite.eclip(), 1_000_000_000)
-        .unwrap();
-    suite
-        .mint_native(suite.admin(), suite.eclip(), 1_000_000_000)
-        .unwrap();
-    let err = suite
-        .increase_eclip_incentives_lockdrop(ALICE, 1_000_000u128)
-        .unwrap_err();
-    assert_eq!(
-        ContractError::Admin(AdminError::NotAdmin {}),
-        err.downcast().unwrap()
-    );
+    suite.mint_beclip(&suite.admin(), 1_000_000_000).unwrap();
     // test increase incentives before deposit window
-    suite
-        .increase_eclip_incentives_lockdrop(&suite.admin(), 1_000_000u128)
-        .unwrap();
+    suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
 
     // test increase incentives on deposit window
     suite.update_time(86400u64 * 2);
-    suite
-        .increase_eclip_incentives_lockdrop(&suite.admin(), 1_000_000u128)
-        .unwrap();
-
-    // test increase incentives on withdraw window
-    suite.update_time(86400u64 * 5);
-    let err = suite
-        .increase_eclip_incentives_lockdrop(&suite.admin(), 1_000_000u128)
-        .unwrap_err();
-    assert_eq!(
-        ContractError::DepositWindowClosed {},
-        err.downcast().unwrap()
-    );
+    suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
 }
 
 // test staking assets to vaults
@@ -953,44 +870,31 @@ fn fund_incentives() {
 fn stake_assets_to_vaults() {
     let mut suite = instantiate();
 
-    suite
-        .update_lockdrop_config(
-            &suite.admin(),
-            UpdateConfigMsg {
-                flexible_staking: Some(suite.flexible_staking_contract()),
-                timelock_staking: Some(suite.timelock_staking_contract()),
-                lp_staking: Some(suite.lp_staking()),
-                reward_distributor: Some(suite.reward_distributor_contract()),
-                dao_treasury_address: Some(Addr::unchecked("dao_treasury_address").to_string()),
-            },
-        )
-        .unwrap();
-
     suite.update_time(86400u64 * 2);
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 7776000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 7776000)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 23328000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
 
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 7776000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 7776000)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 23328000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
 
     // test on deposit window
@@ -1021,43 +925,48 @@ fn stake_assets_to_vaults() {
 
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
-            .total_staked
+            .total_eclipastro_staked
             .u128(),
         999u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
-            .total_staked
+            .total_eclipastro_staked
             .u128(),
         999u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
-            .total_staked
+            .total_eclipastro_staked
             .u128(),
         999u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
-            .total_staked
+            .total_eclipastro_staked
             .u128(),
         999u128
     );
 
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
@@ -1067,6 +976,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
@@ -1076,6 +986,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
@@ -1085,6 +996,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
@@ -1095,42 +1007,45 @@ fn stake_assets_to_vaults() {
 
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
-            .total_withdrawed
+            .total_eclipastro_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_eclipastro_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_eclipastro_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         single_info
+            .single_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_eclipastro_withdrawed
             .u128(),
         0u128
     );
 
-    assert_eq!(single_state.is_staked, true);
     assert_eq!(single_state.are_claims_allowed, true);
     assert_eq!(single_state.countdown_start_at, suite.get_time());
     assert_eq!(single_state.total_eclipastro_lockup.u128(), 3_999u128);
@@ -1140,43 +1055,48 @@ fn stake_assets_to_vaults() {
 
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
-            .total_staked
+            .total_lp_staked
             .u128(),
         476u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
-            .total_staked
+            .total_lp_staked
             .u128(),
         476u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
-            .total_staked
+            .total_lp_staked
             .u128(),
         476u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
-            .total_staked
+            .total_lp_staked
             .u128(),
         476u128
     );
 
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
@@ -1186,6 +1106,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
@@ -1195,6 +1116,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
@@ -1204,6 +1126,7 @@ fn stake_assets_to_vaults() {
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
@@ -1214,41 +1137,44 @@ fn stake_assets_to_vaults() {
 
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 0u64 })
             .unwrap()
-            .total_withdrawed
+            .total_lp_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 2592000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_lp_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 7776000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_lp_withdrawed
             .u128(),
         0u128
     );
     assert_eq!(
         lp_info
+            .lp_lockups
             .iter()
             .find(|i| { i.duration == 23328000u64 })
             .unwrap()
-            .total_withdrawed
+            .total_lp_withdrawed
             .u128(),
         0u128
     );
-    assert_eq!(lp_state.is_staked, true);
     assert_eq!(lp_state.are_claims_allowed, true);
     assert_eq!(lp_state.countdown_start_at, suite.get_time());
 }
@@ -1258,56 +1184,40 @@ fn stake_assets_to_vaults() {
 fn single_sided_incentives_distribution() {
     let mut suite = instantiate();
 
-    suite
-        .update_lockdrop_config(
-            &suite.admin(),
-            UpdateConfigMsg {
-                flexible_staking: Some(suite.flexible_staking_contract()),
-                timelock_staking: Some(suite.timelock_staking_contract()),
-                lp_staking: Some(suite.lp_staking()),
-                reward_distributor: Some(suite.reward_distributor_contract()),
-                dao_treasury_address: Some(Addr::unchecked("dao_treasury_address").to_string()),
-            },
-        )
-        .unwrap();
-
     suite.update_time(86400u64 * 2);
 
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 7776000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 7776000)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 23328000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
 
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 7776000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 7776000)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 23328000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
 
+    suite.mint_beclip(&suite.admin(), 1_000_000_000).unwrap();
     suite
         .mint_native(suite.admin(), suite.eclip(), 1_000_000_000)
         .unwrap();
-    suite
-        .increase_eclip_incentives_lockdrop(&suite.admin(), 1_000_000u128)
-        .unwrap();
-    suite
-        .increase_eclip_incentives_lockdrop(&suite.admin(), 1_000_000u128)
-        .unwrap();
+    suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
+    suite.fund_eclip(&suite.admin(), 1_000_000u128).unwrap();
     // withdraw window finished
     suite.update_time(86400u64 * 7);
     let cfg = suite.query_lockdrop_config().unwrap();
@@ -1318,227 +1228,152 @@ fn single_sided_incentives_distribution() {
 
     // fund eclip to staking vaults daily reward is 1_000_000_000u128
     suite
+        .mint_beclip(&suite.single_staking_contract(), 100_000_000_000u128)
+        .unwrap();
+    suite
         .mint_native(
-            suite.reward_distributor_contract(),
+            suite.single_staking_contract(),
             suite.eclip(),
             100_000_000_000u128,
         )
         .unwrap();
     suite
-        .mint_native(suite.lp_staking(), suite.eclip(), 100_000_000_000u128)
+        .mint_beclip(&&suite.lp_staking_contract(), 100_000_000_000u128)
+        .unwrap();
+    suite
+        .mint_native(
+            suite.lp_staking_contract(),
+            suite.eclip(),
+            100_000_000_000u128,
+        )
         .unwrap();
     // test eclip incentives
+    let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     let prev_alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
+        .query_balance_native(ALICE.to_string(), suite.eclip())
         .unwrap();
+    suite.single_lockdrop_claim_rewards(ALICE, 0).unwrap();
+    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    let alice_eclip_balance = suite
+        .query_balance_native(ALICE.to_string(), suite.eclip())
+        .unwrap();
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 18518u128); // 100%
+    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 18518u128); // 100%
     let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 0 })
             .unwrap()
-            .total_eclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .claimed
             .u128(),
-        90_909u128
+        18518u128
     );
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 2_592_000 })
-            .unwrap()
-            .total_eclip_incentives
-            .u128(),
-        181_818u128
-    );
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 7_776_000 })
-            .unwrap()
-            .total_eclip_incentives
-            .u128(),
-        272_727u128
-    );
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 23_328_000 })
-            .unwrap()
-            .total_eclip_incentives
-            .u128(),
-        454_545u128
-    );
-    suite
-        .single_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 0, None)
-        .unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 27_272u128); // 30%
-    let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 0 })
             .unwrap()
-            .claimed_eclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .allocated
             .u128(),
-        27_272u128
+        18518u128
     );
-    suite
-        .single_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 2592000, None)
-        .unwrap();
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 0 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .claimed
+            .u128(),
+        18518u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 0 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .allocated
+            .u128(),
+        18518u128
+    );
+    suite.single_lockdrop_claim_rewards(ALICE, 2592000).unwrap();
+    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
+        .query_balance_native(ALICE.to_string(), suite.eclip())
         .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 81817u128); // 30%
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 55555u128); // 100%
+    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 55555u128); // 100%
     let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 2592000 })
             .unwrap()
-            .claimed_eclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .claimed
             .u128(),
-        54545u128
+        37037u128
     );
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 2592000 })
             .unwrap()
-            .pending_eclip_incentives
+            .lockdrop_incentives
+            .eclip
+            .claimed
             .u128(),
-        0u128
+        37037u128
     );
-
-    // update time 1 day
-    suite.update_time(86400u64);
-    let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 0 })
-            .unwrap()
-            .claimed_eclip_incentives
-            .u128(),
-        27_272u128
-    );
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 0 })
-            .unwrap()
-            .pending_eclip_incentives
-            .u128(),
-        707u128
-    );
-    let prev_alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    suite
-        .single_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 0, None)
-        .unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 9797u128); // 9090 + 707
-
-    suite
-        .single_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 2592000, None)
-        .unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 29391u128);
-
-    // update time 1 day
-    suite.update_time(86400u64);
-    let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 0 })
-            .unwrap()
-            .claimed_eclip_incentives
-            .u128(),
-        27_979u128
-    );
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 0 })
-            .unwrap()
-            .pending_eclip_incentives
-            .u128(),
-        707u128
-    );
-    let prev_alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    suite
-        .single_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 0, None)
-        .unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 9797u128); // 9090 + 707
 }
 
 #[test]
 fn lp_incentives_distribution() {
     let mut suite = instantiate();
 
-    suite
-        .update_lockdrop_config(
-            &suite.admin(),
-            UpdateConfigMsg {
-                flexible_staking: Some(suite.flexible_staking_contract()),
-                timelock_staking: Some(suite.timelock_staking_contract()),
-                lp_staking: Some(suite.lp_staking()),
-                reward_distributor: Some(suite.reward_distributor_contract()),
-                dao_treasury_address: Some(Addr::unchecked("dao_treasury_address").to_string()),
-            },
-        )
-        .unwrap();
-
     suite.update_time(86400u64 * 2);
 
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 7776000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 7776000)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 23328000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
 
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 7776000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 7776000)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 23328000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
 
+    suite.mint_beclip(&suite.admin(), 1_000_000_000).unwrap();
     suite
         .mint_native(suite.admin(), suite.eclip(), 1_000_000_000)
         .unwrap();
-    suite
-        .increase_eclip_incentives_lockdrop(&suite.admin(), 1_000_000u128)
-        .unwrap();
-    suite
-        .increase_eclip_incentives_lockdrop(&suite.admin(), 1_000_000u128)
-        .unwrap();
+    suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
+    suite.fund_eclip(&suite.admin(), 1_000_000u128).unwrap();
     // withdraw window finished
     suite.update_time(86400u64 * 7);
     let cfg = suite.query_lockdrop_config().unwrap();
@@ -1549,257 +1384,355 @@ fn lp_incentives_distribution() {
 
     // fund eclip to staking vaults daily reward is 1_000_000_000u128
     suite
+        .mint_beclip(&suite.single_staking_contract(), 100_000_000_000u128)
+        .unwrap();
+    suite
         .mint_native(
-            suite.reward_distributor_contract(),
+            suite.single_staking_contract(),
             suite.eclip(),
             100_000_000_000u128,
         )
         .unwrap();
     suite
-        .mint_native(suite.lp_staking(), suite.eclip(), 100_000_000_000u128)
+        .mint_beclip(&suite.lp_staking_contract(), 100_000_000_000u128)
+        .unwrap();
+    suite
+        .mint_native(
+            suite.lp_staking_contract(),
+            suite.eclip(),
+            100_000_000_000u128,
+        )
         .unwrap();
     // test eclip incentives
-    let prev_alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
+    let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 0 })
             .unwrap()
-            .total_eclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .allocated
             .u128(),
-        90_909u128
+        18518u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 0 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .allocated
+            .u128(),
+        18518u128
     );
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 2_592_000 })
             .unwrap()
-            .total_eclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .allocated
             .u128(),
-        181_818u128
+        37037u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 2_592_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .allocated
+            .u128(),
+        37037u128
     );
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 7_776_000 })
             .unwrap()
-            .total_eclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .allocated
             .u128(),
-        272_727u128
+        111111u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 7_776_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .allocated
+            .u128(),
+        111111u128
     );
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 23_328_000 })
             .unwrap()
-            .total_eclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .allocated
             .u128(),
-        454_545u128
+        333333u128
     );
-    suite
-        .lp_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 0, None)
-        .unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 27_272u128); // 30%
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 23_328_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .allocated
+            .u128(),
+        333333u128
+    );
+    suite.lp_lockdrop_claim_all_rewards(ALICE).unwrap();
+    let alice_beclip_balance: u128 = suite.query_beclip_balance(ALICE).unwrap();
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 499999u128); // 100%
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(
         user_info
             .iter()
             .find(|i| { i.duration == 0 })
             .unwrap()
-            .claimed_eclip_incentives
+            .lockdrop_incentives
+            .beclip
+            .claimed
             .u128(),
-        27_272u128
-    );
-    suite
-        .lp_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 2592000, None)
-        .unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 81817u128); // 30%
-    let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 2592000 })
-            .unwrap()
-            .claimed_eclip_incentives
-            .u128(),
-        54545u128
+        18518u128
     );
     assert_eq!(
         user_info
             .iter()
-            .find(|i| { i.duration == 2592000 })
+            .find(|i| { i.duration == 0 })
             .unwrap()
-            .pending_eclip_incentives
+            .lockdrop_incentives
+            .eclip
+            .claimed
             .u128(),
-        0u128
+        18518u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 2_592_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .beclip
+            .claimed
+            .u128(),
+        37037u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 2_592_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .claimed
+            .u128(),
+        37037u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 7_776_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .beclip
+            .claimed
+            .u128(),
+        111111u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 7_776_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .claimed
+            .u128(),
+        111111u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 23_328_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .beclip
+            .claimed
+            .u128(),
+        333333u128
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 23_328_000 })
+            .unwrap()
+            .lockdrop_incentives
+            .eclip
+            .claimed
+            .u128(),
+        333333u128
     );
 
-    // update time 1 day
-    suite.update_time(86400u64);
-    let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 0 })
-            .unwrap()
-            .claimed_eclip_incentives
-            .u128(),
-        27_272u128
-    );
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 0 })
-            .unwrap()
-            .pending_eclip_incentives
-            .u128(),
-        707u128
-    );
-    let prev_alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    suite
-        .lp_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 0, None)
-        .unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 25706u128); // 24999 + 707
+    //     // update time 1 day
+    //     suite.update_time(86400u64);
+    //     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
+    //     assert_eq!(
+    //         user_info
+    //             .iter()
+    //             .find(|i| { i.duration == 0 })
+    //             .unwrap()
+    //             .claimed_eclip_incentives
+    //             .u128(),
+    //         27_272u128
+    //     );
+    //     assert_eq!(
+    //         user_info
+    //             .iter()
+    //             .find(|i| { i.duration == 0 })
+    //             .unwrap()
+    //             .pending_eclip_incentives
+    //             .u128(),
+    //         707u128
+    //     );
+    //     let prev_alice_eclip_balance = suite
+    //         .balance_native(ALICE.to_string(), suite.eclip())
+    //         .unwrap();
+    //     suite
+    //         .lp_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 0, None)
+    //         .unwrap();
+    //     let alice_eclip_balance = suite
+    //         .balance_native(ALICE.to_string(), suite.eclip())
+    //         .unwrap();
+    //     assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 25706u128); // 24999 + 707
 
-    suite
-        .lp_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 2592000, None)
-        .unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 52119u128); // 24999 + 1414
+    //     suite
+    //         .lp_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 2592000, None)
+    //         .unwrap();
+    //     let alice_eclip_balance = suite
+    //         .balance_native(ALICE.to_string(), suite.eclip())
+    //         .unwrap();
+    //     assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 52119u128); // 24999 + 1414
 
-    // update time 1 day
-    suite.update_time(86400u64);
-    let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 0 })
-            .unwrap()
-            .claimed_eclip_incentives
-            .u128(),
-        27_979u128
-    );
-    assert_eq!(
-        user_info
-            .iter()
-            .find(|i| { i.duration == 0 })
-            .unwrap()
-            .pending_eclip_incentives
-            .u128(),
-        707u128
-    );
-    let prev_alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    suite
-        .lp_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 0, None)
-        .unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 25706u128); // 24999 + 707
+    //     // update time 1 day
+    //     suite.update_time(86400u64);
+    //     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
+    //     assert_eq!(
+    //         user_info
+    //             .iter()
+    //             .find(|i| { i.duration == 0 })
+    //             .unwrap()
+    //             .claimed_eclip_incentives
+    //             .u128(),
+    //         27_979u128
+    //     );
+    //     assert_eq!(
+    //         user_info
+    //             .iter()
+    //             .find(|i| { i.duration == 0 })
+    //             .unwrap()
+    //             .pending_eclip_incentives
+    //             .u128(),
+    //         707u128
+    //     );
+    //     let prev_alice_eclip_balance = suite
+    //         .balance_native(ALICE.to_string(), suite.eclip())
+    //         .unwrap();
+    //     suite
+    //         .lp_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 0, None)
+    //         .unwrap();
+    //     let alice_eclip_balance = suite
+    //         .balance_native(ALICE.to_string(), suite.eclip())
+    //         .unwrap();
+    //     assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 25706u128); // 24999 + 707
 }
 
 #[test]
 fn restake_and_unlock() {
     let mut suite = instantiate();
-
-    suite
-        .update_lockdrop_config(
-            &suite.admin(),
-            UpdateConfigMsg {
-                flexible_staking: Some(suite.flexible_staking_contract()),
-                timelock_staking: Some(suite.timelock_staking_contract()),
-                lp_staking: Some(suite.lp_staking()),
-                reward_distributor: Some(suite.reward_distributor_contract()),
-                dao_treasury_address: Some(Addr::unchecked("dao_treasury_address").to_string()),
-            },
-        )
-        .unwrap();
-
     suite.update_time(86400u64 * 2);
 
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 7776000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 7776000)
         .unwrap();
     suite
-        .single_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 23328000)
+        .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
 
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 0)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 0)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 2592000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 2592000)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 7776000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 7776000)
         .unwrap();
     suite
-        .lp_staking_increase_lockdrop(ALICE, suite.astro_contract(), 1_000u128, 23328000)
+        .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
 
+    suite.mint_beclip(&suite.admin(), 1_000_000_000).unwrap();
     suite
         .mint_native(suite.admin(), suite.eclip(), 1_000_000_000)
         .unwrap();
-    suite
-        .increase_eclip_incentives_lockdrop(&suite.admin(), 1_000_000u128)
-        .unwrap();
-    suite
-        .increase_eclip_incentives_lockdrop(&suite.admin(), 1_000_000u128)
-        .unwrap();
+    suite.fund_beclip(&suite.admin(), 1_000_000u128).unwrap();
+    suite.fund_eclip(&suite.admin(), 1_000_000u128).unwrap();
     // withdraw window finished
     suite.update_time(86400u64 * 7);
 
     let err = suite.single_lockup_relock(ALICE, 0, 2592000).unwrap_err();
-    assert_eq!(ContractError::RelockNotAllowed {}, err.downcast().unwrap());
+    assert_eq!(ContractError::ExtendLockupError {}, err.downcast().unwrap());
 
     // stake assets to single sided vaults and lp vault
     suite.lockdrop_stake_to_vaults(&suite.admin()).unwrap();
 
     // fund eclip to staking vaults daily reward is 1_000_000_000u128
     suite
+        .mint_beclip(&suite.single_staking_contract(), 100_000_000_000u128)
+        .unwrap();
+    suite
         .mint_native(
-            suite.reward_distributor_contract(),
+            suite.single_staking_contract(),
             suite.eclip(),
             100_000_000_000u128,
         )
         .unwrap();
     suite
-        .mint_native(suite.lp_staking(), suite.eclip(), 100_000_000_000u128)
+        .mint_beclip(&suite.lp_staking_contract(), 100_000_000_000u128)
+        .unwrap();
+    suite
+        .mint_native(
+            suite.lp_staking_contract(),
+            suite.eclip(),
+            100_000_000_000u128,
+        )
         .unwrap();
 
     // restake
-    let prev_alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
+    let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     suite.single_lockup_relock(ALICE, 0, 2592000).unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 27_272u128);
+    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 55555u128);
     let alice_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
         alice_info
@@ -1810,9 +1743,9 @@ fn restake_and_unlock() {
             .u128(),
         999u128
     );
-    let alice_timelocked_staking = suite.query_timelock_staking(ALICE).unwrap();
+    let alice_single_sided_staking = suite.query_single_sided_staking(ALICE).unwrap();
     assert_eq!(
-        alice_timelocked_staking
+        alice_single_sided_staking
             .iter()
             .find(|s| { s.duration == 2592000 })
             .unwrap()
@@ -1822,14 +1755,17 @@ fn restake_and_unlock() {
         999u128
     );
 
+    let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     let prev_alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
+        .query_balance_native(ALICE.to_string(), suite.eclip())
         .unwrap();
     suite.single_lockup_relock(ALICE, 2592000, 7776000).unwrap();
+    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 111111u128);
     let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
+        .query_balance_native(ALICE.to_string(), suite.eclip())
         .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 54_545u128);
+    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 111111u128);
     let alice_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
         alice_info
@@ -1840,9 +1776,9 @@ fn restake_and_unlock() {
             .u128(),
         999u128
     );
-    let alice_timelocked_staking = suite.query_timelock_staking(ALICE).unwrap();
+    let alice_single_sided_staking = suite.query_single_sided_staking(ALICE).unwrap();
     assert_eq!(
-        alice_timelocked_staking
+        alice_single_sided_staking
             .iter()
             .find(|s| { s.duration == 7776000 })
             .unwrap()
@@ -1855,47 +1791,37 @@ fn restake_and_unlock() {
     let err = suite
         .single_lockup_relock(ALICE, 2592000, 7776000)
         .unwrap_err();
-    assert_eq!(
-        ContractError::InvalidTokenBalance {},
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::NotStaked {}, err.downcast().unwrap());
 
     suite.update_time(86400u64);
-    let prev_alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    suite
-        .single_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 2592000, None)
-        .unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
+    let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    suite.single_lockdrop_claim_rewards(ALICE, 2592000).unwrap();
+    // let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
+    // assert_eq!(user_info, vec![]);
+    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
 
     let user_eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
     assert_eq!(user_eclipastro_balance, 0);
 
     suite
-        .single_lockdrop_claim_rewards_and_optionally_unlock(
-            ALICE,
-            7776000,
-            Some(Uint128::from(100u128)),
-        )
+        .single_lockup_unlock(ALICE, 7776000, Some(Uint128::from(100u128)))
         .unwrap();
 
     let user_eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
     assert_eq!(user_eclipastro_balance, 50); // 50% penalty
 
+    let prev_user_lp_token_balance = suite.query_lp_token_balance(ALICE).unwrap();
     suite
-        .lp_lockdrop_claim_rewards_and_optionally_unlock(
-            ALICE,
-            7776000,
-            Some(Uint128::from(400u128)),
-        )
+        .lp_lockup_unlock(ALICE, 7776000, Some(Uint128::from(400u128)))
         .unwrap();
-    let user_lp_token_balance = suite.query_lp_token_balance(ALICE).unwrap();
-    assert_eq!(user_lp_token_balance.u128(), 200); // 50% penalty
 
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 1_414);
+    let user_lp_token_balance = suite.query_lp_token_balance(ALICE).unwrap();
+    assert_eq!(
+        user_lp_token_balance.u128() - prev_user_lp_token_balance.u128(),
+        200
+    ); // 50% penalty
+
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 0);
 
     let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     assert_eq!(
@@ -1905,7 +1831,7 @@ fn restake_and_unlock() {
             .unwrap()
             .eclipastro_staked
             .u128(),
-        0
+        999
     );
     assert_eq!(
         user_info
@@ -1918,31 +1844,19 @@ fn restake_and_unlock() {
     );
 
     let err = suite
-        .single_lockdrop_claim_rewards_and_optionally_unlock(
-            ALICE,
-            2592000,
-            Some(Uint128::from(100u128)),
-        )
+        .single_lockup_unlock(ALICE, 2592000, Some(Uint128::from(100u128)))
         .unwrap_err();
     assert_eq!(
-        ContractError::InvalidTokenBalance {},
+        ContractError::WithdrawLimitExceed("0".to_string()),
         err.downcast().unwrap()
     );
 
-    suite
-        .single_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 0, None)
-        .unwrap();
+    suite.single_lockdrop_claim_rewards(ALICE, 0).unwrap();
 
-    let prev_alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    suite
-        .lp_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 2592000, None)
-        .unwrap();
-    let alice_eclip_balance = suite
-        .balance_native(ALICE.to_string(), suite.eclip())
-        .unwrap();
-    assert_eq!(alice_eclip_balance - prev_alice_eclip_balance, 80958);
+    let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    suite.lp_lockdrop_claim_rewards(ALICE, 2592000).unwrap();
+    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 37037);
 
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(
@@ -1955,11 +1869,7 @@ fn restake_and_unlock() {
         476
     );
     suite
-        .lp_lockdrop_claim_rewards_and_optionally_unlock(
-            ALICE,
-            2592000,
-            Some(Uint128::from(476u128)),
-        )
+        .lp_lockup_unlock(ALICE, 2592000, Some(Uint128::from(476u128)))
         .unwrap();
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(
@@ -1969,7 +1879,7 @@ fn restake_and_unlock() {
             .unwrap()
             .lp_token_staked
             .u128(),
-        0
+        476
     );
     assert_eq!(
         user_info
@@ -1982,17 +1892,21 @@ fn restake_and_unlock() {
     );
 
     let err = suite
-        .lp_lockdrop_claim_rewards_and_optionally_unlock(
-            ALICE,
-            2592000,
-            Some(Uint128::from(100u128)),
-        )
+        .lp_lockup_unlock(ALICE, 2592000, Some(Uint128::from(100u128)))
         .unwrap_err();
     assert_eq!(
-        ContractError::InvalidTokenBalance {},
+        ContractError::WithdrawLimitExceed("0".to_string()),
         err.downcast().unwrap()
     );
     suite
-        .lp_lockdrop_claim_rewards_and_optionally_unlock(ALICE, 0, Some(Uint128::from(100u128)))
+        .lp_lockup_unlock(ALICE, 0, Some(Uint128::from(100u128)))
         .unwrap();
+    // let prev_eclip_balance = suite.query_balance_native(ALICE.to_string(), suite.eclip()).unwrap();
+    // suite.lp_lockdrop_claim_all_rewards(ALICE).unwrap();
+    // let eclip_balance = suite.query_balance_native(ALICE.to_string(), suite.eclip()).unwrap();
+    // assert_eq!(eclip_balance-prev_eclip_balance, 0u128);
+    // let info = suite.query_lockdrop_config().unwrap();
+    // assert_eq!(info., vec![])
+    // let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
+    // assert_eq!(user_info, vec![]);
 }

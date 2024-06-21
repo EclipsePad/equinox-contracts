@@ -1,6 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint128};
-use cw20::Cw20ReceiveMsg;
+use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Env, StdResult, Uint128, WasmMsg};
 
 use crate::token::InstantiateMarketingInfo;
 
@@ -9,9 +8,11 @@ pub struct InstantiateMsg {
     /// Contract owner for updating
     pub owner: String,
     /// ASTRO token
-    pub token_in: String,
+    pub astro: String,
     /// xASTRO token
-    pub xtoken: String,
+    pub xastro: String,
+    /// ASTRO staking contract
+    pub staking_contract: Addr,
     /// Eclipse treasury
     pub treasury: String,
     /// eclipASTRO token code id
@@ -22,8 +23,8 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// stake ASTRO from user
-    Receive(Cw20ReceiveMsg),
+    /// convert astro, xastro to eclipastro by user
+    Convert { recipient: Option<String> },
     /// update config
     UpdateConfig { config: UpdateConfig },
     /// update reward config
@@ -36,6 +37,8 @@ pub enum ExecuteMsg {
     ClaimTreasuryReward { amount: Uint128 },
     /// withdraw xASTRO
     WithdrawAvailableBalance { amount: Uint128, recipient: String },
+    /// Callbacks; only callable by the contract itself.
+    Callback(CallbackMsg),
 }
 
 #[cw_serde]
@@ -61,6 +64,8 @@ pub enum QueryMsg {
     /// query withdrawable xASTRO balance
     #[returns(Uint128)]
     WithdrawableBalance {},
+    #[returns(StakeInfo)]
+    StakeInfo {},
 }
 
 #[cw_serde]
@@ -70,22 +75,16 @@ pub enum Cw20HookMsg {
 
 #[cw_serde]
 pub struct UpdateConfig {
-    /// ASTRO token
-    pub token_in: Option<String>,
-    /// eclipASTRO token
-    pub token_out: Option<String>,
-    /// xASTRO token
-    pub xtoken: Option<String>,
     /// Eclipse vxASTRO holder contract
-    pub vxtoken_holder: Option<String>,
+    pub vxastro_holder: Option<Addr>,
     /// Eclipse treasury
-    pub treasury: Option<String>,
+    pub treasury: Option<Addr>,
     /// eclipASTRO / ASTRO stability pool
-    pub stability_pool: Option<String>,
-    /// eclipASTRO staking reward distributor
-    pub staking_reward_distributor: Option<String>,
+    pub stability_pool: Option<Addr>,
+    /// eclipASTRO single sided staking contract
+    pub single_staking_contract: Option<Addr>,
     /// cosmic essence reward distributor
-    pub ce_reward_distributor: Option<String>,
+    pub ce_reward_distributor: Option<Addr>,
 }
 
 #[cw_serde]
@@ -117,19 +116,60 @@ pub struct Reward {
 #[cw_serde]
 pub struct Config {
     /// ASTRO token
-    pub token_in: Addr,
-    /// eclipASTRO token
-    pub token_out: Addr,
+    pub astro: String,
     /// xASTRO token
-    pub xtoken: Addr,
+    pub xastro: String,
+    /// ASTRO staking contract
+    pub staking_contract: Addr,
+    /// eclipASTRO token
+    pub eclipastro: Addr,
     /// Eclipse vxASTRO holder contract
-    pub vxtoken_holder: Addr,
+    pub vxastro_holder: Option<Addr>,
     /// Eclipse treasury
     pub treasury: Addr,
     /// eclipASTRO / ASTRO stability pool
-    pub stability_pool: Addr,
-    /// eclipASTRO staking reward distributor
-    pub staking_reward_distributor: Addr,
+    pub stability_pool: Option<Addr>,
+    /// eclipASTRO single_sided_staking_contract
+    pub single_staking_contract: Option<Addr>,
     /// cosmic essence reward distributor
-    pub ce_reward_distributor: Addr,
+    pub ce_reward_distributor: Option<Addr>,
+}
+
+#[cw_serde]
+pub enum CallbackMsg {
+    ConvertAstro {
+        prev_xastro_balance: Uint128,
+        astro_amount_to_convert: Uint128,
+        receiver: String,
+    },
+}
+
+impl CallbackMsg {
+    pub fn to_cosmos_msg(self, env: &Env) -> StdResult<CosmosMsg> {
+        Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_json_binary(&ExecuteMsg::Callback(self))?,
+            funds: vec![],
+        }))
+    }
+}
+
+#[cw_serde]
+pub struct StakeInfo {
+    /// initial ASTRO stake
+    pub astro: Uint128,
+    /// user's xASTRO amount
+    pub xastro: Uint128,
+    /// claimed xASTRO amount
+    pub claimed_xastro: Uint128,
+}
+
+impl Default for StakeInfo {
+    fn default() -> Self {
+        StakeInfo {
+            astro: Uint128::zero(),
+            xastro: Uint128::zero(),
+            claimed_xastro: Uint128::zero(),
+        }
+    }
 }

@@ -31,14 +31,15 @@ pub fn try_instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            token_in: deps.api.addr_validate(&msg.token_in)?,
-            token_out: Addr::unchecked(""),
-            xtoken: deps.api.addr_validate(&msg.xtoken)?,
-            vxtoken_holder: Addr::unchecked(""),
+            astro: msg.astro,
+            xastro: msg.xastro,
+            staking_contract: msg.staking_contract,
+            eclipastro: Addr::unchecked(""),
+            vxastro_holder: None,
             treasury: deps.api.addr_validate(&msg.treasury)?,
-            stability_pool: Addr::unchecked(""),
-            staking_reward_distributor: Addr::unchecked(""),
-            ce_reward_distributor: Addr::unchecked(""),
+            stability_pool: None,
+            single_staking_contract: None,
+            ce_reward_distributor: None,
         },
     )?;
 
@@ -72,7 +73,7 @@ pub fn try_instantiate(
                 marketing: msg.marketing,
             })?,
             funds: vec![],
-            label: String::from("Staked Astroport Token"),
+            label: String::from("eclipASTRO Token"),
         }
         .into(),
         id: INSTANTIATE_TOKEN_REPLY_ID,
@@ -93,14 +94,14 @@ pub fn handle_instantiate_reply(
         SubMsgResult::Ok(SubMsgResponse {
             data: Some(data), ..
         }) => {
-            if config.token_out != Addr::unchecked("") {
+            if config.eclipastro != Addr::unchecked("") {
                 return Err(ContractError::Unauthorized {});
             }
 
             let init_response = parse_instantiate_response_data(data.as_slice())
                 .map_err(|e| StdError::generic_err(format!("{e}")))?;
 
-            config.token_out = deps.api.addr_validate(&init_response.contract_address)?;
+            config.eclipastro = deps.api.addr_validate(&init_response.contract_address)?;
 
             CONFIG.save(deps.storage, &config)?;
 

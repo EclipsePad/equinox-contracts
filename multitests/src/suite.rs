@@ -2,84 +2,62 @@ use anyhow::Result as AnyResult;
 use astroport::{
     asset::{Asset, AssetInfo, PairInfo},
     factory::{PairConfig, PairType, QueryMsg as FactoryQueryMsg},
-    incentives::{ExecuteMsg as IncentivesExecuteMsg, QueryMsg as IncentivesQueryMsg},
+    incentives::{self, ExecuteMsg as IncentivesExecuteMsg, QueryMsg as IncentivesQueryMsg},
     pair::ExecuteMsg as PairExecuteMsg,
     staking::{
-        ConfigResponse as AstroStakingConfigResponse, Cw20HookMsg as AstroStakingCw20HookMsg,
+        Config as AstroStakingConfig, ExecuteMsg as AstroStakingExecuteMsg,
         InstantiateMsg as AstroStakingInstantiateMsg, QueryMsg as AstroStakingQueryMsg,
     },
-    token::{
-        Cw20Coin, InstantiateMsg as AstroInstantiateMsg, MinterResponse as AstroportMinterResponse,
-    },
-    vesting::{self, Cw20HookMsg as VestingCw20HookMsg, VestingAccount},
+    vesting::{self, ExecuteMsg as VestingExecuteMsg, VestingAccount},
 };
-use cosmwasm_std::{coin, to_json_binary, Addr, Binary, Coin, Decimal, StdResult, Uint128};
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
-use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
+use cosmwasm_std::{
+    coin, coins, testing::MockApi, to_json_binary, Addr, Decimal, DepsMut, Empty, Env, GovMsg,
+    IbcMsg, IbcQuery, MemoryStorage, MessageInfo, Response, StdResult, Uint128,
+};
+use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
+use cw_multi_test::{
+    App, AppResponse, BankKeeper, BasicAppBuilder, ContractWrapper, DistributionKeeper, Executor,
+    FailingModule, StakeKeeper, WasmKeeper,
+};
 use equinox_msg::{
-    flexible_staking::{
-        Config as FlexibleStakingConfig, Cw20HookMsg as FlexibleStakingCw20HookMsg,
-        ExecuteMsg as FlexibleStakingExecuteMsg, InstantiateMsg as FlexibleStakingInstantiateMsg,
-        QueryMsg as FlexibleStakingQueryMsg, UpdateConfigMsg as FlexibleStakingUpdateConfig,
-    },
     lockdrop::{
         Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
-        ExecuteMsg as LockdropExecuteMsg, InstantiateMsg as LockdropInstantiateMsg, LockConfig,
-        LockupInfoResponse, LpLockupStateResponse, QueryMsg as LockdropQueryMsg,
-        SingleLockupStateResponse, StakeType, UpdateConfigMsg as LockdropUpdateConfigMsg,
-        UserLpLockupInfoResponse, UserSingleLockupInfoResponse,
+        ExecuteMsg as LockdropExecuteMsg, IncentiveAmounts,
+        InstantiateMsg as LockdropInstantiateMsg, LpLockupInfoResponse, LpLockupStateResponse,
+        QueryMsg as LockdropQueryMsg, SingleLockupInfoResponse, SingleLockupStateResponse,
+        StakeType, UpdateConfigMsg as LockdropUpdateConfigMsg, UserLpLockupInfoResponse,
+        UserSingleLockupInfoResponse,
     },
     lp_staking::{
         Config as LpStakingConfig, Cw20HookMsg as LpStakingCw20HookMsg,
         ExecuteMsg as LpStakingExecuteMsg, InstantiateMsg as LpStakingInstantiateMsg,
-        QueryMsg as LpStakingQueryMsg, RewardConfig, TotalStaking,
-        UpdateConfigMsg as LpStakingUpdateConfigMsg,
-        UserRewardResponse as LpStakingUserRewardResponse, UserStaking,
+        QueryMsg as LpStakingQueryMsg, RewardAmount as LpStakingRewardAmount,
+        RewardDetail as LpStakingRewardDetail, RewardDetails as LpStakingRewardDetails,
+        RewardWeight as LpStakingRewardWeight, UpdateConfigMsg as LpStakingUpdateConfigMsg,
+        UserStaking as LpStakingUserStaking,
     },
-    reward_distributor::{
-        FlexibleReward, InstantiateMsg as RewardDistributorInstantiateMsg, LockingRewardConfig,
-        QueryMsg as RewardDistributorQueryMsg, TimelockReward, TotalStakingData,
-    },
-    timelock_staking::{
-        Config as TimelockStakingConfig, Cw20HookMsg as TimelockCw20HookMsg,
-        ExecuteMsg as TimelockStakingExecuteMsg, InstantiateMsg as TimelockStakingInstantiateMsg,
-        QueryMsg as TimelockStakingQueryMsg, TimeLockConfig,
-        UpdateConfigMsg as TimelockStakingUpdateConfig, UserStaking as TimelockUserStaking,
+    single_sided_staking::{
+        Config as SingleStakingConfig, Cw20HookMsg as SingleStakingCw20HookMsg,
+        ExecuteMsg as SingleSidedStakingExecuteMsg,
+        InstantiateMsg as SingleSidedStakingInstantiateMsg, QueryMsg as SingleStakingQueryMsg,
+        RewardConfig as SingleStakingRewardConfig, RewardDetail as SingleStakingRewardDetail,
+        UpdateConfigMsg as SingleStakingUpdateConfigMsg,
+        UserRewardByDuration as SingleStakingUserRewardByDuration,
+        UserStaking as SingleSidedUserStaking,
     },
     token_converter::{
-        Config as ConverterConfig, Cw20HookMsg as ConverterCw20HookMsg,
-        ExecuteMsg as ConverterExecuteMsg, InstantiateMsg as ConverterInstantiateMsg,
-        QueryMsg as ConverterQueryMsg, RewardConfig as ConverterRewardConfig,
-        RewardResponse as ConverterRewardResponse, UpdateConfig as ConverterUpdateConfig,
+        Config as ConverterConfig, ExecuteMsg as ConverterExecuteMsg,
+        InstantiateMsg as ConverterInstantiateMsg, QueryMsg as ConverterQueryMsg,
+        RewardResponse as ConverterRewardResponse, StakeInfo as ConverterStakeInfo,
+        UpdateConfig as ConverterUpdateConfig,
     },
-    voter::{
-        Config as VoterConfig, Cw20HookMsg as VoterCw20HookMsg, ExecuteMsg as VoterExecuteMsg,
-        InstantiateMsg as VoterInstantiateMsg, QueryMsg as VoterQueryMsg,
-        UpdateConfig as VoterUpdateConfig,
-    },
+    voter::InstantiateMsg as VoterInstantiateMsg,
 };
 
-fn store_astro(app: &mut App) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
+use crate::common::stargate::StargateKeeper;
 
-    app.store_code(contract)
-}
-
-fn store_xastro(app: &mut App) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_xastro_token::contract::execute,
-        astroport_xastro_token::contract::instantiate,
-        astroport_xastro_token::contract::query,
-    ));
-
-    app.store_code(contract)
-}
-
-fn store_astro_staking(app: &mut App) -> u64 {
+fn store_astro_staking(app: &mut CustomizedApp) -> u64 {
     let contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_staking::contract::execute,
@@ -92,17 +70,32 @@ fn store_astro_staking(app: &mut App) -> u64 {
     app.store_code(contract)
 }
 
-fn store_astroport_token(app: &mut App) -> u64 {
+fn store_tracking_code(app: &mut CustomizedApp) -> u64 {
+    let contract = Box::new(
+        ContractWrapper::new_with_empty(
+            |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
+                unimplemented!()
+            },
+            astroport_tokenfactory_tracker::contract::instantiate,
+            astroport_tokenfactory_tracker::query::query,
+        )
+        .with_sudo_empty(astroport_tokenfactory_tracker::contract::sudo),
+    );
+
+    app.store_code(contract)
+}
+
+fn store_astroport_token(app: &mut CustomizedApp) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     app.store_code(contract)
 }
 
-fn store_astroport_pair(app: &mut App) -> u64 {
+fn store_astroport_pair(app: &mut CustomizedApp) -> u64 {
     let contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_pair::contract::execute,
@@ -115,7 +108,7 @@ fn store_astroport_pair(app: &mut App) -> u64 {
     app.store_code(contract)
 }
 
-fn store_astroport_factory(app: &mut App) -> u64 {
+fn store_astroport_factory(app: &mut CustomizedApp) -> u64 {
     let contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
@@ -128,7 +121,7 @@ fn store_astroport_factory(app: &mut App) -> u64 {
     app.store_code(contract)
 }
 
-fn store_astroport_generator(app: &mut App) -> u64 {
+fn store_astroport_generator(app: &mut CustomizedApp) -> u64 {
     let contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_incentives::execute::execute,
@@ -141,7 +134,7 @@ fn store_astroport_generator(app: &mut App) -> u64 {
     app.store_code(contract)
 }
 
-fn store_astroport_vesting(app: &mut App) -> u64 {
+fn store_astroport_vesting(app: &mut CustomizedApp) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
         astroport_vesting::contract::execute,
         astroport_vesting::contract::instantiate,
@@ -151,7 +144,7 @@ fn store_astroport_vesting(app: &mut App) -> u64 {
     app.store_code(contract)
 }
 
-fn store_eclipastro(app: &mut App) -> u64 {
+fn store_eclipastro(app: &mut CustomizedApp) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
         eclipastro_token::contract::execute,
         eclipastro_token::contract::instantiate,
@@ -161,7 +154,7 @@ fn store_eclipastro(app: &mut App) -> u64 {
     app.store_code(contract)
 }
 
-fn store_converter(app: &mut App) -> u64 {
+fn store_converter(app: &mut CustomizedApp) -> u64 {
     let contract = Box::new(
         ContractWrapper::new_with_empty(
             token_converter::contract::execute,
@@ -174,50 +167,17 @@ fn store_converter(app: &mut App) -> u64 {
     app.store_code(contract)
 }
 
-fn store_flexible_staking(app: &mut App) -> u64 {
+fn store_voter(app: &mut CustomizedApp) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
-        flexible_staking::contract::execute,
-        flexible_staking::contract::instantiate,
-        flexible_staking::contract::query,
+        voter::contract::execute,
+        voter::contract::instantiate,
+        voter::contract::query,
     ));
 
     app.store_code(contract)
 }
 
-fn store_timelock_staking(app: &mut App) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        timelock_staking::contract::execute,
-        timelock_staking::contract::instantiate,
-        timelock_staking::contract::query,
-    ));
-
-    app.store_code(contract)
-}
-
-fn store_reward_distributor(app: &mut App) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        reward_distributor::contract::execute,
-        reward_distributor::contract::instantiate,
-        reward_distributor::contract::query,
-    ));
-
-    app.store_code(contract)
-}
-
-fn store_voter(app: &mut App) -> u64 {
-    let contract = Box::new(
-        ContractWrapper::new_with_empty(
-            voter::contract::execute,
-            voter::contract::instantiate,
-            voter::contract::query,
-        )
-        .with_reply_empty(voter::contract::reply),
-    );
-
-    app.store_code(contract)
-}
-
-fn store_lp_staking(app: &mut App) -> u64 {
+fn store_lp_staking(app: &mut CustomizedApp) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
         lp_staking::contract::execute,
         lp_staking::contract::instantiate,
@@ -227,7 +187,17 @@ fn store_lp_staking(app: &mut App) -> u64 {
     app.store_code(contract)
 }
 
-fn store_lockdrop(app: &mut App) -> u64 {
+fn store_single_staking(app: &mut CustomizedApp) -> u64 {
+    let contract = Box::new(ContractWrapper::new_with_empty(
+        single_sided_staking::contract::execute,
+        single_sided_staking::contract::instantiate,
+        single_sided_staking::contract::query,
+    ));
+
+    app.store_code(contract)
+}
+
+fn store_lockdrop(app: &mut CustomizedApp) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
         lockdrop::contract::execute,
         lockdrop::contract::instantiate,
@@ -238,161 +208,78 @@ fn store_lockdrop(app: &mut App) -> u64 {
 }
 
 #[derive(Debug)]
-
 pub struct SuiteBuilder {
     pub admin: Option<String>,
-    pub initial_balances: Vec<Cw20Coin>,
-    pub timelock_config: Vec<TimeLockConfig>,
-    pub eclip_daily_reward: Option<Uint128>,
-    pub lp_staking_eclip_daily_reward: Option<Uint128>,
-    pub locking_reward_config: Option<Vec<LockingRewardConfig>>,
-    pub lockdrop_init_timestamp: u64,
-    pub lockdrop_deposit_window: Option<u64>,
-    pub lockdrop_withdraw_window: Option<u64>,
-    pub lock_configs: Option<Vec<LockConfig>>,
 }
+
+pub const ASTRO_DENOM: &str = "factory/admin/astro";
+pub const ADMIN: &str = "admin";
+pub const TREASURY: &str = "treasury";
+pub const VXASTRO: &str = "vxastro";
+pub const STABILITY_POOL_REWARD_HOLDER: &str = "stability_pool_reward_holder";
+pub const CE_REWARD_HOLDER: &str = "ce_reward_holder";
+pub const ECLIP_DENOM: &str = "factory/admin/eclip";
+
+pub type CustomizedApp = App<
+    BankKeeper,
+    MockApi,
+    MemoryStorage,
+    FailingModule<Empty, Empty, Empty>,
+    WasmKeeper<Empty, Empty>,
+    StakeKeeper,
+    DistributionKeeper,
+    FailingModule<IbcMsg, IbcQuery, Empty>,
+    FailingModule<GovMsg, Empty, Empty>,
+    StargateKeeper,
+>;
 
 impl SuiteBuilder {
     pub fn new() -> Self {
-        Self {
-            admin: None,
-            initial_balances: vec![],
-            timelock_config: vec![],
-            eclip_daily_reward: None,
-            lp_staking_eclip_daily_reward: None,
-            locking_reward_config: None,
-            lockdrop_init_timestamp: 0u64,
-            lockdrop_deposit_window: None,
-            lockdrop_withdraw_window: None,
-            lock_configs: None,
-        }
-    }
-
-    pub fn with_initial_balances(mut self, balances: Vec<(&str, u128)>) -> Self {
-        let initial_balances = balances
-            .into_iter()
-            .map(|(address, amount)| Cw20Coin {
-                address: address.to_owned(),
-                amount: amount.into(),
-            })
-            .collect::<Vec<Cw20Coin>>();
-        self.initial_balances = initial_balances;
-        self
-    }
-
-    pub fn with_timelock_config(mut self, config: Vec<(u64, u64)>) -> Self {
-        let timelock_config = config
-            .into_iter()
-            .map(|(duration, early_unlock_penalty_bps)| TimeLockConfig {
-                duration,
-                early_unlock_penalty_bps,
-            })
-            .collect::<Vec<TimeLockConfig>>();
-        self.timelock_config = timelock_config;
-        self
-    }
-
-    pub fn with_eclip_daily_reward(mut self, daily_reward: u128) -> Self {
-        self.eclip_daily_reward = Some(Uint128::from(daily_reward));
-        self
-    }
-
-    pub fn with_lp_staking_eclip_daily_reward(mut self, daily_reward: u128) -> Self {
-        self.lp_staking_eclip_daily_reward = Some(Uint128::from(daily_reward));
-        self
-    }
-
-    pub fn with_locking_reward_config(mut self, config: Vec<(u64, u64)>) -> Self {
-        let locking_reward_config = config
-            .into_iter()
-            .map(|(duration, multiplier)| LockingRewardConfig {
-                duration,
-                multiplier,
-            })
-            .collect::<Vec<LockingRewardConfig>>();
-        self.locking_reward_config = Some(locking_reward_config);
-        self
-    }
-
-    pub fn with_lockdrop_init_timestamp(mut self, time: u64) -> Self {
-        self.lockdrop_init_timestamp = time;
-        self
-    }
-
-    pub fn with_lockdrop_deposit_window(mut self, time: u64) -> Self {
-        self.lockdrop_deposit_window = Some(time);
-        self
-    }
-
-    pub fn with_lockdrop_withdraw_window(mut self, time: u64) -> Self {
-        self.lockdrop_withdraw_window = Some(time);
-        self
-    }
-
-    pub fn with_lock_configs(mut self, config: Vec<(u64, u64, u64)>) -> Self {
-        let lock_configs = config
-            .into_iter()
-            .map(
-                |(duration, multiplier, early_unlock_penalty_bps)| LockConfig {
-                    duration,
-                    multiplier,
-                    early_unlock_penalty_bps,
-                },
-            )
-            .collect::<Vec<LockConfig>>();
-        self.lock_configs = Some(lock_configs);
-        self
+        Self { admin: None }
     }
 
     #[track_caller]
     pub fn build(self) -> Suite {
-        let mut app: App = App::default();
+        let admin = Addr::unchecked(ADMIN);
 
-        let admin = Addr::unchecked("admin");
-        let eclipse_treasury = Addr::unchecked("eclipse_treasury");
-        let eclipse_stability_pool = Addr::unchecked("eclipse_stability_pool");
-        let ce_reward_distributor = Addr::unchecked("ce_reward_distributor");
-        let vxastro_contract = Addr::unchecked("vxastro");
+        let mut app = BasicAppBuilder::new()
+            .with_stargate(StargateKeeper::default())
+            .build(|router, _, storage| {
+                router
+                    .bank
+                    .init_balance(storage, &admin, coins(u128::MAX, ASTRO_DENOM))
+                    .unwrap()
+            });
 
-        let astro_id = store_astro(&mut app);
-        let astro_contract = app
-            .instantiate_contract(
-                astro_id,
-                admin.clone(),
-                &AstroInstantiateMsg {
-                    name: "astro token".to_owned(),
-                    symbol: "ASTRO".to_owned(),
-                    decimals: 6,
-                    initial_balances: self.initial_balances,
-                    mint: Some(AstroportMinterResponse {
-                        minter: "minter".to_owned(),
-                        cap: None,
-                    }),
-                    marketing: None,
-                },
-                &[],
-                "ASTRO token",
-                Some(admin.clone().to_string()),
-            )
-            .unwrap();
+        let tracking_code_id = store_tracking_code(&mut app);
 
         let astro_staking_id = store_astro_staking(&mut app);
-        let xastro_id = store_xastro(&mut app);
+
         let astro_staking_contract = app
             .instantiate_contract(
                 astro_staking_id,
                 admin.clone(),
                 &AstroStakingInstantiateMsg {
-                    owner: admin.clone().into_string(),
-                    token_code_id: xastro_id,
-                    deposit_token_addr: astro_contract.clone().into_string(),
-                    marketing: None,
+                    deposit_token_denom: ASTRO_DENOM.to_string(),
+                    tracking_admin: admin.clone().into_string(),
+                    tracking_code_id: tracking_code_id,
+                    token_factory_addr: admin.clone().into_string(),
                 },
-                &[],
+                &[coin(1u128, ASTRO_DENOM)],
                 "ASTRO staking",
-                Some(admin.clone().to_string()),
+                Some(ADMIN.to_string()),
             )
             .unwrap();
+
+        let config: AstroStakingConfig = app
+            .wrap()
+            .query_wasm_smart(
+                astro_staking_contract.clone(),
+                &AstroStakingQueryMsg::Config {},
+            )
+            .unwrap();
+        let xastro = config.xastro_denom;
+
         let cw20_token_code_id = store_astroport_token(&mut app);
         let pair_code_id = store_astroport_pair(&mut app);
         let factory_code_id = store_astroport_factory(&mut app);
@@ -430,8 +317,8 @@ impl SuiteBuilder {
                 admin.clone(),
                 &vesting::InstantiateMsg {
                     owner: admin.to_string(),
-                    vesting_token: AssetInfo::Token {
-                        contract_addr: astro_contract.clone(),
+                    vesting_token: AssetInfo::NativeToken {
+                        denom: ASTRO_DENOM.to_string(),
                     },
                 },
                 &[],
@@ -444,11 +331,11 @@ impl SuiteBuilder {
             .instantiate_contract(
                 generator_code_id,
                 admin.clone(),
-                &astroport::incentives::InstantiateMsg {
+                &incentives::InstantiateMsg {
                     owner: admin.to_string(),
                     factory: astroport_factory.to_string(),
-                    astro_token: AssetInfo::Token {
-                        contract_addr: astro_contract.clone(),
+                    astro_token: AssetInfo::NativeToken {
+                        denom: ASTRO_DENOM.to_string(),
                     },
                     vesting_contract: astroport_vesting.to_string(),
                     incentivization_fee_info: None,
@@ -459,19 +346,6 @@ impl SuiteBuilder {
                 None,
             )
             .unwrap();
-
-        let astro_staking_config: AstroStakingConfigResponse = app
-            .wrap()
-            .query_wasm_smart(
-                astro_staking_contract.clone(),
-                &AstroStakingQueryMsg::Config {},
-            )
-            .unwrap_or(AstroStakingConfigResponse {
-                deposit_token_addr: astro_staking_contract.clone(),
-                share_token_addr: Addr::unchecked(""),
-            });
-        let xastro_contract = astro_staking_config.share_token_addr;
-
         let eclipastro_id = store_eclipastro(&mut app);
         let converter_id = store_converter(&mut app);
         let converter_contract = app
@@ -480,9 +354,10 @@ impl SuiteBuilder {
                 admin.clone(),
                 &ConverterInstantiateMsg {
                     owner: admin.clone().into_string(),
-                    token_in: astro_contract.clone().into_string(),
-                    xtoken: xastro_contract.clone().into_string(),
-                    treasury: eclipse_treasury.clone().into_string(),
+                    astro: ASTRO_DENOM.to_string(),
+                    xastro: xastro.clone(),
+                    treasury: Addr::unchecked(TREASURY.to_string()).to_string(),
+                    staking_contract: astro_staking_contract.clone(),
                     token_code_id: eclipastro_id,
                     marketing: None,
                 },
@@ -494,68 +369,61 @@ impl SuiteBuilder {
         let converter_config: ConverterConfig = app
             .wrap()
             .query_wasm_smart(converter_contract.clone(), &ConverterQueryMsg::Config {})
-            .unwrap_or(ConverterConfig {
-                token_in: Addr::unchecked(""),
-                token_out: Addr::unchecked(""),
-                xtoken: Addr::unchecked(""),
-                treasury: Addr::unchecked(""),
-                vxtoken_holder: Addr::unchecked(""),
-                stability_pool: Addr::unchecked(""),
-                staking_reward_distributor: Addr::unchecked(""),
-                ce_reward_distributor: Addr::unchecked(""),
-            });
-        let eclipastro_contract = converter_config.token_out;
-
-        let flexible_staking_id = store_flexible_staking(&mut app);
-        let flexible_staking_contract = app
+            .unwrap();
+        let eclipastro = converter_config.eclipastro;
+        let beclip_id = store_astroport_token(&mut app);
+        let beclip = app
             .instantiate_contract(
-                flexible_staking_id,
+                beclip_id,
                 admin.clone(),
-                &FlexibleStakingInstantiateMsg {
-                    owner: admin.clone().into_string(),
-                    token: eclipastro_contract.clone().into_string(),
+                &Cw20InstantiateMsg {
+                    name: "bECLIP token".to_string(),
+                    symbol: "bECLIP".to_string(),
+                    marketing: None,
+                    decimals: 6,
+                    initial_balances: vec![Cw20Coin {
+                        address: admin.to_string(),
+                        amount: Uint128::from(1_000_000_000_000u128),
+                    }],
+                    mint: Some(MinterResponse {
+                        minter: admin.to_string(),
+                        cap: None,
+                    }),
                 },
                 &[],
-                "flexible staking",
+                "converter",
                 Some(admin.clone().to_string()),
             )
             .unwrap();
 
-        let timelock_staking_id = store_timelock_staking(&mut app);
-        let timelock_staking_contract = app
+        let single_staking_id = store_single_staking(&mut app);
+        let single_staking_contract = app
             .instantiate_contract(
-                timelock_staking_id,
+                single_staking_id,
                 admin.clone(),
-                &TimelockStakingInstantiateMsg {
-                    owner: admin.clone().into_string(),
-                    token: eclipastro_contract.clone().into_string(),
-                    timelock_config: Some(self.timelock_config.clone()),
-                    dao_treasury_address: Addr::unchecked("dao_treasury_address").to_string(),
+                &SingleSidedStakingInstantiateMsg {
+                    owner: admin.clone(),
+                    rewards: SingleStakingRewardConfig {
+                        eclip: SingleStakingRewardDetail {
+                            info: AssetInfo::NativeToken {
+                                denom: ECLIP_DENOM.to_string(),
+                            },
+                            daily_reward: Uint128::from(1_000_000u128),
+                        },
+                        beclip: SingleStakingRewardDetail {
+                            info: AssetInfo::Token {
+                                contract_addr: beclip.clone(),
+                            },
+                            daily_reward: Uint128::from(2_000_000u128),
+                        },
+                    },
+                    token: eclipastro.clone(),
+                    timelock_config: None,
+                    token_converter: converter_contract.clone(),
+                    treasury: Addr::unchecked(TREASURY.to_string()),
                 },
                 &[],
-                "timelock staking",
-                Some(admin.clone().to_string()),
-            )
-            .unwrap();
-
-        let reward_distributor_id = store_reward_distributor(&mut app);
-        let eclip = "factory/creator/eclip".to_string();
-        let reward_distributor_contract = app
-            .instantiate_contract(
-                reward_distributor_id,
-                admin.clone(),
-                &RewardDistributorInstantiateMsg {
-                    owner: admin.clone().into_string(),
-                    eclipastro: eclipastro_contract.clone().into_string(),
-                    eclip: eclip.clone(),
-                    flexible_staking: flexible_staking_contract.clone().into_string(),
-                    timelock_staking: timelock_staking_contract.clone().into_string(),
-                    token_converter: converter_contract.clone().into_string(),
-                    eclip_daily_reward: self.eclip_daily_reward.clone(),
-                    locking_reward_config: self.locking_reward_config.clone(),
-                },
-                &[],
-                "reward distributor",
+                "Single Sided Staking",
                 Some(admin.clone().to_string()),
             )
             .unwrap();
@@ -567,9 +435,9 @@ impl SuiteBuilder {
                 admin.clone(),
                 &VoterInstantiateMsg {
                     owner: admin.clone().into_string(),
-                    base_token: astro_contract.clone().into_string(),
-                    xtoken: xastro_contract.clone().into_string(),
-                    vxtoken: vxastro_contract.clone().into_string(),
+                    astro: ASTRO_DENOM.to_string(),
+                    xastro: xastro.clone(),
+                    vxastro: Addr::unchecked(VXASTRO.to_string()).to_string(),
                     staking_contract: astro_staking_contract.clone().into_string(),
                     converter_contract: converter_contract.clone().into_string(),
                 },
@@ -581,10 +449,10 @@ impl SuiteBuilder {
 
         let asset_infos = vec![
             AssetInfo::Token {
-                contract_addr: eclipastro_contract.clone(),
+                contract_addr: eclipastro.clone(),
             },
-            AssetInfo::Token {
-                contract_addr: xastro_contract.clone(),
+            AssetInfo::NativeToken {
+                denom: xastro.clone(),
             },
         ];
 
@@ -604,10 +472,10 @@ impl SuiteBuilder {
                 &FactoryQueryMsg::Pair {
                     asset_infos: vec![
                         AssetInfo::Token {
-                            contract_addr: eclipastro_contract.clone(),
+                            contract_addr: eclipastro.clone(),
                         },
-                        AssetInfo::Token {
-                            contract_addr: xastro_contract.clone(),
+                        AssetInfo::NativeToken {
+                            denom: xastro.clone(),
                         },
                     ],
                 },
@@ -617,24 +485,36 @@ impl SuiteBuilder {
         let eclipastro_xastro_lp_token_contract = info.liquidity_token;
 
         let lp_staking_code_id = store_lp_staking(&mut app);
-        let lp_staking = app
+        let lp_staking_contract = app
             .instantiate_contract(
                 lp_staking_code_id,
                 admin.clone(),
                 &LpStakingInstantiateMsg {
-                    owner: admin.clone().to_string(),
-                    lp_token: eclipastro_xastro_lp_token_contract.to_string(),
-                    lp_contract: eclipastro_xastro_lp_contract.to_string(),
-                    eclip: eclip.clone(),
-                    astro: astro_contract.to_string(),
-                    xastro: xastro_contract.to_string(),
-                    astro_staking: astro_staking_contract.to_string(),
-                    converter: converter_contract.to_string(),
-                    eclip_daily_reward: self.lp_staking_eclip_daily_reward,
-                    astroport_generator: astroport_generator.to_string(),
-                    treasury: eclipse_treasury.to_string(),
-                    stability_pool: eclipse_stability_pool.to_string(),
-                    ce_reward_distributor: Some(ce_reward_distributor.to_string()),
+                    owner: None,
+                    lp_token: eclipastro_xastro_lp_token_contract.clone(),
+                    lp_contract: eclipastro_xastro_lp_contract.clone(),
+                    rewards: LpStakingRewardDetails {
+                        eclip: LpStakingRewardDetail {
+                            info: AssetInfo::NativeToken {
+                                denom: ECLIP_DENOM.to_string(),
+                            },
+                            daily_reward: Uint128::from(1_000_000u128),
+                        },
+                        beclip: LpStakingRewardDetail {
+                            info: AssetInfo::Token {
+                                contract_addr: beclip.clone(),
+                            },
+                            daily_reward: Uint128::from(2_000_000u128),
+                        },
+                    },
+                    astro: ASTRO_DENOM.to_string(),
+                    xastro: xastro.clone(),
+                    astro_staking: astro_staking_contract.clone(),
+                    converter: converter_contract.clone(),
+                    astroport_generator: astroport_generator.clone(),
+                    treasury: Addr::unchecked(TREASURY.to_string()),
+                    stability_pool: Some(Addr::unchecked(STABILITY_POOL_REWARD_HOLDER.to_string())),
+                    ce_reward_distributor: Some(Addr::unchecked(CE_REWARD_HOLDER.to_string())),
                 },
                 &[],
                 "Eclipsefi lp staking",
@@ -643,28 +523,32 @@ impl SuiteBuilder {
             .unwrap();
 
         let lockdrop_code_id = store_lockdrop(&mut app);
-        let init_timestamp = match self.lockdrop_init_timestamp {
-            0u64 => app.block_info().time.seconds() + 86400,
-            _ => self.lockdrop_init_timestamp,
-        };
-        let lockdrop = app
+        let init_timestamp = app.block_info().time.seconds() + 86400;
+        let lockdrop_contract = app
             .instantiate_contract(
                 lockdrop_code_id,
                 admin.clone(),
                 &LockdropInstantiateMsg {
                     init_timestamp: init_timestamp,
-                    deposit_window: self.lockdrop_deposit_window,
-                    withdrawal_window: self.lockdrop_withdraw_window,
-                    lock_configs: self.lock_configs,
-                    astro_token: astro_contract.to_string(),
-                    xastro_token: xastro_contract.to_string(),
-                    eclipastro_token: eclipastro_contract.to_string(),
-                    astro_staking: astro_staking_contract.to_string(),
-                    converter: converter_contract.to_string(),
-                    liquidity_pool: eclipastro_xastro_lp_contract.to_string(),
+                    deposit_window: None,
+                    withdrawal_window: None,
+                    lock_configs: None,
+                    astro_token: ASTRO_DENOM.to_string(),
+                    xastro_token: xastro.clone(),
+                    eclipastro_token: eclipastro.clone(),
+                    astro_staking: astro_staking_contract.clone(),
+                    converter: converter_contract.clone(),
+                    liquidity_pool: eclipastro_xastro_lp_contract.clone(),
                     owner: None,
-                    eclip: eclip.clone(),
-                    dao_treasury_address: Addr::unchecked("dao_treasury_address").to_string(),
+                    beclip: AssetInfo::Token {
+                        contract_addr: beclip.clone(),
+                    },
+                    eclip: AssetInfo::NativeToken {
+                        denom: ECLIP_DENOM.to_string(),
+                    },
+                    single_sided_staking: single_staking_contract.clone(),
+                    lp_staking: lp_staking_contract.clone(),
+                    dao_treasury_address: Addr::unchecked(TREASURY.to_string()),
                 },
                 &[],
                 "Eclipsefi lockdrop",
@@ -672,114 +556,94 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        let eclipse_stability_pool = Addr::unchecked(STABILITY_POOL_REWARD_HOLDER);
+        let ce_reward_distributor = Addr::unchecked(CE_REWARD_HOLDER);
+        let treasury = Addr::unchecked(TREASURY);
+
         Suite {
             app,
             admin,
-            astro_contract,
+            astro: ASTRO_DENOM.to_string(),
+            xastro,
             astro_staking_contract,
-            xastro_contract,
-            vxastro_contract,
-            astroport_factory,
-            astroport_vesting,
-            astroport_generator,
-            eclipastro_contract,
+            eclipastro,
             converter_contract,
-            flexible_staking_contract,
-            timelock_staking_contract,
-            reward_distributor_contract,
+            beclip,
+            eclip: ECLIP_DENOM.to_string(),
+            single_staking_contract,
+            lp_staking_contract,
+            lockdrop_contract,
             voter_contract,
             eclipse_stability_pool,
             ce_reward_distributor,
-            eclipse_treasury,
-            eclip,
             eclipastro_xastro_lp_contract,
             eclipastro_xastro_lp_token_contract,
-            lp_staking,
-            lockdrop,
+            astroport_generator,
+            astroport_vesting,
+            treasury,
         }
     }
 }
 
 pub struct Suite {
-    app: App,
+    app: CustomizedApp,
     admin: Addr,
-    astro_contract: Addr,
+    astro: String,
     astro_staking_contract: Addr,
-    xastro_contract: Addr,
-    vxastro_contract: Addr,
-    astroport_factory: Addr,
-    astroport_vesting: Addr,
-    astroport_generator: Addr,
-    eclipastro_contract: Addr,
+    xastro: String,
+    eclipastro: Addr,
     converter_contract: Addr,
-    flexible_staking_contract: Addr,
-    timelock_staking_contract: Addr,
-    reward_distributor_contract: Addr,
+    beclip: Addr,
+    eclip: String,
+    single_staking_contract: Addr,
+    lp_staking_contract: Addr,
+    lockdrop_contract: Addr,
     voter_contract: Addr,
     eclipse_stability_pool: Addr,
     ce_reward_distributor: Addr,
-    eclipse_treasury: Addr,
-    eclip: String,
     eclipastro_xastro_lp_contract: Addr,
     eclipastro_xastro_lp_token_contract: Addr,
-    lp_staking: Addr,
-    lockdrop: Addr,
+    astroport_generator: Addr,
+    astroport_vesting: Addr,
+    treasury: Addr,
 }
 
 impl Suite {
     pub fn admin(&self) -> String {
         self.admin.to_string()
     }
-    pub fn astro_contract(&self) -> String {
-        self.astro_contract.to_string()
+    pub fn astro(&self) -> String {
+        self.astro.clone()
     }
     pub fn astro_staking_contract(&self) -> String {
         self.astro_staking_contract.to_string()
     }
-    pub fn xastro_contract(&self) -> String {
-        self.xastro_contract.to_string()
+    pub fn xastro(&self) -> String {
+        self.xastro.clone()
     }
-    pub fn vxastro_contract(&self) -> String {
-        self.vxastro_contract.to_string()
-    }
-    pub fn astroport_factory_contract(&self) -> String {
-        self.astroport_factory.to_string()
-    }
-    pub fn astroport_vesting_contract(&self) -> String {
-        self.astroport_vesting.to_string()
-    }
-    pub fn astroport_generator_contract(&self) -> String {
-        self.astroport_generator.to_string()
-    }
-    pub fn eclipastro_contract(&self) -> String {
-        self.eclipastro_contract.to_string()
+    pub fn eclipastro(&self) -> String {
+        self.eclipastro.to_string()
     }
     pub fn converter_contract(&self) -> String {
         self.converter_contract.to_string()
     }
-    pub fn flexible_staking_contract(&self) -> String {
-        self.flexible_staking_contract.to_string()
-    }
-    pub fn timelock_staking_contract(&self) -> String {
-        self.timelock_staking_contract.to_string()
-    }
-    pub fn reward_distributor_contract(&self) -> String {
-        self.reward_distributor_contract.to_string()
-    }
-    pub fn voter_contract(&self) -> String {
-        self.voter_contract.to_string()
-    }
-    pub fn eclipse_treasury(&self) -> String {
-        self.eclipse_treasury.to_string()
-    }
-    pub fn eclipse_stability_pool(&self) -> String {
-        self.eclipse_stability_pool.to_string()
-    }
-    pub fn eclipse_ce_reward_distributor(&self) -> String {
-        self.ce_reward_distributor.to_string()
+    pub fn beclip(&self) -> String {
+        self.beclip.to_string()
     }
     pub fn eclip(&self) -> String {
         self.eclip.clone()
+    }
+    pub fn single_staking_contract(&self) -> String {
+        self.single_staking_contract.to_string()
+    }
+    pub fn lp_staking_contract(&self) -> String {
+        self.lp_staking_contract.to_string()
+    }
+    pub fn lockdrop_contract(&self) -> String {
+        self.lockdrop_contract.to_string()
+    }
+    pub fn voter_contract(&self) -> String {
+        self.voter_contract.to_string()
     }
     pub fn eclipastro_xastro_lp_contract(&self) -> String {
         self.eclipastro_xastro_lp_contract.to_string()
@@ -787,11 +651,20 @@ impl Suite {
     pub fn eclipastro_xastro_lp_token_contract(&self) -> String {
         self.eclipastro_xastro_lp_token_contract.to_string()
     }
-    pub fn lp_staking(&self) -> String {
-        self.lp_staking.to_string()
+    pub fn astroport_generator(&self) -> String {
+        self.astroport_generator.to_string()
     }
-    pub fn lockdrop(&self) -> String {
-        self.lockdrop.to_string()
+    pub fn astroport_vesting(&self) -> String {
+        self.astroport_vesting.to_string()
+    }
+    pub fn ce_reward_distributor(&self) -> String {
+        self.ce_reward_distributor.to_string()
+    }
+    pub fn eclipse_stability_pool(&self) -> String {
+        self.eclipse_stability_pool.to_string()
+    }
+    pub fn treasury(&self) -> String {
+        self.treasury.to_string()
     }
 
     // update block's time to simulate passage of time
@@ -814,18 +687,11 @@ impl Suite {
                 self.converter_contract.clone(),
                 &ConverterExecuteMsg::UpdateConfig {
                     config: ConverterUpdateConfig {
-                        token_in: None,
-                        token_out: None,
-                        xtoken: None,
-                        vxtoken_holder: Some(self.voter_contract.clone().into_string()),
+                        vxastro_holder: Some(self.voter_contract.clone()),
                         treasury: None,
-                        stability_pool: Some(self.eclipse_stability_pool.clone().into_string()),
-                        staking_reward_distributor: Some(
-                            self.reward_distributor_contract.clone().into_string(),
-                        ),
-                        ce_reward_distributor: Some(
-                            self.ce_reward_distributor.clone().into_string(),
-                        ),
+                        stability_pool: Some(self.eclipse_stability_pool.clone()),
+                        single_staking_contract: Some(self.single_staking_contract.clone()),
+                        ce_reward_distributor: Some(self.ce_reward_distributor.clone()),
                     },
                 },
                 &[],
@@ -834,95 +700,90 @@ impl Suite {
         self.app
             .execute_contract(
                 self.admin.clone(),
-                self.flexible_staking_contract.clone(),
-                &FlexibleStakingExecuteMsg::UpdateConfig {
-                    config: FlexibleStakingUpdateConfig {
-                        token: None,
-                        reward_contract: Some(
-                            self.reward_distributor_contract.clone().into_string(),
-                        ),
-                        timelock_contract: Some(
-                            self.timelock_staking_contract.clone().into_string(),
-                        ),
-                    },
-                },
-                &[],
-            )
-            .unwrap();
-        self.app
-            .execute_contract(
-                self.admin.clone(),
-                self.timelock_staking_contract.clone(),
-                &TimelockStakingExecuteMsg::UpdateConfig {
-                    config: TimelockStakingUpdateConfig {
-                        token: None,
-                        reward_contract: Some(
-                            self.reward_distributor_contract.clone().into_string(),
-                        ),
-                        timelock_config: None,
-                    },
-                },
-                &[],
-            )
-            .unwrap();
-
-        self.app
-            .execute_contract(
-                self.admin.clone(),
-                self.timelock_staking_contract.clone(),
-                &TimelockStakingExecuteMsg::AllowUsers {
-                    users: vec![self.lockdrop.to_string()],
-                },
-                &[],
-            )
-            .unwrap();
-        self.app
-            .execute_contract(
-                self.admin.clone(),
-                self.flexible_staking_contract.clone(),
-                &FlexibleStakingExecuteMsg::AllowUsers {
-                    users: vec![self.lockdrop.to_string()],
+                self.single_staking_contract.clone(),
+                &SingleSidedStakingExecuteMsg::AllowUsers {
+                    users: vec![self.lockdrop_contract.to_string()],
                 },
                 &[],
             )
             .unwrap();
     }
 
-    // xASTRO staking contract
+    pub fn mint_native(
+        &mut self,
+        recipient: String,
+        denom: String,
+        amount: u128,
+    ) -> AnyResult<AppResponse> {
+        self.app.sudo(cw_multi_test::SudoMsg::Bank(
+            cw_multi_test::BankSudo::Mint {
+                to_address: recipient,
+                amount: vec![coin(amount, denom)],
+            },
+        ))
+    }
+
+    pub fn query_balance_native(&mut self, recipient: String, denom: String) -> StdResult<u128> {
+        let balance = self
+            .app
+            .wrap()
+            .query_balance(recipient, denom)
+            .unwrap()
+            .amount;
+        Ok(balance.u128())
+    }
+
     pub fn stake_astro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.astro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.astro_staking_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&AstroStakingCw20HookMsg::Enter {})?,
-            },
-            &[],
+            self.astro_staking_contract.clone(),
+            &AstroStakingExecuteMsg::Enter { receiver: None },
+            &[coin(amount, self.astro.clone())],
         )
     }
 
-    pub fn send_astro(
-        &mut self,
-        sender: &str,
-        recipient: &str,
-        amount: u128,
-    ) -> AnyResult<AppResponse> {
+    pub fn query_astro_staking_data(&mut self) -> StdResult<(Uint128, Uint128)> {
+        let total_deposit = self
+            .app
+            .wrap()
+            .query_wasm_smart(
+                self.astro_staking_contract.clone(),
+                &AstroStakingQueryMsg::TotalDeposit {},
+            )
+            .unwrap();
+        let total_shares = self
+            .app
+            .wrap()
+            .query_wasm_smart(
+                self.astro_staking_contract.clone(),
+                &AstroStakingQueryMsg::TotalShares {},
+            )
+            .unwrap();
+        Ok((total_deposit, total_shares))
+    }
+
+    // convert ASTRO to eclipASTRO in Convert contract
+    pub fn convert_astro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.astro_contract.clone(),
-            &Cw20ExecuteMsg::Transfer {
-                recipient: recipient.to_string(),
-                amount: Uint128::from(amount),
-            },
-            &[],
+            self.converter_contract.clone(),
+            &ConverterExecuteMsg::Convert { recipient: None },
+            &[coin(amount, self.astro())],
         )
     }
 
-    // query astro token amount
-    pub fn query_astro_balance(&self, address: &str) -> StdResult<u128> {
+    pub fn convert_xastro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.converter_contract.clone(),
+            &ConverterExecuteMsg::Convert { recipient: None },
+            &[coin(amount, self.xastro())],
+        )
+    }
+
+    pub fn query_eclipastro_balance(&self, address: &str) -> StdResult<u128> {
         let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
-            self.astro_contract.clone(),
+            self.eclipastro.clone(),
             &Cw20QueryMsg::Balance {
                 address: address.to_owned(),
             },
@@ -930,82 +791,35 @@ impl Suite {
         Ok(balance.balance.u128())
     }
 
-    // query xastro token amount
-    pub fn query_xastro_balance(&self, address: &str) -> StdResult<u128> {
-        let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
-            self.xastro_contract.clone(),
-            &Cw20QueryMsg::Balance {
-                address: address.to_owned(),
-            },
+    pub fn query_converter_withdrawable_balance(&self) -> StdResult<u128> {
+        let balance: Uint128 = self.app.wrap().query_wasm_smart(
+            self.converter_contract.clone(),
+            &ConverterQueryMsg::WithdrawableBalance {},
         )?;
-        Ok(balance.balance.u128())
+        Ok(balance.u128())
     }
 
-    // query astro staking total deposit
-    pub fn query_astro_staking_total_deposit(&self) -> StdResult<u128> {
-        self.app.wrap().query_wasm_smart(
-            self.astro_staking_contract.clone(),
-            &AstroStakingQueryMsg::TotalDeposit {},
-        )
-    }
-    // query astro staking total shares
-    pub fn query_astro_staking_total_shares(&self) -> StdResult<u128> {
-        self.app.wrap().query_wasm_smart(
-            self.astro_staking_contract.clone(),
-            &AstroStakingQueryMsg::TotalShares {},
-        )
+    pub fn query_converter_rewards(&self) -> StdResult<ConverterRewardResponse> {
+        let rewards: ConverterRewardResponse = self.app.wrap().query_wasm_smart(
+            self.converter_contract.clone(),
+            &ConverterQueryMsg::Rewards {},
+        )?;
+        Ok(rewards)
     }
 
-    // astroport factory contract
-    pub fn astroport_factory_update_config(
-        &mut self,
-        sender: &Addr,
-        token_code_id: Option<u64>,
-        fee_address: Option<String>,
-        generator_address: Option<String>,
-        whitelist_code_id: Option<u64>,
-        coin_registry_address: Option<String>,
-    ) -> AnyResult<AppResponse> {
-        let msg = astroport::factory::ExecuteMsg::UpdateConfig {
-            token_code_id,
-            fee_address,
-            generator_address,
-            whitelist_code_id,
-            coin_registry_address,
-        };
-
-        self.app
-            .execute_contract(sender.clone(), self.astroport_factory.clone(), &msg, &[])
+    pub fn query_converter_stake_info(&self) -> StdResult<ConverterStakeInfo> {
+        let info: ConverterStakeInfo = self.app.wrap().query_wasm_smart(
+            self.converter_contract.clone(),
+            &ConverterQueryMsg::StakeInfo {},
+        )?;
+        Ok(info)
     }
-
-    pub fn create_pair(
-        &mut self,
-        sender: &str,
-        pair_type: PairType,
-        tokens: [&Addr; 2],
-        init_params: Option<Binary>,
-    ) -> AnyResult<AppResponse> {
-        let asset_infos = vec![
-            AssetInfo::Token {
-                contract_addr: tokens[0].clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: tokens[1].clone(),
-            },
-        ];
-
-        let msg = astroport::factory::ExecuteMsg::CreatePair {
-            pair_type,
-            asset_infos,
-            init_params,
-        };
-
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.astroport_factory.clone(),
-            &msg,
-            &[],
-        )
+    pub fn query_converter_config(&self) -> StdResult<ConverterConfig> {
+        let info: ConverterConfig = self.app.wrap().query_wasm_smart(
+            self.converter_contract.clone(),
+            &ConverterQueryMsg::Config {},
+        )?;
+        Ok(info)
     }
 
     pub fn provide_liquidity(
@@ -1016,6 +830,7 @@ impl Suite {
         receiver: Option<String>,
         slippage_tolerance: Option<Decimal>,
     ) -> AnyResult<AppResponse> {
+        let mut coins = vec![];
         for asset in &assets {
             if !asset.is_native_token() {
                 let increase_allowance_msg = Cw20ExecuteMsg::IncreaseAllowance {
@@ -1029,6 +844,8 @@ impl Suite {
                     &increase_allowance_msg,
                     &[],
                 );
+            } else {
+                coins.push(coin(asset.amount.u128(), asset.info.to_string()));
             }
         }
         let msg = PairExecuteMsg::ProvideLiquidity {
@@ -1039,9 +856,8 @@ impl Suite {
         };
 
         self.app
-            .execute_contract(Addr::unchecked(sender), pair.clone(), &msg, &[])
+            .execute_contract(Addr::unchecked(sender), pair.clone(), &msg, &coins)
     }
-
     pub fn setup_pools(
         &mut self,
         sender: &str,
@@ -1056,7 +872,6 @@ impl Suite {
             &[],
         )
     }
-
     pub fn generator_set_tokens_per_second(
         &mut self,
         sender: &str,
@@ -1073,35 +888,41 @@ impl Suite {
             &[],
         )
     }
-
     pub fn register_vesting_accounts(
         &mut self,
         sender: &str,
         vesting_accounts: Vec<VestingAccount>,
         amount: u128,
     ) -> AnyResult<AppResponse> {
-        let msg = Cw20ExecuteMsg::Send {
-            contract: self.astroport_vesting.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_json_binary(&VestingCw20HookMsg::RegisterVestingAccounts { vesting_accounts })?,
-        };
+        let msg = VestingExecuteMsg::RegisterVestingAccounts { vesting_accounts };
 
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.astro_contract.clone(),
+            self.astroport_vesting.clone(),
             &msg,
-            &[],
+            &[coin(amount, self.astro())],
         )
     }
 
-    pub fn query_pair_info(&self, asset_infos: Vec<AssetInfo>) -> StdResult<PairInfo> {
-        let info: PairInfo = self.app.wrap().query_wasm_smart(
-            self.astroport_factory.clone(),
-            &FactoryQueryMsg::Pair { asset_infos },
+    pub fn query_lp_staking_config(&self) -> StdResult<LpStakingConfig> {
+        let config: LpStakingConfig = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::Config {},
         )?;
-        Ok(info)
+        Ok(config)
     }
-
+    pub fn lp_staking_update_config(
+        &mut self,
+        sender: &str,
+        new_config: LpStakingUpdateConfigMsg,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::UpdateConfig { config: new_config },
+            &[],
+        )
+    }
     pub fn query_lp_token_balance(&self, address: &str) -> StdResult<Uint128> {
         let res: BalanceResponse = self.app.wrap().query_wasm_smart(
             self.eclipastro_xastro_lp_token_contract.clone(),
@@ -1111,7 +932,6 @@ impl Suite {
         )?;
         Ok(res.balance)
     }
-
     pub fn query_incentive_pending_rewards(&self, address: &str) -> StdResult<Vec<Asset>> {
         let res: Vec<Asset> = self.app.wrap().query_wasm_smart(
             self.astroport_generator.clone(),
@@ -1133,757 +953,30 @@ impl Suite {
         )?;
         Ok(res)
     }
-
-    // convert ASTRO to eclipASTRO in Convert contract
-    pub fn convert_astro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.astro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.converter_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&ConverterCw20HookMsg::Convert {})?,
-            },
-            &[],
-        )
-    }
-    pub fn convert_xastro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.xastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.converter_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&ConverterCw20HookMsg::Convert {})?,
-            },
-            &[],
-        )
-    }
-
-    pub fn update_converter_config(&mut self, config: ConverterUpdateConfig) {
-        self.app
-            .execute_contract(
-                self.admin.clone(),
-                self.converter_contract.clone(),
-                &ConverterExecuteMsg::UpdateConfig { config },
-                &[],
-            )
-            .unwrap();
-    }
-
-    pub fn update_reward_config(
-        &mut self,
-        config: ConverterRewardConfig,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            self.admin.clone(),
-            self.converter_contract.clone(),
-            &ConverterExecuteMsg::UpdateRewardConfig { config },
-            &[],
-        )
-    }
-
-    pub fn update_owner(&mut self, owner: &str) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            self.admin.clone(),
-            self.converter_contract.clone(),
-            &ConverterExecuteMsg::UpdateOwner {
-                owner: Addr::unchecked(owner).into_string(),
-            },
-            &[],
-        )
-    }
-
-    pub fn claim_treasury_reward(&mut self, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            self.admin.clone(),
-            self.converter_contract.clone(),
-            &ConverterExecuteMsg::ClaimTreasuryReward {
-                amount: Uint128::from(amount),
-            },
-            &[],
-        )
-    }
-
-    pub fn claim(&mut self) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            self.reward_distributor_contract.clone(),
-            self.converter_contract.clone(),
-            &ConverterExecuteMsg::Claim {},
-            &[],
-        )
-    }
-
-    pub fn withdraw_xtoken(
-        &mut self,
-        sender: &str,
-        amount: u128,
-        recipient: &str,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.converter_contract.clone(),
-            &ConverterExecuteMsg::WithdrawAvailableBalance {
-                amount: Uint128::from(amount),
-                recipient: recipient.to_string(),
-            },
-            &[],
-        )
-    }
-
-    // query eclipastro token amount
-    pub fn query_eclipastro_balance(&self, address: &str) -> StdResult<u128> {
-        let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
-            self.eclipastro_contract.clone(),
-            &Cw20QueryMsg::Balance {
-                address: address.to_owned(),
-            },
-        )?;
-        Ok(balance.balance.u128())
-    }
-
-    // query config of converter
-    pub fn query_converter_config(&self) -> StdResult<ConverterConfig> {
-        let config: ConverterConfig = self.app.wrap().query_wasm_smart(
-            self.converter_contract.clone(),
-            &ConverterQueryMsg::Config {},
-        )?;
-        Ok(config)
-    }
-
-    pub fn query_reward_config(&self) -> StdResult<ConverterRewardConfig> {
-        let config: ConverterRewardConfig = self.app.wrap().query_wasm_smart(
-            self.converter_contract.clone(),
-            &ConverterQueryMsg::RewardConfig {},
-        )?;
-        Ok(config)
-    }
-
-    pub fn query_converter_owner(&self) -> StdResult<Addr> {
-        let owner: Addr = self.app.wrap().query_wasm_smart(
-            self.converter_contract.clone(),
-            &ConverterQueryMsg::Owner {},
-        )?;
-        Ok(owner)
-    }
-
-    pub fn query_converter_reward(&self) -> StdResult<ConverterRewardResponse> {
-        let reward: ConverterRewardResponse = self.app.wrap().query_wasm_smart(
-            self.converter_contract.clone(),
-            &ConverterQueryMsg::Rewards {},
-        )?;
-        Ok(reward)
-    }
-
-    pub fn query_withdrawable_balance(&self) -> StdResult<u128> {
-        let reward: Uint128 = self.app.wrap().query_wasm_smart(
-            self.converter_contract.clone(),
-            &ConverterQueryMsg::WithdrawableBalance {},
-        )?;
-        Ok(reward.u128())
-    }
-
-    // voter contract
-    pub fn update_voter_config(
-        &mut self,
-        sender: &str,
-        config: VoterUpdateConfig,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.voter_contract.clone(),
-            &VoterExecuteMsg::UpdateConfig { config },
-            &[],
-        )
-    }
-
-    pub fn update_voter_owner(&mut self, sender: &str, new_owner: &str) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.voter_contract.clone(),
-            &VoterExecuteMsg::UpdateOwner {
-                owner: Addr::unchecked(new_owner).into_string(),
-            },
-            &[],
-        )
-    }
-
-    pub fn voter_stake(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.astro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.voter_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&VoterCw20HookMsg::Stake {})?,
-            },
-            &[],
-        )
-    }
-
-    pub fn query_voter_config(&self) -> StdResult<VoterConfig> {
-        let config: VoterConfig = self
-            .app
-            .wrap()
-            .query_wasm_smart(self.voter_contract.clone(), &VoterQueryMsg::Config {})?;
-        Ok(config)
-    }
-
-    pub fn query_voter_convert_ratio(&self) -> StdResult<(Uint128, Uint128)> {
-        let config: (Uint128, Uint128) = self
-            .app
-            .wrap()
-            .query_wasm_smart(self.voter_contract.clone(), &VoterQueryMsg::ConvertRatio {})?;
-        Ok(config)
-    }
-
-    pub fn query_voter_owner(&self) -> StdResult<String> {
-        let owner: Addr = self
-            .app
-            .wrap()
-            .query_wasm_smart(self.voter_contract.clone(), &VoterQueryMsg::Owner {})?;
-        Ok(owner.into_string())
-    }
-
-    // flexible_stake contract
-    pub fn mint_native(
-        &mut self,
-        recipient: String,
-        denom: String,
-        amount: u128,
-    ) -> AnyResult<AppResponse> {
-        self.app.sudo(cw_multi_test::SudoMsg::Bank(
-            cw_multi_test::BankSudo::Mint {
-                to_address: recipient,
-                amount: vec![coin(amount, denom)],
-            },
-        ))
-    }
-
-    pub fn balance_native(&mut self, recipient: String, denom: String) -> StdResult<u128> {
-        let balance = self
-            .app
-            .wrap()
-            .query_balance(recipient, denom)
-            .unwrap()
-            .amount;
-        Ok(balance.u128())
-    }
-
-    pub fn update_flexible_stake_config(
-        &mut self,
-        sender: &str,
-        config: FlexibleStakingUpdateConfig,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingExecuteMsg::UpdateConfig { config },
-            &[],
-        )
-    }
-
-    pub fn update_flexible_stake_owner(
-        &mut self,
-        sender: &str,
-        new_owner: &str,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingExecuteMsg::UpdateOwner {
-                owner: Addr::unchecked(new_owner.to_string()).into_string(),
-            },
-            &[],
-        )
-    }
-
-    pub fn update_flexible_allow_users(
-        &mut self,
-        sender: &str,
-        users: Vec<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingExecuteMsg::AllowUsers { users },
-            &[],
-        )
-    }
-
-    pub fn update_flexible_block_users(
-        &mut self,
-        sender: &str,
-        users: Vec<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingExecuteMsg::BlockUsers { users },
-            &[],
-        )
-    }
-
-    pub fn flexible_stake(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.eclipastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.flexible_staking_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&FlexibleStakingCw20HookMsg::Stake {})?,
-            },
-            &[],
-        )
-    }
-
-    pub fn flexible_relock(
-        &mut self,
-        sender: &str,
-        duration: u64,
-        amount: Option<Uint128>,
-        recipient: Option<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingCw20HookMsg::Relock {
-                duration,
-                amount,
-                recipient,
-            },
-            &[],
-        )
-    }
-
-    pub fn flexible_relock_with_deposit(
-        &mut self,
-        sender: &str,
-        stake_amount: u128,
-        duration: u64,
-        amount: Option<Uint128>,
-        recipient: Option<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.eclipastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.flexible_staking_contract(),
-                amount: Uint128::from(stake_amount),
-                msg: to_json_binary(&FlexibleStakingCw20HookMsg::Relock {
-                    duration,
-                    amount,
-                    recipient,
-                })?,
-            },
-            &[],
-        )
-    }
-
-    pub fn flexible_claim(&mut self, sender: &str) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingExecuteMsg::Claim {},
-            &[],
-        )
-    }
-
-    pub fn flexible_unstake(
-        &mut self,
-        sender: &str,
-        amount: u128,
-        recipient: Option<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingExecuteMsg::Unstake {
-                amount: Uint128::from(amount),
-                recipient,
-            },
-            &[],
-        )
-    }
-
-    pub fn query_flexible_stake_config(&self) -> StdResult<FlexibleStakingConfig> {
-        let config: FlexibleStakingConfig = self.app.wrap().query_wasm_smart(
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingQueryMsg::Config {},
-        )?;
-        Ok(config)
-    }
-
-    pub fn query_flexible_stake_owner(&self) -> StdResult<String> {
-        let owner: Addr = self.app.wrap().query_wasm_smart(
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingQueryMsg::Owner {},
-        )?;
-        Ok(owner.into_string())
-    }
-    pub fn query_flexible_is_allowed(&self, user: String) -> StdResult<bool> {
-        Ok(self.app.wrap().query_wasm_smart(
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingQueryMsg::IsAllowed { user },
-        )?)
-    }
-
-    pub fn query_flexible_staking(&self, user: &str) -> StdResult<u128> {
-        let amount: Uint128 = self.app.wrap().query_wasm_smart(
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingQueryMsg::Staking {
-                user: user.to_string(),
-            },
-        )?;
-        Ok(amount.u128())
-    }
-
-    pub fn query_total_flexible_staking(&self) -> StdResult<u128> {
-        let amount: Uint128 = self.app.wrap().query_wasm_smart(
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingQueryMsg::TotalStaking {},
-        )?;
-        Ok(amount.u128())
-    }
-
-    pub fn query_flexible_stake_reward(&self, user: &str) -> StdResult<FlexibleReward> {
-        let rewards = self.app.wrap().query_wasm_smart(
-            self.flexible_staking_contract.clone(),
-            &FlexibleStakingQueryMsg::Reward {
-                user: user.to_string(),
-            },
-        )?;
-        Ok(rewards)
-    }
-
-    // timelock_staking contract
-    pub fn update_timelock_stake_config(
-        &mut self,
-        sender: &str,
-        config: TimelockStakingUpdateConfig,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::UpdateConfig { config },
-            &[],
-        )
-    }
-
-    pub fn update_timelock_allow_users(
-        &mut self,
-        sender: &str,
-        users: Vec<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::AllowUsers { users },
-            &[],
-        )
-    }
-
-    pub fn update_timelock_block_users(
-        &mut self,
-        sender: &str,
-        users: Vec<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::BlockUsers { users },
-            &[],
-        )
-    }
-
-    pub fn update_timelock_stake_owner(
-        &mut self,
-        sender: &str,
-        new_owner: &str,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::UpdateOwner {
-                owner: Addr::unchecked(new_owner.to_string()).into_string(),
-            },
-            &[],
-        )
-    }
-
-    pub fn timelock_stake(
-        &mut self,
-        sender: &str,
-        amount: u128,
-        duration: u64,
-        recipient: Option<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.eclipastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.timelock_staking_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&TimelockCw20HookMsg::Lock {
-                    duration,
-                    recipient,
-                })?,
-            },
-            &[],
-        )
-    }
-
-    pub fn timelock_unstake(
-        &mut self,
-        sender: &str,
-        duration: u64,
-        locked_at: u64,
-        amount: Option<Uint128>,
-        recipient: Option<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::Unlock {
-                duration,
-                locked_at,
-                amount,
-                recipient,
-            },
-            &[],
-        )
-    }
-
-    pub fn timelock_claim(
-        &mut self,
-        sender: &str,
-        duration: u64,
-        locked_at: u64,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::Claim {
-                duration,
-                locked_at,
-            },
-            &[],
-        )
-    }
-
-    pub fn timelock_claim_all(&mut self, sender: &str) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::ClaimAll {},
-            &[],
-        )
-    }
-
-    pub fn timelock_restake(
-        &mut self,
-        sender: &str,
-        from_duration: u64,
-        locked_at: u64,
-        to_duration: u64,
-        recipient: Option<String>,
-        amount: Option<Uint128>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingExecuteMsg::Relock {
-                from_duration,
-                to_duration,
-                relocks: vec![(locked_at, amount)],
-                recipient,
-            },
-            &[],
-        )
-    }
-
-    pub fn timelock_restake_with_deposit(
-        &mut self,
-        sender: &str,
-        from_duration: u64,
-        locked_at: u64,
-        to_duration: u64,
-        stake_amount: u128,
-        recipient: Option<String>,
-        amount: Option<Uint128>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.eclipastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.timelock_staking_contract(),
-                amount: Uint128::from(stake_amount),
-                msg: to_json_binary(&TimelockStakingExecuteMsg::Relock {
-                    from_duration,
-                    to_duration,
-                    relocks: vec![(locked_at, amount)],
-                    recipient,
-                })?,
-            },
-            &[],
-        )
-    }
-
-    pub fn query_timelock_stake_config(&self) -> StdResult<TimelockStakingConfig> {
-        let config: TimelockStakingConfig = self.app.wrap().query_wasm_smart(
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingQueryMsg::Config {},
-        )?;
-        Ok(config)
-    }
-    pub fn query_timelock_is_allowed(&self, user: String) -> StdResult<bool> {
-        Ok(self.app.wrap().query_wasm_smart(
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingQueryMsg::IsAllowed { user },
-        )?)
-    }
-
-    pub fn query_timelock_stake_owner(&self) -> StdResult<String> {
-        let owner: Addr = self.app.wrap().query_wasm_smart(
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingQueryMsg::Owner {},
-        )?;
-        Ok(owner.into_string())
-    }
-
-    pub fn query_timelock_staking(&self, user: &str) -> StdResult<Vec<TimelockUserStaking>> {
-        let user_staking: Vec<TimelockUserStaking> = self.app.wrap().query_wasm_smart(
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingQueryMsg::Staking {
-                user: user.to_string(),
-            },
-        )?;
-        Ok(user_staking)
-    }
-
-    pub fn query_timelock_total_staking(&self) -> StdResult<u128> {
-        let total_staking: Uint128 = self.app.wrap().query_wasm_smart(
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingQueryMsg::TotalStaking {},
-        )?;
-        Ok(total_staking.u128())
-    }
-
-    pub fn query_timelock_staking_reward(&self, user: &str) -> StdResult<Vec<TimelockReward>> {
-        let reward: Vec<TimelockReward> = self.app.wrap().query_wasm_smart(
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingQueryMsg::Reward {
-                user: user.to_string(),
-            },
-        )?;
-        Ok(reward)
-    }
-
-    pub fn query_reward_distributor_total_staking(&self) -> StdResult<TotalStakingData> {
-        let total_staking = self.app.wrap().query_wasm_smart(
-            self.reward_distributor_contract.clone(),
-            &RewardDistributorQueryMsg::TotalStaking {},
-        )?;
-        Ok(total_staking)
-    }
-
-    pub fn query_reward_distributor_pending_rewards(&self) -> StdResult<Vec<(u64, Uint128)>> {
-        let pending_rewards = self.app.wrap().query_wasm_smart(
-            self.reward_distributor_contract.clone(),
-            &RewardDistributorQueryMsg::PendingRewards {},
-        )?;
-        Ok(pending_rewards)
-    }
-
-    pub fn lp_staking_update_config(
-        &mut self,
-        sender: &str,
-        new_config: LpStakingUpdateConfigMsg,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.lp_staking.clone(),
-            &LpStakingExecuteMsg::UpdateConfig { config: new_config },
-            &[],
-        )
-    }
-
-    pub fn lp_staking_update_reward_config(
-        &mut self,
-        sender: &str,
-        new_config: RewardConfig,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.lp_staking.clone(),
-            &LpStakingExecuteMsg::UpdateRewardConfig { config: new_config },
-            &[],
-        )
-    }
-
     pub fn stake_lp_token(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.eclipastro_xastro_lp_token_contract.clone(),
             &Cw20ExecuteMsg::Send {
-                contract: self.lp_staking.to_string(),
+                contract: self.lp_staking_contract.to_string(),
                 amount: Uint128::from(amount),
                 msg: to_json_binary(&LpStakingCw20HookMsg::Stake {})?,
             },
             &[],
         )
     }
-
-    pub fn lp_staking_claim_rewards(&mut self, sender: &str) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.lp_staking.clone(),
-            &LpStakingExecuteMsg::Claim {},
-            &[],
-        )
-    }
-
-    pub fn unstake_lp_token(
-        &mut self,
-        sender: &str,
-        amount: u128,
-        recipient: Option<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.lp_staking.clone(),
-            &LpStakingExecuteMsg::Unstake {
-                amount: Uint128::from(amount),
-                recipient,
-            },
-            &[],
-        )
-    }
-
-    pub fn query_lp_staking_config(&self) -> StdResult<LpStakingConfig> {
-        let config: LpStakingConfig = self
-            .app
-            .wrap()
-            .query_wasm_smart(self.lp_staking.clone(), &LpStakingQueryMsg::Config {})?;
-        Ok(config)
-    }
-
-    pub fn query_user_lp_token_staking(&self, user: &str) -> StdResult<UserStaking> {
-        let res: UserStaking = self.app.wrap().query_wasm_smart(
-            self.lp_staking.clone(),
+    pub fn query_user_lp_token_staking(&self, user: &str) -> StdResult<LpStakingUserStaking> {
+        let res: LpStakingUserStaking = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
             &LpStakingQueryMsg::Staking {
                 user: user.to_string(),
             },
         )?;
         Ok(res)
     }
-
-    pub fn query_user_lp_staking_reward(
-        &self,
-        user: &str,
-    ) -> StdResult<Vec<LpStakingUserRewardResponse>> {
-        let res: Vec<LpStakingUserRewardResponse> = self.app.wrap().query_wasm_smart(
-            self.lp_staking.clone(),
+    pub fn query_user_lp_token_rewards(&self, user: &str) -> StdResult<Vec<LpStakingRewardAmount>> {
+        let res: Vec<LpStakingRewardAmount> = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
             &LpStakingQueryMsg::Reward {
                 user: user.to_string(),
             },
@@ -1891,14 +984,222 @@ impl Suite {
         Ok(res)
     }
 
-    pub fn query_total_lp_token_staking(&self) -> StdResult<TotalStaking> {
-        let res: TotalStaking = self
-            .app
-            .wrap()
-            .query_wasm_smart(self.lp_staking.clone(), &LpStakingQueryMsg::TotalStaking {})?;
+    pub fn query_total_lp_token_staking(&self) -> StdResult<Uint128> {
+        let res: Uint128 = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::TotalStaking {},
+        )?;
         Ok(res)
     }
+    pub fn query_reward_weights(&self) -> StdResult<Vec<LpStakingRewardWeight>> {
+        let res: Vec<LpStakingRewardWeight> = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::RewardWeights {},
+        )?;
+        Ok(res)
+    }
+    pub fn query_user_lp_staking_reward(
+        &self,
+        user: &str,
+    ) -> StdResult<Vec<LpStakingRewardAmount>> {
+        let res: Vec<LpStakingRewardAmount> = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::Reward {
+                user: user.to_string(),
+            },
+        )?;
+        Ok(res)
+    }
+    pub fn lp_staking_claim_rewards(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::Claim { assets: None },
+            &[],
+        )
+    }
+    pub fn mint_beclip(&mut self, recipient: &str, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            self.admin.clone(),
+            self.beclip.clone(),
+            &Cw20ExecuteMsg::Mint {
+                recipient: recipient.to_string(),
+                amount: Uint128::from(amount),
+            },
+            &[],
+        )
+    }
+    pub fn query_beclip_balance(&self, address: &str) -> StdResult<u128> {
+        let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
+            self.beclip.clone(),
+            &Cw20QueryMsg::Balance {
+                address: address.to_owned(),
+            },
+        )?;
+        Ok(balance.balance.u128())
+    }
 
+    // timelock_staking contract
+    pub fn update_single_sided_stake_config(
+        &mut self,
+        sender: &str,
+        config: SingleStakingUpdateConfigMsg,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::UpdateConfig { config },
+            &[],
+        )
+    }
+    pub fn query_single_sided_stake_config(&self) -> StdResult<SingleStakingConfig> {
+        let config: SingleStakingConfig = self.app.wrap().query_wasm_smart(
+            self.single_staking_contract.clone(),
+            &SingleStakingQueryMsg::Config {},
+        )?;
+        Ok(config)
+    }
+    pub fn query_single_sided_staking(&self, user: &str) -> StdResult<Vec<SingleSidedUserStaking>> {
+        let user_staking: Vec<SingleSidedUserStaking> = self.app.wrap().query_wasm_smart(
+            self.single_staking_contract.clone(),
+            &SingleStakingQueryMsg::Staking {
+                user: user.to_string(),
+            },
+        )?;
+        Ok(user_staking)
+    }
+    pub fn query_single_sided_total_staking(&self) -> StdResult<u128> {
+        let total_staking: Uint128 = self.app.wrap().query_wasm_smart(
+            self.single_staking_contract.clone(),
+            &SingleStakingQueryMsg::TotalStaking {},
+        )?;
+        Ok(total_staking.u128())
+    }
+    pub fn single_sided_stake(
+        &mut self,
+        sender: &str,
+        amount: u128,
+        duration: u64,
+        recipient: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.eclipastro.clone(),
+            &Cw20ExecuteMsg::Send {
+                contract: self.single_staking_contract(),
+                amount: Uint128::from(amount),
+                msg: to_json_binary(&SingleStakingCw20HookMsg::Stake {
+                    lock_duration: duration,
+                    recipient,
+                })?,
+            },
+            &[],
+        )
+    }
+    pub fn single_sided_unstake(
+        &mut self,
+        sender: &str,
+        duration: u64,
+        locked_at: u64,
+        amount: Option<Uint128>,
+        recipient: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::Unstake {
+                duration,
+                locked_at: Some(locked_at),
+                amount,
+                recipient,
+            },
+            &[],
+        )
+    }
+    pub fn single_sided_restake(
+        &mut self,
+        sender: &str,
+        from_duration: u64,
+        locked_at: u64,
+        to_duration: u64,
+        recipient: Option<String>,
+        amount: Option<Uint128>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::Restake {
+                from_duration,
+                locked_at: Some(locked_at),
+                amount,
+                to_duration,
+                recipient,
+            },
+            &[],
+        )
+    }
+    pub fn query_single_sided_staking_reward(
+        &self,
+        user: &str,
+    ) -> StdResult<Vec<SingleStakingUserRewardByDuration>> {
+        let reward: Vec<SingleStakingUserRewardByDuration> = self.app.wrap().query_wasm_smart(
+            self.single_staking_contract.clone(),
+            &SingleStakingQueryMsg::Reward {
+                user: user.to_string(),
+            },
+        )?;
+        Ok(reward)
+    }
+    pub fn query_single_sided_staking_eclipastro_rewards(&self) -> StdResult<Vec<(u64, Uint128)>> {
+        let reward: Vec<(u64, Uint128)> = self.app.wrap().query_wasm_smart(
+            self.single_staking_contract.clone(),
+            &SingleStakingQueryMsg::EclipastroRewards {},
+        )?;
+        Ok(reward)
+    }
+    pub fn single_stake_claim(
+        &mut self,
+        sender: &str,
+        duration: u64,
+        locked_at: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::Claim {
+                duration,
+                locked_at: Some(locked_at),
+                assets: None,
+            },
+            &[],
+        )
+    }
+    pub fn single_stake_claim_all(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::ClaimAll {
+                with_flexible: true,
+            },
+            &[],
+        )
+    }
+    pub fn calculate_penalty(
+        &self,
+        amount: u128,
+        duration: u64,
+        locked_at: u64,
+    ) -> StdResult<u128> {
+        let penalty: Uint128 = self.app.wrap().query_wasm_smart(
+            self.single_staking_contract.clone(),
+            &SingleStakingQueryMsg::CalculatePenalty {
+                amount: Uint128::from(amount),
+                duration,
+                locked_at,
+            },
+        )?;
+        Ok(penalty.u128())
+    }
     // lockdrop
     pub fn update_lockdrop_config(
         &mut self,
@@ -1907,12 +1208,25 @@ impl Suite {
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.lockdrop.clone(),
+            self.lockdrop_contract.clone(),
             &LockdropExecuteMsg::UpdateConfig { new_config },
             &[],
         )
     }
-
+    pub fn query_lockdrop_config(&self) -> StdResult<LockdropConfig> {
+        let res: LockdropConfig = self
+            .app
+            .wrap()
+            .query_wasm_smart(self.lockdrop_contract.clone(), &LockdropQueryMsg::Config {})?;
+        Ok(res)
+    }
+    // pub fn query_lockdrop_reward_weights(&self) -> StdResult<LockdropConfig> {
+    //     let res: LockdropConfig = self
+    //         .app
+    //         .wrap()
+    //         .query_wasm_smart(self.lockdrop_contract.clone(), &LockdropQueryMsg::reward {})?;
+    //     Ok(res)
+    // }
     pub fn single_staking_increase_lockdrop(
         &mut self,
         sender: &str,
@@ -1922,19 +1236,69 @@ impl Suite {
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            Addr::unchecked(token),
-            &Cw20ExecuteMsg::Send {
-                contract: self.lockdrop.to_string(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&LockdropCw20HookMsg::IncreaseLockup {
-                    stake_type: StakeType::SingleStaking,
-                    duration,
-                })?,
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::IncreaseLockup {
+                stake_type: StakeType::SingleStaking,
+                duration,
             },
-            &[],
+            &[coin(amount, token)],
         )
     }
-
+    pub fn query_single_lockup_info(&self) -> StdResult<SingleLockupInfoResponse> {
+        let res: SingleLockupInfoResponse = self.app.wrap().query_wasm_smart(
+            self.lockdrop_contract.clone(),
+            &LockdropQueryMsg::SingleLockupInfo {},
+        )?;
+        Ok(res)
+    }
+    pub fn query_user_single_lockup_info(
+        &self,
+        user: &str,
+    ) -> StdResult<Vec<UserSingleLockupInfoResponse>> {
+        let res: Vec<UserSingleLockupInfoResponse> = self.app.wrap().query_wasm_smart(
+            self.lockdrop_contract.clone(),
+            &LockdropQueryMsg::UserSingleLockupInfo {
+                user: user.to_string(),
+            },
+        )?;
+        Ok(res)
+    }
+    pub fn lp_staking_increase_lockdrop(
+        &mut self,
+        sender: &str,
+        token: String,
+        amount: u128,
+        duration: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::IncreaseLockup {
+                stake_type: StakeType::LpStaking,
+                duration,
+            },
+            &[coin(amount, token)],
+        )
+    }
+    pub fn query_lp_lockup_info(&self) -> StdResult<LpLockupInfoResponse> {
+        let res: LpLockupInfoResponse = self.app.wrap().query_wasm_smart(
+            self.lockdrop_contract.clone(),
+            &LockdropQueryMsg::LpLockupInfo {},
+        )?;
+        Ok(res)
+    }
+    pub fn query_user_lp_lockup_info(
+        &self,
+        user: &str,
+    ) -> StdResult<Vec<UserLpLockupInfoResponse>> {
+        let res: Vec<UserLpLockupInfoResponse> = self.app.wrap().query_wasm_smart(
+            self.lockdrop_contract.clone(),
+            &LockdropQueryMsg::UserLpLockupInfo {
+                user: user.to_string(),
+            },
+        )?;
+        Ok(res)
+    }
     pub fn single_staking_extend_duration_without_deposit(
         &mut self,
         sender: &str,
@@ -1943,7 +1307,7 @@ impl Suite {
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.lockdrop.clone(),
+            self.lockdrop_contract.clone(),
             &LockdropExecuteMsg::ExtendLock {
                 stake_type: StakeType::SingleStaking,
                 from: from_duration,
@@ -1963,42 +1327,15 @@ impl Suite {
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            Addr::unchecked(token),
-            &Cw20ExecuteMsg::Send {
-                contract: self.lockdrop.to_string(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&LockdropCw20HookMsg::ExtendDuration {
-                    stake_type: StakeType::SingleStaking,
-                    from: from_duration,
-                    to: to_duration,
-                })?,
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::ExtendLock {
+                stake_type: StakeType::SingleStaking,
+                from: from_duration,
+                to: to_duration,
             },
-            &[],
+            &[coin(amount, token)],
         )
     }
-
-    pub fn lp_staking_increase_lockdrop(
-        &mut self,
-        sender: &str,
-        token: String,
-        amount: u128,
-        duration: u64,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            Addr::unchecked(token),
-            &Cw20ExecuteMsg::Send {
-                contract: self.lockdrop.to_string(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&LockdropCw20HookMsg::IncreaseLockup {
-                    stake_type: StakeType::LpStaking,
-                    duration,
-                })?,
-            },
-            &[],
-        )
-    }
-
     pub fn lp_lockup_extend_duration_without_deposit(
         &mut self,
         sender: &str,
@@ -2007,7 +1344,7 @@ impl Suite {
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.lockdrop.clone(),
+            self.lockdrop_contract.clone(),
             &LockdropExecuteMsg::ExtendLock {
                 stake_type: StakeType::LpStaking,
                 from: from_duration,
@@ -2027,20 +1364,15 @@ impl Suite {
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            Addr::unchecked(token),
-            &Cw20ExecuteMsg::Send {
-                contract: self.lockdrop.to_string(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&LockdropCw20HookMsg::ExtendDuration {
-                    stake_type: StakeType::LpStaking,
-                    from: from_duration,
-                    to: to_duration,
-                })?,
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::ExtendLock {
+                stake_type: StakeType::LpStaking,
+                from: from_duration,
+                to: to_duration,
             },
-            &[],
+            &[coin(amount, token)],
         )
     }
-
     pub fn single_staking_lockdrop_withdraw(
         &mut self,
         sender: &str,
@@ -2049,12 +1381,15 @@ impl Suite {
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.lockdrop.clone(),
-            &LockdropExecuteMsg::SingleLockupWithdraw { amount, duration },
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::Unlock {
+                stake_type: StakeType::SingleStaking,
+                duration,
+                amount,
+            },
             &[],
         )
     }
-
     pub fn lp_staking_lockdrop_withdraw(
         &mut self,
         sender: &str,
@@ -2063,68 +1398,117 @@ impl Suite {
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.lockdrop.clone(),
-            &LockdropExecuteMsg::LpLockupWithdraw { amount, duration },
-            &[],
-        )
-    }
-
-    pub fn increase_eclip_incentives_lockdrop(
-        &mut self,
-        sender: &str,
-        amount: u128,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.lockdrop.clone(),
-            &LockdropExecuteMsg::IncreaseEclipIncentives {},
-            &[Coin {
-                denom: self.eclip(),
-                amount: Uint128::from(amount),
-            }],
-        )
-    }
-
-    pub fn lockdrop_stake_to_vaults(&mut self, sender: &str) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.lockdrop.clone(),
-            &LockdropExecuteMsg::StakeToVaults {},
-            &[],
-        )
-    }
-
-    pub fn single_lockdrop_claim_rewards_and_optionally_unlock(
-        &mut self,
-        sender: &str,
-        duration: u64,
-        amount: Option<Uint128>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.lockdrop.clone(),
-            &LockdropExecuteMsg::ClaimRewardsAndOptionallyUnlock {
-                stake_type: StakeType::SingleStaking,
-                duration,
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::Unlock {
+                stake_type: StakeType::LpStaking,
                 amount,
+                duration,
             },
             &[],
         )
     }
+    pub fn fund_beclip(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.beclip.clone(),
+            &Cw20ExecuteMsg::Send {
+                contract: self.lockdrop_contract().to_string(),
+                amount: Uint128::from(amount),
+                msg: to_json_binary(&LockdropCw20HookMsg::IncreaseIncentives {})?,
+            },
+            &[],
+        )
+    }
+    pub fn fund_eclip(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop_contract.clone(),
+            &LockdropCw20HookMsg::IncreaseIncentives {},
+            &[coin(amount, self.eclip.clone())],
+        )
+    }
+    pub fn lockdrop_stake_to_vaults(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::StakeToVaults {},
+            &[],
+        )
+    }
+    pub fn query_single_lockup_state(&self) -> StdResult<SingleLockupStateResponse> {
+        let res: SingleLockupStateResponse = self.app.wrap().query_wasm_smart(
+            self.lockdrop_contract.clone(),
+            &LockdropQueryMsg::SingleLockupState {},
+        )?;
+        Ok(res)
+    }
 
-    pub fn lp_lockdrop_claim_rewards_and_optionally_unlock(
+    pub fn query_lp_lockup_state(&self) -> StdResult<LpLockupStateResponse> {
+        let res: LpLockupStateResponse = self.app.wrap().query_wasm_smart(
+            self.lockdrop_contract.clone(),
+            &LockdropQueryMsg::LpLockupState {},
+        )?;
+        Ok(res)
+    }
+    pub fn query_total_lockdrop_incentives(&self) -> StdResult<IncentiveAmounts> {
+        let res: IncentiveAmounts = self.app.wrap().query_wasm_smart(
+            self.lockdrop_contract.clone(),
+            &LockdropQueryMsg::TotalIncentives {},
+        )?;
+        Ok(res)
+    }
+    pub fn single_lockdrop_claim_rewards(
         &mut self,
         sender: &str,
         duration: u64,
-        amount: Option<Uint128>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.lockdrop.clone(),
-            &LockdropExecuteMsg::ClaimRewardsAndOptionallyUnlock {
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::ClaimRewards {
+                stake_type: StakeType::SingleStaking,
+                duration,
+                assets: None,
+            },
+            &[],
+        )
+    }
+    pub fn single_lockdrop_claim_all_rewards(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::ClaimAllRewards {
+                stake_type: StakeType::SingleStaking,
+                with_flexible: true,
+                assets: None,
+            },
+            &[],
+        )
+    }
+    pub fn lp_lockdrop_claim_rewards(
+        &mut self,
+        sender: &str,
+        duration: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::ClaimRewards {
                 stake_type: StakeType::LpStaking,
                 duration,
-                amount,
+                assets: None,
+            },
+            &[],
+        )
+    }
+    pub fn lp_lockdrop_claim_all_rewards(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::ClaimAllRewards {
+                stake_type: StakeType::LpStaking,
+                with_flexible: true,
+                assets: None,
             },
             &[],
         )
@@ -2138,8 +1522,12 @@ impl Suite {
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.lockdrop.clone(),
-            &LockdropExecuteMsg::RelockSingleStaking { from, to },
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::ExtendLock {
+                stake_type: StakeType::SingleStaking,
+                from,
+                to,
+            },
             &[],
         )
     }
@@ -2149,100 +1537,70 @@ impl Suite {
         sender: &str,
         from: u64,
         to: u64,
+        asset: String,
         amount: u128,
+    ) -> AnyResult<AppResponse> {
+        if asset == self.eclipastro.to_string() {
+            self.app.execute_contract(
+                Addr::unchecked(sender),
+                self.eclipastro.clone(),
+                &Cw20ExecuteMsg::Send {
+                    contract: self.lockdrop_contract.to_string(),
+                    amount: Uint128::from(amount),
+                    msg: to_json_binary(&LockdropCw20HookMsg::ExtendLockup {
+                        stake_type: StakeType::SingleStaking,
+                        from,
+                        to,
+                    })?,
+                },
+                &[],
+            )
+        } else {
+            self.app.execute_contract(
+                Addr::unchecked(sender),
+                self.lockdrop_contract.clone(),
+                &LockdropCw20HookMsg::ExtendLockup {
+                    stake_type: StakeType::SingleStaking,
+                    from,
+                    to,
+                },
+                &[coin(amount, asset)],
+            )
+        }
+    }
+
+    pub fn single_lockup_unlock(
+        &mut self,
+        sender: &str,
+        duration: u64,
+        amount: Option<Uint128>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.eclipastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.lockdrop.to_string(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&LockdropCw20HookMsg::Relock { from, to })?,
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::Unlock {
+                stake_type: StakeType::SingleStaking,
+                duration,
+                amount,
             },
             &[],
         )
     }
-
-    pub fn query_lockdrop_config(&self) -> StdResult<LockdropConfig> {
-        let res: LockdropConfig = self
-            .app
-            .wrap()
-            .query_wasm_smart(self.lockdrop.clone(), &LockdropQueryMsg::Config {})?;
-        Ok(res)
-    }
-
-    pub fn query_single_lockup_info(&self) -> StdResult<Vec<LockupInfoResponse>> {
-        let res: Vec<LockupInfoResponse> = self.app.wrap().query_wasm_smart(
-            self.lockdrop.clone(),
-            &LockdropQueryMsg::SingleLockupInfo {},
-        )?;
-        Ok(res)
-    }
-
-    pub fn query_lp_lockup_info(&self) -> StdResult<Vec<LockupInfoResponse>> {
-        let res: Vec<LockupInfoResponse> = self
-            .app
-            .wrap()
-            .query_wasm_smart(self.lockdrop.clone(), &LockdropQueryMsg::LpLockupInfo {})?;
-        Ok(res)
-    }
-
-    pub fn query_single_lockup_state(&self) -> StdResult<SingleLockupStateResponse> {
-        let res: SingleLockupStateResponse = self.app.wrap().query_wasm_smart(
-            self.lockdrop.clone(),
-            &LockdropQueryMsg::SingleLockupState {},
-        )?;
-        Ok(res)
-    }
-
-    pub fn query_lp_lockup_state(&self) -> StdResult<LpLockupStateResponse> {
-        let res: LpLockupStateResponse = self
-            .app
-            .wrap()
-            .query_wasm_smart(self.lockdrop.clone(), &LockdropQueryMsg::LpLockupState {})?;
-        Ok(res)
-    }
-
-    pub fn query_user_single_lockup_info(
-        &self,
-        user: &str,
-    ) -> StdResult<Vec<UserSingleLockupInfoResponse>> {
-        let res: Vec<UserSingleLockupInfoResponse> = self.app.wrap().query_wasm_smart(
-            self.lockdrop.clone(),
-            &LockdropQueryMsg::UserSingleLockupInfo {
-                user: Addr::unchecked(user),
-            },
-        )?;
-        Ok(res)
-    }
-
-    pub fn query_user_lp_lockup_info(
-        &self,
-        user: &str,
-    ) -> StdResult<Vec<UserLpLockupInfoResponse>> {
-        let res: Vec<UserLpLockupInfoResponse> = self.app.wrap().query_wasm_smart(
-            self.lockdrop.clone(),
-            &LockdropQueryMsg::UserLpLockupInfo {
-                user: Addr::unchecked(user),
-            },
-        )?;
-        Ok(res)
-    }
-
-    pub fn calculate_penalty(
-        &self,
-        amount: u128,
+    pub fn lp_lockup_unlock(
+        &mut self,
+        sender: &str,
         duration: u64,
-        locked_at: u64,
-    ) -> StdResult<u128> {
-        let penalty: Uint128 = self.app.wrap().query_wasm_smart(
-            self.timelock_staking_contract.clone(),
-            &TimelockStakingQueryMsg::CalculatePenalty {
-                amount: Uint128::from(amount),
+        amount: Option<Uint128>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::Unlock {
+                stake_type: StakeType::LpStaking,
                 duration,
-                locked_at,
+                amount,
             },
-        )?;
-        Ok(penalty.u128())
+            &[],
+        )
     }
 }

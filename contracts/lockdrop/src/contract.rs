@@ -1,32 +1,27 @@
 use cosmwasm_std::{
-    attr, ensure, ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult,
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
-use equinox_msg::{
-    common::{drop_ownership_proposal, propose_new_owner},
-    lockdrop::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, StakeType},
-};
+use equinox_msg::lockdrop::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use semver::Version;
 
 use crate::{
     entry::{
         execute::{
-            _handle_callback, handle_claim_rewards_and_unlock_for_lp_lockup,
-            handle_claim_rewards_and_unlock_for_single_lockup, handle_extend_lock,
-            handle_increase_eclip_incentives, handle_lp_locking_withdraw, handle_relock,
-            handle_single_locking_withdraw, handle_stake_to_vaults, handle_update_config,
-            handle_update_reward_distribution_config, receive_cw20,
+            _handle_callback, receive_cw20, try_claim_all_rewards, try_claim_rewards,
+            try_extend_lockup, try_increase_incentives, try_increase_lockup, try_stake_to_vaults,
+            try_unlock, try_update_config, try_update_owner, try_update_reward_distribution_config,
         },
         instantiate::try_instantiate,
         query::{
             query_config, query_lp_lockup_info, query_lp_lockup_state, query_owner,
             query_reward_config, query_single_lockup_info, query_single_lockup_state,
-            query_total_eclip_incentives, query_user_lp_lockup_info, query_user_single_lockup_info,
+            query_total_incentives, query_user_lp_lockup_info, query_user_single_lockup_info,
         },
     },
     error::ContractError,
-    state::{CONTRACT_NAME, CONTRACT_VERSION, OWNER, OWNERSHIP_PROPOSAL},
+    state::{CONTRACT_NAME, CONTRACT_VERSION},
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -41,87 +36,45 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::UpdateConfig { new_config } => handle_update_config(deps, info, new_config),
+        ExecuteMsg::UpdateConfig { new_config } => try_update_config(deps, info, new_config),
         ExecuteMsg::UpdateRewardDistributionConfig { new_config } => {
-            handle_update_reward_distribution_config(deps, env, info, new_config)
+            try_update_reward_distribution_config(deps, env, info, new_config)
         }
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::IncreaseLockup {
+            stake_type,
+            duration,
+        } => try_increase_lockup(deps, env, info, stake_type, duration),
         ExecuteMsg::ExtendLock {
             stake_type,
             from,
             to,
-        } => handle_extend_lock(deps, env, info, stake_type, from, to),
-        ExecuteMsg::SingleLockupWithdraw { amount, duration } => {
-            handle_single_locking_withdraw(deps, env, info, amount, duration)
-        }
-        ExecuteMsg::LpLockupWithdraw { amount, duration } => {
-            handle_lp_locking_withdraw(deps, env, info, amount, duration)
-        }
-        ExecuteMsg::IncreaseEclipIncentives {} => handle_increase_eclip_incentives(deps, env, info),
-        ExecuteMsg::StakeToVaults {} => handle_stake_to_vaults(deps, env, info),
-        ExecuteMsg::RelockSingleStaking { from, to } => handle_relock(deps, env, info, from, to),
-        ExecuteMsg::ClaimRewardsAndOptionallyUnlock {
+        } => try_extend_lockup(deps, env, info, stake_type, from, to),
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::Unlock {
             stake_type,
             duration,
             amount,
-        } => match stake_type {
-            StakeType::SingleStaking => handle_claim_rewards_and_unlock_for_single_lockup(
-                deps,
-                env,
-                duration,
-                info.sender,
-                amount,
-            ),
-            StakeType::LpStaking => {
-                handle_claim_rewards_and_unlock_for_lp_lockup(deps, env, info, duration, amount)
-            }
-        },
+        } => try_unlock(deps, env, info, stake_type, duration, amount),
+        ExecuteMsg::StakeToVaults {} => try_stake_to_vaults(deps, env, info),
+        ExecuteMsg::ClaimRewards {
+            stake_type,
+            duration,
+            assets,
+        } => try_claim_rewards(deps, env, info, stake_type, duration, assets),
+        ExecuteMsg::ClaimAllRewards {
+            stake_type,
+            with_flexible,
+            assets,
+        } => try_claim_all_rewards(deps, env, info, stake_type, with_flexible, assets),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
-        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
-            let old_owner = OWNER.get(deps.as_ref()).unwrap().unwrap();
-            Ok(propose_new_owner(
-                deps,
-                info,
-                env,
-                owner,
-                expires_in,
-                old_owner,
-                OWNERSHIP_PROPOSAL,
-            )?)
-        }
-        ExecuteMsg::DropOwnershipProposal {} => {
-            let old_owner = OWNER.get(deps.as_ref()).unwrap().unwrap();
-            Ok(drop_ownership_proposal(
-                deps.branch(),
-                info,
-                old_owner,
-                OWNERSHIP_PROPOSAL,
-            )?)
-        }
-        ExecuteMsg::ClaimOwnership {} => {
-            let p = OWNERSHIP_PROPOSAL.load(deps.storage)?;
-            OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-
-            ensure!(
-                env.block.time.seconds() <= p.ttl,
-                ContractError::OwnershipProposalExpired {}
-            );
-
-            OWNERSHIP_PROPOSAL.remove(deps.storage);
-
-            OWNER.set(deps.branch(), Some(p.owner.clone()))?;
-
-            Ok(Response::new().add_attributes(vec![
-                attr("action", "claim_ownership"),
-                attr("new_owner", p.owner),
-            ]))
-        }
+        ExecuteMsg::IncreaseIncentives {} => try_increase_incentives(deps, env, info),
+        ExecuteMsg::UpdateOwner { new_owner } => try_update_owner(deps, env, info, new_owner),
     }
 }
 
@@ -144,9 +97,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserLpLockupInfo { user } => Ok(to_json_binary(&query_user_lp_lockup_info(
             deps, env, user,
         )?)?),
-        QueryMsg::TotalEclipIncentives {} => {
-            Ok(to_json_binary(&query_total_eclip_incentives(deps)?)?)
-        }
+        QueryMsg::TotalIncentives {} => Ok(to_json_binary(&query_total_incentives(deps)?)?),
     }
 }
 

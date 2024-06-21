@@ -1,11 +1,13 @@
 use astroport::{asset::PairInfo, pair::QueryMsg as AstroportPairQueryMsg};
 use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
-use equinox_msg::lockdrop::{
-    Config, InstantiateMsg, LockConfig, LpLockupState, RewardDistributionConfig, SingleLockupState,
-};
+use equinox_msg::lockdrop::{Config, InstantiateMsg, LpLockupState, SingleLockupState};
 
 use crate::{
+    config::{
+        DEFAULT_DEPOSIT_WINDOW, DEFAULT_LOCK_CONFIGS, DEFAULT_REWARD_DISTRIBUTION_CONFIG,
+        DEFAULT_WITHDRAW_WINDOW,
+    },
     error::ContractError,
     state::{
         CONFIG, CONTRACT_NAME, CONTRACT_VERSION, LP_LOCKUP_STATE, OWNER,
@@ -21,74 +23,38 @@ pub fn try_instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     // CHECK :: init_timestamp needs to be valid
-    // ensure!(
-    //     msg.init_timestamp >= env.block.time.seconds(),
-    //     ContractError::InvalidInitTimestamp(env.block.time.seconds())
-    // );
+    ensure!(
+        msg.init_timestamp >= env.block.time.seconds(),
+        ContractError::InvalidInitTimestamp(env.block.time.seconds())
+    );
 
     let pool_info: PairInfo = deps
         .querier
         .query_wasm_smart(&msg.liquidity_pool, &AstroportPairQueryMsg::Pair {})?;
 
     let config = Config {
-        astro_token: deps.api.addr_validate(&msg.astro_token)?,
-        xastro_token: deps.api.addr_validate(&msg.xastro_token)?,
+        astro_token: msg.astro_token,
+        xastro_token: msg.xastro_token,
+        beclip: msg.beclip,
         eclip: msg.eclip,
-        eclipastro_token: deps.api.addr_validate(&msg.eclipastro_token)?,
-        converter: deps.api.addr_validate(&msg.converter)?,
-        flexible_staking: None,
-        timelock_staking: None,
-        lp_staking: None,
-        reward_distributor: None,
-        liquidity_pool: deps.api.addr_validate(&msg.liquidity_pool)?,
+        eclipastro_token: msg.eclipastro_token,
+        converter: msg.converter,
+        single_sided_staking: msg.single_sided_staking,
+        lp_staking: msg.lp_staking,
+        liquidity_pool: msg.liquidity_pool,
         lp_token: pool_info.liquidity_token,
-        dao_treasury_address: deps.api.addr_validate(&msg.dao_treasury_address)?,
-        lock_configs: msg.lock_configs.unwrap_or(vec![
-            LockConfig {
-                duration: 0,
-                multiplier: 1,
-                early_unlock_penalty_bps: 5000,
-            },
-            LockConfig {
-                duration: 86400 * 30,
-                multiplier: 2,
-                early_unlock_penalty_bps: 5000,
-            },
-            LockConfig {
-                duration: 86400 * 30 * 3,
-                multiplier: 6,
-                early_unlock_penalty_bps: 5000,
-            },
-            LockConfig {
-                duration: 86400 * 30 * 6,
-                multiplier: 12,
-                early_unlock_penalty_bps: 5000,
-            },
-            LockConfig {
-                duration: 86400 * 30 * 9,
-                multiplier: 18,
-                early_unlock_penalty_bps: 5000,
-            },
-            LockConfig {
-                duration: 86400 * 365,
-                multiplier: 24,
-                early_unlock_penalty_bps: 5000,
-            },
-        ]),
+        dao_treasury_address: msg.dao_treasury_address,
+        lock_configs: msg.lock_configs.unwrap_or(DEFAULT_LOCK_CONFIGS.to_vec()),
         init_timestamp: msg.init_timestamp,
-        deposit_window: msg.deposit_window.unwrap_or(86400 * 5),
-        withdrawal_window: msg.withdrawal_window.unwrap_or(86400 * 2),
+        deposit_window: msg.deposit_window.unwrap_or(DEFAULT_DEPOSIT_WINDOW),
+        withdrawal_window: msg.withdrawal_window.unwrap_or(DEFAULT_WITHDRAW_WINDOW),
         lockdrop_incentives: Uint128::zero(),
-        astro_staking: deps.api.addr_validate(&msg.astro_staking)?,
+        astro_staking: msg.astro_staking,
+        claims_allowed: false,
+        countdown_start_at: 0u64,
     };
 
-    REWARD_DISTRIBUTION_CONFIG.save(
-        deps.storage,
-        &RewardDistributionConfig {
-            instant: 3000,           // bps
-            vesting_period: 7776000, // 3 months
-        },
-    )?;
+    REWARD_DISTRIBUTION_CONFIG.save(deps.storage, &DEFAULT_REWARD_DISTRIBUTION_CONFIG)?;
 
     let owner = msg
         .owner

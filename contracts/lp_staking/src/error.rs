@@ -22,6 +22,9 @@ pub enum ContractError {
     #[error("Callbacks cannot be invoked externally")]
     InvalidCallbackInvoke {},
 
+    #[error("Staking amount is zero")]
+    InvalidStakingAmount {},
+
     #[error("Total Reward point must be 10000")]
     RewardDistributionErr {},
 

@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
-    Response, StdResult,
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use equinox_msg::voter::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -9,11 +9,10 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            handle_stake_reply, place_vote, receive_cw20, update_config, update_owner, withdraw,
-            withdraw_bribe_rewards,
+            place_vote, try_stake, update_config, update_owner, withdraw, withdraw_bribe_rewards,
         },
         instantiate::try_instantiate,
-        query::{query_config, query_convert_ratio, query_owner, query_voting_power},
+        query::{query_config, query_owner, query_voting_power},
     },
     error::ContractError,
     state::CONTRACT_NAME,
@@ -44,7 +43,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::Stake {} => try_stake(deps, env, info),
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
         ExecuteMsg::Withdraw { amount, recipient } => withdraw(deps, env, info, amount, recipient),
@@ -60,7 +59,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::VotingPower {} => Ok(to_json_binary(&query_voting_power(deps, env)?)?),
-        QueryMsg::ConvertRatio {} => Ok(to_json_binary(&query_convert_ratio(deps, env)?)?),
     }
 }
 
@@ -83,12 +81,4 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
     Ok(Response::new()
         .add_attribute("new_contract_name", CONTRACT_NAME)
         .add_attribute("new_contract_version", CONTRACT_VERSION))
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id {
-        STAKE_TOKEN_REPLY_ID => handle_stake_reply(deps, env, msg),
-        id => Err(ContractError::UnknownReplyId(id)),
-    }
 }

@@ -1,4 +1,4 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
 use equinox_msg::lp_staking::{Config, InstantiateMsg, RewardConfig};
 
@@ -10,33 +10,26 @@ use crate::{
 pub fn try_instantiate(
     mut deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     // set contract version
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let ce_reward_distributor = match msg.ce_reward_distributor {
-        Some(contract_addr) => Some(deps.api.addr_validate(&contract_addr)?),
-        None => None,
-    };
     // update config
     CONFIG.save(
         deps.storage,
         &Config {
-            lp_token: deps.api.addr_validate(&msg.lp_token)?,
-            lp_contract: deps.api.addr_validate(&msg.lp_contract)?,
-            eclip: msg.eclip,
-            astro: deps.api.addr_validate(&msg.astro)?,
-            xastro: deps.api.addr_validate(&msg.xastro)?,
-            astro_staking: deps.api.addr_validate(&msg.astro_staking)?,
-            converter: deps.api.addr_validate(&msg.converter)?,
-            eclip_daily_reward: msg
-                .eclip_daily_reward
-                .unwrap_or(Uint128::from(1_000_000_000u128)),
-            astroport_generator: deps.api.addr_validate(&msg.astroport_generator)?,
-            treasury: deps.api.addr_validate(&msg.treasury)?,
-            stability_pool: deps.api.addr_validate(&msg.stability_pool)?,
-            ce_reward_distributor,
+            lp_token: msg.lp_token,
+            lp_contract: msg.lp_contract,
+            rewards: msg.rewards,
+            astro: msg.astro,
+            xastro: msg.xastro,
+            astro_staking: msg.astro_staking,
+            converter: msg.converter,
+            astroport_generator: msg.astroport_generator,
+            treasury: msg.treasury,
+            stability_pool: msg.stability_pool,
+            ce_reward_distributor: msg.ce_reward_distributor,
         },
     )?;
     // update reward config
@@ -50,7 +43,7 @@ pub fn try_instantiate(
         },
     )?;
     // update owner
-    let owner = deps.api.addr_validate(&msg.owner)?;
+    let owner = msg.owner.unwrap_or(info.sender);
     OWNER.set(deps.branch(), Some(owner))?;
     Ok(Response::new())
 }
