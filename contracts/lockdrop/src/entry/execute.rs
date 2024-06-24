@@ -1,7 +1,7 @@
 use astroport::{
     asset::{Asset, AssetInfo},
     pair::ExecuteMsg as PairExecuteMsg,
-    staking::Cw20HookMsg as AstroStakingCw20HookMsg,
+    staking::ExecuteMsg as AstroStakingExecuteMsg,
     token::BalanceResponse,
 };
 use cosmwasm_std::{
@@ -303,17 +303,17 @@ pub fn handle_increase_lockup(
                 .load(deps.storage, (&user_address, duration))
                 .unwrap_or_default();
             let mut staking_amount = amount;
-            let mut msgs = vec![];
+            let mut msgs: Vec<CosmosMsg> = vec![];
             if staking_token == cfg.astro_token {
-                msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: cfg.astro_token.to_string(),
-                    msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                        contract: cfg.astro_staking.to_string(),
-                        amount,
-                        msg: to_json_binary(&AstroStakingCw20HookMsg::Enter {})?,
-                    })?,
-                    funds: vec![],
-                }));
+                // msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                //     contract_addr: cfg.astro_token.to_string(),
+                //     msg: to_json_binary(&Cw20ExecuteMsg::Send {
+                //         contract: cfg.astro_staking.to_string(),
+                //         amount,
+                //         msg: to_json_binary(&AstroStakingExecuteMsg::Enter {})?,
+                //     })?,
+                //     funds: vec![],
+                // }));
                 let total_shares =
                     query_total_shares_astro_staking(deps.as_ref(), cfg.astro_staking.to_string())?;
                 let total_deposit = query_total_deposit_astro_staking(
@@ -358,17 +358,17 @@ pub fn handle_increase_lockup(
                 .load(deps.storage, (&user_address, duration))
                 .unwrap_or_default();
             let mut staking_amount = amount;
-            let mut msgs = vec![];
+            let mut msgs: Vec<CosmosMsg> = vec![];
             if staking_token == cfg.astro_token {
-                msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: cfg.astro_token.to_string(),
-                    msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                        contract: cfg.astro_staking.to_string(),
-                        amount,
-                        msg: to_json_binary(&AstroStakingCw20HookMsg::Enter {})?,
-                    })?,
-                    funds: vec![],
-                }));
+                // msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                //     contract_addr: cfg.astro_token.to_string(),
+                //     msg: to_json_binary(&Cw20ExecuteMsg::Send {
+                //         contract: cfg.astro_staking.to_string(),
+                //         amount,
+                //         msg: to_json_binary(&AstroStakingExecuteMsg::Enter {})?,
+                //     })?,
+                //     funds: vec![],
+                // }));
                 let total_shares =
                     query_total_shares_astro_staking(deps.as_ref(), cfg.astro_staking.to_string())?;
                 let total_deposit = query_total_deposit_astro_staking(
@@ -437,17 +437,17 @@ pub fn handle_single_sided_extend_duration(
         .unwrap_or_default();
 
     let mut staking_amount = amount;
-    let mut msgs = vec![];
+    let mut msgs: Vec<CosmosMsg> = vec![];
     if staking_token == cfg.astro_token {
-        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.astro_token.to_string(),
-            msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                contract: cfg.astro_staking.to_string(),
-                amount,
-                msg: to_json_binary(&AstroStakingCw20HookMsg::Enter {})?,
-            })?,
-            funds: vec![],
-        }));
+        // msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: cfg.astro_token.to_string(),
+        //     msg: to_json_binary(&Cw20ExecuteMsg::Send {
+        //         contract: cfg.astro_staking.to_string(),
+        //         amount,
+        //         msg: to_json_binary(&AstroStakingExecuteMsg::Enter {})?,
+        //     })?,
+        //     funds: vec![],
+        // }));
         let total_shares =
             query_total_shares_astro_staking(deps.as_ref(), cfg.astro_staking.to_string())?;
         let total_deposit =
@@ -515,17 +515,17 @@ pub fn handle_lp_extend_duration(
         .unwrap_or_default();
 
     let mut staking_amount = amount;
-    let mut msgs = vec![];
+    let mut msgs: Vec<CosmosMsg> = vec![];
     if staking_token == cfg.astro_token {
-        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.astro_token.to_string(),
-            msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                contract: cfg.astro_staking.to_string(),
-                amount,
-                msg: to_json_binary(&AstroStakingCw20HookMsg::Enter {})?,
-            })?,
-            funds: vec![],
-        }));
+        // msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: cfg.astro_token.to_string(),
+        //     msg: to_json_binary(&Cw20ExecuteMsg::Send {
+        //         contract: cfg.astro_staking.to_string(),
+        //         amount,
+        //         msg: to_json_binary(&AstroStakingExecuteMsg::Enter {})?,
+        //     })?,
+        //     funds: vec![],
+        // }));
         let total_shares =
             query_total_shares_astro_staking(deps.as_ref(), cfg.astro_staking.to_string())?;
         let total_deposit =
@@ -1775,29 +1775,29 @@ fn handle_deposit_into_pool(
             })?,
             funds: vec![],
         }),
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.liquidity_pool.to_string(),
-            msg: to_json_binary(&PairExecuteMsg::ProvideLiquidity {
-                assets: vec![
-                    Asset {
-                        info: AssetInfo::Token {
-                            contract_addr: cfg.eclipastro_token.clone(),
-                        },
-                        amount: eclipastro_amount_to_deposit,
-                    },
-                    Asset {
-                        info: AssetInfo::Token {
-                            contract_addr: cfg.xastro_token.clone(),
-                        },
-                        amount: xastro_amount_to_deposit,
-                    },
-                ],
-                slippage_tolerance: None,
-                auto_stake: Some(false),
-                receiver: None,
-            })?,
-            funds: vec![],
-        }),
+        // CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: cfg.liquidity_pool.to_string(),
+        //     msg: to_json_binary(&PairExecuteMsg::ProvideLiquidity {
+        //         assets: vec![
+        //             Asset {
+        //                 info: AssetInfo::Token {
+        //                     contract_addr: cfg.eclipastro_token.clone(),
+        //                 },
+        //                 amount: eclipastro_amount_to_deposit,
+        //             },
+        //             Asset {
+        //                 info: AssetInfo::Token {
+        //                     contract_addr: cfg.xastro_token.clone(),
+        //                 },
+        //                 amount: xastro_amount_to_deposit,
+        //             },
+        //         ],
+        //         slippage_tolerance: None,
+        //         auto_stake: Some(false),
+        //         receiver: None,
+        //     })?,
+        //     funds: vec![],
+        // }),
     ];
     Ok(Response::new()
         .add_attribute("action", "convert xASTRO to eclipASTRO")

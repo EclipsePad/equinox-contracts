@@ -1,17 +1,17 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128};
-use cw20::Cw20ReceiveMsg;
 
 pub const MAX_ESCROW_VOTING_LOCK_PERIOD: u64 = 2 * 365 * 24 * 3600;
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// ASTRO token address
-    pub base_token: String,
-    /// xASTRO token address
-    pub xtoken: String,
-    /// vxASTRO contract
-    pub vxtoken: String,
+    /// ASTRO denom
+    pub astro: String,
+    /// xASTRO denom
+    pub xastro: String,
+    /// vxASTRO denom
+    pub vxastro: String,
+
     /// Astroport Staking contract
     pub staking_contract: String,
     /// Converter contract
@@ -29,12 +29,13 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub struct UpdateConfig {
-    /// ASTRO token address
-    pub base_token: Option<String>,
-    /// xASTRO token address
-    pub xtoken: Option<String>,
-    /// vxASTRO contract
-    pub vxtoken: Option<String>,
+    /// ASTRO denom
+    pub astro: Option<String>,
+    /// xASTRO denom
+    pub xastro: Option<String>,
+    /// vxASTRO denom
+    pub vxastro: Option<String>,
+
     /// Astroport Staking contract
     pub staking_contract: Option<String>,
     /// Converter contract
@@ -53,18 +54,7 @@ pub struct UpdateConfig {
 }
 
 #[cw_serde]
-pub enum Cw20HookMsg {
-    Stake {},
-
-    /// a user can lock xASTRO for 2 years to get eclipASTRO and boost voting power for essence holders
-    /// swap ASTRO -> xASTRO will be provided first if it's required
-    SwapToEclipAstro {},
-}
-
-#[cw_serde]
 pub enum ExecuteMsg {
-    /// stake ASTRO from user
-    Receive(Cw20ReceiveMsg),
     /// update config
     UpdateConfig {
         config: UpdateConfig,
@@ -73,14 +63,12 @@ pub enum ExecuteMsg {
     UpdateOwner {
         owner: String,
     },
-    /// withdraw xASTRO
-    Withdraw {
-        amount: Uint128,
-        recipient: String,
-    },
     /// withdraw bribe rewards
     WithdrawBribeRewards {},
 
+    /// a user can lock xASTRO for 2 years to get eclipASTRO and boost voting power for essence holders
+    /// swap ASTRO -> xASTRO will be provided first if it's required
+    SwapToEclipAstro {},
     Vote {
         voting_list: Vec<VotingListItem>,
     },
@@ -129,12 +117,13 @@ pub struct Vote {
 
 #[cw_serde]
 pub struct Config {
-    /// ASTRO token address
-    pub base_token: Addr,
-    /// xASTRO token address
-    pub xtoken: Addr,
-    /// vxASTRO contract
-    pub vxtoken: Addr,
+    /// ASTRO denom
+    pub astro: String,
+    /// xASTRO denom
+    pub xastro: String,
+    /// vxASTRO denom
+    pub vxastro: String,
+
     /// Astroport Staking contract
     pub staking_contract: Addr,
     /// Converter contract

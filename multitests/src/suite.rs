@@ -4,10 +4,7 @@ use astroport::{
     factory::{PairConfig, PairType, QueryMsg as FactoryQueryMsg},
     incentives::{ExecuteMsg as IncentivesExecuteMsg, QueryMsg as IncentivesQueryMsg},
     pair::ExecuteMsg as PairExecuteMsg,
-    staking::{
-        ConfigResponse as AstroStakingConfigResponse, Cw20HookMsg as AstroStakingCw20HookMsg,
-        InstantiateMsg as AstroStakingInstantiateMsg, QueryMsg as AstroStakingQueryMsg,
-    },
+    staking,
     token::{
         Cw20Coin, InstantiateMsg as AstroInstantiateMsg, MinterResponse as AstroportMinterResponse,
     },
@@ -20,7 +17,8 @@ use astroport::{
 use astroport_voting_escrow;
 use cosmwasm_std::{coin, coins, to_json_binary, Addr, Binary, Coin, Decimal, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
-use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
+use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
+use eclipse_base::assets::{Currency, TokenUnverified};
 use equinox_msg::{
     flexible_staking::{
         Config as FlexibleStakingConfig, Cw20HookMsg as FlexibleStakingCw20HookMsg,
@@ -58,30 +56,36 @@ use equinox_msg::{
         RewardResponse as ConverterRewardResponse, UpdateConfig as ConverterUpdateConfig,
     },
     voter::{
-        Config as VoterConfig, Cw20HookMsg as VoterCw20HookMsg, ExecuteMsg as VoterExecuteMsg,
+        Config as VoterConfig, ExecuteMsg as VoterExecuteMsg,
         InstantiateMsg as VoterInstantiateMsg, QueryMsg as VoterQueryMsg,
         UpdateConfig as VoterUpdateConfig,
     },
 };
 
-fn store_astro(app: &mut App) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
+pub const ASTRO: &str = "astro";
+// pub const XASTRO: &str = "xastro";
+pub const ECLIP_ASTRO: &str = "eclipastro";
 
-    app.store_code(contract)
+// for tf tracker
+const MODULE_ADDRESS: &str = "tokenfactory_module";
+
+fn store_minter(app: &mut App) -> u64 {
+    app.store_code(Box::new(ContractWrapper::new(
+        minter_mocks::contract::execute,
+        minter_mocks::contract::instantiate,
+        minter_mocks::contract::query,
+    )))
 }
 
-fn store_xastro(app: &mut App) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_xastro_token::contract::execute,
-        astroport_xastro_token::contract::instantiate,
-        astroport_xastro_token::contract::query,
-    ));
-
-    app.store_code(contract)
+fn store_tokenfactory_tracker(app: &mut App) -> u64 {
+    app.store_code(Box::new(
+        ContractWrapper::new(
+            astroport_tokenfactory_tracker::contract::instantiate, // fake
+            astroport_tokenfactory_tracker::contract::instantiate,
+            astroport_tokenfactory_tracker::query::query,
+        )
+        .with_sudo(astroport_tokenfactory_tracker::contract::sudo),
+    ))
 }
 
 fn store_astro_staking(app: &mut App) -> u64 {
@@ -97,11 +101,11 @@ fn store_astro_staking(app: &mut App) -> u64 {
     app.store_code(contract)
 }
 
-fn store_astroport_token(app: &mut App) -> u64 {
+fn store_cw20_token(app: &mut App) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     app.store_code(contract)
@@ -164,23 +168,13 @@ fn store_astroport_voting_escrow(app: &mut App) -> u64 {
     )))
 }
 
-fn store_astroport_generator_controller(app: &mut App) -> u64 {
-    app.store_code(Box::new(ContractWrapper::new_with_empty(
-        astroport_generator_controller::contract::execute,
-        astroport_generator_controller::contract::instantiate,
-        astroport_generator_controller::contract::query,
-    )))
-}
-
-fn store_eclipastro(app: &mut App) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        eclipastro_token::contract::execute,
-        eclipastro_token::contract::instantiate,
-        eclipastro_token::contract::query,
-    ));
-
-    app.store_code(contract)
-}
+// fn store_astroport_emissions_controller(app: &mut App) -> u64 {
+//     app.store_code(Box::new(ContractWrapper::new_with_empty(
+//         astroport_emissions_controller::execute::execute,
+//         astroport_emissions_controller::instantiate::instantiate,
+//         astroport_emissions_controller::query::query,
+//     )))
+// }
 
 fn store_converter(app: &mut App) -> u64 {
     let contract = Box::new(
@@ -390,46 +384,52 @@ impl SuiteBuilder {
         let ce_reward_distributor = Addr::unchecked("ce_reward_distributor");
         let vxastro_contract = Addr::unchecked("vxastro");
 
-        let astro_id = store_astro(&mut app);
-        let astro_contract = app
+        let minter_id = store_minter(&mut app);
+        let minter_contract = app
             .instantiate_contract(
-                astro_id,
+                minter_id,
                 admin.clone(),
-                &AstroInstantiateMsg {
-                    name: "astro token".to_owned(),
-                    symbol: "ASTRO".to_owned(),
-                    decimals: 6,
-                    initial_balances: self.initial_balances,
-                    mint: Some(AstroportMinterResponse {
-                        minter: "minter".to_owned(),
-                        cap: None,
-                    }),
-                    marketing: None,
-                },
+                &eclipse_base::minter::msg::InstantiateMsg { cw20_code_id: None },
                 &[],
-                "ASTRO token",
+                "minter",
                 Some(admin.clone().to_string()),
             )
             .unwrap();
 
+        let tokenfactory_tracker_id = store_tokenfactory_tracker(&mut app);
+        // let tokenfactory_tracker = app
+        //     .instantiate_contract(
+        //         tokenfactory_tracker_id,
+        //         admin.clone(),
+        //         &astroport::tokenfactory_tracker::InstantiateMsg {
+        //             tokenfactory_module_address: MODULE_ADDRESS.to_string(),
+        //             track_over_seconds: true,
+        //             tracked_denom: ASTRO.to_string(),
+        //         },
+        //         &[],
+        //         "tokenfactory_tracker",
+        //         Some(admin.clone().to_string()),
+        //     )
+        //     .unwrap();
+
         let astro_staking_id = store_astro_staking(&mut app);
-        let xastro_id = store_xastro(&mut app);
         let astro_staking_contract = app
             .instantiate_contract(
                 astro_staking_id,
                 admin.clone(),
-                &AstroStakingInstantiateMsg {
-                    owner: admin.clone().into_string(),
-                    token_code_id: xastro_id,
-                    deposit_token_addr: astro_contract.clone().into_string(),
-                    marketing: None,
+                &staking::InstantiateMsg {
+                    deposit_token_denom: ASTRO.to_string(),
+                    token_factory_addr: MODULE_ADDRESS.to_string(),
+                    tracking_code_id: tokenfactory_tracker_id,
+                    tracking_admin: admin.to_string(),
                 },
                 &[],
                 "ASTRO staking",
                 Some(admin.clone().to_string()),
             )
             .unwrap();
-        let cw20_token_code_id = store_astroport_token(&mut app);
+
+        let cw20_token_code_id = store_cw20_token(&mut app);
         let pair_code_id = store_astroport_pair(&mut app);
         let factory_code_id = store_astroport_factory(&mut app);
         let msg = astroport::factory::InstantiateMsg {
@@ -448,6 +448,7 @@ impl SuiteBuilder {
             owner: admin.to_string(),
             whitelist_code_id: 0,
             coin_registry_address: "coin_registry".to_string(),
+            tracker_config: None,
         };
         let astroport_factory = app
             .instantiate_contract(
@@ -459,6 +460,7 @@ impl SuiteBuilder {
                 None,
             )
             .unwrap();
+
         let vesting_code_id = store_astroport_vesting(&mut app);
         let astroport_vesting = app
             .instantiate_contract(
@@ -466,8 +468,8 @@ impl SuiteBuilder {
                 admin.clone(),
                 &vesting::InstantiateMsg {
                     owner: admin.to_string(),
-                    vesting_token: AssetInfo::Token {
-                        contract_addr: astro_contract.clone(),
+                    vesting_token: AssetInfo::NativeToken {
+                        denom: ASTRO.to_string(),
                     },
                 },
                 &[],
@@ -484,8 +486,8 @@ impl SuiteBuilder {
                 &astroport::incentives::InstantiateMsg {
                     owner: admin.to_string(),
                     factory: astroport_factory.to_string(),
-                    astro_token: AssetInfo::Token {
-                        contract_addr: astro_contract.clone(),
+                    astro_token: AssetInfo::NativeToken {
+                        denom: ASTRO.to_string(),
                     },
                     vesting_contract: astroport_vesting.to_string(),
                     incentivization_fee_info: None,
@@ -497,17 +499,17 @@ impl SuiteBuilder {
             )
             .unwrap();
 
-        let astro_staking_config: AstroStakingConfigResponse = app
-            .wrap()
-            .query_wasm_smart(
-                astro_staking_contract.clone(),
-                &AstroStakingQueryMsg::Config {},
-            )
-            .unwrap_or(AstroStakingConfigResponse {
-                deposit_token_addr: astro_staking_contract.clone(),
-                share_token_addr: Addr::unchecked(""),
-            });
-        let xastro_contract = astro_staking_config.share_token_addr;
+        // let astro_staking_config: AstroStakingConfigResponse = app
+        //     .wrap()
+        //     .query_wasm_smart(
+        //         astro_staking_contract.clone(),
+        //         &AstroStakingQueryMsg::Config {},
+        //     )
+        //     .unwrap_or(AstroStakingConfigResponse {
+        //         deposit_token_addr: astro_staking_contract.clone(),
+        //         share_token_addr: Addr::unchecked(""),
+        //     });
+        // let xastro_contract = astro_staking_config.share_token_addr;
 
         let astroport_voting_escrow_id = store_astroport_voting_escrow(&mut app);
         let astroport_voting_escrow_address = app
@@ -517,7 +519,7 @@ impl SuiteBuilder {
                 &astroport_governance::voting_escrow::InstantiateMsg {
                     owner: admin.to_string(),
                     guardian_addr: Some("guardian".to_string()),
-                    deposit_token_addr: xastro_contract.to_string(),
+                    deposit_token_addr: String::default(),
                     marketing: None,
                     logo_urls_whitelist: vec![],
                 },
@@ -527,58 +529,58 @@ impl SuiteBuilder {
             )
             .unwrap();
 
-        let astroport_generator_controller_id = store_astroport_generator_controller(&mut app);
-        let astroport_generator_controller_address = app
-            .instantiate_contract(
-                astroport_generator_controller_id,
-                admin.clone(),
-                &astroport_governance::generator_controller::InstantiateMsg {
-                    owner: admin.to_string(),
-                    escrow_addr: astroport_voting_escrow_address.to_string(),
-                    generator_addr: astroport_generator.to_string(),
-                    factory_addr: astroport_factory.to_string(),
-                    pools_limit: 10,
-                    whitelisted_pools: vec![],
-                },
-                &[],
-                "Astroport generator controller",
-                None,
-            )
-            .unwrap();
+        // let astroport_generator_controller_id = store_astroport_generator_controller(&mut app);
+        // let astroport_generator_controller_address = app
+        //     .instantiate_contract(
+        //         astroport_generator_controller_id,
+        //         admin.clone(),
+        //         &astroport_governance::generator_controller::InstantiateMsg {
+        //             owner: admin.to_string(),
+        //             escrow_addr: astroport_voting_escrow_address.to_string(),
+        //             generator_addr: astroport_generator.to_string(),
+        //             factory_addr: astroport_factory.to_string(),
+        //             pools_limit: 10,
+        //             whitelisted_pools: vec![],
+        //         },
+        //         &[],
+        //         "Astroport generator controller",
+        //         None,
+        //     )
+        //     .unwrap();
 
-        let eclipastro_id = store_eclipastro(&mut app);
+        // let eclipastro_id = store_eclipastro(&mut app);
         let converter_id = store_converter(&mut app);
-        let converter_contract = app
-            .instantiate_contract(
-                converter_id,
-                admin.clone(),
-                &ConverterInstantiateMsg {
-                    owner: admin.clone().into_string(),
-                    token_in: astro_contract.clone().into_string(),
-                    xtoken: xastro_contract.clone().into_string(),
-                    treasury: eclipse_treasury.clone().into_string(),
-                    token_code_id: eclipastro_id,
-                    marketing: None,
-                },
-                &[],
-                "converter",
-                Some(admin.clone().to_string()),
-            )
-            .unwrap();
-        let converter_config: ConverterConfig = app
-            .wrap()
-            .query_wasm_smart(converter_contract.clone(), &ConverterQueryMsg::Config {})
-            .unwrap_or(ConverterConfig {
-                token_in: Addr::unchecked(""),
-                token_out: Addr::unchecked(""),
-                xtoken: Addr::unchecked(""),
-                treasury: Addr::unchecked(""),
-                vxtoken_holder: Addr::unchecked(""),
-                stability_pool: Addr::unchecked(""),
-                staking_reward_distributor: Addr::unchecked(""),
-                ce_reward_distributor: Addr::unchecked(""),
-            });
-        let eclipastro_contract = converter_config.token_out;
+        // let converter_contract = app
+        //     .instantiate_contract(
+        //         converter_id,
+        //         admin.clone(),
+        //         &ConverterInstantiateMsg {
+        //             owner: admin.clone().into_string(),
+        //             token_in: astro_contract.clone().into_string(),
+        //             xtoken: xastro_contract.clone().into_string(),
+        //             treasury: eclipse_treasury.clone().into_string(),
+        //             token_code_id: eclipastro_id,
+        //             marketing: None,
+        //         },
+        //         &[],
+        //         "converter",
+        //         Some(admin.clone().to_string()),
+        //     )
+        //     .unwrap();
+        // let converter_config: ConverterConfig = app
+        //     .wrap()
+        //     .query_wasm_smart(converter_contract.clone(), &ConverterQueryMsg::Config {})
+        //     .unwrap_or(ConverterConfig {
+        //         token_in: Addr::unchecked(""),
+        //         token_out: Addr::unchecked(""),
+        //         xtoken: Addr::unchecked(""),
+        //         treasury: Addr::unchecked(""),
+        //         vxtoken_holder: Addr::unchecked(""),
+        //         stability_pool: Addr::unchecked(""),
+        //         staking_reward_distributor: Addr::unchecked(""),
+        //         ce_reward_distributor: Addr::unchecked(""),
+        //     });
+        // let eclipastro_contract = converter_config.token_out;
 
         let flexible_staking_id = store_flexible_staking(&mut app);
         let flexible_staking_contract = app
@@ -587,7 +589,7 @@ impl SuiteBuilder {
                 admin.clone(),
                 &FlexibleStakingInstantiateMsg {
                     owner: admin.clone().into_string(),
-                    token: eclipastro_contract.clone().into_string(),
+                    token: ECLIP_ASTRO.to_string(),
                 },
                 &[],
                 "flexible staking",
@@ -602,7 +604,7 @@ impl SuiteBuilder {
                 admin.clone(),
                 &TimelockStakingInstantiateMsg {
                     owner: admin.clone().into_string(),
-                    token: eclipastro_contract.clone().into_string(),
+                    token: ECLIP_ASTRO.to_string(),
                     timelock_config: Some(self.timelock_config.clone()),
                     dao_treasury_address: Addr::unchecked("dao_treasury_address").to_string(),
                 },
@@ -614,25 +616,25 @@ impl SuiteBuilder {
 
         let reward_distributor_id = store_reward_distributor(&mut app);
         let eclip = "factory/creator/eclip".to_string();
-        let reward_distributor_contract = app
-            .instantiate_contract(
-                reward_distributor_id,
-                admin.clone(),
-                &RewardDistributorInstantiateMsg {
-                    owner: admin.clone().into_string(),
-                    eclipastro: eclipastro_contract.clone().into_string(),
-                    eclip: eclip.clone(),
-                    flexible_staking: flexible_staking_contract.clone().into_string(),
-                    timelock_staking: timelock_staking_contract.clone().into_string(),
-                    token_converter: converter_contract.clone().into_string(),
-                    eclip_daily_reward: self.eclip_daily_reward.clone(),
-                    locking_reward_config: self.locking_reward_config.clone(),
-                },
-                &[],
-                "reward distributor",
-                Some(admin.clone().to_string()),
-            )
-            .unwrap();
+        // let reward_distributor_contract = app
+        //     .instantiate_contract(
+        //         reward_distributor_id,
+        //         admin.clone(),
+        //         &RewardDistributorInstantiateMsg {
+        //             owner: admin.clone().into_string(),
+        //             eclipastro: ECLIP_ASTRO.to_string(),
+        //             eclip: eclip.clone(),
+        //             flexible_staking: flexible_staking_contract.clone().into_string(),
+        //             timelock_staking: timelock_staking_contract.clone().into_string(),
+        //             token_converter: converter_contract.clone().into_string(),
+        //             eclip_daily_reward: self.eclip_daily_reward.clone(),
+        //             locking_reward_config: self.locking_reward_config.clone(),
+        //         },
+        //         &[],
+        //         "reward distributor",
+        //         Some(admin.clone().to_string()),
+        //     )
+        //     .unwrap();
 
         let eclipsepad_staking_id = store_eclipsepad_staking(&mut app);
         let eclipsepad_staking_contract = app
@@ -666,14 +668,13 @@ impl SuiteBuilder {
                 admin.clone(),
                 &VoterInstantiateMsg {
                     owner: admin.clone().into_string(),
-                    base_token: astro_contract.clone().into_string(),
-                    xtoken: xastro_contract.clone().into_string(),
-                    vxtoken: vxastro_contract.clone().into_string(),
+                    astro: ASTRO.to_string(),
+                    xastro: String::default(),
+                    vxastro: vxastro_contract.to_string(),
                     staking_contract: astro_staking_contract.clone().into_string(),
-                    converter_contract: converter_contract.clone().into_string(),
+                    converter_contract: String::default(),
                     astroport_voting_escrow_contract: astroport_voting_escrow_address.to_string(),
-                    astroport_generator_controller: astroport_generator_controller_address
-                        .to_string(),
+                    astroport_generator_controller: String::default(),
                     eclipsepad_staking_contract: eclipsepad_staking_contract.to_string(),
                 },
                 &[],
@@ -682,126 +683,128 @@ impl SuiteBuilder {
             )
             .unwrap();
 
-        let asset_infos = vec![
-            AssetInfo::Token {
-                contract_addr: eclipastro_contract.clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: xastro_contract.clone(),
-            },
-        ];
+        // let asset_infos = vec![
+        //     AssetInfo::Token {
+        //         contract_addr: eclipastro_contract.clone(),
+        //     },
+        //     AssetInfo::Token {
+        //         contract_addr: xastro_contract.clone(),
+        //     },
+        // ];
 
-        let msg = astroport::factory::ExecuteMsg::CreatePair {
-            pair_type: PairType::Xyk {},
-            asset_infos,
-            init_params: None,
-        };
+        // let msg = astroport::factory::ExecuteMsg::CreatePair {
+        //     pair_type: PairType::Xyk {},
+        //     asset_infos,
+        //     init_params: None,
+        // };
 
-        app.execute_contract(admin.clone(), astroport_factory.clone(), &msg, &[])
-            .unwrap();
+        // app.execute_contract(admin.clone(), astroport_factory.clone(), &msg, &[])
+        //     .unwrap();
 
-        let info: PairInfo = app
-            .wrap()
-            .query_wasm_smart(
-                astroport_factory.clone(),
-                &FactoryQueryMsg::Pair {
-                    asset_infos: vec![
-                        AssetInfo::Token {
-                            contract_addr: eclipastro_contract.clone(),
-                        },
-                        AssetInfo::Token {
-                            contract_addr: xastro_contract.clone(),
-                        },
-                    ],
-                },
-            )
-            .unwrap();
-        let eclipastro_xastro_lp_contract = info.contract_addr;
-        let eclipastro_xastro_lp_token_contract = info.liquidity_token;
+        // let info: PairInfo = app
+        //     .wrap()
+        //     .query_wasm_smart(
+        //         astroport_factory.clone(),
+        //         &FactoryQueryMsg::Pair {
+        //             asset_infos: vec![
+        //                 AssetInfo::Token {
+        //                     contract_addr: eclipastro_contract.clone(),
+        //                 },
+        //                 AssetInfo::Token {
+        //                     contract_addr: xastro_contract.clone(),
+        //                 },
+        //             ],
+        //         },
+        //     )
+        //     .unwrap();
+        // let eclipastro_xastro_lp_contract = info.contract_addr;
+        // let eclipastro_xastro_lp_token_contract = info.liquidity_token;
 
         let lp_staking_code_id = store_lp_staking(&mut app);
-        let lp_staking = app
-            .instantiate_contract(
-                lp_staking_code_id,
-                admin.clone(),
-                &LpStakingInstantiateMsg {
-                    owner: admin.clone().to_string(),
-                    lp_token: eclipastro_xastro_lp_token_contract.to_string(),
-                    lp_contract: eclipastro_xastro_lp_contract.to_string(),
-                    eclip: eclip.clone(),
-                    astro: astro_contract.to_string(),
-                    xastro: xastro_contract.to_string(),
-                    astro_staking: astro_staking_contract.to_string(),
-                    converter: converter_contract.to_string(),
-                    eclip_daily_reward: self.lp_staking_eclip_daily_reward,
-                    astroport_generator: astroport_generator.to_string(),
-                    treasury: eclipse_treasury.to_string(),
-                    stability_pool: eclipse_stability_pool.to_string(),
-                    ce_reward_distributor: Some(ce_reward_distributor.to_string()),
-                },
-                &[],
-                "Eclipsefi lp staking",
-                None,
-            )
-            .unwrap();
+        // let lp_staking = app
+        //     .instantiate_contract(
+        //         lp_staking_code_id,
+        //         admin.clone(),
+        //         &LpStakingInstantiateMsg {
+        //             owner: admin.clone().to_string(),
+        //             lp_token: eclipastro_xastro_lp_token_contract.to_string(),
+        //             lp_contract: eclipastro_xastro_lp_contract.to_string(),
+        //             eclip: eclip.clone(),
+        //             astro: astro_contract.to_string(),
+        //             xastro: xastro_contract.to_string(),
+        //             astro_staking: astro_staking_contract.to_string(),
+        //             converter: converter_contract.to_string(),
+        //             eclip_daily_reward: self.lp_staking_eclip_daily_reward,
+        //             astroport_generator: astroport_generator.to_string(),
+        //             treasury: eclipse_treasury.to_string(),
+        //             stability_pool: eclipse_stability_pool.to_string(),
+        //             ce_reward_distributor: Some(ce_reward_distributor.to_string()),
+        //         },
+        //         &[],
+        //         "Eclipsefi lp staking",
+        //         None,
+        //     )
+        //     .unwrap();
 
         let lockdrop_code_id = store_lockdrop(&mut app);
         let init_timestamp = match self.lockdrop_init_timestamp {
             0u64 => app.block_info().time.seconds() + 86400,
             _ => self.lockdrop_init_timestamp,
         };
-        let lockdrop = app
-            .instantiate_contract(
-                lockdrop_code_id,
-                admin.clone(),
-                &LockdropInstantiateMsg {
-                    init_timestamp: init_timestamp,
-                    deposit_window: self.lockdrop_deposit_window,
-                    withdrawal_window: self.lockdrop_withdraw_window,
-                    lock_configs: self.lock_configs,
-                    astro_token: astro_contract.to_string(),
-                    xastro_token: xastro_contract.to_string(),
-                    eclipastro_token: eclipastro_contract.to_string(),
-                    astro_staking: astro_staking_contract.to_string(),
-                    converter: converter_contract.to_string(),
-                    liquidity_pool: eclipastro_xastro_lp_contract.to_string(),
-                    owner: None,
-                    eclip: eclip.clone(),
-                    dao_treasury_address: Addr::unchecked("dao_treasury_address").to_string(),
-                },
-                &[],
-                "Eclipsefi lockdrop",
-                None,
-            )
-            .unwrap();
+        // let lockdrop = app
+        //     .instantiate_contract(
+        //         lockdrop_code_id,
+        //         admin.clone(),
+        //         &LockdropInstantiateMsg {
+        //             init_timestamp: init_timestamp,
+        //             deposit_window: self.lockdrop_deposit_window,
+        //             withdrawal_window: self.lockdrop_withdraw_window,
+        //             lock_configs: self.lock_configs,
+        //             astro_token: astro_contract.to_string(),
+        //             xastro_token: xastro_contract.to_string(),
+        //             eclipastro_token: eclipastro_contract.to_string(),
+        //             astro_staking: astro_staking_contract.to_string(),
+        //             converter: converter_contract.to_string(),
+        //             liquidity_pool: eclipastro_xastro_lp_contract.to_string(),
+        //             owner: None,
+        //             eclip: eclip.clone(),
+        //             dao_treasury_address: Addr::unchecked("dao_treasury_address").to_string(),
+        //         },
+        //         &[],
+        //         "Eclipsefi lockdrop",
+        //         None,
+        //     )
+        //     .unwrap();
 
         Suite {
             app,
             admin,
-            astro_contract,
+            astro_denom: ASTRO.to_string(),
             astro_staking_contract,
             astroport_voting_escrow: astroport_voting_escrow_address,
-            astroport_generator_controller: astroport_generator_controller_address,
-            xastro_contract,
+            astroport_generator_controller: Addr::unchecked("default"),
+            xastro_denom: String::default(),
             vxastro_contract,
             astroport_factory,
             astroport_vesting,
             astroport_generator,
-            eclipastro_contract,
-            converter_contract,
+            eclipastro_denom: ECLIP_ASTRO.to_string(),
+            converter_contract: Addr::unchecked("default"),
             flexible_staking_contract,
             timelock_staking_contract,
-            reward_distributor_contract,
+            reward_distributor_contract: Addr::unchecked("default"),
             eclipsepad_staking: eclipsepad_staking_contract,
             voter_contract,
             eclipse_stability_pool,
             ce_reward_distributor,
             eclipse_treasury,
             eclip,
-            eclipastro_xastro_lp_contract,
-            eclipastro_xastro_lp_token_contract,
-            lp_staking,
-            lockdrop,
+            eclipastro_xastro_lp_contract: Addr::unchecked("default"),
+            eclipastro_xastro_lp_token_contract: Addr::unchecked("default"),
+            lp_staking: Addr::unchecked("default"),
+            lockdrop: Addr::unchecked("default"),
+
+            minter_contract,
         }
     }
 }
@@ -809,16 +812,16 @@ impl SuiteBuilder {
 pub struct Suite {
     app: App,
     admin: Addr,
-    astro_contract: Addr,
+    astro_denom: String,
     astro_staking_contract: Addr,
     astroport_voting_escrow: Addr,
     astroport_generator_controller: Addr,
-    xastro_contract: Addr,
+    xastro_denom: String,
     vxastro_contract: Addr,
     astroport_factory: Addr,
     astroport_vesting: Addr,
     astroport_generator: Addr,
-    eclipastro_contract: Addr,
+    eclipastro_denom: String,
     converter_contract: Addr,
     flexible_staking_contract: Addr,
     timelock_staking_contract: Addr,
@@ -833,14 +836,16 @@ pub struct Suite {
     eclipastro_xastro_lp_token_contract: Addr,
     lp_staking: Addr,
     lockdrop: Addr,
+
+    minter_contract: Addr,
 }
 
 impl Suite {
     pub fn admin(&self) -> String {
         self.admin.to_string()
     }
-    pub fn astro_contract(&self) -> String {
-        self.astro_contract.to_string()
+    pub fn astro_denom(&self) -> String {
+        self.astro_denom.to_string()
     }
     pub fn astro_staking_contract(&self) -> String {
         self.astro_staking_contract.to_string()
@@ -851,8 +856,8 @@ impl Suite {
     pub fn astroport_generator_controller_contract(&self) -> String {
         self.astroport_generator_controller.to_string()
     }
-    pub fn xastro_contract(&self) -> String {
-        self.xastro_contract.to_string()
+    pub fn xastro_denom(&self) -> String {
+        self.xastro_denom.to_string()
     }
     pub fn vxastro_contract(&self) -> String {
         self.vxastro_contract.to_string()
@@ -866,8 +871,8 @@ impl Suite {
     pub fn astroport_generator_contract(&self) -> String {
         self.astroport_generator.to_string()
     }
-    pub fn eclipastro_contract(&self) -> String {
-        self.eclipastro_contract.to_string()
+    pub fn eclipastro_denom(&self) -> String {
+        self.eclipastro_denom.to_string()
     }
     pub fn converter_contract(&self) -> String {
         self.converter_contract.to_string()
@@ -910,6 +915,9 @@ impl Suite {
     }
     pub fn lockdrop(&self) -> String {
         self.lockdrop.to_string()
+    }
+    pub fn minter_contract(&self) -> Addr {
+        self.minter_contract.clone()
     }
 
     // update block's time to simulate passage of time
@@ -1006,71 +1014,71 @@ impl Suite {
             .unwrap();
     }
 
-    // xASTRO staking contract
-    pub fn stake_astro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.astro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.astro_staking_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&AstroStakingCw20HookMsg::Enter {})?,
-            },
-            &[],
-        )
-    }
+    // // xASTRO staking contract
+    // pub fn stake_astro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+    //     self.app.execute_contract(
+    //         Addr::unchecked(sender),
+    //         self.astro_contract.clone(),
+    //         &Cw20ExecuteMsg::Send {
+    //             contract: self.astro_staking_contract(),
+    //             amount: Uint128::from(amount),
+    //             msg: to_json_binary(&AstroStakingCw20HookMsg::Enter {})?,
+    //         },
+    //         &[],
+    //     )
+    // }
 
-    pub fn send_astro(
-        &mut self,
-        sender: &str,
-        recipient: &str,
-        amount: u128,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.astro_contract.clone(),
-            &Cw20ExecuteMsg::Transfer {
-                recipient: recipient.to_string(),
-                amount: Uint128::from(amount),
-            },
-            &[],
-        )
-    }
+    // pub fn send_astro(
+    //     &mut self,
+    //     sender: &str,
+    //     recipient: &str,
+    //     amount: u128,
+    // ) -> AnyResult<AppResponse> {
+    //     self.app.execute_contract(
+    //         Addr::unchecked(sender),
+    //         self.astro_contract.clone(),
+    //         &Cw20ExecuteMsg::Transfer {
+    //             recipient: recipient.to_string(),
+    //             amount: Uint128::from(amount),
+    //         },
+    //         &[],
+    //     )
+    // }
 
-    // query astro token amount
-    pub fn query_astro_balance(&self, address: &str) -> StdResult<u128> {
-        let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
-            self.astro_contract.clone(),
-            &Cw20QueryMsg::Balance {
-                address: address.to_owned(),
-            },
-        )?;
-        Ok(balance.balance.u128())
-    }
+    // // query astro token amount
+    // pub fn query_astro_balance(&self, address: &str) -> StdResult<u128> {
+    //     let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
+    //         self.astro_contract.clone(),
+    //         &Cw20QueryMsg::Balance {
+    //             address: address.to_owned(),
+    //         },
+    //     )?;
+    //     Ok(balance.balance.u128())
+    // }
 
-    // query xastro token amount
-    pub fn query_xastro_balance(&self, address: &str) -> StdResult<u128> {
-        let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
-            self.xastro_contract.clone(),
-            &Cw20QueryMsg::Balance {
-                address: address.to_owned(),
-            },
-        )?;
-        Ok(balance.balance.u128())
-    }
+    // // query xastro token amount
+    // pub fn query_xastro_balance(&self, address: &str) -> StdResult<u128> {
+    //     let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
+    //         self.xastro_contract.clone(),
+    //         &Cw20QueryMsg::Balance {
+    //             address: address.to_owned(),
+    //         },
+    //     )?;
+    //     Ok(balance.balance.u128())
+    // }
 
     // query astro staking total deposit
     pub fn query_astro_staking_total_deposit(&self) -> StdResult<u128> {
         self.app.wrap().query_wasm_smart(
             self.astro_staking_contract.clone(),
-            &AstroStakingQueryMsg::TotalDeposit {},
+            &astroport::staking::QueryMsg::TotalDeposit {},
         )
     }
     // query astro staking total shares
     pub fn query_astro_staking_total_shares(&self) -> StdResult<u128> {
         self.app.wrap().query_wasm_smart(
             self.astro_staking_contract.clone(),
-            &AstroStakingQueryMsg::TotalShares {},
+            &astroport::staking::QueryMsg::TotalShares {},
         )
     }
 
@@ -1201,6 +1209,7 @@ impl Suite {
             slippage_tolerance,
             auto_stake: None,
             receiver,
+            min_lp_to_receive: None,
         };
 
         self.app
@@ -1239,25 +1248,25 @@ impl Suite {
         )
     }
 
-    pub fn register_vesting_accounts(
-        &mut self,
-        sender: &str,
-        vesting_accounts: Vec<VestingAccount>,
-        amount: u128,
-    ) -> AnyResult<AppResponse> {
-        let msg = Cw20ExecuteMsg::Send {
-            contract: self.astroport_vesting.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_json_binary(&VestingCw20HookMsg::RegisterVestingAccounts { vesting_accounts })?,
-        };
+    // pub fn register_vesting_accounts(
+    //     &mut self,
+    //     sender: &str,
+    //     vesting_accounts: Vec<VestingAccount>,
+    //     amount: u128,
+    // ) -> AnyResult<AppResponse> {
+    //     let msg = Cw20ExecuteMsg::Send {
+    //         contract: self.astroport_vesting.to_string(),
+    //         amount: Uint128::from(amount),
+    //         msg: to_json_binary(&VestingCw20HookMsg::RegisterVestingAccounts { vesting_accounts })?,
+    //     };
 
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.astro_contract.clone(),
-            &msg,
-            &[],
-        )
-    }
+    //     self.app.execute_contract(
+    //         Addr::unchecked(sender),
+    //         self.astro_contract.clone(),
+    //         &msg,
+    //         &[],
+    //     )
+    // }
 
     pub fn query_pair_info(&self, asset_infos: Vec<AssetInfo>) -> StdResult<PairInfo> {
         let info: PairInfo = self.app.wrap().query_wasm_smart(
@@ -1310,31 +1319,31 @@ impl Suite {
         Ok(res)
     }
 
-    // convert ASTRO to eclipASTRO in Convert contract
-    pub fn convert_astro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.astro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.converter_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&ConverterCw20HookMsg::Convert {})?,
-            },
-            &[],
-        )
-    }
-    pub fn convert_xastro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.xastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.converter_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&ConverterCw20HookMsg::Convert {})?,
-            },
-            &[],
-        )
-    }
+    // // convert ASTRO to eclipASTRO in Convert contract
+    // pub fn convert_astro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+    //     self.app.execute_contract(
+    //         Addr::unchecked(sender),
+    //         self.astro_contract.clone(),
+    //         &Cw20ExecuteMsg::Send {
+    //             contract: self.converter_contract(),
+    //             amount: Uint128::from(amount),
+    //             msg: to_json_binary(&ConverterCw20HookMsg::Convert {})?,
+    //         },
+    //         &[],
+    //     )
+    // }
+    // pub fn convert_xastro(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+    //     self.app.execute_contract(
+    //         Addr::unchecked(sender),
+    //         self.xastro_contract.clone(),
+    //         &Cw20ExecuteMsg::Send {
+    //             contract: self.converter_contract(),
+    //             amount: Uint128::from(amount),
+    //             msg: to_json_binary(&ConverterCw20HookMsg::Convert {})?,
+    //         },
+    //         &[],
+    //     )
+    // }
 
     pub fn update_converter_config(&mut self, config: ConverterUpdateConfig) {
         self.app
@@ -1407,16 +1416,16 @@ impl Suite {
         )
     }
 
-    // query eclipastro token amount
-    pub fn query_eclipastro_balance(&self, address: &str) -> StdResult<u128> {
-        let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
-            self.eclipastro_contract.clone(),
-            &Cw20QueryMsg::Balance {
-                address: address.to_owned(),
-            },
-        )?;
-        Ok(balance.balance.u128())
-    }
+    // // query eclipastro token amount
+    // pub fn query_eclipastro_balance(&self, address: &str) -> StdResult<u128> {
+    //     let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
+    //         self.eclipastro_contract.clone(),
+    //         &Cw20QueryMsg::Balance {
+    //             address: address.to_owned(),
+    //         },
+    //     )?;
+    //     Ok(balance.balance.u128())
+    // }
 
     // query config of converter
     pub fn query_converter_config(&self) -> StdResult<ConverterConfig> {
@@ -1517,17 +1526,13 @@ impl Suite {
         &mut self,
         sender: &str,
         amount: u128,
-        token: &Addr,
+        denom: &str,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            token.to_owned(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.voter_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&VoterCw20HookMsg::SwapToEclipAstro {})?,
-            },
-            &[],
+            self.voter_contract.clone(),
+            &VoterExecuteMsg::SwapToEclipAstro {},
+            &coins(amount, denom),
         )
     }
 
@@ -1550,19 +1555,6 @@ impl Suite {
             self.voter_contract.clone(),
             &VoterExecuteMsg::UpdateOwner {
                 owner: Addr::unchecked(new_owner).into_string(),
-            },
-            &[],
-        )
-    }
-
-    pub fn voter_stake(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.astro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.voter_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&VoterCw20HookMsg::Stake {})?,
             },
             &[],
         )
@@ -1707,18 +1699,18 @@ impl Suite {
         )
     }
 
-    pub fn flexible_stake(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.eclipastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.flexible_staking_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&FlexibleStakingCw20HookMsg::Stake {})?,
-            },
-            &[],
-        )
-    }
+    // pub fn flexible_stake(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+    //     self.app.execute_contract(
+    //         Addr::unchecked(sender),
+    //         self.eclipastro_contract.clone(),
+    //         &Cw20ExecuteMsg::Send {
+    //             contract: self.flexible_staking_contract(),
+    //             amount: Uint128::from(amount),
+    //             msg: to_json_binary(&FlexibleStakingCw20HookMsg::Stake {})?,
+    //         },
+    //         &[],
+    //     )
+    // }
 
     pub fn flexible_relock(
         &mut self,
@@ -1739,29 +1731,29 @@ impl Suite {
         )
     }
 
-    pub fn flexible_relock_with_deposit(
-        &mut self,
-        sender: &str,
-        stake_amount: u128,
-        duration: u64,
-        amount: Option<Uint128>,
-        recipient: Option<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.eclipastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.flexible_staking_contract(),
-                amount: Uint128::from(stake_amount),
-                msg: to_json_binary(&FlexibleStakingCw20HookMsg::Relock {
-                    duration,
-                    amount,
-                    recipient,
-                })?,
-            },
-            &[],
-        )
-    }
+    // pub fn flexible_relock_with_deposit(
+    //     &mut self,
+    //     sender: &str,
+    //     stake_amount: u128,
+    //     duration: u64,
+    //     amount: Option<Uint128>,
+    //     recipient: Option<String>,
+    // ) -> AnyResult<AppResponse> {
+    //     self.app.execute_contract(
+    //         Addr::unchecked(sender),
+    //         self.eclipastro_contract.clone(),
+    //         &Cw20ExecuteMsg::Send {
+    //             contract: self.flexible_staking_contract(),
+    //             amount: Uint128::from(stake_amount),
+    //             msg: to_json_binary(&FlexibleStakingCw20HookMsg::Relock {
+    //                 duration,
+    //                 amount,
+    //                 recipient,
+    //             })?,
+    //         },
+    //         &[],
+    //     )
+    // }
 
     pub fn flexible_claim(&mut self, sender: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
@@ -1894,27 +1886,27 @@ impl Suite {
         )
     }
 
-    pub fn timelock_stake(
-        &mut self,
-        sender: &str,
-        amount: u128,
-        duration: u64,
-        recipient: Option<String>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.eclipastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.timelock_staking_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&TimelockCw20HookMsg::Lock {
-                    duration,
-                    recipient,
-                })?,
-            },
-            &[],
-        )
-    }
+    // pub fn timelock_stake(
+    //     &mut self,
+    //     sender: &str,
+    //     amount: u128,
+    //     duration: u64,
+    //     recipient: Option<String>,
+    // ) -> AnyResult<AppResponse> {
+    //     self.app.execute_contract(
+    //         Addr::unchecked(sender),
+    //         self.eclipastro_contract.clone(),
+    //         &Cw20ExecuteMsg::Send {
+    //             contract: self.timelock_staking_contract(),
+    //             amount: Uint128::from(amount),
+    //             msg: to_json_binary(&TimelockCw20HookMsg::Lock {
+    //                 duration,
+    //                 recipient,
+    //             })?,
+    //         },
+    //         &[],
+    //     )
+    // }
 
     pub fn timelock_unstake(
         &mut self,
@@ -1985,32 +1977,32 @@ impl Suite {
         )
     }
 
-    pub fn timelock_restake_with_deposit(
-        &mut self,
-        sender: &str,
-        from_duration: u64,
-        locked_at: u64,
-        to_duration: u64,
-        stake_amount: u128,
-        recipient: Option<String>,
-        amount: Option<Uint128>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.eclipastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.timelock_staking_contract(),
-                amount: Uint128::from(stake_amount),
-                msg: to_json_binary(&TimelockStakingExecuteMsg::Relock {
-                    from_duration,
-                    to_duration,
-                    relocks: vec![(locked_at, amount)],
-                    recipient,
-                })?,
-            },
-            &[],
-        )
-    }
+    // pub fn timelock_restake_with_deposit(
+    //     &mut self,
+    //     sender: &str,
+    //     from_duration: u64,
+    //     locked_at: u64,
+    //     to_duration: u64,
+    //     stake_amount: u128,
+    //     recipient: Option<String>,
+    //     amount: Option<Uint128>,
+    // ) -> AnyResult<AppResponse> {
+    //     self.app.execute_contract(
+    //         Addr::unchecked(sender),
+    //         self.eclipastro_contract.clone(),
+    //         &Cw20ExecuteMsg::Send {
+    //             contract: self.timelock_staking_contract(),
+    //             amount: Uint128::from(stake_amount),
+    //             msg: to_json_binary(&TimelockStakingExecuteMsg::Relock {
+    //                 from_duration,
+    //                 to_duration,
+    //                 relocks: vec![(locked_at, amount)],
+    //                 recipient,
+    //             })?,
+    //         },
+    //         &[],
+    //     )
+    // }
 
     pub fn query_timelock_stake_config(&self) -> StdResult<TimelockStakingConfig> {
         let config: TimelockStakingConfig = self.app.wrap().query_wasm_smart(
@@ -2427,24 +2419,24 @@ impl Suite {
         )
     }
 
-    pub fn single_lockup_relock_with_deposit(
-        &mut self,
-        sender: &str,
-        from: u64,
-        to: u64,
-        amount: u128,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.eclipastro_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.lockdrop.to_string(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&LockdropCw20HookMsg::Relock { from, to })?,
-            },
-            &[],
-        )
-    }
+    // pub fn single_lockup_relock_with_deposit(
+    //     &mut self,
+    //     sender: &str,
+    //     from: u64,
+    //     to: u64,
+    //     amount: u128,
+    // ) -> AnyResult<AppResponse> {
+    //     self.app.execute_contract(
+    //         Addr::unchecked(sender),
+    //         self.eclipastro_contract.clone(),
+    //         &Cw20ExecuteMsg::Send {
+    //             contract: self.lockdrop.to_string(),
+    //             amount: Uint128::from(amount),
+    //             msg: to_json_binary(&LockdropCw20HookMsg::Relock { from, to })?,
+    //         },
+    //         &[],
+    //     )
+    // }
 
     pub fn query_lockdrop_config(&self) -> StdResult<LockdropConfig> {
         let res: LockdropConfig = self
@@ -2527,5 +2519,55 @@ impl Suite {
             },
         )?;
         Ok(penalty.u128())
+    }
+
+    pub fn minter_try_mint(
+        &mut self,
+        sender: &str,
+        denom: &str,
+        amount: u128,
+        mint_to_address: impl ToString,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.minter_contract.clone(),
+            &eclipse_base::minter::msg::ExecuteMsg::Mint {
+                token: TokenUnverified::new_native(denom),
+                amount: Uint128::new(amount),
+                recipient: mint_to_address.to_string(),
+            },
+            &[],
+        )
+    }
+
+    pub fn minter_try_burn(
+        &mut self,
+        sender: &str,
+        denom: &str,
+        amount: u128,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.minter_contract.clone(),
+            &eclipse_base::minter::msg::ExecuteMsg::Burn {},
+            &[coin(amount, denom.to_string())],
+        )
+    }
+
+    pub fn minter_try_register_denom(
+        &mut self,
+        sender: &str,
+        denom: &str,
+        creator: &str,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.minter_contract.clone(),
+            &eclipse_base::minter::msg::ExecuteMsg::RegisterCurrency {
+                currency: Currency::new(&TokenUnverified::new_native(denom), 6),
+                creator: creator.to_string(),
+            },
+            &[],
+        )
     }
 }

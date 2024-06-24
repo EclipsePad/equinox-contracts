@@ -1,9 +1,9 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, from_json, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo,
-    Reply, Response, StdResult,
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
+    Response, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
-use equinox_msg::voter::{Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use equinox_msg::voter::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use semver::Version;
 
 use crate::{
@@ -21,8 +21,7 @@ use crate::{
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub const STAKE_TOKEN_REPLY_ID: u64 = 1;
-pub const STAKE_ASTRO_REPLY_ID: u64 = 2;
+pub const STAKE_ASTRO_REPLY_ID: u64 = 1;
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -44,25 +43,11 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Receive(cw20::Cw20ReceiveMsg {
-            sender,
-            amount,
-            msg,
-        }) => match from_json(msg)? {
-            Cw20HookMsg::Stake {} => e::try_stake(deps, env, info, sender, amount),
-
-            Cw20HookMsg::SwapToEclipAstro {} => {
-                e::try_swap_to_eclip_astro(deps, env, info, sender, amount)
-            }
-        },
-
         ExecuteMsg::UpdateConfig { config } => e::update_config(deps, env, info, config),
         ExecuteMsg::UpdateOwner { owner } => e::update_owner(deps, env, info, owner),
-        ExecuteMsg::Withdraw { amount, recipient } => {
-            e::withdraw(deps, env, info, amount, recipient)
-        }
         ExecuteMsg::WithdrawBribeRewards {} => e::withdraw_bribe_rewards(deps, env, info),
 
+        ExecuteMsg::SwapToEclipAstro {} => e::try_swap_to_eclip_astro(deps, env, info),
         ExecuteMsg::Vote { voting_list } => e::try_vote(deps, env, info, voting_list),
         ExecuteMsg::CaptureEssence {
             user_and_essence_list,
@@ -112,7 +97,6 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, Contract
     let Reply { id, result } = reply;
 
     match id {
-        STAKE_TOKEN_REPLY_ID => e::handle_stake_reply(deps, env, &result),
         STAKE_ASTRO_REPLY_ID => e::handle_stake_astro_reply(deps, env, &result),
         _ => Err(ContractError::UnknownReplyId(id)),
     }

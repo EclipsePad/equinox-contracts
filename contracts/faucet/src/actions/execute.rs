@@ -1,4 +1,3 @@
-use astroport::staking::Cw20HookMsg;
 use cosmwasm_std::{
     to_json_binary, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg,
 };
@@ -72,15 +71,15 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
             })?,
             funds: vec![],
         }));
-        msg_list.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.astro.to_string(),
-            msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                contract: cfg.astro_staking.to_string(),
-                amount: Uint128::from(1_000_000_000_000u128),
-                msg: to_json_binary(&Cw20HookMsg::Enter {})?,
-            })?,
-            funds: vec![],
-        }));
+        // msg_list.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: cfg.astro.to_string(),
+        //     msg: to_json_binary(&Cw20ExecuteMsg::Send {
+        //         contract: cfg.astro_staking.to_string(),
+        //         amount: Uint128::from(1_000_000_000_000u128),
+        //         msg: to_json_binary(&Cw20HookMsg::Enter {})?,
+        //     })?,
+        //     funds: vec![],
+        // }));
     }
 
     msg_list.push(CosmosMsg::Wasm(WasmMsg::Execute {

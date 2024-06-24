@@ -1,5 +1,5 @@
 use astroport::{asset::PairInfo, pair::QueryMsg as AstroportPairQueryMsg};
-use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response, Uint128};
+use cosmwasm_std::{ensure, Addr, DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
 use equinox_msg::lockdrop::{
     Config, InstantiateMsg, LockConfig, LpLockupState, RewardDistributionConfig, SingleLockupState,
@@ -41,7 +41,7 @@ pub fn try_instantiate(
         lp_staking: None,
         reward_distributor: None,
         liquidity_pool: deps.api.addr_validate(&msg.liquidity_pool)?,
-        lp_token: pool_info.liquidity_token,
+        lp_token: Addr::unchecked(pool_info.liquidity_token),
         dao_treasury_address: deps.api.addr_validate(&msg.dao_treasury_address)?,
         lock_configs: msg.lock_configs.unwrap_or(vec![
             LockConfig {
