@@ -12,3 +12,11 @@ pub mod suite;
 // pub mod token_converter;
 #[cfg(test)]
 pub mod voter;
+
+pub mod common {
+    pub mod contracts;
+    pub mod helper;
+    pub mod ibc_module;
+    pub mod neutron_module;
+    pub mod stargate;
+}

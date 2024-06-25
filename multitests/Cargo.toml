@@ -15,14 +15,18 @@ backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all init/handle/query exports
 library = []
 
-[dev-dependencies]
+[dependencies]
 anyhow                  = { workspace = true }
 cosmwasm-std            = { workspace = true }
+cosmwasm-schema         = { workspace = true }
 cw-controllers          = { workspace = true }
 cw-multi-test           = { workspace = true }
 cw20                    = { workspace = true }
 cw20-base               = { workspace = true }
 itertools = "0.11"
+neutron-sdk = { workspace = true }
+osmosis-std = { workspace = true }
+derivative = { workspace = true }
 
 equinox-msg             = { workspace = true }
 eclipse-base            = { workspace = true }
@@ -48,6 +52,7 @@ astroport-xastro-token  = { workspace = true }
 astroport               = { workspace = true }
 astroport-governance    = { workspace = true }
 
+astro-assembly = { workspace = true }
 astroport-voting-escrow = { workspace = true }
 astroport-emissions-controller = { workspace = true }
 eclipsepad-staking = { workspace = true }

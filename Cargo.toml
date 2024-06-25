@@ -22,13 +22,18 @@ cw2                     = "1.1.0"
 cw20                    = "1.1.0"
 cw20-base               = { version = "1.1.0", features = ["library"] }
 cw-controllers          = "1.0.1"
-cw-multi-test           = "0.16"
+# cw-multi-test           = "0.16"
+cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks_1_0", features = ["cosmwasm_1_1"] }
 cw-storage-plus         = "1.0.1"
 cw-utils                = "1.0.1"
 schemars                = "0.8.1"
 semver                  = "1.0.20"
 serde                   = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror               = "1.0.23"
+neutron-sdk = "0.10.0"
+osmosis-std = "0.21.0"
+derivative = "2.2"
+
 
 equinox-msg             = { path = "./packages/equinox_msg" }
 eclipse-base            = { path = "./packages/eclipse-base" }
@@ -60,7 +65,8 @@ astroport = "=5.1.0-vxastro-rc.1"
 astroport-generator     = { git = "https://github.com/astroport-fi/astroport-core.git" }
 astroport-whitelist     = { git = "https://github.com/astroport-fi/astroport-core.git" }
 # astroport-pair-stable   = { git = "https://github.com/astroport-fi/astroport-core.git", version = "3.4.0" }
-astroport-governance    = { git = "https://github.com/astroport-fi/astroport-governance.git" }
+# astroport-governance    = { git = "https://github.com/astroport-fi/astroport-governance.git" }
+astroport-governance = "3.0.0"
 
 # updated astroport contracts for integration testing
 astroport-voting-escrow = "1.0.0-rc.1"
