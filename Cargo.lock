@@ -1997,6 +1997,7 @@ dependencies = [
  "astroport-vesting",
  "astroport-voting-escrow",
  "astroport-xastro-token",
+ "builder-unlock",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-controllers",

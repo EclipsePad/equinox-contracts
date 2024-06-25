@@ -57,3 +57,4 @@ astroport-emissions-controller = { workspace = true }
 eclipsepad-staking = { workspace = true }
 # astroport-escrow-fee-distributor = { workspace = true }
 astroport-tokenfactory-tracker = { workspace = true }
+builder-unlock = { workspace = true }

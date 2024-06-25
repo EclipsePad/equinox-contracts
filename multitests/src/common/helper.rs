@@ -124,6 +124,7 @@ impl ControllerHelper {
                     owner: owner.to_string(),
                     whitelist_code_id: 0,
                     coin_registry_address: app.api().addr_make("coin_registry").to_string(),
+                    tracker_config: None,
                 },
                 &[],
                 "label",
@@ -420,7 +421,7 @@ impl ControllerHelper {
         )
     }
 
-    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> Addr {
+    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> String {
         let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
         self.app
             .execute_contract(
