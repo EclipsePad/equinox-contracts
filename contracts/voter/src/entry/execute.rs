@@ -11,7 +11,7 @@ use eclipse_base::{
     converters::u128_to_dec,
     utils::{check_funds, unwrap_field, FundsType},
 };
-use equinox_msg::voter::{Config, UpdateConfig, VotingListItem, MAX_ESCROW_VOTING_LOCK_PERIOD};
+use equinox_msg::voter::{VotingListItem, MAX_ESCROW_VOTING_LOCK_PERIOD};
 
 use crate::{
     contract::STAKE_ASTRO_REPLY_ID,

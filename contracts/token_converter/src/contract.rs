@@ -13,10 +13,7 @@ use crate::{
             update_config, update_owner, update_reward_config, withdraw_xtoken,
         },
         instantiate::{handle_instantiate_reply, try_instantiate},
-        query::{
-            query_config, query_owner, query_reward_config, query_rewards,
-            query_withdrawable_balance,
-        },
+        query::{query_config, query_owner, query_reward_config, query_withdrawable_balance},
     },
     error::ContractError,
     state::{CONTRACT_NAME, CONTRACT_VERSION},
@@ -69,7 +66,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
         QueryMsg::RewardConfig {} => Ok(to_json_binary(&query_reward_config(deps, env)?)?),
-        QueryMsg::Rewards {} => Ok(to_json_binary(&query_rewards(deps, env)?)?),
+        QueryMsg::Rewards {} => unimplemented!(),
         QueryMsg::WithdrawableBalance {} => {
             Ok(to_json_binary(&query_withdrawable_balance(deps, env)?)?)
         }
