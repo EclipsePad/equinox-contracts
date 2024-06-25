@@ -1,0 +1,33 @@
+[package]
+name = "astroport-staking"
+version = "2.1.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "Astroport Staking Contract"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
+
+exclude = [
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }
+cw-storage-plus.workspace = true
+thiserror.workspace = true
+cw2.workspace = true
+astroport = "4"
+cw-utils.workspace = true
+osmosis-std.workspace = true

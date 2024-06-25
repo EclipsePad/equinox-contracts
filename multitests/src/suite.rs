@@ -10,6 +10,7 @@ use astroport::{
     },
     vesting::{self, Cw20HookMsg as VestingCw20HookMsg, VestingAccount},
 };
+use astroport_governance::voting_escrow::UpdateMarketingInfo;
 // use astroport_governance::voting_escrow::{
 //     Cw20HookMsg as AstroportVotingEscrowCw20HookMsg, ExecuteMsg as AstroportVotingEscrowExecuteMsg,
 //     QueryMsg as AstroportVotingEscrowQueryMsg,
@@ -371,12 +372,12 @@ impl SuiteBuilder {
     pub fn build(self) -> Suite {
         let mut app: App = App::default();
 
-        // set time
-        app.update_block(|x| {
-            x.time = x
-                .time
-                .plus_seconds(astroport_governance::utils::EPOCH_START);
-        });
+        // // set time
+        // app.update_block(|x| {
+        //     x.time = x
+        //         .time
+        //         .plus_seconds(astroport_governance::utils::EPOCH_START);
+        // });
 
         let admin = Addr::unchecked("admin");
         let eclipse_treasury = Addr::unchecked("eclipse_treasury");
@@ -517,11 +518,14 @@ impl SuiteBuilder {
                 astroport_voting_escrow_id,
                 admin.clone(),
                 &astroport_governance::voting_escrow::InstantiateMsg {
-                    owner: admin.to_string(),
-                    guardian_addr: Some("guardian".to_string()),
-                    deposit_token_addr: String::default(),
-                    marketing: None,
-                    logo_urls_whitelist: vec![],
+                    deposit_denom: String::default(),
+                    marketing: UpdateMarketingInfo {
+                        description: None,
+                        project: None,
+                        marketing: None,
+                        logo: cw20::Logo::Url(String::default()),
+                    },
+                    emissions_controller: String::default(),
                 },
                 &[],
                 "Astroport voting escrow",
@@ -1163,23 +1167,23 @@ impl Suite {
         )
     }
 
-    pub fn astroport_generator_controller_update_whitelist(
-        &mut self,
-        sender: &str,
-        lp_token_list: &[String],
-    ) -> AnyResult<AppResponse> {
-        let msg = astroport_governance::generator_controller::ExecuteMsg::UpdateWhitelist {
-            add: Some(lp_token_list.to_owned()),
-            remove: None,
-        };
+    // pub fn astroport_generator_controller_update_whitelist(
+    //     &mut self,
+    //     sender: &str,
+    //     lp_token_list: &[String],
+    // ) -> AnyResult<AppResponse> {
+    //     let msg = astroport_governance::generator_controller::ExecuteMsg::UpdateWhitelist {
+    //         add: Some(lp_token_list.to_owned()),
+    //         remove: None,
+    //     };
 
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.astroport_generator_controller.clone(),
-            &msg,
-            &[],
-        )
-    }
+    //     self.app.execute_contract(
+    //         Addr::unchecked(sender),
+    //         self.astroport_generator_controller.clone(),
+    //         &msg,
+    //         &[],
+    //     )
+    // }
 
     pub fn provide_liquidity(
         &mut self,
@@ -1599,26 +1603,26 @@ impl Suite {
         Ok(owner.into_string())
     }
 
-    pub fn voter_query_voting_power(&self, address: &str) -> StdResult<Uint128> {
-        self.app.wrap().query_wasm_smart(
-            self.voter_contract.clone(),
-            &VoterQueryMsg::VotingPower {
-                address: address.to_string(),
-            },
-        )
-    }
+    // pub fn voter_query_voting_power(&self, address: &str) -> StdResult<Uint128> {
+    //     self.app.wrap().query_wasm_smart(
+    //         self.voter_contract.clone(),
+    //         &VoterQueryMsg::VotingPower {
+    //             address: address.to_string(),
+    //         },
+    //     )
+    // }
 
-    pub fn voter_query_voter_info(
-        &self,
-        address: &str,
-    ) -> StdResult<astroport_governance::generator_controller::UserInfoResponse> {
-        self.app.wrap().query_wasm_smart(
-            self.voter_contract.clone(),
-            &VoterQueryMsg::VoterInfo {
-                address: address.to_string(),
-            },
-        )
-    }
+    // pub fn voter_query_voter_info(
+    //     &self,
+    //     address: &str,
+    // ) -> StdResult<astroport_governance::generator_controller::UserInfoResponse> {
+    //     self.app.wrap().query_wasm_smart(
+    //         self.voter_contract.clone(),
+    //         &VoterQueryMsg::VoterInfo {
+    //             address: address.to_string(),
+    //         },
+    //     )
+    // }
 
     // flexible_stake contract
     pub fn mint_native(

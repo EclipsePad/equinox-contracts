@@ -39,7 +39,6 @@ reward-distributor      = { workspace = true }
 voter                   = { workspace = true }
 lp-staking              = { workspace = true }
 lockdrop                = { workspace = true }
-# gauge-contract          = { workspace = true }
 astroport-incentives    = { workspace = true }
 astroport-factory       = { workspace = true }
 astroport-pair          = { workspace = true }

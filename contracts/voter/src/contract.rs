@@ -10,9 +10,7 @@ use crate::{
     entry::{
         execute as e,
         instantiate::try_instantiate,
-        query::{
-            query_config, query_convert_ratio, query_owner, query_voter_info, query_voting_power,
-        },
+        query::{query_config, query_convert_ratio, query_owner},
     },
     error::ContractError,
     state::CONTRACT_NAME,
@@ -62,12 +60,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
-        QueryMsg::VotingPower { address } => {
-            Ok(to_json_binary(&query_voting_power(deps, env, address)?)?)
-        }
+        // QueryMsg::VotingPower { address } => {
+        //     Ok(to_json_binary(&query_voting_power(deps, env, address)?)?)
+        // }
         QueryMsg::ConvertRatio {} => Ok(to_json_binary(&query_convert_ratio(deps, env)?)?),
-
-        QueryMsg::VoterInfo { address } => to_json_binary(&query_voter_info(deps, env, address)?),
+        // QueryMsg::VoterInfo { address } => to_json_binary(&query_voter_info(deps, env, address)?),
     }
 }
 

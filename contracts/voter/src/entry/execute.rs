@@ -218,28 +218,28 @@ fn lock_xastro(
             },
         );
 
-    let hook_msg = match lock_info {
-        Ok(_) => {
-            to_json_binary(&astroport_governance::voting_escrow::Cw20HookMsg::ExtendLockAmount {})
-        }
-        Err(_) => to_json_binary(
-            &astroport_governance::voting_escrow::Cw20HookMsg::CreateLock {
-                time: MAX_ESCROW_VOTING_LOCK_PERIOD,
-            },
-        ),
-    };
+    // let hook_msg = match lock_info {
+    //     Ok(_) => {
+    //         to_json_binary(&astroport_governance::voting_escrow::Cw20HookMsg::ExtendLockAmount {})
+    //     }
+    //     Err(_) => to_json_binary(
+    //         &astroport_governance::voting_escrow::Cw20HookMsg::CreateLock {
+    //             time: MAX_ESCROW_VOTING_LOCK_PERIOD,
+    //         },
+    //     ),
+    // };
 
     let msg_list = vec![
         // replenish existent lock or create new one for 2 years
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: xastro.to_string(),
-            msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                contract: astroport_voting_escrow_contract.to_string(),
-                amount: xastro_amount,
-                msg: hook_msg?,
-            })?,
-            funds: vec![],
-        }),
+        // CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: xastro.to_string(),
+        //     msg: to_json_binary(&Cw20ExecuteMsg::Send {
+        //         contract: astroport_voting_escrow_contract.to_string(),
+        //         amount: xastro_amount,
+        //         msg: hook_msg?,
+        //     })?,
+        //     funds: vec![],
+        // }),
         // mint eclipAstro to user
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: converter_contract.to_string(),
@@ -317,17 +317,17 @@ pub fn try_vote(
         Err(ContractError::WeightsAreUnbalanced)?;
     }
 
-    // send vote msg
-    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: astroport_generator_controller.to_string(),
-        msg: to_json_binary(
-            &astroport_governance::generator_controller::ExecuteMsg::Vote { votes },
-        )?,
-        funds: vec![],
-    });
+    // // send vote msg
+    // let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+    //     contract_addr: astroport_generator_controller.to_string(),
+    //     msg: to_json_binary(
+    //         &astroport_governance::generator_controller::ExecuteMsg::Vote { votes },
+    //     )?,
+    //     funds: vec![],
+    // });
 
     Ok(Response::new()
-        .add_message(msg)
+        //     .add_message(msg)
         .add_attribute("action", "try_vote"))
 }
 

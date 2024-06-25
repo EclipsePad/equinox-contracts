@@ -1,4 +1,4 @@
-use astroport_governance::generator_controller::UserInfoResponse;
+// use astroport_governance::generator_controller::UserInfoResponse;
 use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::AdminError;
 use eclipse_base::{converters::str_to_dec, staking::state::ECLIP_MAINNET};

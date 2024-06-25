@@ -96,15 +96,15 @@ pub enum QueryMsg {
     /// query owner
     #[returns(Addr)]
     Owner {},
-    /// query total vxASTRO
-    #[returns(Uint128)]
-    VotingPower { address: String },
+    // /// query total vxASTRO
+    // #[returns(Uint128)]
+    // VotingPower { address: String },
     /// query ASTRO/xASTRO ratio
     #[returns((Uint128, Uint128))]
     ConvertRatio {},
-
-    #[returns(astroport_governance::generator_controller::UserInfoResponse)]
-    VoterInfo { address: String },
+    // // #[returns(astroport_governance::emissions_controller::hub::UserInfoResponse)]
+    // #[returns(astroport_governance::generator_controller::UserInfoResponse)]
+    // VoterInfo { address: String },
 }
 
 #[cw_serde]

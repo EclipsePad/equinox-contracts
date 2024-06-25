@@ -13,10 +13,10 @@ pub mod suite;
 #[cfg(test)]
 pub mod voter;
 
-pub mod common {
-    pub mod contracts;
-    pub mod helper;
-    pub mod ibc_module;
-    pub mod neutron_module;
-    pub mod stargate;
-}
+// pub mod common {
+//     pub mod contracts;
+//     pub mod helper;
+//     pub mod ibc_module;
+//     pub mod neutron_module;
+//     pub mod stargate;
+// }
