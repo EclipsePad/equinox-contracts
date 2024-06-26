@@ -1,6 +1,6 @@
 use cw_multi_test::Executor;
 
-use crate::common::helper::ControllerHelper;
+use crate::suite_astro::{extensions::voter::VoterExtension, helper::ControllerHelper};
 
 #[test]
 fn default() {

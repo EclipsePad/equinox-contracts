@@ -1,36 +1,28 @@
 use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
-use equinox_msg::voter::Config;
+use equinox_msg::voter::{AddressConfig, DateConfig};
 
-use crate::state::{CONFIG, OWNER};
+use crate::state::{ADDRESS_CONFIG, DATE_CONFIG};
 use astroport::staking::QueryMsg as AstroStakingQueryMsg;
 
-/// query owner
-pub fn query_owner(deps: Deps, _env: Env) -> StdResult<Addr> {
-    let owner = OWNER.get(deps)?;
-    Ok(owner.unwrap())
+pub fn query_date_config(deps: Deps, _env: Env) -> StdResult<DateConfig> {
+    DATE_CONFIG.load(deps.storage)
 }
 
-/// query config
-pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(config)
-}
-
-/// query convert ratio
-pub fn query_convert_ratio(deps: Deps, _env: Env) -> StdResult<(Uint128, Uint128)> {
-    let config = CONFIG.load(deps.storage)?;
-    // xASTRO amount
-    let total_shares: Uint128 = deps.querier.query_wasm_smart(
-        config.staking_contract.to_string(),
-        &AstroStakingQueryMsg::TotalShares {},
-    )?;
-    // ASTRO amount
-    let total_deposit: Uint128 = deps.querier.query_wasm_smart(
-        config.staking_contract.to_string(),
-        &AstroStakingQueryMsg::TotalDeposit {},
-    )?;
-    Ok((total_deposit, total_shares))
-}
+// /// query convert ratio
+// pub fn query_convert_ratio(deps: Deps, _env: Env) -> StdResult<(Uint128, Uint128)> {
+//     let config = CONFIG.load(deps.storage)?;
+//     // xASTRO amount
+//     let total_shares: Uint128 = deps.querier.query_wasm_smart(
+//         config.staking_contract.to_string(),
+//         &AstroStakingQueryMsg::TotalShares {},
+//     )?;
+//     // ASTRO amount
+//     let total_deposit: Uint128 = deps.querier.query_wasm_smart(
+//         config.staking_contract.to_string(),
+//         &AstroStakingQueryMsg::TotalDeposit {},
+//     )?;
+//     Ok((total_deposit, total_shares))
+// }
 
 // /// query voting power
 // pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {

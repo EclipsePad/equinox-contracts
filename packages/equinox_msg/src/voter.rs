@@ -1,8 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
-pub const MAX_ESCROW_VOTING_LOCK_PERIOD: u64 = 2 * 365 * 24 * 3600;
-
 #[cw_serde]
 pub struct MigrateMsg {
     pub version: String,
@@ -14,31 +12,38 @@ pub struct InstantiateMsg {
     pub worker_list: Option<Vec<String>>,
 
     /// to mint eclipASTRO
-    pub eclipsepad_minter: Option<String>,
+    pub eclipsepad_minter: String,
     /// to get cosmic essence info (staking v3)
-    pub eclipsepad_staking: Option<String>,
+    pub eclipsepad_staking: String,
     /// to get bribes for voting
     pub eclipsepad_tribute_market: Option<String>,
 
     /// to stake ASTRO and get xASTRO
-    pub astroport_staking: Option<String>,
+    pub astroport_staking: String,
     /// to get proposal info
-    pub astroport_assembly: Option<String>,
+    pub astroport_assembly: String,
     /// to lock xASTRO and get voting power
-    pub astroport_voting_escrow: Option<String>,
+    pub astroport_voting_escrow: String,
     /// TODO
-    pub astroport_emission_controller: Option<String>,
+    pub astroport_emission_controller: String,
     /// to get bribes for voting
     pub astroport_tribute_market: Option<String>,
 
     /// ASTRO denom
-    pub astro: Option<String>,
+    pub astro: String,
     /// xASTRO denom
-    pub xastro: Option<String>,
+    pub xastro: String,
     /// vxASTRO address
-    pub vxastro: Option<String>,
+    pub vxastro: String,
     /// eclipASTRO denom
-    pub eclip_astro: Option<String>,
+    pub eclip_astro: String,
+
+    /// start date of 1st epoch
+    pub epochs_start: u64,
+    /// epoch duration
+    pub epoch_length: u64,
+    /// revoting cooldown
+    pub vote_cooldown: u64,
 }
 
 #[cw_serde]
@@ -84,12 +89,22 @@ pub enum ExecuteMsg {
         eclip_astro: Option<String>,
     },
 
-    CaptureEssence {
-        user_and_essence_list: Vec<(String, Uint128)>,
-        total_essence: Uint128,
+    /// update date related config
+    UpdateDateConfig {
+        /// start date of 1st epoch
+        epochs_start: Option<u64>,
+        /// epoch duration
+        epoch_length: Option<u64>,
+        /// revoting cooldown
+        vote_cooldown: Option<u64>,
     },
 
-    /// a user can lock xASTRO for 2 years to get eclipASTRO and boost voting power for essence holders
+    CaptureEssence {
+        user_and_essence_list: Vec<(String, EssenceInfo)>,
+        total_essence: EssenceInfo,
+    },
+
+    /// a user can lock xASTRO to get eclipASTRO and boost voting power for essence holders
     /// swap ASTRO -> xASTRO will be provided first if it's required
     SwapToEclipAstro {},
 
@@ -97,8 +112,25 @@ pub enum ExecuteMsg {
         voting_list: Vec<VotingListItem>,
     },
 
+    VoteAsUser {
+        voting_list: Vec<VotingListItem>,
+    },
+
     /// withdraw bribe rewards
     ClaimRewards {},
+}
+
+#[cw_serde]
+#[derive(Default)]
+pub struct EssenceInfo {
+    pub staking_components: (Uint128, Uint128),
+    pub locking_amount: Uint128,
+}
+
+#[cw_serde]
+pub struct VotingListItem {
+    pub lp_token: String,
+    pub voting_power: Decimal,
 }
 
 #[cw_serde]
@@ -112,9 +144,16 @@ pub enum QueryMsg {
     #[returns(TokenConfig)]
     TokenConfig {},
 
-    /// query bribe rewards
+    /// query date related config
+    #[returns(DateConfig)]
+    DateConfig {},
+
+    /// query bribe rewards as [(amount, denom)]
     #[returns(Vec<(Uint128, String)>)]
     Rewards {},
+
+    #[returns(Vec<BribesAllocationItem>)]
+    BribesAllocation {},
 
     /// query vxASTRO based voting power
     #[returns(Uint128)]
@@ -126,21 +165,37 @@ pub enum QueryMsg {
 
     #[returns(astroport_governance::emissions_controller::hub::UserInfoResponse)]
     VoterInfo { address: String },
+
+    /// get user essence or total essence
+    #[returns(EssenceInfo)]
+    Essence { address: String },
+
+    #[returns(QueryEssenceListResponse<Addr>)]
+    EssenceList {
+        amount: u32,
+        start_from: Option<String>,
+    },
 }
 
 #[cw_serde]
-pub struct VotingListItem {
-    pub lp_token: String,
-    pub voting_power: Decimal,
+pub struct QueryEssenceListResponse<A: ToString> {
+    pub user_and_essence_list: Vec<(A, EssenceInfo)>,
+    pub total_essence: EssenceInfo,
 }
 
 #[cw_serde]
-pub struct Vote {
-    /// Option voted for.
-    pub option: String,
-    /// The weight of the power given to this vote
-    pub weight: Decimal,
+pub struct BribesAllocationItem {
+    pub pool: Addr,
+    pub rewards: Vec<(Uint128, String)>,
 }
+
+// #[cw_serde]
+// pub struct Vote {
+//     /// Option voted for.
+//     pub option: String,
+//     /// The weight of the power given to this vote
+//     pub weight: Decimal,
+// }
 
 #[cw_serde]
 pub struct AddressConfig {
@@ -178,4 +233,20 @@ pub struct TokenConfig {
     pub vxastro: Addr,
     /// eclipASTRO denom
     pub eclip_astro: String,
+}
+
+#[cw_serde]
+pub struct DateConfig {
+    /// start date of 1st epoch
+    pub epochs_start: u64,
+    /// epoch duration
+    pub epoch_length: u64,
+    /// revoting cooldown
+    pub vote_cooldown: u64,
+}
+
+#[cw_serde]
+pub struct TransferAdminState {
+    pub new_admin: Addr,
+    pub deadline: u64,
 }

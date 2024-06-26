@@ -38,6 +38,15 @@ pub enum ContractError {
 
     #[error("Weight is out of range!")]
     WeightIsOutOfRange,
+
+    #[error("Parsing previous version error!")]
+    ParsingPrevVersion,
+
+    #[error("Parsing new version error!")]
+    ParsingNewVersion,
+
+    #[error("Msg version is not equal contract new version!")]
+    ImproperMsgVersion,
 }
 
 impl From<semver::Error> for ContractError {

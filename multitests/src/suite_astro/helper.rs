@@ -3,6 +3,7 @@ use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::RewardInfo;
 use astroport::token::{Logo, MinterResponse};
 use astroport::{factory, incentives, staking};
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     coin, coins, from_json, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty, IbcEndpoint,
     IbcPacket, IbcPacketReceiveMsg, MemoryStorage, StdResult, Timestamp, Uint128,
@@ -31,10 +32,10 @@ use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{assembly, emissions_controller, voting_escrow};
 
-use crate::common::contracts::*;
-use crate::common::ibc_module::IbcMockModule;
-use crate::common::neutron_module::MockNeutronModule;
-use crate::common::stargate::StargateModule;
+use crate::suite_astro::contracts::*;
+use crate::suite_astro::ibc_module::IbcMockModule;
+use crate::suite_astro::neutron_module::MockNeutronModule;
+use crate::suite_astro::stargate::StargateModule;
 
 pub const PROPOSAL_REQUIRED_DEPOSIT: Uint128 = Uint128::new(*DEPOSIT_INTERVAL.start());
 pub const PROPOSAL_VOTING_PERIOD: u64 = *VOTING_PERIOD_INTERVAL.start();
@@ -70,6 +71,13 @@ fn mock_ntrn_app() -> NeutronApp {
         .build(no_init)
 }
 
+#[cw_serde]
+pub struct Extension {
+    pub name: String,
+    pub code_id: u64,
+    pub contract_address: Addr,
+}
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct ControllerHelper {
@@ -85,6 +93,8 @@ pub struct ControllerHelper {
     pub whitelisting_fee: Coin,
     pub emission_controller: Addr,
     pub incentives: Addr,
+    // for additional contracts
+    pub extension_list: Vec<Extension>,
 }
 
 impl ControllerHelper {
@@ -322,6 +332,7 @@ impl ControllerHelper {
             emission_controller,
             incentives,
             assembly,
+            extension_list: vec![],
         };
         dbg!(&helper);
 

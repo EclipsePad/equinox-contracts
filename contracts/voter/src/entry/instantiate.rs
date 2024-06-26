@@ -1,46 +1,92 @@
-use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, StdResult, Uint128};
 use cw2::set_contract_version;
-use equinox_msg::voter::{Config, InstantiateMsg};
+
+use equinox_msg::voter::{
+    AddressConfig, DateConfig, InstantiateMsg, TokenConfig, TransferAdminState,
+};
 
 use crate::{
     error::ContractError,
-    state::{CONFIG, CONTRACT_NAME, OWNER},
+    state::{
+        ADDRESS_CONFIG, CONTRACT_NAME, DATE_CONFIG, TOKEN_CONFIG, TOTAL_LOCKING_ESSENCE,
+        TOTAL_STAKING_ESSENCE_COMPONENTS, TRANSFER_ADMIN_STATE,
+    },
 };
 
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn try_instantiate(
-    mut deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    CONFIG.save(
-        deps.storage,
-        &Config {
-            astro: msg.astro,
-            xastro: msg.xastro,
-            vxastro: msg.vxastro,
-            staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
-            converter_contract: deps.api.addr_validate(&msg.converter_contract)?,
-            gauge_contract: Addr::unchecked(""),
-            astroport_gauge_contract: Addr::unchecked(""),
+    let sender = info.sender;
+    let block_time = env.block.time.seconds();
 
-            astroport_voting_escrow_contract: deps
-                .api
-                .addr_validate(&msg.astroport_voting_escrow_contract)?,
-            astroport_generator_controller: deps
-                .api
-                .addr_validate(&msg.astroport_generator_controller)?,
-            eclipsepad_staking_contract: deps
-                .api
-                .addr_validate(&msg.eclipsepad_staking_contract)?,
+    TRANSFER_ADMIN_STATE.save(
+        deps.storage,
+        &TransferAdminState {
+            new_admin: sender.clone(),
+            deadline: block_time,
         },
     )?;
 
-    let owner = deps.api.addr_validate(&msg.owner)?;
-    OWNER.set(deps.branch(), Some(owner))?;
-    Ok(Response::new().add_attributes([("action", "instantiate vxASTRO holder")]))
+    ADDRESS_CONFIG.save(
+        deps.storage,
+        &AddressConfig {
+            admin: sender,
+            worker_list: msg
+                .worker_list
+                .map(|x| {
+                    x.iter()
+                        .map(|y| deps.api.addr_validate(y))
+                        .collect::<StdResult<Vec<Addr>>>()
+                })
+                .transpose()?
+                .unwrap_or_default(),
+            eclipsepad_minter: deps.api.addr_validate(&msg.eclipsepad_minter)?,
+            eclipsepad_staking: deps.api.addr_validate(&msg.eclipsepad_staking)?,
+            eclipsepad_tribute_market: msg
+                .eclipsepad_tribute_market
+                .map(|x| deps.api.addr_validate(&x))
+                .transpose()?,
+            astroport_staking: deps.api.addr_validate(&msg.astroport_staking)?,
+            astroport_assembly: deps.api.addr_validate(&msg.astroport_assembly)?,
+            astroport_voting_escrow: deps.api.addr_validate(&msg.astroport_voting_escrow)?,
+            astroport_emission_controller: deps
+                .api
+                .addr_validate(&msg.astroport_emission_controller)?,
+            astroport_tribute_market: msg
+                .astroport_tribute_market
+                .map(|x| deps.api.addr_validate(&x))
+                .transpose()?,
+        },
+    )?;
+
+    TOKEN_CONFIG.save(
+        deps.storage,
+        &TokenConfig {
+            astro: msg.astro,
+            xastro: msg.xastro,
+            vxastro: deps.api.addr_validate(&msg.vxastro)?,
+            eclip_astro: msg.eclip_astro,
+        },
+    )?;
+
+    DATE_CONFIG.save(
+        deps.storage,
+        &DateConfig {
+            epochs_start: msg.epochs_start,
+            epoch_length: msg.epoch_length,
+            vote_cooldown: msg.vote_cooldown,
+        },
+    )?;
+
+    TOTAL_STAKING_ESSENCE_COMPONENTS.save(deps.storage, &(Uint128::zero(), Uint128::zero()))?;
+    TOTAL_LOCKING_ESSENCE.save(deps.storage, &Uint128::zero())?;
+
+    Ok(Response::new().add_attribute("action", "instantiate"))
 }
