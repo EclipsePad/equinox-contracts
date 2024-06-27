@@ -1,8 +1,9 @@
 use equinox_msg::lockdrop::{LockConfig, RewardDistributionConfig};
 
-pub const MAX_WITHDRAW_BPS: u64 = 5000u64;
 pub const DEFAULT_DEPOSIT_WINDOW: u64 = 86400 * 5;
 pub const DEFAULT_WITHDRAW_WINDOW: u64 = 86400 * 2;
+pub const MINIMUM_WINDOW: u64 = 86400;
+pub const BPS_DENOMINATOR: u64 = 10000;
 
 pub const DEFAULT_LOCK_CONFIGS: &[LockConfig] = &[
     LockConfig {
@@ -38,6 +39,6 @@ pub const DEFAULT_LOCK_CONFIGS: &[LockConfig] = &[
 ];
 
 pub const DEFAULT_REWARD_DISTRIBUTION_CONFIG: RewardDistributionConfig = RewardDistributionConfig {
-    instant: 10000,    // bps
-    vesting_period: 0, // no vesting
+    instant: BPS_DENOMINATOR, // bps
+    vesting_period: 0,        // no vesting
 };

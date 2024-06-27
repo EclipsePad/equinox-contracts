@@ -1,12 +1,13 @@
 use astroport::{
-    asset::{Asset, AssetInfo},
-    pair::ExecuteMsg as PairExecuteMsg,
+    asset::{Asset, AssetInfo, PairInfo},
+    pair::{ExecuteMsg as PairExecuteMsg, QueryMsg as AstroportPairQueryMsg},
     staking::ExecuteMsg as AstroStakingExecuteMsg,
     token::BalanceResponse,
 };
 use cosmwasm_std::{
     attr, coin, ensure, ensure_eq, ensure_ne, from_json, to_json_binary, Addr, BankMsg, Coin,
-    CosmosMsg, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, WasmMsg,
+    CosmosMsg, DepsMut, Env, MessageInfo, Order, QuerierWrapper, Response, StdError, StdResult,
+    Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
@@ -28,8 +29,8 @@ use crate::{
         calculate_lp_staking_user_rewards, calculate_lp_total_rewards,
         calculate_pending_lockdrop_incentives, calculate_single_sided_total_rewards,
         calculate_single_staking_user_rewards, calculate_updated_lp_reward_weights,
-        calculate_updated_single_staking_reward_weights, get_user_lp_lockdrop_incentives,
-        get_user_single_lockdrop_incentives,
+        calculate_updated_single_staking_reward_weights, check_deposit_window,
+        check_lockdrop_ended, get_user_lp_lockdrop_incentives, get_user_single_lockdrop_incentives,
     },
     error::ContractError,
     math::{calculate_max_withdrawal_amount_allowed, calculate_weight},
@@ -41,6 +42,8 @@ use crate::{
     },
 };
 
+use super::query::{check_withdrawal_window, query_native_token_supply};
+
 pub fn try_update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -51,9 +54,29 @@ pub fn try_update_config(
 
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
 
+    if let Some(single_sided_staking) = new_cfg.single_sided_staking {
+        cfg.single_sided_staking = Some(single_sided_staking.clone());
+        attributes.push(attr("new_single_sided_staking", &single_sided_staking));
+    }
+
+    if let Some(lp_staking) = new_cfg.lp_staking {
+        cfg.lp_staking = Some(lp_staking.clone());
+        attributes.push(attr("new_lp_staking", &lp_staking));
+    }
+
+    if let Some(liquidity_pool) = new_cfg.liquidity_pool {
+        let pool_info: PairInfo = deps
+            .querier
+            .query_wasm_smart(&liquidity_pool, &AstroportPairQueryMsg::Pair {})?;
+        cfg.liquidity_pool = Some(liquidity_pool.clone());
+        cfg.lp_token = Some(pool_info.liquidity_token.clone());
+        attributes.push(attr("new_liquidity_pool", &liquidity_pool));
+        attributes.push(attr("new_lp_token", &pool_info.liquidity_token));
+    }
+
     if let Some(dao_treasury_address) = new_cfg.dao_treasury_address {
         cfg.dao_treasury_address = dao_treasury_address.clone();
-        attributes.push(attr("new_timelock_staking", &dao_treasury_address))
+        attributes.push(attr("new_dao_treasury_address", &dao_treasury_address));
     };
     CONFIG.save(deps.storage, &cfg)?;
     Ok(Response::new().add_attributes(attributes))
@@ -66,10 +89,9 @@ pub fn try_update_reward_distribution_config(
     new_cfg: RewardDistributionConfig,
 ) -> Result<Response, ContractError> {
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-    let cfg = CONFIG.load(deps.storage)?;
 
     ensure!(
-        env.block.time.seconds() <= cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window,
+        !check_lockdrop_ended(deps.as_ref(), env.block.time.seconds()).unwrap(),
         ContractError::LockdropFinished {}
     );
 
@@ -116,7 +138,7 @@ pub fn try_increase_lockup(
         ContractError::DepositWindowNotStarted {}
     );
     ensure!(
-        current_time < cfg.init_timestamp + cfg.deposit_window,
+        check_deposit_window(deps.as_ref(), current_time).unwrap(),
         ContractError::DepositWindowClosed {}
     );
     ensure_ne!(
@@ -221,8 +243,7 @@ pub fn try_extend_lockup(
 
     let current_time = env.block.time.seconds();
     // deposit window only
-    if current_time >= cfg.init_timestamp && current_time < cfg.init_timestamp + cfg.deposit_window
-    {
+    if check_deposit_window(deps.as_ref(), current_time).unwrap() {
         let mut add_amount = Uint128::zero();
         if deposit_existing {
             let received_token = &received_tokens[0];
@@ -256,9 +277,7 @@ pub fn try_extend_lockup(
                 return extend_lp_lockup(deps, from_duration, to_duration, sender, add_amount);
             }
         }
-    } else if current_time >= cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window
-        && cfg.claims_allowed
-    {
+    } else if check_lockdrop_ended(deps.as_ref(), current_time).unwrap() && cfg.claims_allowed {
         match stake_type {
             StakeType::SingleStaking => {
                 if deposit_existing {
@@ -280,7 +299,7 @@ pub fn try_extend_lockup(
                         .to_cosmos_msg(&env)?,
                     ];
                     return Ok(Response::new()
-                        .add_attribute("action", "convert ASTRO to xASTRO")
+                        .add_attribute("action", "convert ASTRO to eclipASTRO")
                         .add_attribute("amount", received_token.amount.to_string())
                         .add_messages(msgs));
                 }
@@ -318,7 +337,7 @@ pub fn try_stake_to_vaults(
 
     // check time window
     ensure!(
-        current_time > (cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window),
+        check_lockdrop_ended(deps.as_ref(), current_time).unwrap(),
         ContractError::LockdropNotFinished {}
     );
 
@@ -575,7 +594,7 @@ pub fn extend_single_lockup_after_lockdrop(
     if add_amount.is_zero() {
         if from_duration == 0 {
             msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.single_sided_staking.to_string(),
+                contract_addr: cfg.single_sided_staking.unwrap().to_string(),
                 msg: to_json_binary(&SingleSidedExecuteMsg::Restake {
                     from_duration,
                     locked_at: None,
@@ -587,7 +606,7 @@ pub fn extend_single_lockup_after_lockdrop(
             }))
         } else {
             msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.single_sided_staking.to_string(),
+                contract_addr: cfg.single_sided_staking.unwrap().to_string(),
                 msg: to_json_binary(&SingleSidedExecuteMsg::Restake {
                     from_duration,
                     locked_at: Some(cfg.countdown_start_at),
@@ -602,7 +621,7 @@ pub fn extend_single_lockup_after_lockdrop(
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.eclipastro_token.to_string(),
             msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                contract: cfg.single_sided_staking.to_string(),
+                contract: cfg.single_sided_staking.unwrap().to_string(),
                 amount: add_amount,
                 msg: to_json_binary(&SingleSidedCw20HookMsg::Restake {
                     from_duration,
@@ -618,7 +637,7 @@ pub fn extend_single_lockup_after_lockdrop(
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.eclipastro_token.to_string(),
             msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                contract: cfg.single_sided_staking.to_string(),
+                contract: cfg.single_sided_staking.unwrap().to_string(),
                 amount: add_amount,
                 msg: to_json_binary(&SingleSidedCw20HookMsg::Restake {
                     from_duration,
@@ -804,8 +823,7 @@ pub fn receive_cw20(
                 ContractError::InvalidAsset {}
             );
             ensure!(
-                env.block.time.seconds()
-                    < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window,
+                !check_lockdrop_ended(deps.as_ref(), env.block.time.seconds()).unwrap(),
                 ContractError::LockdropFinished {}
             );
 
@@ -839,26 +857,6 @@ pub fn receive_cw20(
                 lp_lockdrop_incentives.eclip +=
                     amount.multiply_ratio(lp_distribution.bps, 10000u64);
             }
-            let assets = info.funds;
-            if !assets.is_empty() {
-                for asset in assets {
-                    if cfg.beclip.is_native_token() && asset.denom == cfg.beclip.to_string() {
-                        single_lockdrop_incentives.beclip += asset
-                            .amount
-                            .multiply_ratio(single_distribution.bps, 10000u64);
-                        lp_lockdrop_incentives.beclip +=
-                            asset.amount.multiply_ratio(lp_distribution.bps, 10000u64);
-                    } else if cfg.eclip.is_native_token() && asset.denom == cfg.eclip.to_string() {
-                        single_lockdrop_incentives.eclip += asset
-                            .amount
-                            .multiply_ratio(single_distribution.bps, 10000u64);
-                        lp_lockdrop_incentives.eclip +=
-                            asset.amount.multiply_ratio(lp_distribution.bps, 10000u64);
-                    } else {
-                        return Err(ContractError::InvalidAsset {});
-                    }
-                }
-            }
             SINGLE_LOCKDROP_INCENTIVES.save(deps.storage, &single_lockdrop_incentives)?;
             LP_LOCKDROP_INCENTIVES.save(deps.storage, &lp_lockdrop_incentives)?;
             Ok(Response::new().add_attribute("action", "increase Lockdrop incentives"))
@@ -875,7 +873,7 @@ pub fn try_increase_incentives(
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let cfg = CONFIG.load(deps.storage)?;
     ensure!(
-        env.block.time.seconds() < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window,
+        !check_lockdrop_ended(deps.as_ref(), env.block.time.seconds()).unwrap(),
         ContractError::LockdropFinished {}
     );
     let single_distribution = distribution
@@ -1082,6 +1080,14 @@ pub fn handle_stake_single_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMs
 /// change LP_STATE's is_staked to true
 pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
+
+    ensure!(
+        cfg.single_sided_staking.is_some()
+            && cfg.lp_staking.is_some()
+            && cfg.liquidity_pool.is_some(),
+        ContractError::EquinoxNotLive {}
+    );
+
     let lock_configs = cfg.lock_configs.clone();
 
     // get all lp staking lockup assets on this contract
@@ -1132,7 +1138,7 @@ pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, 
         },
     )?;
     let prev_lp_token_balance: BalanceResponse = deps.querier.query_wasm_smart(
-        &cfg.lp_token,
+        cfg.lp_token.unwrap(),
         &Cw20QueryMsg::Balance {
             address: env.contract.address.to_string(),
         },
@@ -1205,7 +1211,7 @@ fn handle_stake_to_single_vault(
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.eclipastro_token.to_string(),
             msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                contract: cfg.single_sided_staking.to_string(),
+                contract: cfg.single_sided_staking.clone().unwrap().to_string(),
                 amount: eclipastro_amount_to_stake,
                 msg: to_json_binary(&SingleSidedCw20HookMsg::Stake {
                     lock_duration: c.duration,
@@ -1258,14 +1264,14 @@ fn handle_deposit_into_pool(
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.eclipastro_token.to_string(),
             msg: to_json_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                spender: cfg.liquidity_pool.to_string(),
+                spender: cfg.liquidity_pool.clone().unwrap().to_string(),
                 amount: eclipastro_amount_to_deposit,
                 expires: None,
             })?,
             funds: vec![],
         }),
         CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.liquidity_pool.to_string(),
+            contract_addr: cfg.liquidity_pool.unwrap().to_string(),
             msg: to_json_binary(&PairExecuteMsg::ProvideLiquidity {
                 assets: vec![
                     Asset {
@@ -1294,7 +1300,7 @@ fn handle_deposit_into_pool(
     Ok(Response::new()
         .add_attribute("action", "convert xASTRO to eclipASTRO")
         .add_attribute("from", cfg.xastro_token.to_string())
-        .add_attribute("amount", eclipastro_amount_to_deposit)
+        .add_attribute("amount", xastro_amount_to_deposit)
         .add_attribute("to", cfg.eclipastro_token.to_string())
         .add_attribute("amount", eclipastro_amount_to_deposit)
         .add_attribute(
@@ -1304,7 +1310,7 @@ fn handle_deposit_into_pool(
         .add_attribute("token1", cfg.eclipastro_token.to_string())
         .add_attribute("amount", eclipastro_amount_to_deposit)
         .add_attribute("token2", cfg.xastro_token.to_string())
-        .add_attribute("amount", eclipastro_amount_to_deposit)
+        .add_attribute("amount", xastro_amount_to_deposit)
         .add_messages(msgs))
 }
 
@@ -1316,7 +1322,7 @@ fn handle_stake_lp_token(
     let cfg = CONFIG.load(deps.storage)?;
     let mut state = LP_LOCKUP_STATE.load(deps.storage)?;
     let lp_token_balance: BalanceResponse = deps.querier.query_wasm_smart(
-        &cfg.lp_token,
+        cfg.lp_token.clone().unwrap(),
         &Cw20QueryMsg::Balance {
             address: env.contract.address.to_string(),
         },
@@ -1348,9 +1354,9 @@ fn handle_stake_lp_token(
             .unwrap();
     }
     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.lp_token.to_string(),
+        contract_addr: cfg.lp_token.clone().unwrap().to_string(),
         msg: to_json_binary(&Cw20ExecuteMsg::Send {
-            contract: cfg.lp_staking.to_string(),
+            contract: cfg.lp_staking.unwrap().to_string(),
             amount: lp_token_to_stake,
             msg: to_json_binary(&LpStakingCw20HookMsg::Stake {})?,
         })?,
@@ -1359,7 +1365,7 @@ fn handle_stake_lp_token(
     LP_LOCKUP_STATE.save(deps.storage, &state)?;
     Ok(Response::new()
         .add_attribute("action", "stake lp token")
-        .add_attribute("token", cfg.lp_token.to_string())
+        .add_attribute("token", cfg.lp_token.unwrap().to_string())
         .add_attribute("amount", lp_token_to_stake)
         .add_message(msg))
 }
@@ -1410,7 +1416,7 @@ pub fn _claim_single_sided_rewards(
     let mut msgs = vec![];
 
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.single_sided_staking.clone().to_string(),
+        contract_addr: cfg.single_sided_staking.clone().unwrap().to_string(),
         msg: to_json_binary(&SingleSidedExecuteMsg::ClaimAll {
             with_flexible: true,
         })?,
@@ -1548,7 +1554,7 @@ pub fn _claim_lp_rewards(
     let mut msgs = vec![];
 
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.lp_staking.clone().to_string(),
+        contract_addr: cfg.lp_staking.clone().unwrap().to_string(),
         msg: to_json_binary(&LpExecuteMsg::Claim { assets: None })?,
         funds: vec![],
     }));
@@ -1654,7 +1660,7 @@ pub fn _claim_all_single_sided_rewards(
     let mut msgs = vec![];
 
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.single_sided_staking.clone().to_string(),
+        contract_addr: cfg.single_sided_staking.clone().unwrap().to_string(),
         msg: to_json_binary(&SingleSidedExecuteMsg::ClaimAll {
             with_flexible: true,
         })?,
@@ -1813,7 +1819,7 @@ pub fn _claim_all_lp_rewards(
 
     // claim rewards from lp staking vault
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.lp_staking.clone().to_string(),
+        contract_addr: cfg.lp_staking.clone().unwrap().to_string(),
         msg: to_json_binary(&LpExecuteMsg::Claim { assets: None })?,
         funds: vec![],
     }));
@@ -1941,11 +1947,17 @@ pub fn _unlock_single_lockup(
     let cfg = CONFIG.load(deps.storage)?;
     let mut lockup_info = SINGLE_LOCKUP_INFO.load(deps.storage, duration)?;
     let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
-    if current_time < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window {
+    let lock_config = cfg
+        .lock_configs
+        .iter()
+        .find(|c| c.duration == duration)
+        .unwrap();
+    if !check_lockdrop_ended(deps.as_ref(), current_time).unwrap() {
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             current_time,
             &cfg,
             user_lockup_info.xastro_amount_in_lockups,
+            lock_config.early_unlock_penalty_bps,
         );
         if let Some(amount) = amount {
             ensure!(
@@ -1954,7 +1966,7 @@ pub fn _unlock_single_lockup(
             );
             withdraw_amount = amount;
         }
-        if current_time >= cfg.init_timestamp + cfg.deposit_window {
+        if check_withdrawal_window(deps.as_ref(), current_time).unwrap() {
             ensure!(
                 !user_lockup_info.withdrawal_flag,
                 ContractError::AlreadyWithdrawed {}
@@ -2000,7 +2012,7 @@ pub fn _unlock_single_lockup(
 
         if duration == 0 {
             msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.single_sided_staking.to_string(),
+                contract_addr: cfg.single_sided_staking.unwrap().to_string(),
                 msg: to_json_binary(&SingleSidedExecuteMsg::Unstake {
                     duration,
                     locked_at: None,
@@ -2011,7 +2023,7 @@ pub fn _unlock_single_lockup(
             }));
         } else {
             msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.single_sided_staking.to_string(),
+                contract_addr: cfg.single_sided_staking.unwrap().to_string(),
                 msg: to_json_binary(&SingleSidedExecuteMsg::Unstake {
                     duration,
                     locked_at: Some(cfg.countdown_start_at),
@@ -2041,11 +2053,17 @@ pub fn _unlock_lp_lockup(
     let cfg = CONFIG.load(deps.storage)?;
     let mut lockup_info = LP_LOCKUP_INFO.load(deps.storage, duration)?;
     let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
-    if current_time < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window {
+    let lock_config = cfg
+        .lock_configs
+        .iter()
+        .find(|c| c.duration == duration)
+        .unwrap();
+    if !check_lockdrop_ended(deps.as_ref(), current_time).unwrap() {
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             current_time,
             &cfg,
             user_lockup_info.xastro_amount_in_lockups,
+            lock_config.early_unlock_penalty_bps,
         );
         if let Some(amount) = amount {
             ensure!(
@@ -2054,7 +2072,7 @@ pub fn _unlock_lp_lockup(
             );
             withdraw_amount = amount;
         }
-        if current_time >= cfg.init_timestamp + cfg.deposit_window {
+        if check_withdrawal_window(deps.as_ref(), current_time).unwrap() {
             ensure!(
                 !user_lockup_info.withdrawal_flag,
                 ContractError::AlreadyWithdrawed {}
@@ -2102,7 +2120,7 @@ pub fn _unlock_lp_lockup(
         }
         let mut msgs = vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.lp_staking.to_string(),
+                contract_addr: cfg.lp_staking.unwrap().to_string(),
                 msg: to_json_binary(&LpExecuteMsg::Unstake {
                     amount: withdraw_amount,
                     recipient: None,
@@ -2110,7 +2128,7 @@ pub fn _unlock_lp_lockup(
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.lp_token.to_string(),
+                contract_addr: cfg.lp_token.clone().unwrap().to_string(),
                 msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: sender.clone(),
                     amount: withdraw_amount - penalty_amount,
@@ -2120,7 +2138,7 @@ pub fn _unlock_lp_lockup(
         ];
         if !penalty_amount.is_zero() {
             msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.lp_token.to_string(),
+                contract_addr: cfg.lp_token.unwrap().to_string(),
                 msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: cfg.dao_treasury_address.to_string(),
                     amount: penalty_amount,
@@ -2165,9 +2183,7 @@ pub fn send_token_msg(
     }))
 }
 
-pub fn send_native_token_msg(recipient: String, funds: Vec<Coin>) -> StdResult<CosmosMsg> {
-    Ok(CosmosMsg::Bank(BankMsg::Send {
-        to_address: recipient,
-        amount: funds,
-    }))
+pub fn check_native_token_denom(querier: &QuerierWrapper, denom: String) -> StdResult<bool> {
+    let total_supply = query_native_token_supply(querier, denom)?;
+    Ok(!total_supply.amount.is_zero())
 }

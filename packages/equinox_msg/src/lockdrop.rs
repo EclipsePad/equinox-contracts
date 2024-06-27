@@ -31,12 +31,6 @@ pub struct InstantiateMsg {
     pub astro_staking: Addr,
     /// Equinox ASTRO/eclipASTRO converter contract
     pub converter: Addr,
-    /// eclipASTRO single sided staking pool address
-    pub single_sided_staking: Addr,
-    /// eclipASTRO/xASTRO lp staking pool address
-    pub lp_staking: Addr,
-    /// eclipASTRO/xASTRO pool
-    pub liquidity_pool: Addr,
     pub dao_treasury_address: Addr,
 }
 
@@ -200,13 +194,13 @@ pub struct Config {
     /// ASTRO/eclipASTRO converter contract address
     pub converter: Addr,
     /// eclipASTRO single sided staking pool address
-    pub single_sided_staking: Addr,
+    pub single_sided_staking: Option<Addr>,
     /// eclipASTRO/xASTRO lp staking pool address
-    pub lp_staking: Addr,
+    pub lp_staking: Option<Addr>,
     /// eclipASTRO/xASTRO pool
-    pub liquidity_pool: Addr,
+    pub liquidity_pool: Option<Addr>,
     /// eclipASTRO/xASTRO LP Token address
-    pub lp_token: Addr,
+    pub lp_token: Option<Addr>,
     /// astro staking pool
     pub astro_staking: Addr,
     /// Timestamp when Contract will start accepting ASTRO/xASTRO Token deposits
@@ -226,6 +220,9 @@ pub struct Config {
 
 #[cw_serde]
 pub struct UpdateConfigMsg {
+    pub single_sided_staking: Option<Addr>,
+    pub lp_staking: Option<Addr>,
+    pub liquidity_pool: Option<Addr>,
     pub dao_treasury_address: Option<Addr>,
 }
 
