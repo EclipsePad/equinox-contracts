@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, StdResult};
+use cosmwasm_std::{coins, Addr, StdResult};
 use cw_multi_test::{AppResponse, ContractWrapper, Executor};
 
 use eclipse_base::error::parse_err;
@@ -28,7 +28,6 @@ pub trait VoterExtension {
 
         astro: &str,
         xastro: &str,
-        vxastro: &Addr,
         eclip_astro: &str,
 
         epochs_start: u64,
@@ -42,6 +41,13 @@ pub trait VoterExtension {
         epochs_start: Option<u64>,
         epoch_length: Option<u64>,
         vote_cooldown: Option<u64>,
+    ) -> StdResult<AppResponse>;
+
+    fn voter_try_swap_to_eclip_astro(
+        &mut self,
+        sender: impl ToString,
+        amount: u128,
+        denom: &str,
     ) -> StdResult<AppResponse>;
 
     fn voter_query_date_config(&self) -> StdResult<DateConfig>;
@@ -81,7 +87,6 @@ impl VoterExtension for ControllerHelper {
 
         astro: &str,
         xastro: &str,
-        vxastro: &Addr,
         eclip_astro: &str,
 
         epochs_start: u64,
@@ -118,7 +123,6 @@ impl VoterExtension for ControllerHelper {
 
                     astro: astro.to_string(),
                     xastro: xastro.to_string(),
-                    vxastro: vxastro.to_string(),
                     eclip_astro: eclip_astro.to_string(),
 
                     epochs_start,
@@ -155,6 +159,22 @@ impl VoterExtension for ControllerHelper {
                     vote_cooldown,
                 },
                 &[],
+            )
+            .map_err(parse_err)
+    }
+
+    fn voter_try_swap_to_eclip_astro(
+        &mut self,
+        sender: impl ToString,
+        amount: u128,
+        denom: &str,
+    ) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(&sender.to_string()),
+                self.voter_contract_address(),
+                &equinox_msg::voter::ExecuteMsg::SwapToEclipAstro {},
+                &coins(amount, denom),
             )
             .map_err(parse_err)
     }

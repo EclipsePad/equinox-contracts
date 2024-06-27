@@ -24,52 +24,51 @@ pub fn query_date_config(deps: Deps, _env: Env) -> StdResult<DateConfig> {
 //     Ok((total_deposit, total_shares))
 // }
 
-// /// query voting power
-// pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
-//     let voter_address = &env.contract.address;
-//     let address = &deps.api.addr_validate(&address)?;
-//     let Config {
-//         astroport_voting_escrow_contract,
-//         eclipsepad_staking_contract,
-//         ..
-//     } = CONFIG.load(deps.storage)?;
+/// query voting power
+pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
+    let voter_address = &env.contract.address;
+    let address = &deps.api.addr_validate(&address)?;
+    let AddressConfig {
+        astroport_voting_escrow,
+        eclipsepad_staking,
+        ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
 
-//     // query total vxASTRO owned by voter contract
-//     let astroport_governance::voting_escrow::VotingPowerResponse {
-//         voting_power: vxastro_amount,
-//     } = deps.querier.query_wasm_smart(
-//         astroport_voting_escrow_contract,
-//         &astroport_governance::voting_escrow::QueryMsg::UserVotingPower {
-//             user: voter_address.to_string(),
-//         },
-//     )?;
+    // query total vxASTRO owned by voter contract
+    let vxastro_amount: Uint128 = deps.querier.query_wasm_smart(
+        astroport_voting_escrow,
+        &astroport_governance::voting_escrow::QueryMsg::UserVotingPower {
+            user: voter_address.to_string(),
+            timestamp: None,
+        },
+    )?;
 
-//     // voter contract has full voting power
-//     if address == voter_address {
-//         return Ok(vxastro_amount);
-//     }
+    // voter contract has full voting power
+    if address == voter_address {
+        return Ok(vxastro_amount);
+    }
 
-//     // query essence from eclipsepad-staking v3
-//     let eclipse_base::staking::msg::QueryEssenceResponse { essence, .. } =
-//         deps.querier.query_wasm_smart(
-//             eclipsepad_staking_contract.clone(),
-//             &eclipse_base::staking::msg::QueryMsg::QueryEssence {
-//                 user: address.to_string(),
-//             },
-//         )?;
+    // query essence from eclipsepad-staking v3
+    let eclipse_base::staking::msg::QueryEssenceResponse { essence, .. } =
+        deps.querier.query_wasm_smart(
+            eclipsepad_staking.clone(),
+            &eclipse_base::staking::msg::QueryMsg::QueryEssence {
+                user: address.to_string(),
+            },
+        )?;
 
-//     let eclipse_base::staking::msg::QueryEssenceResponse {
-//         essence: total_essence,
-//         ..
-//     } = deps.querier.query_wasm_smart(
-//         eclipsepad_staking_contract,
-//         &eclipse_base::staking::msg::QueryMsg::QueryTotalEssence {},
-//     )?;
+    let eclipse_base::staking::msg::QueryEssenceResponse {
+        essence: total_essence,
+        ..
+    } = deps.querier.query_wasm_smart(
+        eclipsepad_staking,
+        &eclipse_base::staking::msg::QueryMsg::QueryTotalEssence {},
+    )?;
 
-//     let voting_power = vxastro_amount * essence / total_essence;
+    let voting_power = vxastro_amount * essence / total_essence;
 
-//     Ok(voting_power)
-// }
+    Ok(voting_power)
+}
 
 // pub fn query_voter_info(
 //     deps: Deps,

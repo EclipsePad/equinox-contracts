@@ -33,8 +33,6 @@ pub struct InstantiateMsg {
     pub astro: String,
     /// xASTRO denom
     pub xastro: String,
-    /// vxASTRO address
-    pub vxastro: String,
     /// eclipASTRO denom
     pub eclip_astro: String,
 
@@ -83,8 +81,6 @@ pub enum ExecuteMsg {
         astro: Option<String>,
         /// xASTRO denom
         xastro: Option<String>,
-        /// vxASTRO address
-        vxastro: Option<String>,
         /// eclipASTRO denom
         eclip_astro: Option<String>,
     },
@@ -229,8 +225,6 @@ pub struct TokenConfig {
     pub astro: String,
     /// xASTRO denom
     pub xastro: String,
-    /// vxASTRO address
-    pub vxastro: Addr,
     /// eclipASTRO denom
     pub eclip_astro: String,
 }

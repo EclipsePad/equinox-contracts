@@ -49,7 +49,6 @@ pub fn execute(
         ExecuteMsg::UpdateTokenConfig {
             astro,
             xastro,
-            vxastro,
             eclip_astro,
         } => unimplemented!(),
 
@@ -62,9 +61,9 @@ pub fn execute(
         ExecuteMsg::CaptureEssence {
             user_and_essence_list,
             total_essence,
-        } => unimplemented!(),
+        } => e::try_capture_essence(deps, env, info, user_and_essence_list, total_essence),
 
-        ExecuteMsg::SwapToEclipAstro {} => unimplemented!(),
+        ExecuteMsg::SwapToEclipAstro {} => e::try_swap_to_eclip_astro(deps, env, info),
 
         ExecuteMsg::Vote { voting_list } => unimplemented!(),
 
@@ -88,7 +87,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         QueryMsg::BribesAllocation {} => unimplemented!(),
 
-        QueryMsg::VotingPower { address } => unimplemented!(),
+        QueryMsg::VotingPower { address } => {
+            to_json_binary(&q::query_voting_power(deps, env, address)?)
+        }
 
         QueryMsg::XastroPrice {} => unimplemented!(),
 
@@ -111,8 +112,7 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, Contract
     let Reply { id, result } = reply;
 
     match id {
-        STAKE_ASTRO_REPLY_ID => unimplemented!(),
-        //e::handle_stake_astro_reply(deps, env, &result),
+        STAKE_ASTRO_REPLY_ID => e::handle_stake_astro_reply(deps, env, &result),
         _ => Err(ContractError::UnknownReplyId(id)),
     }
 }

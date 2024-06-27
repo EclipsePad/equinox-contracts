@@ -84,6 +84,8 @@ pub struct ControllerHelper {
     #[derivative(Debug = "ignore")]
     pub app: NeutronApp,
     pub owner: Addr,
+    pub alice: Addr,
+    pub bob: Addr,
     pub assembly: Addr,
     pub astro: String,
     pub xastro: String,
@@ -101,6 +103,8 @@ impl ControllerHelper {
     pub fn new() -> Self {
         let mut app = mock_ntrn_app();
         let owner = app.api().addr_make("owner");
+        let alice = app.api().addr_make("alice");
+        let bob = app.api().addr_make("bob");
         let astro_denom = "astro";
 
         let vxastro_code_id = app.store_code(vxastro_contract());
@@ -322,6 +326,8 @@ impl ControllerHelper {
 
         let helper = Self {
             app,
+            alice,
+            bob,
             owner,
             xastro: xastro_denom.clone(),
             astro: astro_denom.to_string(),
@@ -334,7 +340,7 @@ impl ControllerHelper {
             assembly,
             extension_list: vec![],
         };
-        dbg!(&helper);
+        // dbg!(&helper);
 
         helper
     }
@@ -693,5 +699,14 @@ impl ControllerHelper {
                 },
             )
             .map(|x| x.rewards)
+    }
+
+    pub fn query_balance(&self, address: &Addr, denom: &str) -> u128 {
+        self.app
+            .wrap()
+            .query_balance(address, denom)
+            .unwrap()
+            .amount
+            .u128()
     }
 }

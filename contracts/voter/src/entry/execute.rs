@@ -6,14 +6,19 @@ use cosmwasm_std::{
 };
 
 use eclipse_base::{
+    assets::TokenUnverified,
     converters::u128_to_dec,
     utils::{check_funds, unwrap_field, FundsType},
 };
-use equinox_msg::voter::{AddressConfig, VotingListItem};
+use equinox_msg::voter::{AddressConfig, DateConfig, EssenceInfo, TokenConfig, VotingListItem};
 
 use crate::{
     error::ContractError,
-    state::{ADDRESS_CONFIG, DATE_CONFIG},
+    state::{
+        ADDRESS_CONFIG, DATE_CONFIG, LOCKING_ESSENCE, RECIPIENT, STAKE_ASTRO_REPLY_ID,
+        STAKING_ESSENCE_COMPONENTS, TOKEN_CONFIG, TOTAL_LOCKING_ESSENCE,
+        TOTAL_STAKING_ESSENCE_COMPONENTS,
+    },
 };
 
 pub fn try_update_date_config(
@@ -136,155 +141,135 @@ pub fn try_update_date_config(
 //     Ok(Response::new())
 // }
 
-// pub fn try_swap_to_eclip_astro(
-//     deps: DepsMut,
-//     env: Env,
-//     info: MessageInfo,
-// ) -> Result<Response, ContractError> {
-//     let (sender_address, asset_amount, asset_info) = check_funds(
-//         deps.as_ref(),
-//         &info,
-//         FundsType::Single {
-//             sender: None,
-//             amount: None,
-//         },
-//     )?;
-//     let token_in = asset_info.try_get_native()?;
-//     let Config {
-//         astro,
-//         xastro,
-//         staking_contract,
-//         ..
-//     } = CONFIG.load(deps.storage)?;
+pub fn try_swap_to_eclip_astro(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let (sender_address, asset_amount, asset_info) = check_funds(
+        deps.as_ref(),
+        &info,
+        FundsType::Single {
+            sender: None,
+            amount: None,
+        },
+    )?;
+    let token_in = asset_info.try_get_native()?;
+    let AddressConfig {
+        astroport_staking, ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
+    let TokenConfig { astro, xastro, .. } = TOKEN_CONFIG.load(deps.storage)?;
 
-//     // check if ASTRO or xASTRO was sent
-//     if token_in != astro && token_in != xastro {
-//         Err(ContractError::UnknownToken(token_in.to_string()))?;
-//     }
+    // check if ASTRO or xASTRO was sent
+    if token_in != astro && token_in != xastro {
+        Err(ContractError::UnknownToken(token_in.to_string()))?;
+    }
 
-//     // check if amount isn't zero
-//     if asset_amount.is_zero() {
-//         Err(ContractError::ZeroAmount {})?;
-//     }
+    // check if amount isn't zero
+    if asset_amount.is_zero() {
+        Err(ContractError::ZeroAmount {})?;
+    }
 
-//     // get xastro first
-//     if token_in == astro {
-//         RECIPIENT.save(deps.storage, &sender_address)?;
+    // get xastro first
+    if token_in == astro {
+        RECIPIENT.save(deps.storage, &sender_address)?;
 
-//         let msg = SubMsg {
-//             id: STAKE_ASTRO_REPLY_ID,
-//             msg: WasmMsg::Execute {
-//                 contract_addr: staking_contract.to_string(),
-//                 msg: to_json_binary(&astroport::staking::ExecuteMsg::Enter { receiver: None })?,
-//                 funds: coins(asset_amount.u128(), astro),
-//             }
-//             .into(),
-//             gas_limit: None,
-//             reply_on: ReplyOn::Success,
-//         };
+        let msg = SubMsg {
+            id: STAKE_ASTRO_REPLY_ID,
+            msg: WasmMsg::Execute {
+                contract_addr: astroport_staking.to_string(),
+                msg: to_json_binary(&astroport::staking::ExecuteMsg::Enter { receiver: None })?,
+                funds: coins(asset_amount.u128(), astro),
+            }
+            .into(),
+            gas_limit: None,
+            reply_on: ReplyOn::Success,
+        };
 
-//         return Ok(Response::new().add_submessage(msg));
-//     }
+        return Ok(Response::new().add_submessage(msg));
+    }
 
-//     lock_xastro(deps, env, asset_amount, &sender_address)
-// }
+    lock_xastro(deps, env, asset_amount, &sender_address)
+}
 
-// pub fn handle_stake_astro_reply(
-//     deps: DepsMut,
-//     env: Env,
-//     result: &SubMsgResult,
-// ) -> Result<Response, ContractError> {
-//     let res = result
-//         .to_owned()
-//         .into_result()
-//         .map_err(|_| ContractError::StakeError {})?;
+pub fn handle_stake_astro_reply(
+    deps: DepsMut,
+    env: Env,
+    result: &SubMsgResult,
+) -> Result<Response, ContractError> {
+    let res = result
+        .to_owned()
+        .into_result()
+        .map_err(|_| ContractError::StakeError {})?;
 
-//     let mut xastro_amount = Uint128::zero();
-//     for event in res.events.iter() {
-//         for attr in event.attributes.iter() {
-//             if attr.key == "xastro_amount" {
-//                 xastro_amount = Uint128::from_str(&attr.value).unwrap();
-//             }
-//         }
-//     }
+    let mut xastro_amount = Uint128::zero();
+    for event in res.events.iter() {
+        for attr in event.attributes.iter() {
+            if attr.key == "xastro_amount" {
+                xastro_amount = Uint128::from_str(&attr.value).unwrap();
+            }
+        }
+    }
 
-//     let recipient = &RECIPIENT.load(deps.storage)?;
-//     lock_xastro(deps, env, xastro_amount, recipient)
-// }
+    let recipient = &RECIPIENT.load(deps.storage)?;
+    lock_xastro(deps, env, xastro_amount, recipient)
+}
 
-// fn lock_xastro(
-//     deps: DepsMut,
-//     env: Env,
-//     xastro_amount: Uint128,
-//     recipient: &Addr,
-// ) -> Result<Response, ContractError> {
-//     let Config {
-//         xastro,
-//         astroport_voting_escrow_contract,
-//         converter_contract,
-//         staking_contract,
-//         ..
-//     } = CONFIG.load(deps.storage)?;
+fn lock_xastro(
+    deps: DepsMut,
+    _env: Env,
+    xastro_amount: Uint128,
+    recipient: &Addr,
+) -> Result<Response, ContractError> {
+    let AddressConfig {
+        astroport_staking,
+        astroport_voting_escrow,
+        eclipsepad_minter,
+        ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
+    let TokenConfig {
+        xastro,
+        eclip_astro,
+        ..
+    } = TOKEN_CONFIG.load(deps.storage)?;
 
-//     // calculate eclipASTRO amount
-//     let total_xastro_amount: Uint128 = deps.querier.query_wasm_smart(
-//         staking_contract.to_string(),
-//         &astroport::staking::QueryMsg::TotalShares {},
-//     )?;
-//     let total_astro_amount: Uint128 = deps.querier.query_wasm_smart(
-//         staking_contract.to_string(),
-//         &astroport::staking::QueryMsg::TotalDeposit {},
-//     )?;
-//     let eclip_astro_amount = total_astro_amount * xastro_amount / total_xastro_amount;
+    // calculate eclipASTRO amount
+    let total_xastro_amount: Uint128 = deps.querier.query_wasm_smart(
+        astroport_staking.to_string(),
+        &astroport::staking::QueryMsg::TotalShares {},
+    )?;
+    let total_astro_amount: Uint128 = deps.querier.query_wasm_smart(
+        astroport_staking.to_string(),
+        &astroport::staking::QueryMsg::TotalDeposit {},
+    )?;
+    let eclip_astro_amount = total_astro_amount * xastro_amount / total_xastro_amount;
 
-//     // check lock position
-//     let lock_info = deps
-//         .querier
-//         .query_wasm_smart::<astroport_governance::voting_escrow::LockInfoResponse>(
-//             astroport_voting_escrow_contract.to_string(),
-//             &astroport_governance::voting_escrow::QueryMsg::LockInfo {
-//                 user: env.contract.address.to_string(),
-//             },
-//         );
+    let msg_list = vec![
+        // replenish existent lock or create new one
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: astroport_voting_escrow.to_string(),
+            msg: to_json_binary(&astroport_governance::voting_escrow::ExecuteMsg::Lock {
+                receiver: None,
+            })?,
+            funds: coins(xastro_amount.u128(), xastro),
+        }),
+        // mint eclipAstro to user
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: eclipsepad_minter.to_string(),
+            msg: to_json_binary(&eclipse_base::minter::msg::ExecuteMsg::Mint {
+                token: TokenUnverified::new_native(&eclip_astro),
+                amount: eclip_astro_amount,
+                recipient: recipient.to_string(),
+            })?,
+            funds: vec![],
+        }),
+    ];
 
-//     // let hook_msg = match lock_info {
-//     //     Ok(_) => {
-//     //         to_json_binary(&astroport_governance::voting_escrow::Cw20HookMsg::ExtendLockAmount {})
-//     //     }
-//     //     Err(_) => to_json_binary(
-//     //         &astroport_governance::voting_escrow::Cw20HookMsg::CreateLock {
-//     //             time: MAX_ESCROW_VOTING_LOCK_PERIOD,
-//     //         },
-//     //     ),
-//     // };
-
-//     let msg_list = vec![
-//         // replenish existent lock or create new one for 2 years
-//         // CosmosMsg::Wasm(WasmMsg::Execute {
-//         //     contract_addr: xastro.to_string(),
-//         //     msg: to_json_binary(&Cw20ExecuteMsg::Send {
-//         //         contract: astroport_voting_escrow_contract.to_string(),
-//         //         amount: xastro_amount,
-//         //         msg: hook_msg?,
-//         //     })?,
-//         //     funds: vec![],
-//         // }),
-//         // mint eclipAstro to user
-//         CosmosMsg::Wasm(WasmMsg::Execute {
-//             contract_addr: converter_contract.to_string(),
-//             msg: to_json_binary(&equinox_msg::token_converter::ExecuteMsg::MintEclipAstro {
-//                 amount: eclip_astro_amount,
-//                 recipient: recipient.to_string(),
-//             })?,
-//             funds: vec![],
-//         }),
-//     ];
-
-//     Ok(Response::new()
-//         .add_messages(msg_list)
-//         .add_attribute("action", "try_swap_to_eclip_astro")
-//         .add_attribute("eclip_astro_amount", eclip_astro_amount))
-// }
+    Ok(Response::new()
+        .add_messages(msg_list)
+        .add_attribute("action", "try_swap_to_eclip_astro")
+        .add_attribute("eclip_astro_amount", eclip_astro_amount))
+}
 
 // pub fn try_vote(
 //     deps: DepsMut,
@@ -360,34 +345,40 @@ pub fn try_update_date_config(
 //         .add_attribute("action", "try_vote"))
 // }
 
-// pub fn try_capture_essence(
-//     deps: DepsMut,
-//     env: Env,
-//     info: MessageInfo,
-//     user_and_essence_list: Vec<(String, Uint128)>,
-//     total_essence: Uint128,
-// ) -> Result<Response, ContractError> {
-//     let sender = &info.sender;
-//     let admin = unwrap_field(OWNER.query_admin(deps.as_ref())?.admin, "admin")?;
-//     let block_time = env.block.time.seconds();
-//     let Config {
-//         eclipsepad_staking_contract,
-//         ..
-//     } = CONFIG.load(deps.storage)?;
+pub fn try_capture_essence(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    user_and_essence_list: Vec<(String, EssenceInfo)>,
+    total_essence: EssenceInfo,
+) -> Result<Response, ContractError> {
+    let sender = &info.sender;
+    // let block_time = env.block.time.seconds();
+    let AddressConfig {
+        admin,
+        eclipsepad_staking,
+        ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
+    // let DateConfig {
+    //     epochs_start,
+    //     epoch_length,
+    //     ..
+    // } = DATE_CONFIG.load(deps.storage)?;
 
-//     if sender != eclipsepad_staking_contract && sender.to_string() != admin {
-//         Err(ContractError::Unauthorized {})?;
-//     }
+    if sender != eclipsepad_staking && sender.to_string() != admin {
+        Err(ContractError::Unauthorized {})?;
+    }
 
-//     // TODO: query gauge voting start date
-//     let gauge_voting_start_date = 10000000000000000u64;
+    // if block_time > epochs_start + epoch_length {
+    TOTAL_STAKING_ESSENCE_COMPONENTS.save(deps.storage, &total_essence.staking_components)?;
+    TOTAL_LOCKING_ESSENCE.save(deps.storage, &total_essence.locking_amount)?;
 
-//     if block_time > gauge_voting_start_date + GAUGE_VOTING_PERIOD {
-//         TOTAL_ESSENCE.save(deps.storage, &(total_essence, block_time))?;
-//         for (user_address, user_essence) in user_and_essence_list {
-//             USER_ESSENCE.save(deps.storage, &Addr::unchecked(user_address), &user_essence)?;
-//         }
-//     }
+    for (user_address, user_essence) in user_and_essence_list {
+        let user = &Addr::unchecked(user_address);
+        STAKING_ESSENCE_COMPONENTS.save(deps.storage, user, &user_essence.staking_components)?;
+        LOCKING_ESSENCE.save(deps.storage, user, &user_essence.locking_amount)?;
+    }
+    // }
 
-//     Ok(Response::new().add_attribute("action", "try_capture_essence"))
-// }
+    Ok(Response::new().add_attribute("action", "try_capture_essence"))
+}

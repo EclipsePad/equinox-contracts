@@ -71,7 +71,6 @@ pub fn try_instantiate(
         &TokenConfig {
             astro: msg.astro,
             xastro: msg.xastro,
-            vxastro: deps.api.addr_validate(&msg.vxastro)?,
             eclip_astro: msg.eclip_astro,
         },
     )?;
