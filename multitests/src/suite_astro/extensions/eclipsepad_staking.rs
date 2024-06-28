@@ -34,21 +34,21 @@ pub trait EclipsepadStakingExtension {
 
     fn eclipsepad_staking_try_stake(
         &mut self,
-        sender: &str,
+        sender: impl ToString,
         amount: u128,
         denom: &str,
     ) -> StdResult<AppResponse>;
 
     fn eclipsepad_staking_try_lock(
         &mut self,
-        sender: &str,
+        sender: impl ToString,
         amount: u128,
         lock_tier: u64,
     ) -> StdResult<AppResponse>;
 
     fn eclipsepad_staking_try_update_config(
         &mut self,
-        sender: &str,
+        sender: impl ToString,
         admin: Option<&str>,
         equinox_voter: Option<Addr>,
         beclip_minter: Option<Addr>,
@@ -149,13 +149,13 @@ impl EclipsepadStakingExtension for ControllerHelper {
 
     fn eclipsepad_staking_try_stake(
         &mut self,
-        sender: &str,
+        sender: impl ToString,
         amount: u128,
         denom: &str,
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
-                Addr::unchecked(sender),
+                Addr::unchecked(sender.to_string()),
                 self.eclipsepad_staking_contract_address(),
                 &ExecuteMsg::Stake {},
                 &coins(amount, denom),
@@ -165,13 +165,13 @@ impl EclipsepadStakingExtension for ControllerHelper {
 
     fn eclipsepad_staking_try_lock(
         &mut self,
-        sender: &str,
+        sender: impl ToString,
         amount: u128,
         lock_tier: u64,
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
-                Addr::unchecked(sender),
+                Addr::unchecked(sender.to_string()),
                 self.eclipsepad_staking_contract_address(),
                 &ExecuteMsg::Lock {
                     amount: Uint128::new(amount),
@@ -184,7 +184,7 @@ impl EclipsepadStakingExtension for ControllerHelper {
 
     fn eclipsepad_staking_try_update_config(
         &mut self,
-        sender: &str,
+        sender: impl ToString,
         admin: Option<&str>,
         equinox_voter: Option<Addr>,
         beclip_minter: Option<Addr>,
@@ -197,7 +197,7 @@ impl EclipsepadStakingExtension for ControllerHelper {
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
-                Addr::unchecked(sender),
+                Addr::unchecked(sender.to_string()),
                 self.eclipsepad_staking_contract_address(),
                 &eclipse_base::staking::msg::ExecuteMsg::UpdateConfig {
                     admin: admin.as_ref().map(|x| x.to_string()),

@@ -21,6 +21,8 @@ pub const EPOCH_LENGTH: u64 = DAY * 14;
 /// User can vote once every 10 days
 pub const VOTE_COOLDOWN: u64 = DAY * 10;
 
+pub const TRANSFER_ADMIN_TIMEOUT: u64 = 3600;
+
 pub const ADDRESS_CONFIG: Item<AddressConfig> = Item::new("address_config");
 pub const TOKEN_CONFIG: Item<TokenConfig> = Item::new("token_config");
 pub const DATE_CONFIG: Item<DateConfig> = Item::new("date_config");

@@ -8,24 +8,33 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
     #[error("{0}")]
     Admin(#[from] AdminError),
+
     #[error("Semver parsing error: {0}")]
     SemVer(String),
+
     #[error("New version must be greater than previous one: {0}")]
     VersionErr(String),
+
     #[error("Can't stake this token: {0}")]
     UnknownToken(String),
+
     #[error("Can't handle this message")]
-    UnknownMessage(),
+    UnknownMessage,
+
     #[error("Error staking astro")]
-    StakeError {},
+    StakeError,
+
     #[error("Unknown reply id: {0}")]
     UnknownReplyId(u64),
+
     #[error("Unauthorized")]
-    Unauthorized {},
+    Unauthorized,
+
     #[error("Zero amount")]
-    ZeroAmount {},
+    ZeroAmount,
 
     #[error("Empty voting list!")]
     EmptyVotingList,
@@ -38,6 +47,9 @@ pub enum ContractError {
 
     #[error("Weight is out of range!")]
     WeightIsOutOfRange,
+
+    #[error("It's too late to accept admin role!")]
+    TransferAdminDeadline,
 
     #[error("Parsing previous version error!")]
     ParsingPrevVersion,

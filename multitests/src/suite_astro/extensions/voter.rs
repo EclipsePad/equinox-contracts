@@ -1,8 +1,10 @@
-use cosmwasm_std::{coins, Addr, StdResult};
+use cosmwasm_std::{coins, Addr, Decimal, StdResult, Uint128};
 use cw_multi_test::{AppResponse, ContractWrapper, Executor};
 
 use eclipse_base::error::parse_err;
-use equinox_msg::voter::{DateConfig, ExecuteMsg, QueryMsg};
+use equinox_msg::voter::{
+    AddressConfig, DateConfig, EssenceInfo, ExecuteMsg, QueryMsg, TokenConfig, VotingListItem,
+};
 
 use crate::suite_astro::helper::{ControllerHelper, Extension};
 
@@ -35,12 +37,44 @@ pub trait VoterExtension {
         vote_cooldown: u64,
     );
 
+    fn voter_try_accept_admin_role(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
+
+    fn voter_try_update_address_config(
+        &mut self,
+        sender: impl ToString,
+        admin: Option<impl ToString>,
+        worker_list: Option<Vec<impl ToString>>,
+        eclipsepad_minter: Option<Addr>,
+        eclipsepad_staking: Option<Addr>,
+        eclipsepad_tribute_market: Option<Addr>,
+        astroport_staking: Option<Addr>,
+        astroport_assembly: Option<Addr>,
+        astroport_voting_escrow: Option<Addr>,
+        astroport_emission_controller: Option<Addr>,
+        astroport_tribute_market: Option<Addr>,
+    ) -> StdResult<AppResponse>;
+
+    fn voter_try_update_token_config(
+        &mut self,
+        sender: impl ToString,
+        astro: Option<&str>,
+        xastro: Option<&str>,
+        eclip_astro: Option<&str>,
+    ) -> StdResult<AppResponse>;
+
     fn voter_try_update_date_config(
         &mut self,
-        sender: &str,
+        sender: impl ToString,
         epochs_start: Option<u64>,
         epoch_length: Option<u64>,
         vote_cooldown: Option<u64>,
+    ) -> StdResult<AppResponse>;
+
+    fn voter_try_capture_essence(
+        &mut self,
+        sender: impl ToString,
+        user_and_essence_list: &[(impl ToString, EssenceInfo)],
+        total_essence: EssenceInfo,
     ) -> StdResult<AppResponse>;
 
     fn voter_try_swap_to_eclip_astro(
@@ -50,7 +84,21 @@ pub trait VoterExtension {
         denom: &str,
     ) -> StdResult<AppResponse>;
 
+    fn voter_try_vote(
+        &mut self,
+        sender: impl ToString,
+        voting_list: &[VotingListItem],
+    ) -> StdResult<AppResponse>;
+
+    fn voter_query_address_config(&self) -> StdResult<AddressConfig>;
+
+    fn voter_query_token_config(&self) -> StdResult<TokenConfig>;
+
     fn voter_query_date_config(&self) -> StdResult<DateConfig>;
+
+    fn voter_query_voting_power(&self, address: impl ToString) -> StdResult<Uint128>;
+
+    fn voter_query_xastro_price(&self) -> StdResult<Decimal>;
 }
 
 impl VoterExtension for ControllerHelper {
@@ -142,21 +190,112 @@ impl VoterExtension for ControllerHelper {
         });
     }
 
+    fn voter_try_accept_admin_role(&mut self, sender: impl ToString) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.voter_contract_address(),
+                &ExecuteMsg::AcceptAdminRole {},
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
+    fn voter_try_update_address_config(
+        &mut self,
+        sender: impl ToString,
+        admin: Option<impl ToString>,
+        worker_list: Option<Vec<impl ToString>>,
+        eclipsepad_minter: Option<Addr>,
+        eclipsepad_staking: Option<Addr>,
+        eclipsepad_tribute_market: Option<Addr>,
+        astroport_staking: Option<Addr>,
+        astroport_assembly: Option<Addr>,
+        astroport_voting_escrow: Option<Addr>,
+        astroport_emission_controller: Option<Addr>,
+        astroport_tribute_market: Option<Addr>,
+    ) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.voter_contract_address(),
+                &ExecuteMsg::UpdateAddressConfig {
+                    admin: admin.map(|x| x.to_string()),
+                    worker_list: worker_list
+                        .map(|x| x.into_iter().map(|y| y.to_string()).collect()),
+                    eclipsepad_minter: eclipsepad_minter.map(|x| x.to_string()),
+                    eclipsepad_staking: eclipsepad_staking.map(|x| x.to_string()),
+                    eclipsepad_tribute_market: eclipsepad_tribute_market.map(|x| x.to_string()),
+                    astroport_staking: astroport_staking.map(|x| x.to_string()),
+                    astroport_assembly: astroport_assembly.map(|x| x.to_string()),
+                    astroport_voting_escrow: astroport_voting_escrow.map(|x| x.to_string()),
+                    astroport_emission_controller: astroport_emission_controller
+                        .map(|x| x.to_string()),
+                    astroport_tribute_market: astroport_tribute_market.map(|x| x.to_string()),
+                },
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
+    fn voter_try_update_token_config(
+        &mut self,
+        sender: impl ToString,
+        astro: Option<&str>,
+        xastro: Option<&str>,
+        eclip_astro: Option<&str>,
+    ) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.voter_contract_address(),
+                &ExecuteMsg::UpdateTokenConfig {
+                    astro: astro.map(|x| x.to_string()),
+                    xastro: xastro.map(|x| x.to_string()),
+                    eclip_astro: eclip_astro.map(|x| x.to_string()),
+                },
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
     fn voter_try_update_date_config(
         &mut self,
-        sender: &str,
+        sender: impl ToString,
         epochs_start: Option<u64>,
         epoch_length: Option<u64>,
         vote_cooldown: Option<u64>,
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
-                Addr::unchecked(sender),
+                Addr::unchecked(sender.to_string()),
                 self.voter_contract_address(),
                 &ExecuteMsg::UpdateDateConfig {
                     epochs_start,
                     epoch_length,
                     vote_cooldown,
+                },
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
+    fn voter_try_capture_essence(
+        &mut self,
+        sender: impl ToString,
+        user_and_essence_list: &[(impl ToString, EssenceInfo)],
+        total_essence: EssenceInfo,
+    ) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.voter_contract_address(),
+                &ExecuteMsg::CaptureEssence {
+                    user_and_essence_list: user_and_essence_list
+                        .iter()
+                        .map(|(user, essence)| (user.to_string(), essence.to_owned()))
+                        .collect(),
+                    total_essence,
                 },
                 &[],
             )
@@ -179,9 +318,53 @@ impl VoterExtension for ControllerHelper {
             .map_err(parse_err)
     }
 
+    fn voter_try_vote(
+        &mut self,
+        sender: impl ToString,
+        voting_list: &[VotingListItem],
+    ) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.voter_contract_address(),
+                &ExecuteMsg::Vote {
+                    voting_list: voting_list.to_owned(),
+                },
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
+    fn voter_query_address_config(&self) -> StdResult<AddressConfig> {
+        self.app
+            .wrap()
+            .query_wasm_smart(self.voter_contract_address(), &QueryMsg::AddressConfig {})
+    }
+
+    fn voter_query_token_config(&self) -> StdResult<TokenConfig> {
+        self.app
+            .wrap()
+            .query_wasm_smart(self.voter_contract_address(), &QueryMsg::TokenConfig {})
+    }
+
     fn voter_query_date_config(&self) -> StdResult<DateConfig> {
         self.app
             .wrap()
             .query_wasm_smart(self.voter_contract_address(), &QueryMsg::DateConfig {})
+    }
+
+    fn voter_query_voting_power(&self, address: impl ToString) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract_address(),
+            &QueryMsg::VotingPower {
+                address: address.to_string(),
+            },
+        )
+    }
+
+    fn voter_query_xastro_price(&self) -> StdResult<Decimal> {
+        self.app
+            .wrap()
+            .query_wasm_smart(self.voter_contract_address(), &QueryMsg::XastroPrice {})
     }
 }

@@ -31,7 +31,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::AcceptAdminRole {} => unimplemented!(),
+        ExecuteMsg::AcceptAdminRole {} => e::try_accept_admin_role(deps, env, info),
 
         ExecuteMsg::UpdateAddressConfig {
             admin,
@@ -44,13 +44,27 @@ pub fn execute(
             astroport_voting_escrow,
             astroport_emission_controller,
             astroport_tribute_market,
-        } => unimplemented!(),
+        } => e::try_update_address_config(
+            deps,
+            env,
+            info,
+            admin,
+            worker_list,
+            eclipsepad_minter,
+            eclipsepad_staking,
+            eclipsepad_tribute_market,
+            astroport_staking,
+            astroport_assembly,
+            astroport_voting_escrow,
+            astroport_emission_controller,
+            astroport_tribute_market,
+        ),
 
         ExecuteMsg::UpdateTokenConfig {
             astro,
             xastro,
             eclip_astro,
-        } => unimplemented!(),
+        } => e::try_update_token_config(deps, env, info, astro, xastro, eclip_astro),
 
         ExecuteMsg::UpdateDateConfig {
             epochs_start,
@@ -65,7 +79,7 @@ pub fn execute(
 
         ExecuteMsg::SwapToEclipAstro {} => e::try_swap_to_eclip_astro(deps, env, info),
 
-        ExecuteMsg::Vote { voting_list } => unimplemented!(),
+        ExecuteMsg::Vote { voting_list } => e::try_vote(deps, env, info, voting_list),
 
         ExecuteMsg::VoteAsUser { voting_list } => unimplemented!(),
 
@@ -77,9 +91,9 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::AddressConfig {} => unimplemented!(),
+        QueryMsg::AddressConfig {} => to_json_binary(&q::query_address_config(deps, env)?),
 
-        QueryMsg::TokenConfig {} => unimplemented!(),
+        QueryMsg::TokenConfig {} => to_json_binary(&q::query_token_config(deps, env)?),
 
         QueryMsg::DateConfig {} => to_json_binary(&q::query_date_config(deps, env)?),
 
@@ -91,7 +105,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&q::query_voting_power(deps, env, address)?)
         }
 
-        QueryMsg::XastroPrice {} => unimplemented!(),
+        QueryMsg::XastroPrice {} => to_json_binary(&q::query_xastro_price(deps, env)?),
 
         QueryMsg::VoterInfo { address } => unimplemented!(),
 

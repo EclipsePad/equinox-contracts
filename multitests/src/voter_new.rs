@@ -16,7 +16,7 @@ const INITIAL_LIQUIDITY: u128 = 1_000_000;
 const ECLIP: &str = "eclip";
 const ECLIP_ASTRO: &str = "eclipastro";
 
-fn prepare_helper() -> StdResult<ControllerHelper> {
+fn prepare_helper() -> ControllerHelper {
     let mut h = ControllerHelper::new();
 
     h.minter_prepare_contract();
@@ -63,7 +63,8 @@ fn prepare_helper() -> StdResult<ControllerHelper> {
         None,
         None,
         None,
-    )?;
+    )
+    .unwrap();
 
     for token in [ECLIP, &h.astro.clone()] {
         h.mint_tokens(
@@ -95,21 +96,22 @@ fn prepare_helper() -> StdResult<ControllerHelper> {
         &h.owner.to_string(),
         &Currency::new(&Token::new_native(ECLIP_ASTRO), 6),
         &h.voter_contract_address(),
-    )?;
+    )
+    .unwrap();
 
-    Ok(h)
+    h
 }
 
 #[test]
 fn swap_to_eclip_astro_default() -> StdResult<()> {
-    let mut h = prepare_helper()?;
+    let mut h = prepare_helper();
     let ControllerHelper {
         alice,
         bob,
         astro,
         xastro,
         ..
-    } = &prepare_helper()?;
+    } = &ControllerHelper::new();
 
     let alice_astro = h.query_balance(alice, astro);
     let alice_xastro = h.query_balance(alice, xastro);

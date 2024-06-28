@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use cosmwasm_std::{
-    coins, to_json_binary, Addr, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, ReplyOn, Response,
-    SubMsg, SubMsgResult, Uint128, WasmMsg,
+    coins, to_json_binary, Addr, CosmosMsg, Decimal, DepsMut, Empty, Env, MessageInfo, ReplyOn,
+    Response, StdResult, SubMsg, SubMsgResult, Uint128, WasmMsg,
 };
 
 use eclipse_base::{
@@ -10,16 +10,162 @@ use eclipse_base::{
     converters::u128_to_dec,
     utils::{check_funds, unwrap_field, FundsType},
 };
-use equinox_msg::voter::{AddressConfig, DateConfig, EssenceInfo, TokenConfig, VotingListItem};
+use equinox_msg::voter::{
+    AddressConfig, DateConfig, EssenceInfo, TokenConfig, TransferAdminState, VotingListItem,
+};
 
 use crate::{
     error::ContractError,
     state::{
         ADDRESS_CONFIG, DATE_CONFIG, LOCKING_ESSENCE, RECIPIENT, STAKE_ASTRO_REPLY_ID,
         STAKING_ESSENCE_COMPONENTS, TOKEN_CONFIG, TOTAL_LOCKING_ESSENCE,
-        TOTAL_STAKING_ESSENCE_COMPONENTS,
+        TOTAL_STAKING_ESSENCE_COMPONENTS, TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT,
     },
 };
+
+pub fn try_accept_admin_role(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let sender = info.sender;
+    let block_time = env.block.time.seconds();
+    let TransferAdminState {
+        new_admin,
+        deadline,
+    } = TRANSFER_ADMIN_STATE.load(deps.storage)?;
+
+    if sender != new_admin {
+        Err(ContractError::Unauthorized)?;
+    }
+
+    if block_time >= deadline {
+        Err(ContractError::TransferAdminDeadline)?;
+    }
+
+    ADDRESS_CONFIG.update(deps.storage, |mut x| -> StdResult<AddressConfig> {
+        x.admin = sender;
+        Ok(x)
+    })?;
+
+    TRANSFER_ADMIN_STATE.update(deps.storage, |mut x| -> StdResult<TransferAdminState> {
+        x.deadline = block_time;
+        Ok(x)
+    })?;
+
+    Ok(Response::new().add_attribute("action", "try_accept_admin_role"))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn try_update_address_config(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    admin: Option<String>,
+    worker_list: Option<Vec<String>>,
+    eclipsepad_minter: Option<String>,
+    eclipsepad_staking: Option<String>,
+    eclipsepad_tribute_market: Option<String>,
+    astroport_staking: Option<String>,
+    astroport_assembly: Option<String>,
+    astroport_voting_escrow: Option<String>,
+    astroport_emission_controller: Option<String>,
+    astroport_tribute_market: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut config = ADDRESS_CONFIG.load(deps.storage)?;
+
+    if info.sender != config.admin {
+        Err(ContractError::Unauthorized)?;
+    }
+
+    if let Some(x) = admin {
+        let block_time = env.block.time.seconds();
+        let new_admin = deps.api.addr_validate(&x)?;
+
+        TRANSFER_ADMIN_STATE.save(
+            deps.storage,
+            &TransferAdminState {
+                new_admin,
+                deadline: block_time + TRANSFER_ADMIN_TIMEOUT,
+            },
+        )?;
+    }
+
+    if let Some(x) = worker_list {
+        config.worker_list = x
+            .iter()
+            .map(|x| deps.api.addr_validate(x))
+            .collect::<StdResult<Vec<Addr>>>()?;
+    }
+
+    if let Some(x) = eclipsepad_minter {
+        config.eclipsepad_minter = deps.api.addr_validate(&x)?;
+    }
+
+    if let Some(x) = eclipsepad_staking {
+        config.eclipsepad_staking = deps.api.addr_validate(&x)?;
+    }
+
+    if let Some(x) = eclipsepad_tribute_market {
+        config.eclipsepad_tribute_market = Some(deps.api.addr_validate(&x)?);
+    }
+
+    if let Some(x) = astroport_staking {
+        config.astroport_staking = deps.api.addr_validate(&x)?;
+    }
+
+    if let Some(x) = astroport_assembly {
+        config.astroport_assembly = deps.api.addr_validate(&x)?;
+    }
+
+    if let Some(x) = astroport_voting_escrow {
+        config.astroport_voting_escrow = deps.api.addr_validate(&x)?;
+    }
+
+    if let Some(x) = astroport_emission_controller {
+        config.astroport_emission_controller = deps.api.addr_validate(&x)?;
+    }
+
+    if let Some(x) = astroport_tribute_market {
+        config.astroport_tribute_market = Some(deps.api.addr_validate(&x)?);
+    }
+
+    ADDRESS_CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new().add_attribute("action", "try_update_address_config"))
+}
+
+pub fn try_update_token_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    astro: Option<String>,
+    xastro: Option<String>,
+    eclip_astro: Option<String>,
+) -> Result<Response, ContractError> {
+    let AddressConfig { admin, .. } = ADDRESS_CONFIG.load(deps.storage)?;
+    let mut config = TOKEN_CONFIG.load(deps.storage)?;
+
+    if info.sender != admin {
+        Err(ContractError::Unauthorized)?;
+    }
+
+    if let Some(x) = astro {
+        config.astro = x;
+    }
+
+    if let Some(x) = xastro {
+        config.xastro = x;
+    }
+
+    if let Some(x) = eclip_astro {
+        config.eclip_astro = x;
+    }
+
+    TOKEN_CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new().add_attribute("action", "try_update_token_config"))
+}
 
 pub fn try_update_date_config(
     deps: DepsMut,
@@ -33,7 +179,7 @@ pub fn try_update_date_config(
     let mut config = DATE_CONFIG.load(deps.storage)?;
 
     if info.sender != admin {
-        Err(ContractError::Unauthorized {})?;
+        Err(ContractError::Unauthorized)?;
     }
 
     if let Some(x) = epochs_start {
@@ -53,93 +199,43 @@ pub fn try_update_date_config(
     Ok(Response::new().add_attribute("action", "try_update_date_config"))
 }
 
-// /// Update config
-// pub fn update_config(
-//     deps: DepsMut,
-//     _env: Env,
-//     info: MessageInfo,
-//     new_config: UpdateConfig,
-// ) -> Result<Response, ContractError> {
-//     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-//     let mut config = CONFIG.load(deps.storage)?;
-//     let mut res: Response = Response::new().add_attribute("action", "update config");
-//     if let Some(astro) = new_config.astro {
-//         res = res.add_attribute("astro", &astro);
-//         config.astro = astro;
-//     }
-//     if let Some(xastro) = new_config.xastro {
-//         res = res.add_attribute("xastro", &xastro);
-//         config.xastro = xastro;
-//     }
-//     if let Some(vxastro) = new_config.vxastro {
-//         res = res.add_attribute("vxastro", &vxastro);
-//         config.vxastro = vxastro;
-//     }
-//     if let Some(staking_contract) = new_config.staking_contract {
-//         config.staking_contract = deps.api.addr_validate(&staking_contract)?;
-//         res = res.add_attribute("staking_contract", staking_contract);
-//     }
-//     if let Some(converter_contract) = new_config.converter_contract {
-//         config.converter_contract = deps.api.addr_validate(&converter_contract)?;
-//         res = res.add_attribute("converter_contract", converter_contract);
-//     }
-//     if let Some(gauge_contract) = new_config.gauge_contract {
-//         config.gauge_contract = deps.api.addr_validate(&gauge_contract)?;
-//         res = res.add_attribute("gauge_contract", gauge_contract);
-//     }
-//     if let Some(astroport_gauge_contract) = new_config.astroport_gauge_contract {
-//         config.astroport_gauge_contract = deps.api.addr_validate(&astroport_gauge_contract)?;
-//         res = res.add_attribute("astroport_gauge_contract", astroport_gauge_contract);
-//     }
-//     if let Some(astroport_voting_escrow_contract) = new_config.astroport_voting_escrow_contract {
-//         config.astroport_voting_escrow_contract =
-//             deps.api.addr_validate(&astroport_voting_escrow_contract)?;
-//         res = res.add_attribute(
-//             "astroport_voting_escrow_contract",
-//             astroport_voting_escrow_contract,
-//         );
-//     }
-//     if let Some(astroport_generator_controller) = new_config.astroport_generator_controller {
-//         config.astroport_generator_controller =
-//             deps.api.addr_validate(&astroport_generator_controller)?;
-//         res = res.add_attribute(
-//             "astroport_generator_controller",
-//             astroport_generator_controller,
-//         );
-//     }
-//     if let Some(eclipsepad_staking_contract) = new_config.eclipsepad_staking_contract {
-//         config.eclipsepad_staking_contract =
-//             deps.api.addr_validate(&eclipsepad_staking_contract)?;
-//         res = res.add_attribute("eclipsepad_staking_contract", eclipsepad_staking_contract);
-//     }
-//     CONFIG.save(deps.storage, &config)?;
-//     Ok(res)
-// }
+pub fn try_capture_essence(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    user_and_essence_list: Vec<(String, EssenceInfo)>,
+    total_essence: EssenceInfo,
+) -> Result<Response, ContractError> {
+    let sender = &info.sender;
+    // let block_time = env.block.time.seconds();
+    let AddressConfig {
+        admin,
+        eclipsepad_staking,
+        ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
+    // let DateConfig {
+    //     epochs_start,
+    //     epoch_length,
+    //     ..
+    // } = DATE_CONFIG.load(deps.storage)?;
 
-// /// Update owner
-// pub fn update_owner(
-//     mut deps: DepsMut,
-//     _env: Env,
-//     info: MessageInfo,
-//     new_owner: String,
-// ) -> Result<Response, ContractError> {
-//     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-//     let new_owner_addr = deps.api.addr_validate(&new_owner)?;
-//     OWNER.set(deps.branch(), Some(new_owner_addr))?;
-//     Ok(Response::new()
-//         .add_attribute("action", "update owner")
-//         .add_attribute("to", new_owner))
-// }
+    if sender != eclipsepad_staking && sender.to_string() != admin {
+        Err(ContractError::Unauthorized)?;
+    }
 
-// /// Withdraw bribe rewards
-// pub fn withdraw_bribe_rewards(
-//     _deps: DepsMut,
-//     _env: Env,
-//     _info: MessageInfo,
-// ) -> Result<Response, ContractError> {
-//     // to do
-//     Ok(Response::new())
-// }
+    // if block_time > epochs_start + epoch_length {
+    TOTAL_STAKING_ESSENCE_COMPONENTS.save(deps.storage, &total_essence.staking_components)?;
+    TOTAL_LOCKING_ESSENCE.save(deps.storage, &total_essence.locking_amount)?;
+
+    for (user_address, user_essence) in user_and_essence_list {
+        let user = &Addr::unchecked(user_address);
+        STAKING_ESSENCE_COMPONENTS.save(deps.storage, user, &user_essence.staking_components)?;
+        LOCKING_ESSENCE.save(deps.storage, user, &user_essence.locking_amount)?;
+    }
+    // }
+
+    Ok(Response::new().add_attribute("action", "try_capture_essence"))
+}
 
 pub fn try_swap_to_eclip_astro(
     deps: DepsMut,
@@ -167,7 +263,7 @@ pub fn try_swap_to_eclip_astro(
 
     // check if amount isn't zero
     if asset_amount.is_zero() {
-        Err(ContractError::ZeroAmount {})?;
+        Err(ContractError::ZeroAmount)?;
     }
 
     // get xastro first
@@ -200,7 +296,7 @@ pub fn handle_stake_astro_reply(
     let res = result
         .to_owned()
         .into_result()
-        .map_err(|_| ContractError::StakeError {})?;
+        .map_err(|_| ContractError::StakeError)?;
 
     let mut xastro_amount = Uint128::zero();
     for event in res.events.iter() {
@@ -271,114 +367,70 @@ fn lock_xastro(
         .add_attribute("eclip_astro_amount", eclip_astro_amount))
 }
 
-// pub fn try_vote(
-//     deps: DepsMut,
-//     _env: Env,
-//     info: MessageInfo,
-//     voting_list: Vec<VotingListItem>,
-// ) -> Result<Response, ContractError> {
-//     // 100 % = 10_000 BP
-//     const BP_MULTIPLIER: u128 = 10_000;
-
-//     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-//     let Config {
-//         astroport_generator_controller,
-//         ..
-//     } = CONFIG.load(deps.storage)?;
-
-//     // check voting list
-
-//     // empty
-//     if voting_list.is_empty() {
-//         Err(ContractError::EmptyVotingList)?;
-//     }
-
-//     // diplications
-//     let mut pool_list: Vec<String> = voting_list.iter().map(|x| x.lp_token.to_string()).collect();
-//     pool_list.sort_unstable();
-//     pool_list.dedup();
-
-//     if pool_list.len() != voting_list.len() {
-//         Err(ContractError::VotingListDuplication)?;
-//     }
-
-//     // out of range
-//     if voting_list
-//         .iter()
-//         .any(|x| x.voting_power.is_zero() || x.voting_power > Decimal::one())
-//     {
-//         Err(ContractError::WeightIsOutOfRange)?;
-//     }
-
-//     // wrong sum
-//     let votes: Vec<(String, u16)> = voting_list
-//         .into_iter()
-//         .map(|x| {
-//             (
-//                 x.lp_token,
-//                 (x.voting_power * u128_to_dec(BP_MULTIPLIER))
-//                     .to_uint_floor()
-//                     .u128() as u16,
-//             )
-//         })
-//         .collect();
-
-//     if (votes
-//         .iter()
-//         .fold(0, |acc, (_, voting_power)| acc + voting_power)) as u128
-//         != BP_MULTIPLIER
-//     {
-//         Err(ContractError::WeightsAreUnbalanced)?;
-//     }
-
-//     // // send vote msg
-//     // let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-//     //     contract_addr: astroport_generator_controller.to_string(),
-//     //     msg: to_json_binary(
-//     //         &astroport_governance::generator_controller::ExecuteMsg::Vote { votes },
-//     //     )?,
-//     //     funds: vec![],
-//     // });
-
-//     Ok(Response::new()
-//         //     .add_message(msg)
-//         .add_attribute("action", "try_vote"))
-// }
-
-pub fn try_capture_essence(
+pub fn try_vote(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    user_and_essence_list: Vec<(String, EssenceInfo)>,
-    total_essence: EssenceInfo,
+    voting_list: Vec<VotingListItem>,
 ) -> Result<Response, ContractError> {
-    let sender = &info.sender;
-    // let block_time = env.block.time.seconds();
     let AddressConfig {
         admin,
-        eclipsepad_staking,
+        astroport_emission_controller,
         ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
-    // let DateConfig {
-    //     epochs_start,
-    //     epoch_length,
-    //     ..
-    // } = DATE_CONFIG.load(deps.storage)?;
 
-    if sender != eclipsepad_staking && sender.to_string() != admin {
-        Err(ContractError::Unauthorized {})?;
+    if info.sender != admin {
+        Err(ContractError::Unauthorized)?;
     }
 
-    // if block_time > epochs_start + epoch_length {
-    TOTAL_STAKING_ESSENCE_COMPONENTS.save(deps.storage, &total_essence.staking_components)?;
-    TOTAL_LOCKING_ESSENCE.save(deps.storage, &total_essence.locking_amount)?;
+    // check voting list
 
-    for (user_address, user_essence) in user_and_essence_list {
-        let user = &Addr::unchecked(user_address);
-        STAKING_ESSENCE_COMPONENTS.save(deps.storage, user, &user_essence.staking_components)?;
-        LOCKING_ESSENCE.save(deps.storage, user, &user_essence.locking_amount)?;
+    // empty
+    if voting_list.is_empty() {
+        Err(ContractError::EmptyVotingList)?;
     }
-    // }
 
-    Ok(Response::new().add_attribute("action", "try_capture_essence"))
+    // diplications
+    let mut pool_list: Vec<String> = voting_list.iter().map(|x| x.lp_token.to_string()).collect();
+    pool_list.sort_unstable();
+    pool_list.dedup();
+
+    if pool_list.len() != voting_list.len() {
+        Err(ContractError::VotingListDuplication)?;
+    }
+
+    // out of range
+    if voting_list
+        .iter()
+        .any(|x| x.voting_power.is_zero() || x.voting_power > Decimal::one())
+    {
+        Err(ContractError::WeightIsOutOfRange)?;
+    }
+
+    // wrong sum
+    let votes: Vec<(String, Decimal)> = voting_list
+        .into_iter()
+        .map(|x| (x.lp_token, x.voting_power))
+        .collect();
+
+    if (votes
+        .iter()
+        .fold(Decimal::zero(), |acc, (_, voting_power)| acc + voting_power))
+        != Decimal::one()
+    {
+        Err(ContractError::WeightsAreUnbalanced)?;
+    }
+
+    // send vote msg
+    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: astroport_emission_controller.to_string(),
+        msg: to_json_binary(
+            &astroport_governance::emissions_controller::msg::ExecuteMsg::<Empty>::Vote { votes },
+        )?,
+        funds: vec![],
+    });
+
+    Ok(Response::new()
+        .add_message(msg)
+        .add_attribute("action", "try_vote"))
 }

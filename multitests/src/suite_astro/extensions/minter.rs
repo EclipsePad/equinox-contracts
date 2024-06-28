@@ -22,7 +22,7 @@ pub trait MinterExtension {
 
     fn minter_try_register_currency(
         &mut self,
-        sender: &str,
+        sender: impl ToString,
         currency: &Currency<Token>,
         creator: &Addr,
     ) -> StdResult<AppResponse>;
@@ -86,13 +86,13 @@ impl MinterExtension for ControllerHelper {
 
     fn minter_try_register_currency(
         &mut self,
-        sender: &str,
+        sender: impl ToString,
         currency: &Currency<Token>,
         creator: &Addr,
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
-                Addr::unchecked(sender),
+                Addr::unchecked(sender.to_string()),
                 self.minter_contract_address(),
                 &ExecuteMsg::RegisterCurrency {
                     currency: Currency::new(&currency.clone().token.into(), currency.decimals),

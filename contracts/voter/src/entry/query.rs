@@ -1,28 +1,38 @@
-use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
-use equinox_msg::voter::{AddressConfig, DateConfig};
+use cosmwasm_std::{Addr, Decimal, Deps, Env, StdResult, Uint128};
+use eclipse_base::converters::u128_to_dec;
+use equinox_msg::voter::{AddressConfig, DateConfig, TokenConfig};
 
-use crate::state::{ADDRESS_CONFIG, DATE_CONFIG};
-use astroport::staking::QueryMsg as AstroStakingQueryMsg;
+use crate::state::{ADDRESS_CONFIG, DATE_CONFIG, TOKEN_CONFIG};
+
+pub fn query_address_config(deps: Deps, _env: Env) -> StdResult<AddressConfig> {
+    ADDRESS_CONFIG.load(deps.storage)
+}
+
+pub fn query_token_config(deps: Deps, _env: Env) -> StdResult<TokenConfig> {
+    TOKEN_CONFIG.load(deps.storage)
+}
 
 pub fn query_date_config(deps: Deps, _env: Env) -> StdResult<DateConfig> {
     DATE_CONFIG.load(deps.storage)
 }
 
-// /// query convert ratio
-// pub fn query_convert_ratio(deps: Deps, _env: Env) -> StdResult<(Uint128, Uint128)> {
-//     let config = CONFIG.load(deps.storage)?;
-//     // xASTRO amount
-//     let total_shares: Uint128 = deps.querier.query_wasm_smart(
-//         config.staking_contract.to_string(),
-//         &AstroStakingQueryMsg::TotalShares {},
-//     )?;
-//     // ASTRO amount
-//     let total_deposit: Uint128 = deps.querier.query_wasm_smart(
-//         config.staking_contract.to_string(),
-//         &AstroStakingQueryMsg::TotalDeposit {},
-//     )?;
-//     Ok((total_deposit, total_shares))
-// }
+pub fn query_xastro_price(deps: Deps, _env: Env) -> StdResult<Decimal> {
+    let AddressConfig {
+        eclipsepad_staking, ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
+
+    let xastro_amount: Uint128 = deps.querier.query_wasm_smart(
+        eclipsepad_staking.to_string(),
+        &astroport::staking::QueryMsg::TotalShares {},
+    )?;
+
+    let astro_amount: Uint128 = deps.querier.query_wasm_smart(
+        eclipsepad_staking.to_string(),
+        &astroport::staking::QueryMsg::TotalDeposit {},
+    )?;
+
+    Ok(u128_to_dec(astro_amount) / u128_to_dec(xastro_amount))
+}
 
 /// query voting power
 pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
@@ -48,6 +58,7 @@ pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Ui
         return Ok(vxastro_amount);
     }
 
+    // TODO: calculate essence at the epoch start
     // query essence from eclipsepad-staking v3
     let eclipse_base::staking::msg::QueryEssenceResponse { essence, .. } =
         deps.querier.query_wasm_smart(
