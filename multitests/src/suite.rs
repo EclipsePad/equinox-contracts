@@ -23,7 +23,7 @@ use cw_multi_test::{
 use equinox_msg::{
     lockdrop::{
         Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
-        ExecuteMsg as LockdropExecuteMsg, IncentiveAmounts,
+        ExecuteMsg as LockdropExecuteMsg, IncentiveAmounts, IncentiveRewards,
         InstantiateMsg as LockdropInstantiateMsg, LpLockupInfoResponse, LpLockupStateResponse,
         QueryMsg as LockdropQueryMsg, SingleLockupInfoResponse, SingleLockupStateResponse,
         StakeType, UpdateConfigMsg as LockdropUpdateConfigMsg, UserLpLockupInfoResponse,
@@ -549,10 +549,7 @@ impl SuiteBuilder {
                     lock_configs: None,
                     astro_token: ASTRO_DENOM.to_string(),
                     xastro_token: xastro.clone(),
-                    eclipastro_token: eclipastro.clone(),
                     astro_staking: astro_staking_contract.clone(),
-                    converter: converter_contract.clone(),
-                    // liquidity_pool: eclipastro_xastro_lp_contract.clone(),
                     owner: None,
                     beclip: AssetInfo::Token {
                         contract_addr: beclip.clone(),
@@ -560,9 +557,6 @@ impl SuiteBuilder {
                     eclip: AssetInfo::NativeToken {
                         denom: ECLIP_DENOM.to_string(),
                     },
-                    // single_sided_staking: single_staking_contract.clone(),
-                    // lp_staking: lp_staking_contract.clone(),
-                    dao_treasury_address: Addr::unchecked(TREASURY.to_string()),
                 },
                 &[],
                 "Eclipsefi lockdrop",
@@ -1421,23 +1415,33 @@ impl Suite {
             &[],
         )
     }
-    pub fn fund_beclip(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+    pub fn fund_beclip(
+        &mut self,
+        sender: &str,
+        amount: u128,
+        rewards: Vec<IncentiveRewards>,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.beclip.clone(),
             &Cw20ExecuteMsg::Send {
                 contract: self.lockdrop_contract().to_string(),
                 amount: Uint128::from(amount),
-                msg: to_json_binary(&LockdropCw20HookMsg::IncreaseIncentives {})?,
+                msg: to_json_binary(&LockdropCw20HookMsg::IncreaseIncentives { rewards })?,
             },
             &[],
         )
     }
-    pub fn fund_eclip(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+    pub fn fund_eclip(
+        &mut self,
+        sender: &str,
+        amount: u128,
+        rewards: Vec<IncentiveRewards>,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lockdrop_contract.clone(),
-            &LockdropCw20HookMsg::IncreaseIncentives {},
+            &LockdropCw20HookMsg::IncreaseIncentives { rewards },
             &[coin(amount, self.eclip.clone())],
         )
     }
@@ -1464,10 +1468,13 @@ impl Suite {
         )?;
         Ok(res)
     }
-    pub fn query_total_lockdrop_incentives(&self) -> StdResult<IncentiveAmounts> {
+    pub fn query_total_lockdrop_incentives(
+        &self,
+        stake_type: StakeType,
+    ) -> StdResult<IncentiveAmounts> {
         let res: IncentiveAmounts = self.app.wrap().query_wasm_smart(
             self.lockdrop_contract.clone(),
-            &LockdropQueryMsg::TotalIncentives {},
+            &LockdropQueryMsg::Incentives { stake_type },
         )?;
         Ok(res)
     }

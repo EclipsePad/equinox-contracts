@@ -21,17 +21,12 @@ pub struct InstantiateMsg {
     pub astro_token: String,
     /// xASTRO token address
     pub xastro_token: String,
-    /// eclipASTRO token address
-    pub eclipastro_token: Addr,
     /// bECLIP
     pub beclip: AssetInfo,
     /// ECLIP
     pub eclip: AssetInfo,
     /// astro staking pool
     pub astro_staking: Addr,
-    /// Equinox ASTRO/eclipASTRO converter contract
-    pub converter: Addr,
-    pub dao_treasury_address: Addr,
 }
 
 #[cw_serde]
@@ -81,7 +76,7 @@ pub enum ExecuteMsg {
         assets: Option<Vec<AssetInfo>>,
     },
     IncreaseIncentives {
-        distribution: Vec<IncentiveDistribution>,
+        rewards: Vec<IncentiveRewards>,
     },
 }
 
@@ -129,7 +124,7 @@ pub enum Cw20HookMsg {
         to: u64,
     },
     IncreaseIncentives {
-        distribution: Vec<IncentiveDistribution>,
+        rewards: Vec<IncentiveRewards>,
     },
 }
 
@@ -190,9 +185,9 @@ pub struct Config {
     /// ECLIP
     pub eclip: AssetInfo,
     /// eclipASTRO Token address
-    pub eclipastro_token: Addr,
+    pub eclipastro_token: Option<Addr>,
     /// ASTRO/eclipASTRO converter contract address
-    pub converter: Addr,
+    pub converter: Option<Addr>,
     /// eclipASTRO single sided staking pool address
     pub single_sided_staking: Option<Addr>,
     /// eclipASTRO/xASTRO lp staking pool address
@@ -213,7 +208,7 @@ pub struct Config {
     pub lock_configs: Vec<LockConfig>,
     /// Total ECLIP lockdrop incentives to be distributed among the users
     pub lockdrop_incentives: Uint128,
-    pub dao_treasury_address: Addr,
+    pub dao_treasury_address: Option<Addr>,
     pub claims_allowed: bool,
     pub countdown_start_at: u64,
 }
@@ -223,6 +218,8 @@ pub struct UpdateConfigMsg {
     pub single_sided_staking: Option<Addr>,
     pub lp_staking: Option<Addr>,
     pub liquidity_pool: Option<Addr>,
+    pub eclipastro_token: Option<Addr>,
+    pub converter: Option<Addr>,
     pub dao_treasury_address: Option<Addr>,
 }
 
@@ -547,7 +544,7 @@ pub struct RewardDistributionConfig {
 }
 
 #[cw_serde]
-pub struct IncentiveDistribution {
+pub struct IncentiveRewards {
     pub stake_type: StakeType,
-    pub bps: u64,
+    pub amount: Uint128,
 }

@@ -73,8 +73,8 @@ pub fn execute(
             assets,
         } => try_claim_all_rewards(deps, env, info, stake_type, with_flexible, assets),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
-        ExecuteMsg::IncreaseIncentives { distribution } => {
-            try_increase_incentives(deps, env, info, distribution)
+        ExecuteMsg::IncreaseIncentives { rewards } => {
+            try_increase_incentives(deps, env, info, rewards)
         }
         ExecuteMsg::UpdateOwner { new_owner } => try_update_owner(deps, env, info, new_owner),
     }

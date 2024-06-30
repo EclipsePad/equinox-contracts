@@ -192,7 +192,7 @@ pub fn query_user_single_lockup_info(
                     staking_rewards: vec![
                         Asset {
                             info: AssetInfo::Token {
-                                contract_addr: cfg.eclipastro_token.clone(),
+                                contract_addr: cfg.eclipastro_token.clone().unwrap(),
                             },
                             amount: user_rewards.eclipastro,
                         },
