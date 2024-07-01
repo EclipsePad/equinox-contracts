@@ -961,71 +961,6 @@ impl Suite {
         )?;
         Ok(res)
     }
-    pub fn stake_lp_token(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.eclipastro_xastro_lp_token_contract.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.lp_staking_contract.to_string(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&LpStakingCw20HookMsg::Stake {})?,
-            },
-            &[],
-        )
-    }
-    pub fn query_user_lp_token_staking(&self, user: &str) -> StdResult<LpStakingUserStaking> {
-        let res: LpStakingUserStaking = self.app.wrap().query_wasm_smart(
-            self.lp_staking_contract.clone(),
-            &LpStakingQueryMsg::Staking {
-                user: user.to_string(),
-            },
-        )?;
-        Ok(res)
-    }
-    pub fn query_user_lp_token_rewards(&self, user: &str) -> StdResult<Vec<LpStakingRewardAmount>> {
-        let res: Vec<LpStakingRewardAmount> = self.app.wrap().query_wasm_smart(
-            self.lp_staking_contract.clone(),
-            &LpStakingQueryMsg::Reward {
-                user: user.to_string(),
-            },
-        )?;
-        Ok(res)
-    }
-
-    pub fn query_total_lp_token_staking(&self) -> StdResult<Uint128> {
-        let res: Uint128 = self.app.wrap().query_wasm_smart(
-            self.lp_staking_contract.clone(),
-            &LpStakingQueryMsg::TotalStaking {},
-        )?;
-        Ok(res)
-    }
-    pub fn query_reward_weights(&self) -> StdResult<Vec<LpStakingRewardWeight>> {
-        let res: Vec<LpStakingRewardWeight> = self.app.wrap().query_wasm_smart(
-            self.lp_staking_contract.clone(),
-            &LpStakingQueryMsg::RewardWeights {},
-        )?;
-        Ok(res)
-    }
-    pub fn query_user_lp_staking_reward(
-        &self,
-        user: &str,
-    ) -> StdResult<Vec<LpStakingRewardAmount>> {
-        let res: Vec<LpStakingRewardAmount> = self.app.wrap().query_wasm_smart(
-            self.lp_staking_contract.clone(),
-            &LpStakingQueryMsg::Reward {
-                user: user.to_string(),
-            },
-        )?;
-        Ok(res)
-    }
-    pub fn lp_staking_claim_rewards(&mut self, sender: &str) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.lp_staking_contract.clone(),
-            &LpStakingExecuteMsg::Claim { assets: None },
-            &[],
-        )
-    }
     pub fn mint_beclip(&mut self, recipient: &str, amount: u128) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             self.admin.clone(),
@@ -1631,6 +1566,91 @@ impl Suite {
                 duration,
                 amount,
             },
+            &[],
+        )
+    }
+    pub fn stake_lp_token(&mut self, sender: &str, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.eclipastro_xastro_lp_token_contract.clone(),
+            &Cw20ExecuteMsg::Send {
+                contract: self.lp_staking_contract.to_string(),
+                amount: Uint128::from(amount),
+                msg: to_json_binary(&LpStakingCw20HookMsg::Stake {})?,
+            },
+            &[],
+        )
+    }
+    pub fn query_user_lp_token_staking(&self, user: &str) -> StdResult<LpStakingUserStaking> {
+        let res: LpStakingUserStaking = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::Staking {
+                user: user.to_string(),
+            },
+        )?;
+        Ok(res)
+    }
+    pub fn query_user_lp_token_rewards(&self, user: &str) -> StdResult<Vec<LpStakingRewardAmount>> {
+        let res: Vec<LpStakingRewardAmount> = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::Reward {
+                user: user.to_string(),
+            },
+        )?;
+        Ok(res)
+    }
+
+    pub fn query_total_lp_token_staking(&self) -> StdResult<Uint128> {
+        let res: Uint128 = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::TotalStaking {},
+        )?;
+        Ok(res)
+    }
+    pub fn query_reward_weights(&self) -> StdResult<Vec<LpStakingRewardWeight>> {
+        let res: Vec<LpStakingRewardWeight> = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::RewardWeights {},
+        )?;
+        Ok(res)
+    }
+    pub fn query_user_reward_weights(&self, user: String) -> StdResult<Vec<LpStakingRewardWeight>> {
+        let res: Vec<LpStakingRewardWeight> = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::UserRewardWeights { user },
+        )?;
+        Ok(res)
+    }
+    pub fn query_user_lp_staking_reward(
+        &self,
+        user: &str,
+    ) -> StdResult<Vec<LpStakingRewardAmount>> {
+        let res: Vec<LpStakingRewardAmount> = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::Reward {
+                user: user.to_string(),
+            },
+        )?;
+        Ok(res)
+    }
+    pub fn lp_staking_claim_rewards(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::Claim { assets: None },
+            &[],
+        )
+    }
+    pub fn lp_unstake(
+        &mut self,
+        sender: &str,
+        amount: Uint128,
+        recipient: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::Unstake { amount, recipient },
             &[],
         )
     }

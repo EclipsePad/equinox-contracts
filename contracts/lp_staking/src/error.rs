@@ -16,6 +16,9 @@ pub enum ContractError {
     )]
     Cw20AddressesNotMatch { got: String, expected: String },
 
+    #[error("Ensure list contains unique assets")]
+    DuplicatedAssets {},
+
     #[error("Amount {got} exceeds your staking {expected}")]
     ExeedingUnstakeAmount { got: u128, expected: u128 },
 

@@ -4,12 +4,13 @@ use astroport::{
     staking::ExecuteMsg as StakingExecuteMsg,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, from_json, to_json_binary, BankMsg, CosmosMsg, DepsMut, Env,
-    MessageInfo, Response, Uint128, WasmMsg,
+    coin, ensure, ensure_eq, from_json, to_json_binary, BankMsg, CosmosMsg, Decimal256, DepsMut,
+    Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use equinox_msg::lp_staking::{
-    CallbackMsg, Cw20HookMsg, RewardConfig, RewardWeight, UpdateConfigMsg,
+use equinox_msg::{
+    lp_staking::{CallbackMsg, Cw20HookMsg, RewardConfig, RewardWeight, UpdateConfigMsg},
+    utils::has_unique_elements,
 };
 
 use crate::{
@@ -207,6 +208,16 @@ pub fn _claim(
         ContractError::InvalidStakingAmount {}
     );
 
+    let assets_list = assets
+        .clone()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|a| a.to_string());
+    ensure!(
+        has_unique_elements(assets_list),
+        ContractError::DuplicatedAssets {}
+    );
+
     // claim astro reward
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: cfg.astroport_generator.to_string(),
@@ -234,6 +245,7 @@ pub fn _claim(
             updated_reward_weights.clone(),
         )?;
         let mut coins = vec![];
+        let mut updated_user_reward_weights = vec![];
         for r in user_rewards {
             let claimable = assets.clone().is_none()
                 || (assets.clone().is_some()
@@ -259,22 +271,28 @@ pub fn _claim(
                         .add_attribute("address", r.info.to_string())
                         .add_attribute("amount", r.amount);
                 }
-                user_staking.reward_weights = user_staking
-                    .reward_weights
-                    .into_iter()
-                    .map(|w| {
-                        if w.info.equal(&r.info) {
-                            return updated_reward_weights
-                                .clone()
-                                .into_iter()
-                                .find(|u| u.info == r.info)
-                                .unwrap_or(w);
-                        }
-                        w
-                    })
-                    .collect::<Vec<RewardWeight>>();
+                updated_user_reward_weights.push(
+                    updated_reward_weights
+                        .clone()
+                        .into_iter()
+                        .find(|w| w.info.equal(&r.info))
+                        .unwrap(),
+                );
+            } else {
+                updated_user_reward_weights.push(
+                    user_staking
+                        .reward_weights
+                        .clone()
+                        .into_iter()
+                        .find(|w| w.info.equal(&r.info))
+                        .unwrap_or(RewardWeight {
+                            info: r.info,
+                            reward_weight: Decimal256::zero(),
+                        }),
+                );
             }
         }
+        user_staking.reward_weights = updated_user_reward_weights;
         if !coins.is_empty() {
             msgs.push(CosmosMsg::Bank(BankMsg::Send {
                 to_address: sender.clone(),

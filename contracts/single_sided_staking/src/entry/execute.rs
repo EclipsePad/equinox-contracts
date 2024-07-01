@@ -21,6 +21,7 @@ use equinox_msg::{
         VaultRewards,
     },
     token_converter::ExecuteMsg as ConverterExecuteMsg,
+    utils::has_unique_elements,
 };
 
 use super::query::{
@@ -457,6 +458,17 @@ pub fn _claim_single(
 ) -> Result<Response, ContractError> {
     let current_time = env.block.time.seconds();
     let config = CONFIG.load(deps.storage)?;
+
+    let assets_list = assets
+        .clone()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|a| a.to_string());
+    ensure!(
+        has_unique_elements(assets_list),
+        ContractError::DuplicatedAssets {}
+    );
+
     let mut user_staking = USER_STAKED.load(deps.storage, (&sender, duration, locked_at))?;
     let updated_reward_weights = calculate_updated_reward_weights(deps.as_ref(), current_time)?;
     let user_reward = calculate_user_reward(

@@ -293,7 +293,7 @@ pub fn try_extend_lockup(
                 if deposit_existing {
                     let received_token = &received_tokens[0];
                     let eclipastro_balance: BalanceResponse = deps.querier.query_wasm_smart(
-                        &cfg.eclipastro_token.unwrap(),
+                        cfg.eclipastro_token.unwrap(),
                         &Cw20QueryMsg::Balance {
                             address: env.contract.address.to_string(),
                         },
@@ -1073,7 +1073,7 @@ pub fn handle_stake_single_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMs
 
     // callback function to stake eclipASTRO to single staking vaults
     let prev_eclipastro_balance: BalanceResponse = deps.querier.query_wasm_smart(
-        &cfg.eclipastro_token.unwrap(),
+        cfg.eclipastro_token.unwrap(),
         &Cw20QueryMsg::Balance {
             address: env.contract.address.to_string(),
         },
@@ -1150,7 +1150,7 @@ pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, 
 
     // callback function to stake eclipASTRO to single staking vaults
     let prev_eclipastro_balance: BalanceResponse = deps.querier.query_wasm_smart(
-        &cfg.eclipastro_token.unwrap(),
+        cfg.eclipastro_token.unwrap(),
         &Cw20QueryMsg::Balance {
             address: env.contract.address.to_string(),
         },

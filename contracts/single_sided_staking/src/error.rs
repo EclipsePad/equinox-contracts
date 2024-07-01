@@ -20,6 +20,9 @@ pub enum ContractError {
     #[error("Duplicated address: {0}")]
     DuplicatedAddress(String),
 
+    #[error("Ensure list contains unique assets")]
+    DuplicatedAssets {},
+
     #[error("Amount {got} exceeds your staking {expected}")]
     ExeedingUnstakeAmount { got: u128, expected: u128 },
 

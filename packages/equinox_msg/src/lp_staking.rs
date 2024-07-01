@@ -74,6 +74,8 @@ pub enum QueryMsg {
 
     #[returns(Vec<RewardWeight>)]
     RewardWeights {},
+    #[returns(Vec<RewardWeight>)]
+    UserRewardWeights { user: String },
 }
 
 #[cw_serde]

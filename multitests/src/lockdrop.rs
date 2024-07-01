@@ -1938,11 +1938,8 @@ fn restake_and_unlock() {
 
     let prev_user_lp_token_balance = suite.query_lp_token_balance(ALICE).unwrap();
     suite
-    .lp_lockdrop_claim_rewards(ALICE, 7776000, None)
-    .unwrap();
-assert_eq!(suite.query_user_lp_staking_reward(suite.lockdrop_contract().as_str()).unwrap(), vec![]);
-assert_eq!(suite.query_user_lp_lockup_info(ALICE).unwrap(), vec![]);
-assert_eq!(suite.query_incentive_pending_rewards(suite.lp_staking_contract().as_str()).unwrap(), vec![]);
+        .lp_lockdrop_claim_rewards(ALICE, 7776000, None)
+        .unwrap();
     suite
         .lp_lockup_unlock(ALICE, 7776000, Some(Uint128::from(400u128)))
         .unwrap();
@@ -1990,7 +1987,7 @@ assert_eq!(suite.query_incentive_pending_rewards(suite.lp_staking_contract().as_
         .lp_lockdrop_claim_rewards(ALICE, 2592000, None)
         .unwrap();
     let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 37037);
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 133368);
 
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(

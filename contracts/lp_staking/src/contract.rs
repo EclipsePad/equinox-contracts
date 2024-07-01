@@ -12,7 +12,7 @@ use crate::{
         instantiate::try_instantiate,
         query::{
             query_config, query_owner, query_reward, query_reward_config, query_reward_weights,
-            query_staking, query_total_staking,
+            query_staking, query_total_staking, query_user_reward_weights,
         },
     },
     error::ContractError,
@@ -61,6 +61,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
         QueryMsg::Reward { user } => Ok(to_json_binary(&query_reward(deps, env, user)?)?),
         QueryMsg::RewardWeights {} => Ok(to_json_binary(&query_reward_weights(deps, env)?)?),
+        QueryMsg::UserRewardWeights { user } => Ok(to_json_binary(&query_user_reward_weights(
+            deps, env, user,
+        )?)?),
     }
 }
 
