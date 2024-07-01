@@ -3,7 +3,7 @@ use cw_storage_plus::Bound;
 use std::cmp::{max, min};
 
 use crate::{
-    config::REWARD_DISTRIBUTION_PERIOD,
+    config::{BPS_DENOMINATOR, REWARD_DISTRIBUTION_PERIOD},
     state::{
         CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD_WEIGHTS, TOTAL_STAKING,
         TOTAL_STAKING_BY_DURATION, USER_STAKED,
@@ -203,13 +203,10 @@ pub fn calculate_total_staking_with_multiplier(deps: Deps) -> StdResult<Uint128>
         .into_iter()
         .fold(Uint128::zero(), |acc, cur| {
             let duration = cur.duration;
-            let multiplier = cur.reward_multiplier;
             let total_staking_by_duration = TOTAL_STAKING_BY_DURATION
                 .load(deps.storage, duration)
                 .unwrap_or_default();
-            acc + total_staking_by_duration
-                .checked_mul(Uint128::from(multiplier))
-                .unwrap()
+            acc + total_staking_by_duration.multiply_ratio(cur.reward_multiplier, BPS_DENOMINATOR)
         }))
 }
 
@@ -249,7 +246,7 @@ pub fn calculate_user_reward(
             .unwrap_or_default()
             .checked_mul(Decimal256::from_ratio(user_staking.staked, 1u128))
             .unwrap()
-            .checked_mul(Decimal256::from_ratio(multiplier, 1u128))
+            .checked_mul(Decimal256::from_ratio(multiplier, BPS_DENOMINATOR))
             .unwrap()
             .to_uint_floor()
             .try_into()?,
@@ -259,7 +256,7 @@ pub fn calculate_user_reward(
             .unwrap_or_default()
             .checked_mul(Decimal256::from_ratio(user_staking.staked, 1u128))
             .unwrap()
-            .checked_mul(Decimal256::from_ratio(multiplier, 1u128))
+            .checked_mul(Decimal256::from_ratio(multiplier, BPS_DENOMINATOR))
             .unwrap()
             .to_uint_floor()
             .try_into()?,
@@ -299,7 +296,7 @@ pub fn calculate_total_user_reward(
                             .unwrap_or_default()
                             .checked_mul(Decimal256::from_ratio(staking_data.staked, 1u128))
                             .unwrap()
-                            .checked_mul(Decimal256::from_ratio(multiplier, 1u128))
+                            .checked_mul(Decimal256::from_ratio(multiplier, BPS_DENOMINATOR))
                             .unwrap()
                             .to_uint_floor()
                             .try_into()?,
@@ -309,7 +306,7 @@ pub fn calculate_total_user_reward(
                             .unwrap_or_default()
                             .checked_mul(Decimal256::from_ratio(staking_data.staked, 1u128))
                             .unwrap()
-                            .checked_mul(Decimal256::from_ratio(multiplier, 1u128))
+                            .checked_mul(Decimal256::from_ratio(multiplier, BPS_DENOMINATOR))
                             .unwrap()
                             .to_uint_floor()
                             .try_into()?,

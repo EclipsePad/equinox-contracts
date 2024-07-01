@@ -42,7 +42,7 @@ use equinox_msg::{
         ExecuteMsg as SingleSidedStakingExecuteMsg,
         InstantiateMsg as SingleSidedStakingInstantiateMsg, QueryMsg as SingleStakingQueryMsg,
         RewardConfig as SingleStakingRewardConfig, RewardDetail as SingleStakingRewardDetail,
-        UpdateConfigMsg as SingleStakingUpdateConfigMsg,
+        TimeLockConfig, UpdateConfigMsg as SingleStakingUpdateConfigMsg,
         UserRewardByDuration as SingleStakingUserRewardByDuration,
         UserStaking as SingleSidedUserStaking,
     },
@@ -432,7 +432,38 @@ impl SuiteBuilder {
                         },
                     },
                     token: eclipastro.clone(),
-                    timelock_config: None,
+                    timelock_config: Some(vec![
+                        TimeLockConfig {
+                            duration: 0,
+                            early_unlock_penalty_bps: 0,
+                            reward_multiplier: 10000,
+                        },
+                        TimeLockConfig {
+                            duration: 86400 * 30,
+                            early_unlock_penalty_bps: 5000,
+                            reward_multiplier: 20000,
+                        },
+                        TimeLockConfig {
+                            duration: 86400 * 30 * 3,
+                            early_unlock_penalty_bps: 5000,
+                            reward_multiplier: 60000,
+                        },
+                        TimeLockConfig {
+                            duration: 86400 * 30 * 6,
+                            early_unlock_penalty_bps: 5000,
+                            reward_multiplier: 120000,
+                        },
+                        TimeLockConfig {
+                            duration: 86400 * 30 * 9,
+                            early_unlock_penalty_bps: 5000,
+                            reward_multiplier: 180000,
+                        },
+                        TimeLockConfig {
+                            duration: 86400 * 365,
+                            early_unlock_penalty_bps: 5000,
+                            reward_multiplier: 240000,
+                        },
+                    ]),
                     token_converter: converter_contract.clone(),
                     treasury: Addr::unchecked(TREASURY.to_string()),
                 },
@@ -1651,6 +1682,23 @@ impl Suite {
             Addr::unchecked(sender),
             self.lp_staking_contract.clone(),
             &LpStakingExecuteMsg::Unstake { amount, recipient },
+            &[],
+        )
+    }
+    pub fn send_cw20(
+        &mut self,
+        asset: Addr,
+        sender: &str,
+        amount: u128,
+        recipient: String,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            asset,
+            &Cw20ExecuteMsg::Transfer {
+                recipient,
+                amount: Uint128::from(amount),
+            },
             &[],
         )
     }

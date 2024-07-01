@@ -139,9 +139,6 @@ pub fn receive_cw20(
             let cfg = CONFIG.load(deps.storage)?;
             let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
             let reward_weights = REWARD_WEIGHTS.load(deps.storage).unwrap_or_default();
-            let mut user_staking = STAKING
-                .load(deps.storage, &msg.sender.to_string())
-                .unwrap_or_default();
 
             ensure_eq!(
                 cfg.lp_token,
@@ -174,6 +171,11 @@ pub fn receive_cw20(
                 response = _claim(deps.branch(), env, msg.sender.clone(), None)?;
             } else {
                 LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
+            }
+            let mut user_staking = STAKING
+                .load(deps.storage, &msg.sender.to_string())
+                .unwrap_or_default();
+            if user_staking.reward_weights.is_empty() {
                 user_staking.reward_weights = reward_weights;
             }
 

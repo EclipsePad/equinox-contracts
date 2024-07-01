@@ -48,6 +48,7 @@ pub enum ExecuteMsg {
         amount: Uint128,
         recipient: Option<String>,
     },
+    // UpdateUserRewardWeight {},
 }
 
 #[cw_serde]

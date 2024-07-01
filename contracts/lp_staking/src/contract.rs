@@ -47,6 +47,21 @@ pub fn execute(
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
         ExecuteMsg::Unstake { amount, recipient } => unstake(deps, env, info, amount, recipient),
         ExecuteMsg::UpdateRewardConfig { config } => update_reward_config(deps, env, info, config),
+        // ExecuteMsg::UpdateUserRewardWeight {} => {
+        //     let reward_weights = REWARD_WEIGHTS.load(deps.storage)?;
+        //     let users = STAKING
+        //         .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        //         .collect::<StdResult<Vec<String>>>()
+        //         .unwrap_or(vec![]);
+        //     for user in users {
+        //         let mut user_staking = STAKING.load(deps.storage, &user)?;
+        //         if user_staking.reward_weights.is_empty() {
+        //             user_staking.reward_weights = reward_weights.clone();
+        //             STAKING.save(deps.storage, &user, &user_staking)?;
+        //         }
+        //     }
+        //     Ok(Response::new())
+        // }
     }
 }
 

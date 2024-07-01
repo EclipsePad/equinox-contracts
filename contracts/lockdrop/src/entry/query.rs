@@ -483,7 +483,7 @@ pub fn get_user_single_lockdrop_incentives(
         LockdropIncentives {
             eclip: LockdropIncentive {
                 allocated: Uint256::from(xastro_amount_in_lockups)
-                    .multiply_ratio(duration_multiplier, 10000u128)
+                    .multiply_ratio(duration_multiplier, BPS_DENOMINATOR)
                     .multiply_ratio(
                         single_lockdrop_incentives.eclip,
                         single_sided_state.weighted_total_xastro,
@@ -494,7 +494,7 @@ pub fn get_user_single_lockdrop_incentives(
             },
             beclip: LockdropIncentive {
                 allocated: Uint256::from(xastro_amount_in_lockups)
-                    .multiply_ratio(duration_multiplier, 10000u128)
+                    .multiply_ratio(duration_multiplier, BPS_DENOMINATOR)
                     .multiply_ratio(
                         single_lockdrop_incentives.beclip,
                         single_sided_state.weighted_total_xastro,
@@ -517,14 +517,14 @@ pub fn get_user_single_lockdrop_incentives(
                     .multiplier;
                 acc.checked_add(
                     info.xastro_amount_in_lockups
-                        .multiply_ratio(duration_multiplier, 10000u128),
+                        .multiply_ratio(duration_multiplier, BPS_DENOMINATOR),
                 )
                 .unwrap()
             });
         LockdropIncentives {
             eclip: LockdropIncentive {
                 allocated: Uint256::from(xastro_amount_in_lockups)
-                    .multiply_ratio(duration_multiplier, 10000u128)
+                    .multiply_ratio(duration_multiplier, BPS_DENOMINATOR)
                     .multiply_ratio(
                         single_lockdrop_incentives.eclip,
                         total_weighted_xastro_amount_for_single_staking,
@@ -535,7 +535,7 @@ pub fn get_user_single_lockdrop_incentives(
             },
             beclip: LockdropIncentive {
                 allocated: Uint256::from(xastro_amount_in_lockups)
-                    .multiply_ratio(duration_multiplier, 10000u128)
+                    .multiply_ratio(duration_multiplier, BPS_DENOMINATOR)
                     .multiply_ratio(
                         single_lockdrop_incentives.beclip,
                         total_weighted_xastro_amount_for_single_staking,
@@ -575,7 +575,7 @@ pub fn get_user_lp_lockdrop_incentives(
         LockdropIncentives {
             eclip: LockdropIncentive {
                 allocated: Uint256::from(xastro_amount_in_lockups)
-                    .multiply_ratio(duration_multiplier, 10000u128)
+                    .multiply_ratio(duration_multiplier, BPS_DENOMINATOR)
                     .multiply_ratio(lp_lockdrop_incentives.eclip, lp_state.weighted_total_xastro)
                     .try_into()
                     .unwrap_or_default(),
@@ -583,7 +583,7 @@ pub fn get_user_lp_lockdrop_incentives(
             },
             beclip: LockdropIncentive {
                 allocated: Uint256::from(xastro_amount_in_lockups)
-                    .multiply_ratio(duration_multiplier, 10000u128)
+                    .multiply_ratio(duration_multiplier, BPS_DENOMINATOR)
                     .multiply_ratio(
                         lp_lockdrop_incentives.beclip,
                         lp_state.weighted_total_xastro,
@@ -606,14 +606,14 @@ pub fn get_user_lp_lockdrop_incentives(
                     .multiplier;
                 acc.checked_add(
                     info.xastro_amount_in_lockups
-                        .multiply_ratio(duration_multiplier, 10000u128),
+                        .multiply_ratio(duration_multiplier, BPS_DENOMINATOR),
                 )
                 .unwrap()
             });
         LockdropIncentives {
             eclip: LockdropIncentive {
                 allocated: Uint256::from(xastro_amount_in_lockups)
-                    .multiply_ratio(duration_multiplier, 10000u128)
+                    .multiply_ratio(duration_multiplier, BPS_DENOMINATOR)
                     .multiply_ratio(
                         lp_lockdrop_incentives.eclip,
                         total_weighted_xastro_amount_for_lp_staking,
@@ -624,7 +624,7 @@ pub fn get_user_lp_lockdrop_incentives(
             },
             beclip: LockdropIncentive {
                 allocated: Uint256::from(xastro_amount_in_lockups)
-                    .multiply_ratio(duration_multiplier, 10000u128)
+                    .multiply_ratio(duration_multiplier, BPS_DENOMINATOR)
                     .multiply_ratio(
                         lp_lockdrop_incentives.beclip,
                         total_weighted_xastro_amount_for_lp_staking,

@@ -332,6 +332,26 @@ fn lp_staking() {
             },
         ]
     );
+    suite.update_time(86400 * 30);
+    assert_eq!(
+        suite.query_user_reward_weights(ALICE.to_string()).unwrap(),
+        vec![]
+    );
+    // assert_eq!(suite.query_reward_weights().unwrap(), vec![]);
+    suite
+        .send_cw20(
+            Addr::unchecked(suite.eclipastro_xastro_lp_token_contract()),
+            BOB,
+            400u128,
+            ALICE.to_string(),
+        )
+        .unwrap();
+
+    suite.stake_lp_token(ALICE, 100u128).unwrap();
+    // assert_eq!(
+    //     suite.query_user_reward_weights(ALICE.to_string()).unwrap(),
+    //     vec![]
+    // );
 
     // // update time againd
     // suite.update_time(86400);
