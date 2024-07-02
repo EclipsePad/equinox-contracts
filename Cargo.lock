@@ -1016,10 +1016,12 @@ name = "lp-staking"
 version = "0.1.2"
 dependencies = [
  "astroport 5.1.0",
+ "astroport-incentives",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-controllers",
  "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
  "cw20-base",

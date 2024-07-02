@@ -26,7 +26,7 @@ pub fn try_instantiate(
             xastro: msg.xastro,
             astro_staking: msg.astro_staking,
             converter: msg.converter,
-            astroport_generator: msg.astroport_generator,
+            astroport_incentives: msg.astroport_incentives,
             treasury: msg.treasury,
             stability_pool: msg.stability_pool,
             ce_reward_distributor: msg.ce_reward_distributor,

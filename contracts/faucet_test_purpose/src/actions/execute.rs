@@ -1,7 +1,8 @@
 use astro_generator::msg::ExecuteMsg as AstroGeneratorExecuteMsg;
 use astroport::staking::ExecuteMsg as StakingExecuteMsg;
 use cosmwasm_std::{
-    coin, to_json_binary, Addr, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128,WasmMsg,
+    coin, to_json_binary, Addr, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128,
+    WasmMsg,
 };
 use cw_utils::nonpayable;
 

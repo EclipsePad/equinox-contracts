@@ -112,7 +112,7 @@ pub fn calculate_incentive_pending_rewards(deps: Deps, contract: Addr) -> StdRes
     Ok(deps
         .querier
         .query_wasm_smart(
-            &cfg.astroport_generator,
+            &cfg.astroport_incentives,
             &IncentivesQueryMsg::PendingRewards {
                 lp_token: cfg.lp_token.to_string(),
                 user: contract.to_string(),

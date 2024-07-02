@@ -8,6 +8,7 @@ use cosmwasm_std::{
     Env, MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw_utils::one_coin;
 use equinox_msg::{
     lp_staking::{CallbackMsg, Cw20HookMsg, RewardConfig, RewardWeight, UpdateConfigMsg},
     utils::has_unique_elements,
@@ -49,9 +50,9 @@ pub fn update_config(
         config.converter = converter.clone();
         res = res.add_attribute("converter", converter);
     }
-    if let Some(astroport_generator) = new_config.astroport_generator {
-        config.astroport_generator = astroport_generator.clone();
-        res = res.add_attribute("astroport_generator", astroport_generator.to_string());
+    if let Some(astroport_incentives) = new_config.astroport_incentives {
+        config.astroport_incentives = astroport_incentives.clone();
+        res = res.add_attribute("astroport_incentives", astroport_incentives.to_string());
     }
     if let Some(treasury) = new_config.treasury {
         config.treasury = treasury.clone();
@@ -135,14 +136,12 @@ pub fn receive_cw20(
         // non zero amount
         // update rewards
         // update user staking, total staking amount
-        Cw20HookMsg::Stake {} => {
+        Cw20HookMsg::Stake { recipient } => {
             let cfg = CONFIG.load(deps.storage)?;
-            let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
-            let reward_weights = REWARD_WEIGHTS.load(deps.storage).unwrap_or_default();
 
-            ensure_eq!(
-                cfg.lp_token,
-                info.sender,
+            ensure!(
+                !cfg.lp_token.is_native_token()
+                    && cfg.lp_token.to_string() == info.sender.to_string(),
                 ContractError::Cw20AddressesNotMatch {
                     got: info.sender.to_string(),
                     expected: cfg.lp_token.to_string(),
@@ -154,44 +153,97 @@ pub fn receive_cw20(
             );
 
             let mut msgs = vec![];
-            let mut response = Response::new();
-
             // stake LP token to Astroport generator contract
             msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: cfg.lp_token.to_string(),
                 msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                    contract: cfg.astroport_generator.to_string(),
+                    contract: cfg.astroport_incentives.to_string(),
                     amount: msg.amount,
                     msg: to_json_binary(&IncentivesCw20Msg::Deposit { recipient: None })?,
                 })?,
                 funds: vec![],
             }));
 
-            if total_staking.gt(&Uint128::zero()) {
-                response = _claim(deps.branch(), env, msg.sender.clone(), None)?;
-            } else {
-                LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
-            }
-            let mut user_staking = STAKING
-                .load(deps.storage, &msg.sender.to_string())
-                .unwrap_or_default();
-            if user_staking.reward_weights.is_empty() {
-                user_staking.reward_weights = reward_weights;
-            }
-
-            total_staking += msg.amount;
-            user_staking.staked = user_staking.staked.checked_add(msg.amount).unwrap();
-
-            TOTAL_STAKING.save(deps.storage, &total_staking)?;
-            STAKING.save(deps.storage, &msg.sender, &user_staking)?;
-
-            Ok(response
-                .add_attribute("action", "stake")
-                .add_attribute("sender", msg.sender.clone().to_string())
-                .add_attribute("amount", msg.amount.to_string())
-                .add_messages(msgs))
+            let response = _stake(deps.branch(), env, msg.sender, msg.amount, recipient)?;
+            Ok(response.add_messages(msgs))
         }
     }
+}
+
+pub fn _stake(
+    mut deps: DepsMut,
+    env: Env,
+    sender: String,
+    amount: Uint128,
+    recipient: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
+    let reward_weights = REWARD_WEIGHTS.load(deps.storage).unwrap_or_default();
+    let recipient = recipient.unwrap_or(sender.clone());
+    let mut response = Response::new();
+
+    if total_staking.gt(&Uint128::zero()) {
+        response = _claim(deps.branch(), env, recipient.clone(), None)?;
+    } else {
+        LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
+    }
+    let mut recipient_staking = STAKING.load(deps.storage, &recipient).unwrap_or_default();
+    if recipient_staking.reward_weights.is_empty() {
+        recipient_staking.reward_weights = reward_weights;
+    }
+
+    total_staking += amount;
+    recipient_staking.staked = recipient_staking.staked.checked_add(amount).unwrap();
+
+    TOTAL_STAKING.save(deps.storage, &total_staking)?;
+    STAKING.save(deps.storage, &recipient, &recipient_staking)?;
+
+    Ok(response
+        .add_attribute("action", "stake")
+        .add_attribute("sender", sender)
+        .add_attribute("amount", amount.to_string())
+        .add_attribute("recipient", recipient))
+}
+
+// stake lp token when it is native token
+pub fn stake(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    recipient: Option<String>,
+) -> Result<Response, ContractError> {
+    let asset = one_coin(&info)?;
+    let cfg = CONFIG.load(deps.storage)?;
+    let sender = info.sender.clone();
+
+    ensure!(
+        cfg.lp_token.is_native_token() && cfg.lp_token.to_string() == asset.denom,
+        ContractError::AssetsNotMatch {
+            got: asset.denom,
+            expected: cfg.lp_token.to_string()
+        }
+    );
+    ensure!(
+        asset.amount.gt(&Uint128::zero()),
+        ContractError::ZeroAmount {}
+    );
+
+    let mut msgs = vec![];
+    // stake LP token to Astroport generator contract
+    msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: cfg.astroport_incentives.to_string(),
+        msg: to_json_binary(&IncentivesExecuteMsg::Deposit { recipient: None })?,
+        funds: vec![asset.clone()],
+    }));
+
+    let response = _stake(
+        deps.branch(),
+        env,
+        sender.to_string(),
+        asset.amount,
+        recipient,
+    )?;
+    Ok(response.add_messages(msgs))
 }
 
 pub fn _claim(
@@ -222,7 +274,7 @@ pub fn _claim(
 
     // claim astro reward
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.astroport_generator.to_string(),
+        contract_addr: cfg.astroport_incentives.to_string(),
         msg: to_json_binary(&IncentivesExecuteMsg::ClaimRewards {
             lp_tokens: vec![cfg.lp_token.to_string()],
         })?,
@@ -372,21 +424,31 @@ pub fn unstake(
 
     // send lp_token to user
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.astroport_generator.to_string(),
+        contract_addr: cfg.astroport_incentives.to_string(),
         msg: to_json_binary(&IncentivesExecuteMsg::Withdraw {
             lp_token: cfg.lp_token.clone().to_string(),
             amount,
         })?,
         funds: vec![],
     }));
-    msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.lp_token.clone().to_string(),
-        msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: receiver,
-            amount,
-        })?,
-        funds: vec![],
-    }));
+    match cfg.lp_token {
+        AssetInfo::NativeToken { denom } => {
+            msgs.push(CosmosMsg::Bank(BankMsg::Send {
+                to_address: receiver,
+                amount: vec![coin(amount.u128(), denom)],
+            }));
+        }
+        AssetInfo::Token { contract_addr } => {
+            msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: contract_addr.to_string(),
+                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: receiver,
+                    amount,
+                })?,
+                funds: vec![],
+            }));
+        }
+    }
     Ok(response
         .add_attribute("action", "unstake")
         .add_attribute("from", info.sender.to_string())
