@@ -195,7 +195,7 @@ pub struct Config {
     /// eclipASTRO/xASTRO pool
     pub liquidity_pool: Option<Addr>,
     /// eclipASTRO/xASTRO LP Token address
-    pub lp_token: Option<Addr>,
+    pub lp_token: Option<AssetInfo>,
     /// astro staking pool
     pub astro_staking: Addr,
     /// Timestamp when Contract will start accepting ASTRO/xASTRO Token deposits

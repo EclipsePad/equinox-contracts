@@ -1,5 +1,5 @@
 use astroport::{
-    asset::{Asset, AssetInfo, PairInfo},
+    asset::{Asset, AssetInfo, AssetInfoExt, PairInfo},
     pair::{ExecuteMsg as PairExecuteMsg, QueryMsg as AstroportPairQueryMsg},
     staking::ExecuteMsg as AstroStakingExecuteMsg,
     token::BalanceResponse,
@@ -69,7 +69,9 @@ pub fn try_update_config(
             .querier
             .query_wasm_smart(&liquidity_pool, &AstroportPairQueryMsg::Pair {})?;
         cfg.liquidity_pool = Some(liquidity_pool.clone());
-        cfg.lp_token = Some(pool_info.liquidity_token.clone());
+        cfg.lp_token = Some(AssetInfo::NativeToken {
+            denom: pool_info.liquidity_token.clone(),
+        });
         attributes.push(attr("new_liquidity_pool", &liquidity_pool));
         attributes.push(attr("new_lp_token", &pool_info.liquidity_token));
     }
@@ -1155,12 +1157,9 @@ pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, 
             address: env.contract.address.to_string(),
         },
     )?;
-    let prev_lp_token_balance: BalanceResponse = deps.querier.query_wasm_smart(
-        cfg.lp_token.unwrap(),
-        &Cw20QueryMsg::Balance {
-            address: env.contract.address.to_string(),
-        },
-    )?;
+    let lp_token = cfg.lp_token.unwrap();
+    let prev_lp_token_balance =
+        lp_token.query_pool(&deps.querier, env.contract.address.to_string())?;
     msgs.push(
         CallbackMsg::DepositIntoPool {
             prev_eclipastro_balance: prev_eclipastro_balance.balance,
@@ -1171,7 +1170,7 @@ pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, 
     );
     msgs.push(
         CallbackMsg::StakeLpToken {
-            prev_lp_token_balance: prev_lp_token_balance.balance,
+            prev_lp_token_balance,
         }
         .to_cosmos_msg(&env)?,
     );
@@ -1310,6 +1309,7 @@ fn handle_deposit_into_pool(
                 slippage_tolerance: None,
                 auto_stake: Some(false),
                 receiver: None,
+                min_lp_to_receive: None,
             })?,
             funds: vec![coin(
                 xastro_amount_to_deposit.u128(),
@@ -1341,16 +1341,10 @@ fn handle_stake_lp_token(
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
     let mut state = LP_LOCKUP_STATE.load(deps.storage)?;
-    let lp_token_balance: BalanceResponse = deps.querier.query_wasm_smart(
-        cfg.lp_token.clone().unwrap(),
-        &Cw20QueryMsg::Balance {
-            address: env.contract.address.to_string(),
-        },
-    )?;
-    let lp_token_to_stake = lp_token_balance
-        .balance
-        .checked_sub(prev_lp_token_balance)
-        .unwrap();
+    let lp_token = cfg.lp_token.clone().unwrap();
+
+    let lp_token_balance = lp_token.query_pool(&deps.querier, env.contract.address.to_string())?;
+    let lp_token_to_stake = lp_token_balance.checked_sub(prev_lp_token_balance).unwrap();
     ensure!(
         lp_token_to_stake.gt(&Uint128::zero()),
         ContractError::InvalidLpTokenBalance {}
@@ -1373,19 +1367,26 @@ fn handle_stake_lp_token(
             )?)
             .unwrap();
     }
-    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.lp_token.clone().unwrap().to_string(),
-        msg: to_json_binary(&Cw20ExecuteMsg::Send {
-            contract: cfg.lp_staking.unwrap().to_string(),
-            amount: lp_token_to_stake,
-            msg: to_json_binary(&LpStakingCw20HookMsg::Stake {})?,
-        })?,
-        funds: vec![],
-    });
+    let msg = match lp_token.clone() {
+        AssetInfo::NativeToken { denom } => CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.lp_staking.unwrap().to_string(),
+            msg: to_json_binary(&LpExecuteMsg::Stake { recipient: None })?,
+            funds: vec![coin(lp_token_to_stake.u128(), denom)],
+        }),
+        AssetInfo::Token { contract_addr } => CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: contract_addr.to_string(),
+            msg: to_json_binary(&Cw20ExecuteMsg::Send {
+                contract: cfg.lp_staking.unwrap().to_string(),
+                amount: lp_token_to_stake,
+                msg: to_json_binary(&LpStakingCw20HookMsg::Stake { recipient: None })?,
+            })?,
+            funds: vec![],
+        }),
+    };
     LP_LOCKUP_STATE.save(deps.storage, &state)?;
     Ok(Response::new()
         .add_attribute("action", "stake lp token")
-        .add_attribute("token", cfg.lp_token.unwrap().to_string())
+        .add_attribute("token", lp_token.to_string())
         .add_attribute("amount", lp_token_to_stake)
         .add_message(msg))
 }
@@ -2140,6 +2141,7 @@ pub fn _unlock_lp_lockup(
         if current_time < cfg.countdown_start_at + duration {
             penalty_amount = withdraw_amount.checked_div_ceil((2u128, 1u128)).unwrap();
         }
+        let lp_token = cfg.lp_token.unwrap();
         let mut msgs = vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: cfg.lp_staking.unwrap().to_string(),
@@ -2149,24 +2151,16 @@ pub fn _unlock_lp_lockup(
                 })?,
                 funds: vec![],
             }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.lp_token.clone().unwrap().to_string(),
-                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: sender.clone(),
-                    amount: withdraw_amount - penalty_amount,
-                })?,
-                funds: vec![],
-            }),
+            lp_token
+                .with_balance(withdraw_amount - penalty_amount)
+                .into_msg(sender.clone())?,
         ];
         if !penalty_amount.is_zero() {
-            msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.lp_token.unwrap().to_string(),
-                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: cfg.dao_treasury_address.unwrap().to_string(),
-                    amount: penalty_amount,
-                })?,
-                funds: vec![],
-            }));
+            msgs.push(
+                lp_token
+                    .with_balance(penalty_amount)
+                    .into_msg(cfg.dao_treasury_address.unwrap().to_string())?,
+            );
         }
 
         LP_LOCKUP_INFO.save(deps.storage, duration, &lockup_info)?;
