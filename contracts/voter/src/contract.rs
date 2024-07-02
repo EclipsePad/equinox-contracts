@@ -36,6 +36,8 @@ pub fn execute(
         ExecuteMsg::UpdateAddressConfig {
             admin,
             worker_list,
+            eclipse_dao,
+            eclipsepad_foundry,
             eclipsepad_minter,
             eclipsepad_staking,
             eclipsepad_tribute_market,
@@ -50,6 +52,8 @@ pub fn execute(
             info,
             admin,
             worker_list,
+            eclipse_dao,
+            eclipsepad_foundry,
             eclipsepad_minter,
             eclipsepad_staking,
             eclipsepad_tribute_market,
@@ -70,18 +74,35 @@ pub fn execute(
             epochs_start,
             epoch_length,
             vote_cooldown,
-        } => e::try_update_date_config(deps, env, info, epochs_start, epoch_length, vote_cooldown),
+            vote_delay,
+        } => e::try_update_date_config(
+            deps,
+            env,
+            info,
+            epochs_start,
+            epoch_length,
+            vote_cooldown,
+            vote_delay,
+        ),
 
-        ExecuteMsg::CaptureEssence {
+        ExecuteMsg::UpdateEssenceAllocation {
             user_and_essence_list,
             total_essence,
-        } => e::try_capture_essence(deps, env, info, user_and_essence_list, total_essence),
+        } => unimplemented!(),
 
         ExecuteMsg::SwapToEclipAstro {} => e::try_swap_to_eclip_astro(deps, env, info),
 
-        ExecuteMsg::Vote { voting_list } => e::try_vote(deps, env, info, voting_list),
+        ExecuteMsg::SwapXastroToAstro {} => unimplemented!(),
 
-        ExecuteMsg::VoteAsUser { voting_list } => unimplemented!(),
+        ExecuteMsg::Delegate {} => unimplemented!(),
+
+        ExecuteMsg::Undelegate {} => unimplemented!(),
+
+        ExecuteMsg::PlaceVote { weight_allocation } => unimplemented!(),
+
+        ExecuteMsg::PlaceVoteAsDao { weight_allocation } => unimplemented!(),
+
+        ExecuteMsg::Vote {} => unimplemented!(),
 
         ExecuteMsg::ClaimRewards {} => unimplemented!(),
     }

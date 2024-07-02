@@ -11,6 +11,10 @@ pub struct InstantiateMsg {
     /// can execute permissioned actions
     pub worker_list: Option<Vec<String>>,
 
+    /// to allocate delegated voting power
+    pub eclipse_dao: String,
+    /// to query darkECLIP holders essence info
+    pub eclipsepad_foundry: Option<String>,
     /// to mint eclipASTRO
     pub eclipsepad_minter: String,
     /// to get cosmic essence info (staking v3)
@@ -42,6 +46,8 @@ pub struct InstantiateMsg {
     pub epoch_length: u64,
     /// revoting cooldown
     pub vote_cooldown: u64,
+    /// votes will be sent to astroport emissions controller by x/cron right after this delay
+    pub vote_delay: u64,
 }
 
 #[cw_serde]
@@ -56,6 +62,10 @@ pub enum ExecuteMsg {
         /// can execute permissioned actions
         worker_list: Option<Vec<String>>,
 
+        /// to allocate delegated voting power
+        eclipse_dao: String,
+        /// to query darkECLIP holders essence info
+        eclipsepad_foundry: Option<String>,
         /// to mint eclipASTRO
         eclipsepad_minter: Option<String>,
         /// to get cosmic essence info (staking v3)
@@ -93,9 +103,11 @@ pub enum ExecuteMsg {
         epoch_length: Option<u64>,
         /// revoting cooldown
         vote_cooldown: Option<u64>,
+        /// votes will be sent to astroport emissions controller by x/cron right after this delay
+        vote_delay: Option<u64>,
     },
 
-    CaptureEssence {
+    UpdateEssenceAllocation {
         user_and_essence_list: Vec<(String, EssenceInfo)>,
         total_essence: EssenceInfo,
     },
@@ -104,16 +116,31 @@ pub enum ExecuteMsg {
     /// swap ASTRO -> xASTRO will be provided first if it's required
     SwapToEclipAstro {},
 
-    Vote {
-        voting_list: Vec<VotingListItem>,
+    SwapXastroToAstro {},
+
+    Delegate {},
+
+    Undelegate {},
+
+    PlaceVote {
+        weight_allocation: Vec<WeightAllocationItem<String>>,
     },
 
-    VoteAsUser {
-        voting_list: Vec<VotingListItem>,
+    PlaceVoteAsDao {
+        weight_allocation: Vec<WeightAllocationItem<String>>,
     },
+
+    // TODO: SudoMsg?
+    Vote {},
 
     /// withdraw bribe rewards
     ClaimRewards {},
+}
+
+#[cw_serde]
+pub struct EssenceAllocationItem<A: ToString> {
+    pub lp_token: A,
+    pub essence_info: EssenceInfo,
 }
 
 #[cw_serde]
@@ -124,9 +151,55 @@ pub struct EssenceInfo {
 }
 
 #[cw_serde]
-pub struct VotingListItem {
-    pub lp_token: String,
-    pub voting_power: Decimal,
+#[derive(Default)]
+pub struct RewardsInfo {
+    pub amount: Uint128,
+    pub last_update_epoch: u16,
+}
+
+impl EssenceInfo {
+    /// self + item
+    pub fn add(&self, item: EssenceInfo) -> Self {
+        let (a1, b1) = self.staking_components;
+        let (a2, b2) = item.staking_components;
+
+        EssenceInfo {
+            staking_components: (a1 + a2, b1 + b2),
+            locking_amount: self.locking_amount + item.locking_amount,
+        }
+    }
+
+    /// self - item
+    pub fn sub(&self, item: EssenceInfo) -> Self {
+        let (a1, b1) = self.staking_components;
+        let (a2, b2) = item.staking_components;
+
+        EssenceInfo {
+            staking_components: (a1 - a2, b1 - b2),
+            locking_amount: self.locking_amount - item.locking_amount,
+        }
+    }
+}
+
+#[cw_serde]
+pub struct WeightAllocationItem<A: ToString> {
+    pub lp_token: A,
+    pub weight: Decimal,
+}
+
+#[cw_serde]
+pub struct PoolInfoItem {
+    pub lp_token: Addr,
+    pub weight: Decimal,
+    pub rewards: Uint128,
+}
+
+#[cw_serde]
+pub struct VoteResults {
+    pub epoch_id: u16,
+    pub end_date: u64,
+    pub essence: Uint128,
+    pub pool_info_list: Vec<PoolInfoItem>,
 }
 
 #[cw_serde]
@@ -181,17 +254,9 @@ pub struct QueryEssenceListResponse<A: ToString> {
 
 #[cw_serde]
 pub struct BribesAllocationItem {
-    pub pool: Addr,
-    pub rewards: Vec<(Uint128, String)>,
+    pub lp_token: Addr,
+    pub rewards: Uint128, // TODO: probably must be Vec<(Uint128, String)>
 }
-
-// #[cw_serde]
-// pub struct Vote {
-//     /// Option voted for.
-//     pub option: String,
-//     /// The weight of the power given to this vote
-//     pub weight: Decimal,
-// }
 
 #[cw_serde]
 pub struct AddressConfig {
@@ -200,6 +265,10 @@ pub struct AddressConfig {
     /// can execute permissioned actions
     pub worker_list: Vec<Addr>,
 
+    /// to allocate delegated voting power
+    pub eclipse_dao: Addr,
+    /// to query darkECLIP holders essence info
+    pub eclipsepad_foundry: Option<Addr>,
     /// to mint eclipASTRO
     pub eclipsepad_minter: Addr,
     /// to get cosmic essence info (staking v3)
@@ -237,6 +306,8 @@ pub struct DateConfig {
     pub epoch_length: u64,
     /// revoting cooldown
     pub vote_cooldown: u64,
+    /// votes will be sent to astroport emissions controller by x/cron right after this delay
+    pub vote_delay: u64,
 }
 
 #[cw_serde]

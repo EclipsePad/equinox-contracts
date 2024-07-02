@@ -7,10 +7,7 @@ use equinox_msg::voter::{
 
 use crate::{
     error::ContractError,
-    state::{
-        ADDRESS_CONFIG, CONTRACT_NAME, DATE_CONFIG, TOKEN_CONFIG, TOTAL_LOCKING_ESSENCE,
-        TOTAL_STAKING_ESSENCE_COMPONENTS, TRANSFER_ADMIN_STATE,
-    },
+    state::{ADDRESS_CONFIG, CONTRACT_NAME, DATE_CONFIG, TOKEN_CONFIG, TRANSFER_ADMIN_STATE},
 };
 
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -47,6 +44,11 @@ pub fn try_instantiate(
                 })
                 .transpose()?
                 .unwrap_or_default(),
+            eclipse_dao: deps.api.addr_validate(&msg.eclipse_dao)?,
+            eclipsepad_foundry: msg
+                .eclipsepad_foundry
+                .map(|x| deps.api.addr_validate(&x))
+                .transpose()?,
             eclipsepad_minter: deps.api.addr_validate(&msg.eclipsepad_minter)?,
             eclipsepad_staking: deps.api.addr_validate(&msg.eclipsepad_staking)?,
             eclipsepad_tribute_market: msg
@@ -81,11 +83,9 @@ pub fn try_instantiate(
             epochs_start: msg.epochs_start,
             epoch_length: msg.epoch_length,
             vote_cooldown: msg.vote_cooldown,
+            vote_delay: msg.vote_delay,
         },
     )?;
-
-    TOTAL_STAKING_ESSENCE_COMPONENTS.save(deps.storage, &(Uint128::zero(), Uint128::zero()))?;
-    TOTAL_LOCKING_ESSENCE.save(deps.storage, &Uint128::zero())?;
 
     Ok(Response::new().add_attribute("action", "instantiate"))
 }

@@ -10,16 +10,13 @@ use eclipse_base::{
     converters::u128_to_dec,
     utils::{check_funds, unwrap_field, FundsType},
 };
-use equinox_msg::voter::{
-    AddressConfig, DateConfig, EssenceInfo, TokenConfig, TransferAdminState, VotingListItem,
-};
+use equinox_msg::voter::{AddressConfig, DateConfig, EssenceInfo, TokenConfig, TransferAdminState};
 
 use crate::{
     error::ContractError,
     state::{
-        ADDRESS_CONFIG, DATE_CONFIG, LOCKING_ESSENCE, RECIPIENT, STAKE_ASTRO_REPLY_ID,
-        STAKING_ESSENCE_COMPONENTS, TOKEN_CONFIG, TOTAL_LOCKING_ESSENCE,
-        TOTAL_STAKING_ESSENCE_COMPONENTS, TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT,
+        ADDRESS_CONFIG, DATE_CONFIG, RECIPIENT, STAKE_ASTRO_REPLY_ID, TOKEN_CONFIG,
+        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT,
     },
 };
 
@@ -63,6 +60,8 @@ pub fn try_update_address_config(
     info: MessageInfo,
     admin: Option<String>,
     worker_list: Option<Vec<String>>,
+    eclipse_dao: String,
+    eclipsepad_foundry: Option<String>,
     eclipsepad_minter: Option<String>,
     eclipsepad_staking: Option<String>,
     eclipsepad_tribute_market: Option<String>,
@@ -174,6 +173,7 @@ pub fn try_update_date_config(
     epochs_start: Option<u64>,
     epoch_length: Option<u64>,
     vote_cooldown: Option<u64>,
+    vote_delay: Option<u64>,
 ) -> Result<Response, ContractError> {
     let AddressConfig { admin, .. } = ADDRESS_CONFIG.load(deps.storage)?;
     let mut config = DATE_CONFIG.load(deps.storage)?;
@@ -199,43 +199,43 @@ pub fn try_update_date_config(
     Ok(Response::new().add_attribute("action", "try_update_date_config"))
 }
 
-pub fn try_capture_essence(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    user_and_essence_list: Vec<(String, EssenceInfo)>,
-    total_essence: EssenceInfo,
-) -> Result<Response, ContractError> {
-    let sender = &info.sender;
-    // let block_time = env.block.time.seconds();
-    let AddressConfig {
-        admin,
-        eclipsepad_staking,
-        ..
-    } = ADDRESS_CONFIG.load(deps.storage)?;
-    // let DateConfig {
-    //     epochs_start,
-    //     epoch_length,
-    //     ..
-    // } = DATE_CONFIG.load(deps.storage)?;
+// pub fn try_capture_essence(
+//     deps: DepsMut,
+//     _env: Env,
+//     info: MessageInfo,
+//     user_and_essence_list: Vec<(String, EssenceInfo)>,
+//     total_essence: EssenceInfo,
+// ) -> Result<Response, ContractError> {
+//     let sender = &info.sender;
+//     // let block_time = env.block.time.seconds();
+//     let AddressConfig {
+//         admin,
+//         eclipsepad_staking,
+//         ..
+//     } = ADDRESS_CONFIG.load(deps.storage)?;
+//     // let DateConfig {
+//     //     epochs_start,
+//     //     epoch_length,
+//     //     ..
+//     // } = DATE_CONFIG.load(deps.storage)?;
 
-    if sender != eclipsepad_staking && sender.to_string() != admin {
-        Err(ContractError::Unauthorized)?;
-    }
+//     if sender != eclipsepad_staking && sender.to_string() != admin {
+//         Err(ContractError::Unauthorized)?;
+//     }
 
-    // if block_time > epochs_start + epoch_length {
-    TOTAL_STAKING_ESSENCE_COMPONENTS.save(deps.storage, &total_essence.staking_components)?;
-    TOTAL_LOCKING_ESSENCE.save(deps.storage, &total_essence.locking_amount)?;
+//     // if block_time > epochs_start + epoch_length {
+//     TOTAL_STAKING_ESSENCE_COMPONENTS.save(deps.storage, &total_essence.staking_components)?;
+//     TOTAL_LOCKING_ESSENCE.save(deps.storage, &total_essence.locking_amount)?;
 
-    for (user_address, user_essence) in user_and_essence_list {
-        let user = &Addr::unchecked(user_address);
-        STAKING_ESSENCE_COMPONENTS.save(deps.storage, user, &user_essence.staking_components)?;
-        LOCKING_ESSENCE.save(deps.storage, user, &user_essence.locking_amount)?;
-    }
-    // }
+//     for (user_address, user_essence) in user_and_essence_list {
+//         let user = &Addr::unchecked(user_address);
+//         STAKING_ESSENCE_COMPONENTS.save(deps.storage, user, &user_essence.staking_components)?;
+//         LOCKING_ESSENCE.save(deps.storage, user, &user_essence.locking_amount)?;
+//     }
+//     // }
 
-    Ok(Response::new().add_attribute("action", "try_capture_essence"))
-}
+//     Ok(Response::new().add_attribute("action", "try_capture_essence"))
+// }
 
 pub fn try_swap_to_eclip_astro(
     deps: DepsMut,
@@ -367,70 +367,70 @@ fn lock_xastro(
         .add_attribute("eclip_astro_amount", eclip_astro_amount))
 }
 
-pub fn try_vote(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    voting_list: Vec<VotingListItem>,
-) -> Result<Response, ContractError> {
-    let AddressConfig {
-        admin,
-        astroport_emission_controller,
-        ..
-    } = ADDRESS_CONFIG.load(deps.storage)?;
+// pub fn try_vote(
+//     deps: DepsMut,
+//     _env: Env,
+//     info: MessageInfo,
+//     voting_list: Vec<VotingListItem>,
+// ) -> Result<Response, ContractError> {
+//     let AddressConfig {
+//         admin,
+//         astroport_emission_controller,
+//         ..
+//     } = ADDRESS_CONFIG.load(deps.storage)?;
 
-    if info.sender != admin {
-        Err(ContractError::Unauthorized)?;
-    }
+//     if info.sender != admin {
+//         Err(ContractError::Unauthorized)?;
+//     }
 
-    // check voting list
+//     // check voting list
 
-    // empty
-    if voting_list.is_empty() {
-        Err(ContractError::EmptyVotingList)?;
-    }
+//     // empty
+//     if voting_list.is_empty() {
+//         Err(ContractError::EmptyVotingList)?;
+//     }
 
-    // diplications
-    let mut pool_list: Vec<String> = voting_list.iter().map(|x| x.lp_token.to_string()).collect();
-    pool_list.sort_unstable();
-    pool_list.dedup();
+//     // diplications
+//     let mut pool_list: Vec<String> = voting_list.iter().map(|x| x.lp_token.to_string()).collect();
+//     pool_list.sort_unstable();
+//     pool_list.dedup();
 
-    if pool_list.len() != voting_list.len() {
-        Err(ContractError::VotingListDuplication)?;
-    }
+//     if pool_list.len() != voting_list.len() {
+//         Err(ContractError::VotingListDuplication)?;
+//     }
 
-    // out of range
-    if voting_list
-        .iter()
-        .any(|x| x.voting_power.is_zero() || x.voting_power > Decimal::one())
-    {
-        Err(ContractError::WeightIsOutOfRange)?;
-    }
+//     // out of range
+//     if voting_list
+//         .iter()
+//         .any(|x| x.voting_power.is_zero() || x.voting_power > Decimal::one())
+//     {
+//         Err(ContractError::WeightIsOutOfRange)?;
+//     }
 
-    // wrong sum
-    let votes: Vec<(String, Decimal)> = voting_list
-        .into_iter()
-        .map(|x| (x.lp_token, x.voting_power))
-        .collect();
+//     // wrong sum
+//     let votes: Vec<(String, Decimal)> = voting_list
+//         .into_iter()
+//         .map(|x| (x.lp_token, x.voting_power))
+//         .collect();
 
-    if (votes
-        .iter()
-        .fold(Decimal::zero(), |acc, (_, voting_power)| acc + voting_power))
-        != Decimal::one()
-    {
-        Err(ContractError::WeightsAreUnbalanced)?;
-    }
+//     if (votes
+//         .iter()
+//         .fold(Decimal::zero(), |acc, (_, voting_power)| acc + voting_power))
+//         != Decimal::one()
+//     {
+//         Err(ContractError::WeightsAreUnbalanced)?;
+//     }
 
-    // send vote msg
-    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: astroport_emission_controller.to_string(),
-        msg: to_json_binary(
-            &astroport_governance::emissions_controller::msg::ExecuteMsg::<Empty>::Vote { votes },
-        )?,
-        funds: vec![],
-    });
+//     // send vote msg
+//     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+//         contract_addr: astroport_emission_controller.to_string(),
+//         msg: to_json_binary(
+//             &astroport_governance::emissions_controller::msg::ExecuteMsg::<Empty>::Vote { votes },
+//         )?,
+//         funds: vec![],
+//     });
 
-    Ok(Response::new()
-        .add_message(msg)
-        .add_attribute("action", "try_vote"))
-}
+//     Ok(Response::new()
+//         .add_message(msg)
+//         .add_attribute("action", "try_vote"))
+// }

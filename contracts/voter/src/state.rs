@@ -1,6 +1,9 @@
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
-use equinox_msg::voter::{AddressConfig, DateConfig, TokenConfig, TransferAdminState};
+use equinox_msg::voter::{
+    AddressConfig, DateConfig, EssenceAllocationItem, EssenceInfo, RewardsInfo, TokenConfig,
+    TransferAdminState, VoteResults, WeightAllocationItem,
+};
 
 /// Contract name that is used for migration
 pub const CONTRACT_NAME: &str = "eclipse-equinox-voter";
@@ -29,28 +32,34 @@ pub const DATE_CONFIG: Item<DateConfig> = Item::new("date_config");
 
 /// Stores the state of changing admin process
 pub const TRANSFER_ADMIN_STATE: Item<TransferAdminState> = Item::new("transfer_admin_state");
-
 /// temporary storage for eclipASTRO recipients
 pub const RECIPIENT: Item<Addr> = Item::new("recipient");
 
-/// Stores time dependent total staking essence components (a,b)
-/// to reduce calculations amount during rewards accumulation
-/// total_staking_essence = (a * block_time - b) / seconds_per_essence
-/// a = sum(staked_eclip_amount), b = sum(staked_eclip_amount * vault.creation_date)
-pub const TOTAL_STAKING_ESSENCE_COMPONENTS: Item<(Uint128, Uint128)> =
-    Item::new("total_staking_essence_components");
+// user storages
+//
+/// list of pools with weight allocations by elector address
+pub const ELECTOR_WEIGHTS: Map<&Addr, Vec<WeightAllocationItem<Addr>>> =
+    Map::new("elector_weights");
+/// essence info by elector address, non-voters are excluded
+pub const ELECTOR_ESSENCE: Map<&Addr, EssenceInfo> = Map::new("elector_essence");
+/// dao list of pools with weight allocations
+pub const DAO_WEIGHTS: Item<Vec<WeightAllocationItem<Addr>>> = Item::new("dao_weights");
+/// dao essence info, non-voters are excluded
+pub const DAO_ESSENCE: Item<EssenceInfo> = Item::new("dao_essence");
+/// essence info by delegator address
+pub const DELEGATOR_ESSENCE: Map<&Addr, EssenceInfo> = Map::new("delegator_essence");
+// bribe rewards info by user address
+pub const BRIBE_REWARDS: Map<&Addr, RewardsInfo> = Map::new("bribe_rewards");
 
-/// Stores time independent total locking essence amount
-/// to reduce calculations amount during rewards accumulation
-pub const TOTAL_LOCKING_ESSENCE: Item<Uint128> = Item::new("total_locking_essence");
-
-/// Stores time dependent staking essence components (a,b)
-/// to reduce calculations amount during rewards accumulation
-/// staking_essence = (a * block_time - b) / seconds_per_essence
-/// a = sum(staked_eclip_amount), b = sum(staked_eclip_amount * vault.creation_date)
-pub const STAKING_ESSENCE_COMPONENTS: Map<&Addr, (Uint128, Uint128)> =
-    Map::new("staking_essence_components");
-
-/// Stores time independent locking essence amount
-/// to reduce calculations amount during rewards accumulation
-pub const LOCKING_ESSENCE: Map<&Addr, Uint128> = Map::new("locking_essence");
+// voter storages
+//
+/// list of pools with essence allocations for all electors
+pub const ELECTOR_VOTES: Item<Vec<EssenceAllocationItem<Addr>>> = Item::new("elector_votes");
+// /// list of pools with essence allocations for all delegators
+// pub const DELEGATOR_VOTES: Item<Vec<EssenceAllocationItem<Addr>>> = Item::new("delegator_votes");
+/// total list of pools with essence allocations, non-voters are excluded
+pub const TOTAL_VOTES: Item<Vec<EssenceAllocationItem<Addr>>> = Item::new("total_votes");
+/// current epoch
+pub const EPOCH_ID: Item<u16> = Item::new("epoch_id");
+/// historical data, 26 epochs max
+pub const VOTE_RESULTS: Item<Vec<VoteResults>> = Item::new("vote_results");
