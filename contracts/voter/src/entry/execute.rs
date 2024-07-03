@@ -10,13 +10,18 @@ use eclipse_base::{
     converters::u128_to_dec,
     utils::{check_funds, unwrap_field, FundsType},
 };
-use equinox_msg::voter::{AddressConfig, DateConfig, EssenceInfo, TokenConfig, TransferAdminState};
+use equinox_msg::voter::{
+    AddressConfig, DateConfig, EssenceAllocationItem, EssenceInfo, TokenConfig, TransferAdminState,
+};
 
 use crate::{
     error::ContractError,
+    math::{calc_essence_allocation, calc_updated_essence_allocation},
     state::{
-        ADDRESS_CONFIG, DATE_CONFIG, RECIPIENT, STAKE_ASTRO_REPLY_ID, TOKEN_CONFIG,
-        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT,
+        ADDRESS_CONFIG, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, DELEGATOR_ESSENCE, ELECTOR_ESSENCE,
+        ELECTOR_VOTES, ELECTOR_WEIGHTS, RECIPIENT, SLACKER_ESSENCE, SLACKER_ESSENCE_ACC,
+        STAKE_ASTRO_REPLY_ID, TOKEN_CONFIG, TOTAL_VOTES, TRANSFER_ADMIN_STATE,
+        TRANSFER_ADMIN_TIMEOUT,
     },
 };
 
@@ -60,7 +65,7 @@ pub fn try_update_address_config(
     info: MessageInfo,
     admin: Option<String>,
     worker_list: Option<Vec<String>>,
-    eclipse_dao: String,
+    eclipse_dao: Option<String>,
     eclipsepad_foundry: Option<String>,
     eclipsepad_minter: Option<String>,
     eclipsepad_staking: Option<String>,
@@ -95,6 +100,14 @@ pub fn try_update_address_config(
             .iter()
             .map(|x| deps.api.addr_validate(x))
             .collect::<StdResult<Vec<Addr>>>()?;
+    }
+
+    if let Some(x) = eclipse_dao {
+        config.eclipse_dao = deps.api.addr_validate(&x)?;
+    }
+
+    if let Some(x) = eclipsepad_foundry {
+        config.eclipsepad_foundry = Some(deps.api.addr_validate(&x)?);
     }
 
     if let Some(x) = eclipsepad_minter {
@@ -194,48 +207,119 @@ pub fn try_update_date_config(
         config.vote_cooldown = x;
     }
 
+    if let Some(x) = vote_delay {
+        config.vote_delay = x;
+    }
+
     DATE_CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attribute("action", "try_update_date_config"))
 }
 
-// pub fn try_capture_essence(
-//     deps: DepsMut,
-//     _env: Env,
-//     info: MessageInfo,
-//     user_and_essence_list: Vec<(String, EssenceInfo)>,
-//     total_essence: EssenceInfo,
-// ) -> Result<Response, ContractError> {
-//     let sender = &info.sender;
-//     // let block_time = env.block.time.seconds();
-//     let AddressConfig {
-//         admin,
-//         eclipsepad_staking,
-//         ..
-//     } = ADDRESS_CONFIG.load(deps.storage)?;
-//     // let DateConfig {
-//     //     epochs_start,
-//     //     epoch_length,
-//     //     ..
-//     // } = DATE_CONFIG.load(deps.storage)?;
+pub fn try_update_essence_allocation(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    user_and_essence_list: Vec<(String, EssenceInfo)>,
+    _total_essence: EssenceInfo,
+) -> Result<Response, ContractError> {
+    let sender = &info.sender;
+    let AddressConfig {
+        admin,
+        eclipsepad_staking,
+        ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
 
-//     if sender != eclipsepad_staking && sender.to_string() != admin {
-//         Err(ContractError::Unauthorized)?;
-//     }
+    if sender != eclipsepad_staking && sender.to_string() != admin {
+        Err(ContractError::Unauthorized)?;
+    }
 
-//     // if block_time > epochs_start + epoch_length {
-//     TOTAL_STAKING_ESSENCE_COMPONENTS.save(deps.storage, &total_essence.staking_components)?;
-//     TOTAL_LOCKING_ESSENCE.save(deps.storage, &total_essence.locking_amount)?;
+    for (user_address, essence_after) in user_and_essence_list {
+        let user = &Addr::unchecked(user_address);
 
-//     for (user_address, user_essence) in user_and_essence_list {
-//         let user = &Addr::unchecked(user_address);
-//         STAKING_ESSENCE_COMPONENTS.save(deps.storage, user, &user_essence.staking_components)?;
-//         LOCKING_ESSENCE.save(deps.storage, user, &user_essence.locking_amount)?;
-//     }
-//     // }
+        // check if user is elector and update
+        if let Ok(essence_before) = ELECTOR_ESSENCE.load(deps.storage, &user) {
+            // update own essence
+            if essence_after.is_zero() {
+                ELECTOR_ESSENCE.remove(deps.storage, user);
+            } else {
+                ELECTOR_ESSENCE.save(deps.storage, user, &essence_after)?;
+            }
 
-//     Ok(Response::new().add_attribute("action", "try_capture_essence"))
-// }
+            // if elector updated weights after new epoch start change all electors and total allocations
+            // otherwise it will be updated on vote by elector
+            if let Ok(weights) = ELECTOR_WEIGHTS.load(deps.storage, user) {
+                let essence_allocation_before = calc_essence_allocation(&essence_before, &weights);
+                let essence_allocation_after = calc_essence_allocation(&essence_after, &weights);
+
+                ELECTOR_VOTES.update(
+                    deps.storage,
+                    |x| -> StdResult<Vec<EssenceAllocationItem>> {
+                        Ok(calc_updated_essence_allocation(
+                            &x,
+                            &essence_allocation_after,
+                            &essence_allocation_before,
+                        ))
+                    },
+                )?;
+
+                TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
+                    Ok(calc_updated_essence_allocation(
+                        &x,
+                        &essence_allocation_after,
+                        &essence_allocation_before,
+                    ))
+                })?;
+            }
+        }
+
+        // check if user is delegator and update
+        if let Ok(essence_before) = DELEGATOR_ESSENCE.load(deps.storage, &user) {
+            // update own essence
+            if essence_after.is_zero() {
+                DELEGATOR_ESSENCE.remove(deps.storage, user);
+            } else {
+                DELEGATOR_ESSENCE.save(deps.storage, user, &essence_after)?;
+            }
+
+            // update DAO and total allocations
+            DAO_ESSENCE.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                Ok(x.add(&essence_after).sub(&essence_before))
+            })?;
+
+            let weights = DAO_WEIGHTS.load(deps.storage)?;
+            let essence_allocation_before = calc_essence_allocation(&essence_before, &weights);
+            let essence_allocation_after = calc_essence_allocation(&essence_after, &weights);
+
+            TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
+                Ok(calc_updated_essence_allocation(
+                    &x,
+                    &essence_allocation_after,
+                    &essence_allocation_before,
+                ))
+            })?;
+        }
+
+        // update/add user as slacker
+        let essence_before = SLACKER_ESSENCE.load(deps.storage, user).unwrap_or_default();
+
+        // update own essence
+        if essence_after.is_zero() {
+            SLACKER_ESSENCE.remove(deps.storage, user);
+        } else {
+            SLACKER_ESSENCE.save(deps.storage, user, &essence_after)?;
+        }
+
+        // update slakers essence accumulator
+        SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+            Ok(x.add(&essence_after).sub(&essence_before))
+        })?;
+    }
+
+    Ok(Response::new().add_attribute("action", "try_update_essence_allocation"))
+}
+
+// TODO: on vote reset ELECTOR_WEIGHTS, ELECTOR_VOTES; decrease TOTAL_VOTES
 
 pub fn try_swap_to_eclip_astro(
     deps: DepsMut,

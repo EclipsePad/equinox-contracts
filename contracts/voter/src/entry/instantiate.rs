@@ -1,13 +1,16 @@
-use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, StdResult, Uint128};
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, StdResult};
 use cw2::set_contract_version;
 
 use equinox_msg::voter::{
-    AddressConfig, DateConfig, InstantiateMsg, TokenConfig, TransferAdminState,
+    AddressConfig, DateConfig, EssenceInfo, InstantiateMsg, TokenConfig, TransferAdminState,
 };
 
 use crate::{
     error::ContractError,
-    state::{ADDRESS_CONFIG, CONTRACT_NAME, DATE_CONFIG, TOKEN_CONFIG, TRANSFER_ADMIN_STATE},
+    state::{
+        ADDRESS_CONFIG, CONTRACT_NAME, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, ELECTOR_VOTES,
+        EPOCH_ID, TOKEN_CONFIG, TOTAL_VOTES, TRANSFER_ADMIN_STATE, VOTE_RESULTS,
+    },
 };
 
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -86,6 +89,13 @@ pub fn try_instantiate(
             vote_delay: msg.vote_delay,
         },
     )?;
+
+    DAO_WEIGHTS.save(deps.storage, &vec![])?;
+    DAO_ESSENCE.save(deps.storage, &EssenceInfo::default())?;
+    ELECTOR_VOTES.save(deps.storage, &vec![])?;
+    TOTAL_VOTES.save(deps.storage, &vec![])?;
+    EPOCH_ID.save(deps.storage, &1)?;
+    VOTE_RESULTS.save(deps.storage, &vec![])?;
 
     Ok(Response::new().add_attribute("action", "instantiate"))
 }

@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 use equinox_msg::voter::{
     AddressConfig, DateConfig, EssenceAllocationItem, EssenceInfo, RewardsInfo, TokenConfig,
@@ -35,30 +35,31 @@ pub const TRANSFER_ADMIN_STATE: Item<TransferAdminState> = Item::new("transfer_a
 /// temporary storage for eclipASTRO recipients
 pub const RECIPIENT: Item<Addr> = Item::new("recipient");
 
-// user storages
-//
 /// list of pools with weight allocations by elector address
-pub const ELECTOR_WEIGHTS: Map<&Addr, Vec<WeightAllocationItem<Addr>>> =
-    Map::new("elector_weights");
-/// essence info by elector address, non-voters are excluded
+pub const ELECTOR_WEIGHTS: Map<&Addr, Vec<WeightAllocationItem>> = Map::new("elector_weights");
+/// essence info by elector address, slakers are excluded
 pub const ELECTOR_ESSENCE: Map<&Addr, EssenceInfo> = Map::new("elector_essence");
-/// dao list of pools with weight allocations
-pub const DAO_WEIGHTS: Item<Vec<WeightAllocationItem<Addr>>> = Item::new("dao_weights");
-/// dao essence info, non-voters are excluded
-pub const DAO_ESSENCE: Item<EssenceInfo> = Item::new("dao_essence");
+/// list of pools with essence allocations for all electors
+pub const ELECTOR_VOTES: Item<Vec<EssenceAllocationItem>> = Item::new("elector_votes");
+
 /// essence info by delegator address
 pub const DELEGATOR_ESSENCE: Map<&Addr, EssenceInfo> = Map::new("delegator_essence");
-// bribe rewards info by user address
-pub const BRIBE_REWARDS: Map<&Addr, RewardsInfo> = Map::new("bribe_rewards");
 
-// voter storages
-//
-/// list of pools with essence allocations for all electors
-pub const ELECTOR_VOTES: Item<Vec<EssenceAllocationItem<Addr>>> = Item::new("elector_votes");
-// /// list of pools with essence allocations for all delegators
-// pub const DELEGATOR_VOTES: Item<Vec<EssenceAllocationItem<Addr>>> = Item::new("delegator_votes");
-/// total list of pools with essence allocations, non-voters are excluded
-pub const TOTAL_VOTES: Item<Vec<EssenceAllocationItem<Addr>>> = Item::new("total_votes");
+/// essence info by slacker address
+pub const SLACKER_ESSENCE: Map<&Addr, EssenceInfo> = Map::new("slacker_essence");
+/// sum essence info over all slackers
+pub const SLACKER_ESSENCE_ACC: Item<EssenceInfo> = Item::new("slacker_essence_acc");
+
+/// dao list of pools with weight allocations
+pub const DAO_WEIGHTS: Item<Vec<WeightAllocationItem>> = Item::new("dao_weights");
+/// dao essence info, slakers are excluded
+pub const DAO_ESSENCE: Item<EssenceInfo> = Item::new("dao_essence");
+
+/// total list of pools with essence allocations, slakers are excluded
+pub const TOTAL_VOTES: Item<Vec<EssenceAllocationItem>> = Item::new("total_votes");
+
+/// bribe rewards info by user address
+pub const BRIBE_REWARDS: Map<&Addr, RewardsInfo> = Map::new("bribe_rewards");
 /// current epoch
 pub const EPOCH_ID: Item<u16> = Item::new("epoch_id");
 /// historical data, 26 epochs max

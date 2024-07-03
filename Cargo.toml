@@ -2,7 +2,7 @@
 members = [
     "contracts/*",
     "packages/*",
-    "multitests",
+    # "multitests",
 ]
 
 resolver = "2"

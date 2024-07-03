@@ -63,7 +63,7 @@ pub enum ExecuteMsg {
         worker_list: Option<Vec<String>>,
 
         /// to allocate delegated voting power
-        eclipse_dao: String,
+        eclipse_dao: Option<String>,
         /// to query darkECLIP holders essence info
         eclipsepad_foundry: Option<String>,
         /// to mint eclipASTRO
@@ -123,11 +123,11 @@ pub enum ExecuteMsg {
     Undelegate {},
 
     PlaceVote {
-        weight_allocation: Vec<WeightAllocationItem<String>>,
+        weight_allocation: Vec<WeightAllocationItem>,
     },
 
     PlaceVoteAsDao {
-        weight_allocation: Vec<WeightAllocationItem<String>>,
+        weight_allocation: Vec<WeightAllocationItem>,
     },
 
     // TODO: SudoMsg?
@@ -138,8 +138,9 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
-pub struct EssenceAllocationItem<A: ToString> {
-    pub lp_token: A,
+#[derive(Default)]
+pub struct EssenceAllocationItem {
+    pub lp_token: String,
     pub essence_info: EssenceInfo,
 }
 
@@ -159,31 +160,38 @@ pub struct RewardsInfo {
 
 impl EssenceInfo {
     /// self + item
-    pub fn add(&self, item: EssenceInfo) -> Self {
+    pub fn add(&self, item: &Self) -> Self {
         let (a1, b1) = self.staking_components;
         let (a2, b2) = item.staking_components;
 
-        EssenceInfo {
+        Self {
             staking_components: (a1 + a2, b1 + b2),
             locking_amount: self.locking_amount + item.locking_amount,
         }
     }
 
     /// self - item
-    pub fn sub(&self, item: EssenceInfo) -> Self {
+    pub fn sub(&self, item: &Self) -> Self {
         let (a1, b1) = self.staking_components;
         let (a2, b2) = item.staking_components;
 
-        EssenceInfo {
+        Self {
             staking_components: (a1 - a2, b1 - b2),
             locking_amount: self.locking_amount - item.locking_amount,
         }
     }
+
+    pub fn is_zero(&self) -> bool {
+        let (a, b) = self.staking_components;
+        a.is_zero() && b.is_zero() && self.locking_amount.is_zero()
+    }
+
+    // TODO: add to_essence
 }
 
 #[cw_serde]
-pub struct WeightAllocationItem<A: ToString> {
-    pub lp_token: A,
+pub struct WeightAllocationItem {
+    pub lp_token: String,
     pub weight: Decimal,
 }
 
@@ -239,7 +247,7 @@ pub enum QueryMsg {
     #[returns(EssenceInfo)]
     Essence { address: String },
 
-    #[returns(QueryEssenceListResponse<Addr>)]
+    #[returns(QueryEssenceListResponse)]
     EssenceList {
         amount: u32,
         start_from: Option<String>,
@@ -247,8 +255,8 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-pub struct QueryEssenceListResponse<A: ToString> {
-    pub user_and_essence_list: Vec<(A, EssenceInfo)>,
+pub struct QueryEssenceListResponse {
+    pub user_and_essence_list: Vec<(String, EssenceInfo)>,
     pub total_essence: EssenceInfo,
 }
 

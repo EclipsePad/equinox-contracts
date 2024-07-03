@@ -26,10 +26,7 @@ pub fn check_pause_state(deps: Deps) -> StdResult<()> {
     Ok(())
 }
 
-pub fn get_essence_snapshot(
-    storage: &dyn Storage,
-    user: &Addr,
-) -> QueryEssenceListResponse<String> {
+pub fn get_essence_snapshot(storage: &dyn Storage, user: &Addr) -> QueryEssenceListResponse {
     let (a1, b1) = STAKING_ESSENCE_COMPONENTS
         .load(storage, user)
         .unwrap_or_default();

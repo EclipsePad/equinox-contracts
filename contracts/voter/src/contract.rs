@@ -88,7 +88,9 @@ pub fn execute(
         ExecuteMsg::UpdateEssenceAllocation {
             user_and_essence_list,
             total_essence,
-        } => unimplemented!(),
+        } => {
+            e::try_update_essence_allocation(deps, env, info, user_and_essence_list, total_essence)
+        }
 
         ExecuteMsg::SwapToEclipAstro {} => e::try_swap_to_eclip_astro(deps, env, info),
 
