@@ -33,6 +33,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("It's impossible to delegate twice")]
+    DelegateTwice,
+
     #[error("Zero amount")]
     ZeroAmount,
 

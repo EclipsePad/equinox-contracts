@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use cosmwasm_std::{
     coins, to_json_binary, Addr, CosmosMsg, Decimal, DepsMut, Empty, Env, MessageInfo, ReplyOn,
-    Response, StdResult, SubMsg, SubMsgResult, Uint128, WasmMsg,
+    Response, StdResult, Storage, SubMsg, SubMsgResult, Uint128, WasmMsg,
 };
 
 use eclipse_base::{
@@ -518,3 +518,128 @@ fn lock_xastro(
 //         .add_message(msg)
 //         .add_attribute("action", "try_vote"))
 // }
+
+pub fn try_delegate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let sender = &info.sender;
+
+    // slacker -> delegator
+    if let Ok(essence) = SLACKER_ESSENCE.load(deps.storage, sender) {
+        // update own essence
+        SLACKER_ESSENCE.remove(deps.storage, sender);
+
+        // update slakers essence accumulator
+        SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+            Ok(x.sub(&essence))
+        })?;
+
+        return add_delegator(deps.storage, sender, &essence);
+    }
+
+    // elector -> delegator
+    if let Ok(essence) = ELECTOR_ESSENCE.load(deps.storage, sender) {
+        // update own essence
+        ELECTOR_ESSENCE.remove(deps.storage, sender);
+
+        // if elector updated weights after new epoch start change all electors and total allocations
+        // otherwise it will be updated on vote by elector
+        if let Ok(weights) = ELECTOR_WEIGHTS.load(deps.storage, sender) {
+            let essence_allocation_before = calc_essence_allocation(&essence, &weights);
+            let essence_allocation_after =
+                calc_essence_allocation(&EssenceInfo::default(), &weights);
+
+            ELECTOR_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
+                Ok(calc_updated_essence_allocation(
+                    &x,
+                    &essence_allocation_after,
+                    &essence_allocation_before,
+                ))
+            })?;
+
+            TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
+                Ok(calc_updated_essence_allocation(
+                    &x,
+                    &essence_allocation_after,
+                    &essence_allocation_before,
+                ))
+            })?;
+        }
+
+        return add_delegator(deps.storage, sender, &essence);
+    }
+
+    Err(ContractError::DelegateTwice)
+}
+
+fn add_delegator(
+    storage: &mut dyn Storage,
+    sender: &Addr,
+    essence: &EssenceInfo,
+) -> Result<Response, ContractError> {
+    // update own essence
+    DELEGATOR_ESSENCE.save(storage, sender, essence)?;
+
+    // update DAO and total allocations
+    DAO_ESSENCE.update(storage, |x| -> StdResult<EssenceInfo> {
+        Ok(x.add(&essence))
+    })?;
+
+    let weights = DAO_WEIGHTS.load(storage)?;
+    let essence_allocation_before = calc_essence_allocation(&EssenceInfo::default(), &weights);
+    let essence_allocation_after = calc_essence_allocation(&essence, &weights);
+
+    TOTAL_VOTES.update(storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
+        Ok(calc_updated_essence_allocation(
+            &x,
+            &essence_allocation_after,
+            &essence_allocation_before,
+        ))
+    })?;
+
+    Ok(Response::new().add_attribute("action", "try_delegate"))
+}
+
+pub fn try_undelegate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let sender = &info.sender;
+
+    // check if user is delegator and update
+    let essence = DELEGATOR_ESSENCE.load(deps.storage, sender)?;
+
+    // update own essence
+    DELEGATOR_ESSENCE.remove(deps.storage, sender);
+
+    // update DAO and total allocations
+    DAO_ESSENCE.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+        Ok(x.sub(&essence))
+    })?;
+
+    let weights = DAO_WEIGHTS.load(deps.storage)?;
+    let essence_allocation_before = calc_essence_allocation(&essence, &weights);
+    let essence_allocation_after = calc_essence_allocation(&EssenceInfo::default(), &weights);
+
+    TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
+        Ok(calc_updated_essence_allocation(
+            &x,
+            &essence_allocation_after,
+            &essence_allocation_before,
+        ))
+    })?;
+
+    // move to slakers
+    // update own essence
+    SLACKER_ESSENCE.save(deps.storage, sender, &essence)?;
+
+    // update slakers essence accumulator
+    SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+        Ok(x.add(&essence))
+    })?;
+
+    Ok(Response::new().add_attribute("action", "try_undelegate"))
+}

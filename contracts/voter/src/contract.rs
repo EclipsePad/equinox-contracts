@@ -96,9 +96,9 @@ pub fn execute(
 
         ExecuteMsg::SwapXastroToAstro {} => unimplemented!(),
 
-        ExecuteMsg::Delegate {} => unimplemented!(),
+        ExecuteMsg::Delegate {} => e::try_delegate(deps, env, info),
 
-        ExecuteMsg::Undelegate {} => unimplemented!(),
+        ExecuteMsg::Undelegate {} => e::try_undelegate(deps, env, info),
 
         ExecuteMsg::PlaceVote { weight_allocation } => unimplemented!(),
 
