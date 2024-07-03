@@ -10,19 +10,13 @@ use equinox_msg::lockdrop::{
 // use equinox_msg::lockdrop::UpdateConfigMsg;
 use lockdrop::error::ContractError;
 
-use crate::suite::{Suite, SuiteBuilder};
+use crate::suite::{Suite, SuiteBuilder, ALICE};
 
 const ONE_MONTH: u64 = 86400 * 30;
 const THREE_MONTH: u64 = 86400 * 30 * 3;
 const SIX_MONTH: u64 = 86400 * 30 * 6;
 const NINE_MONTH: u64 = 86400 * 30 * 9;
 const ONE_YEAR: u64 = 86400 * 365;
-
-const ALICE: &str = "alice";
-// const BOB: &str = "bob";
-// const CAROL: &str = "carol";
-// const ATTACKER: &str = "attacker";
-// const VICTIM: &str = "victim";
 
 fn instantiate() -> Suite {
     let mut suite = SuiteBuilder::new().build();
@@ -73,15 +67,12 @@ fn instantiate() -> Suite {
     suite
         .setup_pools(
             &suite.admin(),
-            vec![(
-                suite.eclipastro_xastro_lp_token_contract(),
-                Uint128::from(100u128),
-            )],
+            vec![(suite.eclipastro_xastro_lp_token(), Uint128::from(100u128))],
         )
         .unwrap();
 
     suite
-        .generator_set_tokens_per_second(&suite.admin(), 10u128)
+        .incentives_set_tokens_per_second(&suite.admin(), 10u128)
         .unwrap();
 
     let start_time = suite.get_time();
@@ -90,7 +81,7 @@ fn instantiate() -> Suite {
         .register_vesting_accounts(
             &suite.admin(),
             vec![VestingAccount {
-                address: suite.astroport_generator(),
+                address: suite.astroport_incentives(),
                 schedules: vec![VestingSchedule {
                     start_point: VestingSchedulePoint {
                         time: start_time,

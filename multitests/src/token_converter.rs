@@ -1,6 +1,4 @@
-use crate::suite::SuiteBuilder;
-
-const ALICE: &str = "alice";
+use crate::suite::{SuiteBuilder, ALICE};
 
 #[test]
 fn test() {

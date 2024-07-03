@@ -1,21 +1,46 @@
-use std::fmt::Debug;
-
-use anyhow::Result as AnyResult;
-use cosmwasm_schema::schemars::JsonSchema;
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_std::{
-    coin, Addr, Api, BankMsg, Binary, BlockInfo, CustomQuery, Querier, Storage, SubMsgResponse,
+    coins,
+    testing::{MockApi, MockStorage},
+    Addr, Api, BankMsg, Binary, BlockInfo, CustomMsg, CustomQuery, Empty, Querier, Storage,
+    SubMsgResponse,
 };
-use cw_multi_test::{AppResponse, BankSudo, CosmosRouter, Stargate};
-use osmosis_std::types::osmosis::tokenfactory::v1beta1::{
+use cw_multi_test::{
+    App, AppResponse, BankKeeper, BankSudo, CosmosRouter, DistributionKeeper, FailingModule,
+    GovFailingModule, IbcFailingModule, Module, StakeKeeper, Stargate, StargateMsg, StargateQuery,
+    SudoMsg, WasmKeeper,
+};
+
+use anyhow::{Ok, Result as AnyResult};
+
+use astroport::token_factory::{
     MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint, MsgSetBeforeSendHook,
-    MsgSetDenomMetadata,
 };
+use osmosis_std::types::osmosis::tokenfactory::v1beta1::MsgSetDenomMetadata;
+
+pub type StargateApp<ExecC = Empty, QueryC = Empty> = App<
+    BankKeeper,
+    MockApi,
+    MockStorage,
+    FailingModule<ExecC, QueryC, Empty>,
+    WasmKeeper<ExecC, QueryC>,
+    StakeKeeper,
+    DistributionKeeper,
+    IbcFailingModule,
+    GovFailingModule,
+    MockStargate,
+>;
 
 #[derive(Default)]
-pub struct StargateKeeper {}
+pub struct MockStargate {}
 
-impl Stargate for StargateKeeper {
+impl Stargate for MockStargate {}
+
+impl Module for MockStargate {
+    type ExecT = StargateMsg;
+    type QueryT = StargateQuery;
+    type SudoT = Empty;
+
     fn execute<ExecC, QueryC>(
         &self,
         api: &dyn Api,
@@ -23,23 +48,30 @@ impl Stargate for StargateKeeper {
         router: &dyn CosmosRouter<ExecC = ExecC, QueryC = QueryC>,
         block: &BlockInfo,
         sender: Addr,
-        type_url: String,
-        value: Binary,
+        msg: Self::ExecT,
     ) -> AnyResult<AppResponse>
     where
-        ExecC: Debug + Clone + PartialEq + JsonSchema + DeserializeOwned + 'static,
+        ExecC: CustomMsg + DeserializeOwned + 'static,
         QueryC: CustomQuery + DeserializeOwned + 'static,
     {
+        let StargateMsg {
+            type_url, value, ..
+        } = msg;
+
         match type_url.as_str() {
             MsgCreateDenom::TYPE_URL => {
                 let tf_msg: MsgCreateDenom = value.try_into()?;
+                #[cfg(not(any(feature = "injective", feature = "sei")))]
+                let sender_address = tf_msg.sender.to_string();
+                #[cfg(any(feature = "injective", feature = "sei"))]
+                let sender_address = sender.to_string();
                 let submsg_response = SubMsgResponse {
                     events: vec![],
                     data: Some(
                         MsgCreateDenomResponse {
                             new_token_denom: format!(
                                 "factory/{}/{}",
-                                tf_msg.sender, tf_msg.subdenom
+                                sender_address, tf_msg.subdenom
                             ),
                         }
                         .into(),
@@ -52,12 +84,14 @@ impl Stargate for StargateKeeper {
                 let mint_coins = tf_msg
                     .amount
                     .expect("Empty amount in tokenfactory MsgMint!");
-                let cw_coin = coin(mint_coins.amount.parse()?, mint_coins.denom);
+                #[cfg(not(any(feature = "injective", feature = "sei")))]
+                let to_address = tf_msg.mint_to_address.to_string();
+                #[cfg(any(feature = "injective", feature = "sei"))]
+                let to_address = sender.to_string();
                 let bank_sudo = BankSudo::Mint {
-                    to_address: tf_msg.mint_to_address.clone(),
-                    amount: vec![cw_coin.clone()],
+                    to_address,
+                    amount: coins(mint_coins.amount.parse()?, mint_coins.denom),
                 };
-
                 router.sudo(api, storage, block, bank_sudo.into())
             }
             MsgBurn::TYPE_URL => {
@@ -65,16 +99,14 @@ impl Stargate for StargateKeeper {
                 let burn_coins = tf_msg
                     .amount
                     .expect("Empty amount in tokenfactory MsgBurn!");
-                let cw_coin = coin(burn_coins.amount.parse()?, burn_coins.denom);
                 let burn_msg = BankMsg::Burn {
-                    amount: vec![cw_coin.clone()],
+                    amount: coins(burn_coins.amount.parse()?, burn_coins.denom),
                 };
-
                 router.execute(
                     api,
                     storage,
                     block,
-                    Addr::unchecked(&tf_msg.sender),
+                    Addr::unchecked(sender),
                     burn_msg.into(),
                 )
             }
@@ -83,42 +115,40 @@ impl Stargate for StargateKeeper {
                 Ok(AppResponse::default())
             }
             MsgSetBeforeSendHook::TYPE_URL => {
-                let tf_msg: MsgSetBeforeSendHook = value.try_into()?;
-
-                let bank_sudo = BankSudo::SetHook {
-                    denom: tf_msg.denom,
-                    contract_addr: tf_msg.cosmwasm_address,
+                let before_hook_msg: MsgSetBeforeSendHook = value.try_into()?;
+                let msg = BankSudo::SetHook {
+                    contract_addr: before_hook_msg.cosmwasm_address,
+                    denom: before_hook_msg.denom,
                 };
-
-                router.sudo(api, storage, block, bank_sudo.into())
+                router.sudo(api, storage, block, SudoMsg::Bank(msg))
             }
             _ => Err(anyhow::anyhow!(
                 "Unexpected exec msg {type_url} from {sender:?}",
             )),
         }
     }
-
     fn query(
         &self,
         _api: &dyn Api,
         _storage: &dyn Storage,
         _querier: &dyn Querier,
         _block: &BlockInfo,
-        _path: String,
-        _data: Binary,
+        _request: Self::QueryT,
     ) -> AnyResult<Binary> {
-        unimplemented!("Stargate queries are not implemented")
-        // match path.as_str() {
-        //     "/osmosis.poolmanager.v1beta1.Query/Params" => {
-        //         Ok(to_json_binary(&poolmanager::v1beta1::ParamsResponse {
-        //             params: Some(poolmanager::v1beta1::Params {
-        //                 pool_creation_fee: vec![coin(1000_000000, "uosmo").into()],
-        //                 taker_fee_params: None,
-        //                 authorized_quote_denoms: vec![],
-        //             }),
-        //         })?)
-        //     }
-        //     _ => Err(anyhow::anyhow!("Unexpected stargate query request {path}")),
-        // }
+        Ok(Binary::default())
+    }
+    fn sudo<ExecC, QueryC>(
+        &self,
+        _api: &dyn Api,
+        _storage: &mut dyn Storage,
+        _router: &dyn CosmosRouter<ExecC = ExecC, QueryC = QueryC>,
+        _block: &BlockInfo,
+        _msg: Self::SudoT,
+    ) -> AnyResult<AppResponse>
+    where
+        ExecC: CustomMsg + DeserializeOwned + 'static,
+        QueryC: CustomQuery + DeserializeOwned + 'static,
+    {
+        unimplemented!("Sudo not implemented")
     }
 }
