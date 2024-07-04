@@ -573,6 +573,7 @@ pub fn try_undelegate(
     Ok(Response::new().add_attribute("action", "try_undelegate"))
 }
 
+// TODO: compare current epoch with historical data to try update BRIBE_REWARDS
 pub fn try_place_vote(
     deps: DepsMut,
     _env: Env,
@@ -723,7 +724,6 @@ fn verify_weight_allocation(
 
 // TODO: reset is_locked on user/staking actions on epoch start
 // TODO: set initial weights
-// TODO: on vote reset ELECTOR_WEIGHTS, ELECTOR_VOTES; decrease TOTAL_VOTES
 pub fn try_vote(
     deps: DepsMut,
     env: Env,
@@ -780,18 +780,16 @@ pub fn try_vote(
     total_votes =
         calc_updated_essence_allocation(&total_votes, &dao_votes_after, &dao_votes_before);
 
-    TOTAL_VOTES.save(deps.storage, &total_votes)?;
-
     // update vote results
     let total_essence = total_votes.iter().fold(Uint128::zero(), |acc, cur| {
         acc + cur.essence_info.capture(block_time)
     });
     let total_essence_decimal = u128_to_dec(total_essence);
     let votes: Vec<(String, Decimal)> = total_votes
-        .into_iter()
+        .iter()
         .map(|x| {
             (
-                x.lp_token,
+                x.lp_token.to_string(),
                 u128_to_dec(x.essence_info.capture(block_time)) / total_essence_decimal,
             )
         })
@@ -816,7 +814,17 @@ pub fn try_vote(
         Ok(x)
     })?;
 
-    // TODO: maybe later?
+    // reset elector votes to motivate them vote again in next epoch
+    ELECTOR_WEIGHTS.clear(deps.storage);
+    ELECTOR_VOTES.remove(deps.storage);
+    TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
+        Ok(calc_updated_essence_allocation(
+            &x,
+            &vec![],
+            &elector_votes_before,
+        ))
+    })?;
+
     // update epoch counter
     current_epoch.id += 1;
     current_epoch.start_date += epoch_length;
