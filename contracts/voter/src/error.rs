@@ -33,6 +33,12 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("Voting period isn't started")]
+    VotingDelay,
+
+    #[error("Epoch is completed")]
+    EpochEnd,
+
     #[error("It's impossible to delegate twice")]
     DelegateTwice,
 

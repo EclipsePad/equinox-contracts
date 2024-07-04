@@ -73,3 +73,42 @@ pub fn calc_updated_essence_allocation(
         .filter(|x| !x.essence_info.is_zero())
         .collect()
 }
+
+// e2 = (1 + E2/E1) * e1
+// E1 = sum_over_pools(e1)(t = block_time)
+// E2 = e2(t = block_time)
+pub fn calc_scaled_essence_allocation(
+    essence_allocation: &Vec<EssenceAllocationItem>,
+    additional_essence: &EssenceInfo,
+    additional_essence_fraction: Decimal,
+    block_time: u64,
+) -> Vec<EssenceAllocationItem> {
+    let e1 = essence_allocation
+        .iter()
+        .fold(EssenceInfo::default(), |acc, cur| {
+            acc.add(&cur.essence_info)
+        })
+        .capture(block_time);
+    let e2 = additional_essence.capture(block_time);
+    let k = Decimal::one() + additional_essence_fraction * u128_to_dec(e2) / u128_to_dec(e1);
+
+    essence_allocation
+        .iter()
+        .map(|x| {
+            let (mut a, mut b) = x.essence_info.staking_components;
+            let mut le = x.essence_info.locking_amount;
+
+            a = (k * u128_to_dec(a)).to_uint_floor();
+            b = (k * u128_to_dec(b)).to_uint_floor();
+            le = (k * u128_to_dec(le)).to_uint_floor();
+
+            EssenceAllocationItem {
+                lp_token: x.lp_token.to_string(),
+                essence_info: EssenceInfo {
+                    staking_components: (a, b),
+                    locking_amount: le,
+                },
+            }
+        })
+        .collect()
+}

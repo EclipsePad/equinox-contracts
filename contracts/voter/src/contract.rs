@@ -3,7 +3,7 @@ use cosmwasm_std::{
     StdResult,
 };
 
-use equinox_msg::voter::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use equinox_msg::voter::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SudoMsg};
 
 use crate::{
     entry::{execute as e, instantiate::try_instantiate, migrate::migrate_contract, query as q},
@@ -71,17 +71,15 @@ pub fn execute(
         } => e::try_update_token_config(deps, env, info, astro, xastro, eclip_astro),
 
         ExecuteMsg::UpdateDateConfig {
-            epochs_start,
+            genesis_epoch_start_date,
             epoch_length,
-            vote_cooldown,
             vote_delay,
         } => e::try_update_date_config(
             deps,
             env,
             info,
-            epochs_start,
+            genesis_epoch_start_date,
             epoch_length,
-            vote_cooldown,
             vote_delay,
         ),
 
@@ -107,8 +105,6 @@ pub fn execute(
         ExecuteMsg::PlaceVoteAsDao { weight_allocation } => {
             e::try_place_vote_as_dao(deps, env, info, weight_allocation)
         }
-
-        ExecuteMsg::Vote {} => unimplemented!(),
 
         ExecuteMsg::ClaimRewards {} => unimplemented!(),
     }
@@ -155,5 +151,13 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, Contract
     match id {
         STAKE_ASTRO_REPLY_ID => e::handle_stake_astro_reply(deps, env, &result),
         _ => Err(ContractError::UnknownReplyId(id)),
+    }
+}
+
+/// Exposes all functions that can be called only by Cosmos SDK modules
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        SudoMsg::Vote {} => e::try_vote(deps, env),
     }
 }

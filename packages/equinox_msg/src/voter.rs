@@ -41,13 +41,17 @@ pub struct InstantiateMsg {
     pub eclip_astro: String,
 
     /// start date of 1st epoch
-    pub epochs_start: u64,
+    pub genesis_epoch_start_date: u64,
     /// epoch duration
     pub epoch_length: u64,
-    /// revoting cooldown
-    pub vote_cooldown: u64,
     /// votes will be sent to astroport emissions controller by x/cron right after this delay
     pub vote_delay: u64,
+}
+
+#[cw_serde]
+pub enum SudoMsg {
+    // x/cron
+    Vote {},
 }
 
 #[cw_serde]
@@ -98,11 +102,9 @@ pub enum ExecuteMsg {
     /// update date related config
     UpdateDateConfig {
         /// start date of 1st epoch
-        epochs_start: Option<u64>,
+        genesis_epoch_start_date: Option<u64>,
         /// epoch duration
         epoch_length: Option<u64>,
-        /// revoting cooldown
-        vote_cooldown: Option<u64>,
         /// votes will be sent to astroport emissions controller by x/cron right after this delay
         vote_delay: Option<u64>,
     },
@@ -129,9 +131,6 @@ pub enum ExecuteMsg {
     PlaceVoteAsDao {
         weight_allocation: Vec<WeightAllocationItem>,
     },
-
-    // TODO: SudoMsg?
-    Vote {},
 
     /// withdraw bribe rewards
     ClaimRewards {},
@@ -186,7 +185,23 @@ impl EssenceInfo {
         a.is_zero() && b.is_zero() && self.locking_amount.is_zero()
     }
 
-    // TODO: add to_essence
+    pub fn capture(&self, block_time: u64) -> Uint128 {
+        let (a, b) = self.staking_components;
+        let staking_amount = calc_staking_essence_from_components(a, b, block_time);
+        staking_amount + self.locking_amount
+    }
+}
+
+/// staking_essence_from_components = (a * block_time - b) / seconds_per_essence      \
+/// where a = sum(staked_eclip_amount), b = sum(staked_eclip_amount * vault.creation_date)
+fn calc_staking_essence_from_components(a: Uint128, b: Uint128, block_time: u64) -> Uint128 {
+    const SECONDS_PER_ESSENCE: u128 = 31_536_000;
+    const YEAR_IN_SECONDS: u64 = 31_536_000;
+
+    std::cmp::min(
+        a * Uint128::from(block_time) - b,
+        a * Uint128::from(YEAR_IN_SECONDS),
+    ) / Uint128::new(SECONDS_PER_ESSENCE)
 }
 
 #[cw_serde]
@@ -197,12 +212,13 @@ pub struct WeightAllocationItem {
 
 #[cw_serde]
 pub struct PoolInfoItem {
-    pub lp_token: Addr,
+    pub lp_token: String,
     pub weight: Decimal,
     pub rewards: Uint128,
 }
 
 #[cw_serde]
+#[derive(Default)]
 pub struct VoteResults {
     pub epoch_id: u16,
     pub end_date: u64,
@@ -252,6 +268,14 @@ pub enum QueryMsg {
         amount: u32,
         start_from: Option<String>,
     },
+    // TODO
+    // QueryUser {address: String},
+    // QueryElectorList,
+    // QueryDelegatorList,
+    // QueryLackerList,
+    // QueryDaoInfo,
+    // QueryVoterInfo
+    // QueryEpochInfo
 }
 
 #[cw_serde]
@@ -309,13 +333,17 @@ pub struct TokenConfig {
 #[cw_serde]
 pub struct DateConfig {
     /// start date of 1st epoch
-    pub epochs_start: u64,
+    pub genesis_epoch_start_date: u64,
     /// epoch duration
     pub epoch_length: u64,
-    /// revoting cooldown
-    pub vote_cooldown: u64,
     /// votes will be sent to astroport emissions controller by x/cron right after this delay
     pub vote_delay: u64,
+}
+
+#[cw_serde]
+pub struct EpochInfo {
+    pub id: u16,
+    pub start_date: u64,
 }
 
 #[cw_serde]

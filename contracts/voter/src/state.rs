@@ -1,8 +1,8 @@
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 use equinox_msg::voter::{
-    AddressConfig, DateConfig, EssenceAllocationItem, EssenceInfo, RewardsInfo, TokenConfig,
-    TransferAdminState, VoteResults, WeightAllocationItem,
+    AddressConfig, DateConfig, EpochInfo, EssenceAllocationItem, EssenceInfo, RewardsInfo,
+    TokenConfig, TransferAdminState, VoteResults, WeightAllocationItem,
 };
 
 /// Contract name that is used for migration
@@ -23,8 +23,18 @@ pub const DAY: u64 = 86400;
 pub const EPOCH_LENGTH: u64 = DAY * 14;
 /// User can vote once every 10 days
 pub const VOTE_COOLDOWN: u64 = DAY * 10;
+/// historical data vector max length
+pub const MAX_EPOCH_AMOUNT: u16 = 26;
+
+/// electors will get 80 % of slacker essence
+pub const ELECTOR_ADDITIONAL_ESSENCE_FRACTION: &str = "0.8";
 
 pub const TRANSFER_ADMIN_TIMEOUT: u64 = 3600;
+
+// TODO: add initial weights config
+
+/// blocks the contract to prevent placing votes or voting after final voting at the epoch end
+pub const IS_LOCKED: Item<bool> = Item::new("is_locked");
 
 pub const ADDRESS_CONFIG: Item<AddressConfig> = Item::new("address_config");
 pub const TOKEN_CONFIG: Item<TokenConfig> = Item::new("token_config");
@@ -60,7 +70,7 @@ pub const TOTAL_VOTES: Item<Vec<EssenceAllocationItem>> = Item::new("total_votes
 
 /// bribe rewards info by user address
 pub const BRIBE_REWARDS: Map<&Addr, RewardsInfo> = Map::new("bribe_rewards");
-/// current epoch
-pub const EPOCH_ID: Item<u16> = Item::new("epoch_id");
+/// current epoch id and start date
+pub const EPOCH_COUNTER: Item<EpochInfo> = Item::new("epoch_counter");
 /// historical data, 26 epochs max
 pub const VOTE_RESULTS: Item<Vec<VoteResults>> = Item::new("vote_results");

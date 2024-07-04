@@ -2,14 +2,15 @@ use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, StdResult};
 use cw2::set_contract_version;
 
 use equinox_msg::voter::{
-    AddressConfig, DateConfig, EssenceInfo, InstantiateMsg, TokenConfig, TransferAdminState,
+    AddressConfig, DateConfig, EpochInfo, EssenceInfo, InstantiateMsg, TokenConfig,
+    TransferAdminState,
 };
 
 use crate::{
     error::ContractError,
     state::{
         ADDRESS_CONFIG, CONTRACT_NAME, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, ELECTOR_VOTES,
-        EPOCH_ID, TOKEN_CONFIG, TOTAL_VOTES, TRANSFER_ADMIN_STATE, VOTE_RESULTS,
+        EPOCH_COUNTER, IS_LOCKED, TOKEN_CONFIG, TOTAL_VOTES, TRANSFER_ADMIN_STATE, VOTE_RESULTS,
     },
 };
 
@@ -83,10 +84,17 @@ pub fn try_instantiate(
     DATE_CONFIG.save(
         deps.storage,
         &DateConfig {
-            epochs_start: msg.epochs_start,
+            genesis_epoch_start_date: msg.genesis_epoch_start_date,
             epoch_length: msg.epoch_length,
-            vote_cooldown: msg.vote_cooldown,
             vote_delay: msg.vote_delay,
+        },
+    )?;
+
+    EPOCH_COUNTER.save(
+        deps.storage,
+        &EpochInfo {
+            start_date: msg.genesis_epoch_start_date,
+            id: 1,
         },
     )?;
 
@@ -94,8 +102,8 @@ pub fn try_instantiate(
     DAO_ESSENCE.save(deps.storage, &EssenceInfo::default())?;
     ELECTOR_VOTES.save(deps.storage, &vec![])?;
     TOTAL_VOTES.save(deps.storage, &vec![])?;
-    EPOCH_ID.save(deps.storage, &1)?;
     VOTE_RESULTS.save(deps.storage, &vec![])?;
+    IS_LOCKED.save(deps.storage, &false)?;
 
     Ok(Response::new().add_attribute("action", "instantiate"))
 }

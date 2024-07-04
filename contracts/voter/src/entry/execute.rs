@@ -7,22 +7,25 @@ use cosmwasm_std::{
 
 use eclipse_base::{
     assets::TokenUnverified,
-    converters::u128_to_dec,
-    utils::{check_funds, unwrap_field, FundsType},
+    converters::{str_to_dec, u128_to_dec},
+    utils::{check_funds, FundsType},
 };
 use equinox_msg::voter::{
-    AddressConfig, DateConfig, EssenceAllocationItem, EssenceInfo, TokenConfig, TransferAdminState,
-    WeightAllocationItem,
+    AddressConfig, DateConfig, EssenceAllocationItem, EssenceInfo, PoolInfoItem, TokenConfig,
+    TransferAdminState, VoteResults, WeightAllocationItem,
 };
 
 use crate::{
     error::ContractError,
-    math::{calc_essence_allocation, calc_updated_essence_allocation},
+    math::{
+        calc_essence_allocation, calc_scaled_essence_allocation, calc_updated_essence_allocation,
+    },
     state::{
-        ADDRESS_CONFIG, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, DELEGATOR_ESSENCE, ELECTOR_ESSENCE,
-        ELECTOR_VOTES, ELECTOR_WEIGHTS, RECIPIENT, SLACKER_ESSENCE, SLACKER_ESSENCE_ACC,
-        STAKE_ASTRO_REPLY_ID, TOKEN_CONFIG, TOTAL_VOTES, TRANSFER_ADMIN_STATE,
-        TRANSFER_ADMIN_TIMEOUT,
+        ADDRESS_CONFIG, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, DELEGATOR_ESSENCE,
+        ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE, ELECTOR_VOTES, ELECTOR_WEIGHTS,
+        EPOCH_COUNTER, IS_LOCKED, MAX_EPOCH_AMOUNT, RECIPIENT, SLACKER_ESSENCE,
+        SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID, TOKEN_CONFIG, TOTAL_VOTES, TRANSFER_ADMIN_STATE,
+        TRANSFER_ADMIN_TIMEOUT, VOTE_RESULTS,
     },
 };
 
@@ -184,9 +187,8 @@ pub fn try_update_date_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    epochs_start: Option<u64>,
+    genesis_epoch_start_date: Option<u64>,
     epoch_length: Option<u64>,
-    vote_cooldown: Option<u64>,
     vote_delay: Option<u64>,
 ) -> Result<Response, ContractError> {
     let AddressConfig { admin, .. } = ADDRESS_CONFIG.load(deps.storage)?;
@@ -196,16 +198,12 @@ pub fn try_update_date_config(
         Err(ContractError::Unauthorized)?;
     }
 
-    if let Some(x) = epochs_start {
-        config.epochs_start = x;
+    if let Some(x) = genesis_epoch_start_date {
+        config.genesis_epoch_start_date = x;
     }
 
     if let Some(x) = epoch_length {
         config.epoch_length = x;
-    }
-
-    if let Some(x) = vote_cooldown {
-        config.vote_cooldown = x;
     }
 
     if let Some(x) = vote_delay {
@@ -319,8 +317,6 @@ pub fn try_update_essence_allocation(
 
     Ok(Response::new().add_attribute("action", "try_update_essence_allocation"))
 }
-
-// TODO: on vote reset ELECTOR_WEIGHTS, ELECTOR_VOTES; decrease TOTAL_VOTES
 
 pub fn try_swap_to_eclip_astro(
     deps: DepsMut,
@@ -451,74 +447,6 @@ fn lock_xastro(
         .add_attribute("action", "try_swap_to_eclip_astro")
         .add_attribute("eclip_astro_amount", eclip_astro_amount))
 }
-
-// pub fn try_vote(
-//     deps: DepsMut,
-//     _env: Env,
-//     info: MessageInfo,
-//     voting_list: Vec<VotingListItem>,
-// ) -> Result<Response, ContractError> {
-//     let AddressConfig {
-//         admin,
-//         astroport_emission_controller,
-//         ..
-//     } = ADDRESS_CONFIG.load(deps.storage)?;
-
-//     if info.sender != admin {
-//         Err(ContractError::Unauthorized)?;
-//     }
-
-//     // check voting list
-
-//     // empty
-//     if voting_list.is_empty() {
-//         Err(ContractError::EmptyVotingList)?;
-//     }
-
-//     // diplications
-//     let mut pool_list: Vec<String> = voting_list.iter().map(|x| x.lp_token.to_string()).collect();
-//     pool_list.sort_unstable();
-//     pool_list.dedup();
-
-//     if pool_list.len() != voting_list.len() {
-//         Err(ContractError::VotingListDuplication)?;
-//     }
-
-//     // out of range
-//     if voting_list
-//         .iter()
-//         .any(|x| x.voting_power.is_zero() || x.voting_power > Decimal::one())
-//     {
-//         Err(ContractError::WeightIsOutOfRange)?;
-//     }
-
-//     // wrong sum
-//     let votes: Vec<(String, Decimal)> = voting_list
-//         .into_iter()
-//         .map(|x| (x.lp_token, x.voting_power))
-//         .collect();
-
-//     if (votes
-//         .iter()
-//         .fold(Decimal::zero(), |acc, (_, voting_power)| acc + voting_power))
-//         != Decimal::one()
-//     {
-//         Err(ContractError::WeightsAreUnbalanced)?;
-//     }
-
-//     // send vote msg
-//     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-//         contract_addr: astroport_emission_controller.to_string(),
-//         msg: to_json_binary(
-//             &astroport_governance::emissions_controller::msg::ExecuteMsg::<Empty>::Vote { votes },
-//         )?,
-//         funds: vec![],
-//     });
-
-//     Ok(Response::new()
-//         .add_message(msg)
-//         .add_attribute("action", "try_vote"))
-// }
 
 pub fn try_delegate(
     deps: DepsMut,
@@ -655,6 +583,10 @@ pub fn try_place_vote(
     let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
     verify_weight_allocation(&weight_allocation)?;
 
+    if IS_LOCKED.load(deps.storage)? {
+        Err(ContractError::EpochEnd)?;
+    }
+
     // delegator can't place vote
     if DELEGATOR_ESSENCE.has(deps.storage, sender) {
         Err(ContractError::DelegatorCanNotVote)?;
@@ -719,6 +651,10 @@ pub fn try_place_vote_as_dao(
     let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
     verify_weight_allocation(&weight_allocation)?;
 
+    if IS_LOCKED.load(deps.storage)? {
+        Err(ContractError::EpochEnd)?;
+    }
+
     if sender != eclipse_dao {
         Err(ContractError::Unauthorized)?;
     }
@@ -743,6 +679,7 @@ pub fn try_place_vote_as_dao(
     Ok(Response::new().add_attribute("action", "try_place_vote_as_dao"))
 }
 
+// TODO: query whitelisted pool
 fn verify_weight_allocation(
     weight_allocation: &Vec<WeightAllocationItem>,
 ) -> Result<(), ContractError> {
@@ -782,4 +719,119 @@ fn verify_weight_allocation(
     }
 
     Ok(())
+}
+
+// TODO: reset is_locked on user/staking actions on epoch start
+// TODO: set initial weights
+// TODO: on vote reset ELECTOR_WEIGHTS, ELECTOR_VOTES; decrease TOTAL_VOTES
+pub fn try_vote(
+    deps: DepsMut,
+    env: Env,
+    // info: MessageInfo
+) -> Result<Response, ContractError> {
+    let block_time = env.block.time.seconds();
+    let AddressConfig {
+        astroport_emission_controller,
+        ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
+    let DateConfig {
+        epoch_length,
+        vote_delay,
+        ..
+    } = DATE_CONFIG.load(deps.storage)?;
+    let mut current_epoch = EPOCH_COUNTER.load(deps.storage)?;
+
+    // must be executed single time right before epoch end
+    if IS_LOCKED.load(deps.storage)? {
+        Err(ContractError::EpochEnd)?;
+    }
+
+    if block_time < current_epoch.start_date + vote_delay {
+        Err(ContractError::VotingDelay)?;
+    }
+
+    // will be unlocked on next epoch
+    IS_LOCKED.save(deps.storage, &true)?;
+
+    // it's required to update TOTAL_VOTES using slackers info
+    let mut total_votes = TOTAL_VOTES.load(deps.storage)?;
+    let slacker_essence = SLACKER_ESSENCE_ACC.load(deps.storage)?;
+    let elector_additional_essence_fraction = str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION);
+    // 80 % goes to electors
+    let elector_votes_before = ELECTOR_VOTES.load(deps.storage)?;
+    let elector_votes_after = calc_scaled_essence_allocation(
+        &elector_votes_before,
+        &slacker_essence,
+        elector_additional_essence_fraction,
+        block_time,
+    );
+    total_votes =
+        calc_updated_essence_allocation(&total_votes, &elector_votes_after, &elector_votes_before);
+    // 20 % goes to dao
+    let dao_essence = DAO_ESSENCE.load(deps.storage)?;
+    let weights_before = DAO_WEIGHTS.load(deps.storage)?;
+    let dao_votes_before = calc_essence_allocation(&dao_essence, &weights_before);
+    let dao_votes_after = calc_scaled_essence_allocation(
+        &dao_votes_before,
+        &slacker_essence,
+        Decimal::one() - elector_additional_essence_fraction,
+        block_time,
+    );
+    total_votes =
+        calc_updated_essence_allocation(&total_votes, &dao_votes_after, &dao_votes_before);
+
+    TOTAL_VOTES.save(deps.storage, &total_votes)?;
+
+    // update vote results
+    let total_essence = total_votes.iter().fold(Uint128::zero(), |acc, cur| {
+        acc + cur.essence_info.capture(block_time)
+    });
+    let total_essence_decimal = u128_to_dec(total_essence);
+    let votes: Vec<(String, Decimal)> = total_votes
+        .into_iter()
+        .map(|x| {
+            (
+                x.lp_token,
+                u128_to_dec(x.essence_info.capture(block_time)) / total_essence_decimal,
+            )
+        })
+        .collect();
+
+    VOTE_RESULTS.update(deps.storage, |mut x| -> StdResult<Vec<VoteResults>> {
+        x.push(VoteResults {
+            epoch_id: current_epoch.id,
+            end_date: current_epoch.start_date + epoch_length,
+            essence: total_essence,
+            pool_info_list: votes
+                .iter()
+                .cloned()
+                .map(|(lp_token, weight)| PoolInfoItem {
+                    lp_token,
+                    weight,
+                    rewards: Uint128::zero(), // TODO: update when tribute market will be released
+                })
+                .collect(),
+        });
+        x.retain(|y| y.epoch_id + MAX_EPOCH_AMOUNT > current_epoch.id);
+        Ok(x)
+    })?;
+
+    // TODO: maybe later?
+    // update epoch counter
+    current_epoch.id += 1;
+    current_epoch.start_date += epoch_length;
+    EPOCH_COUNTER.save(deps.storage, &current_epoch)?;
+
+    // send vote msg
+    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: astroport_emission_controller.to_string(),
+        msg: to_json_binary(
+            &astroport_governance::emissions_controller::msg::ExecuteMsg::<Empty>::Vote { votes },
+        )?,
+        funds: vec![],
+    });
+
+    Ok(Response::new()
+        .add_message(msg)
+        .add_attribute("action", "try_vote"))
 }
