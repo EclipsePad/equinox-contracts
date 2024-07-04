@@ -17,6 +17,7 @@ use equinox_msg::voter::{
 
 use crate::{
     error::ContractError,
+    helpers::{try_unlock, try_unlock_and_check, verify_weight_allocation},
     math::{
         calc_essence_allocation, calc_scaled_essence_allocation, calc_updated_essence_allocation,
     },
@@ -217,19 +218,21 @@ pub fn try_update_date_config(
 
 pub fn try_update_essence_allocation(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     user_and_essence_list: Vec<(String, EssenceInfo)>,
     _total_essence: EssenceInfo,
 ) -> Result<Response, ContractError> {
     let sender = &info.sender;
+    let block_time = env.block.time.seconds();
     let AddressConfig {
         admin,
         eclipsepad_staking,
         ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
+    try_unlock(deps.storage, block_time)?;
 
-    if sender != eclipsepad_staking && sender.to_string() != admin {
+    if sender != eclipsepad_staking && sender != admin {
         Err(ContractError::Unauthorized)?;
     }
 
@@ -448,12 +451,10 @@ fn lock_xastro(
         .add_attribute("eclip_astro_amount", eclip_astro_amount))
 }
 
-pub fn try_delegate(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
+pub fn try_delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = &info.sender;
+    let block_time = env.block.time.seconds();
+    try_unlock_and_check(deps.storage, block_time)?;
 
     // slacker -> delegator
     if let Ok(essence) = SLACKER_ESSENCE.load(deps.storage, sender) {
@@ -533,10 +534,12 @@ fn add_delegator(
 
 pub fn try_undelegate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
     let sender = &info.sender;
+    let block_time = env.block.time.seconds();
+    try_unlock_and_check(deps.storage, block_time)?;
 
     // check if user is delegator and update
     let essence = DELEGATOR_ESSENCE.load(deps.storage, sender)?;
@@ -576,17 +579,15 @@ pub fn try_undelegate(
 // TODO: compare current epoch with historical data to try update BRIBE_REWARDS
 pub fn try_place_vote(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     weight_allocation: Vec<WeightAllocationItem>,
 ) -> Result<Response, ContractError> {
     let sender = &info.sender;
+    let block_time = env.block.time.seconds();
     let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
+    try_unlock_and_check(deps.storage, block_time)?;
     verify_weight_allocation(&weight_allocation)?;
-
-    if IS_LOCKED.load(deps.storage)? {
-        Err(ContractError::EpochEnd)?;
-    }
 
     // delegator can't place vote
     if DELEGATOR_ESSENCE.has(deps.storage, sender) {
@@ -644,12 +645,14 @@ pub fn try_place_vote(
 
 pub fn try_place_vote_as_dao(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     weight_allocation: Vec<WeightAllocationItem>,
 ) -> Result<Response, ContractError> {
     let sender = &info.sender;
+    let block_time = env.block.time.seconds();
     let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
+    try_unlock_and_check(deps.storage, block_time)?;
     verify_weight_allocation(&weight_allocation)?;
 
     if IS_LOCKED.load(deps.storage)? {
@@ -680,49 +683,6 @@ pub fn try_place_vote_as_dao(
     Ok(Response::new().add_attribute("action", "try_place_vote_as_dao"))
 }
 
-// TODO: query whitelisted pool
-fn verify_weight_allocation(
-    weight_allocation: &Vec<WeightAllocationItem>,
-) -> Result<(), ContractError> {
-    // check weights:
-    // 1) empty
-    if weight_allocation.is_empty() {
-        Err(ContractError::EmptyVotingList)?;
-    }
-
-    // 2) diplications
-    let mut pool_list: Vec<String> = weight_allocation
-        .iter()
-        .map(|x| x.lp_token.to_string())
-        .collect();
-    pool_list.sort_unstable();
-    pool_list.dedup();
-
-    if pool_list.len() != weight_allocation.len() {
-        Err(ContractError::VotingListDuplication)?;
-    }
-
-    // 3) out of range
-    if weight_allocation
-        .iter()
-        .any(|x| x.weight.is_zero() || x.weight > Decimal::one())
-    {
-        Err(ContractError::WeightIsOutOfRange)?;
-    }
-
-    // 4) wrong sum
-    if (weight_allocation
-        .iter()
-        .fold(Decimal::zero(), |acc, cur| acc + cur.weight))
-        != Decimal::one()
-    {
-        Err(ContractError::WeightsAreUnbalanced)?;
-    }
-
-    Ok(())
-}
-
-// TODO: reset is_locked on user/staking actions on epoch start
 // TODO: set initial weights
 pub fn try_vote(
     deps: DepsMut,
@@ -741,7 +701,7 @@ pub fn try_vote(
     } = DATE_CONFIG.load(deps.storage)?;
     let mut current_epoch = EPOCH_COUNTER.load(deps.storage)?;
 
-    // must be executed single time right before epoch end
+    // final voting must be executed single time right before epoch end
     if IS_LOCKED.load(deps.storage)? {
         Err(ContractError::EpochEnd)?;
     }
