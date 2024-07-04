@@ -12,6 +12,7 @@ use eclipse_base::{
 };
 use equinox_msg::voter::{
     AddressConfig, DateConfig, EssenceAllocationItem, EssenceInfo, TokenConfig, TransferAdminState,
+    WeightAllocationItem,
 };
 
 use crate::{
@@ -310,7 +311,7 @@ pub fn try_update_essence_allocation(
             SLACKER_ESSENCE.save(deps.storage, user, &essence_after)?;
         }
 
-        // update slakers essence accumulator
+        // update slackers essence accumulator
         SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
             Ok(x.add(&essence_after).sub(&essence_before))
         })?;
@@ -531,7 +532,7 @@ pub fn try_delegate(
         // update own essence
         SLACKER_ESSENCE.remove(deps.storage, sender);
 
-        // update slakers essence accumulator
+        // update slackers essence accumulator
         SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
             Ok(x.sub(&essence))
         })?;
@@ -632,14 +633,153 @@ pub fn try_undelegate(
         ))
     })?;
 
-    // move to slakers
+    // move to slackers
     // update own essence
     SLACKER_ESSENCE.save(deps.storage, sender, &essence)?;
 
-    // update slakers essence accumulator
+    // update slackers essence accumulator
     SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
         Ok(x.add(&essence))
     })?;
 
     Ok(Response::new().add_attribute("action", "try_undelegate"))
+}
+
+pub fn try_place_vote(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    weight_allocation: Vec<WeightAllocationItem>,
+) -> Result<Response, ContractError> {
+    let sender = &info.sender;
+    let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
+    verify_weight_allocation(&weight_allocation)?;
+
+    // delegator can't place vote
+    if DELEGATOR_ESSENCE.has(deps.storage, sender) {
+        Err(ContractError::DelegatorCanNotVote)?;
+    }
+
+    // dao can't place vote as regular user
+    if sender == eclipse_dao {
+        Err(ContractError::Unauthorized)?;
+    }
+
+    // if user is slacker move him to electors first
+    if let Ok(essence) = SLACKER_ESSENCE.load(deps.storage, sender) {
+        // update own essence
+        SLACKER_ESSENCE.remove(deps.storage, sender);
+
+        // update slackers essence accumulator
+        SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+            Ok(x.sub(&essence))
+        })?;
+
+        // update own essence
+        ELECTOR_ESSENCE.save(deps.storage, sender, &essence)?;
+    }
+
+    // update weights
+    let essence = ELECTOR_ESSENCE.load(deps.storage, sender)?;
+    let weights_before = ELECTOR_WEIGHTS
+        .load(deps.storage, sender)
+        .unwrap_or_default();
+
+    let essence_allocation_before = calc_essence_allocation(&essence, &weights_before);
+    let essence_allocation_after = calc_essence_allocation(&essence, &weight_allocation);
+
+    ELECTOR_WEIGHTS.save(deps.storage, sender, &weight_allocation)?;
+
+    ELECTOR_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
+        Ok(calc_updated_essence_allocation(
+            &x,
+            &essence_allocation_after,
+            &essence_allocation_before,
+        ))
+    })?;
+
+    TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
+        Ok(calc_updated_essence_allocation(
+            &x,
+            &essence_allocation_after,
+            &essence_allocation_before,
+        ))
+    })?;
+
+    Ok(Response::new().add_attribute("action", "try_place_vote"))
+}
+
+pub fn try_place_vote_as_dao(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    weight_allocation: Vec<WeightAllocationItem>,
+) -> Result<Response, ContractError> {
+    let sender = &info.sender;
+    let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
+    verify_weight_allocation(&weight_allocation)?;
+
+    if sender != eclipse_dao {
+        Err(ContractError::Unauthorized)?;
+    }
+
+    // update weights
+    let essence = DAO_ESSENCE.load(deps.storage)?;
+    let weights_before = DAO_WEIGHTS.load(deps.storage)?;
+
+    let essence_allocation_before = calc_essence_allocation(&essence, &weights_before);
+    let essence_allocation_after = calc_essence_allocation(&essence, &weight_allocation);
+
+    DAO_WEIGHTS.save(deps.storage, &weight_allocation)?;
+
+    TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
+        Ok(calc_updated_essence_allocation(
+            &x,
+            &essence_allocation_after,
+            &essence_allocation_before,
+        ))
+    })?;
+
+    Ok(Response::new().add_attribute("action", "try_place_vote_as_dao"))
+}
+
+fn verify_weight_allocation(
+    weight_allocation: &Vec<WeightAllocationItem>,
+) -> Result<(), ContractError> {
+    // check weights:
+    // 1) empty
+    if weight_allocation.is_empty() {
+        Err(ContractError::EmptyVotingList)?;
+    }
+
+    // 2) diplications
+    let mut pool_list: Vec<String> = weight_allocation
+        .iter()
+        .map(|x| x.lp_token.to_string())
+        .collect();
+    pool_list.sort_unstable();
+    pool_list.dedup();
+
+    if pool_list.len() != weight_allocation.len() {
+        Err(ContractError::VotingListDuplication)?;
+    }
+
+    // 3) out of range
+    if weight_allocation
+        .iter()
+        .any(|x| x.weight.is_zero() || x.weight > Decimal::one())
+    {
+        Err(ContractError::WeightIsOutOfRange)?;
+    }
+
+    // 4) wrong sum
+    if (weight_allocation
+        .iter()
+        .fold(Decimal::zero(), |acc, cur| acc + cur.weight))
+        != Decimal::one()
+    {
+        Err(ContractError::WeightsAreUnbalanced)?;
+    }
+
+    Ok(())
 }

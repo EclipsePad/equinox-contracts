@@ -100,9 +100,13 @@ pub fn execute(
 
         ExecuteMsg::Undelegate {} => e::try_undelegate(deps, env, info),
 
-        ExecuteMsg::PlaceVote { weight_allocation } => unimplemented!(),
+        ExecuteMsg::PlaceVote { weight_allocation } => {
+            e::try_place_vote(deps, env, info, weight_allocation)
+        }
 
-        ExecuteMsg::PlaceVoteAsDao { weight_allocation } => unimplemented!(),
+        ExecuteMsg::PlaceVoteAsDao { weight_allocation } => {
+            e::try_place_vote_as_dao(deps, env, info, weight_allocation)
+        }
 
         ExecuteMsg::Vote {} => unimplemented!(),
 

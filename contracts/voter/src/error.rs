@@ -36,6 +36,9 @@ pub enum ContractError {
     #[error("It's impossible to delegate twice")]
     DelegateTwice,
 
+    #[error("Delegator can't place vote")]
+    DelegatorCanNotVote,
+
     #[error("Zero amount")]
     ZeroAmount,
 
