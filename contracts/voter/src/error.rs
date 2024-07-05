@@ -33,6 +33,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("Pool isn't whitelisted")]
+    PoolIsNotWhitelisted,
+
     #[error("Voting period isn't started")]
     VotingDelay,
 

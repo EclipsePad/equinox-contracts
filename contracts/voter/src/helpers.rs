@@ -1,14 +1,14 @@
-use cosmwasm_std::{Decimal, Storage};
+use cosmwasm_std::{Decimal, Deps, Storage};
 
 use equinox_msg::voter::WeightAllocationItem;
 
 use crate::{
     error::ContractError,
-    state::{EPOCH_COUNTER, IS_LOCKED},
+    state::{ADDRESS_CONFIG, EPOCH_COUNTER, IS_LOCKED},
 };
 
-// TODO: query whitelisted pool
 pub fn verify_weight_allocation(
+    deps: Deps,
     weight_allocation: &Vec<WeightAllocationItem>,
 ) -> Result<(), ContractError> {
     // check weights:
@@ -44,6 +44,21 @@ pub fn verify_weight_allocation(
         != Decimal::one()
     {
         Err(ContractError::WeightsAreUnbalanced)?;
+    }
+
+    // 5) whitelist
+    let whitelisted_pools: Vec<String> = deps.querier.query_wasm_smart(
+        ADDRESS_CONFIG
+            .load(deps.storage)?
+            .astroport_emission_controller,
+        &astroport_governance::emissions_controller::hub::QueryMsg::QueryWhitelist {},
+    )?;
+
+    if weight_allocation
+        .iter()
+        .any(|x| !whitelisted_pools.contains(&x.lp_token))
+    {
+        Err(ContractError::PoolIsNotWhitelisted)?;
     }
 
     Ok(())

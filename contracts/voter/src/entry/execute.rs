@@ -587,7 +587,7 @@ pub fn try_place_vote(
     let block_time = env.block.time.seconds();
     let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
     try_unlock_and_check(deps.storage, block_time)?;
-    verify_weight_allocation(&weight_allocation)?;
+    verify_weight_allocation(deps.as_ref(), &weight_allocation)?;
 
     // delegator can't place vote
     if DELEGATOR_ESSENCE.has(deps.storage, sender) {
@@ -653,7 +653,7 @@ pub fn try_place_vote_as_dao(
     let block_time = env.block.time.seconds();
     let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
     try_unlock_and_check(deps.storage, block_time)?;
-    verify_weight_allocation(&weight_allocation)?;
+    verify_weight_allocation(deps.as_ref(), &weight_allocation)?;
 
     if IS_LOCKED.load(deps.storage)? {
         Err(ContractError::EpochEnd)?;
@@ -683,7 +683,6 @@ pub fn try_place_vote_as_dao(
     Ok(Response::new().add_attribute("action", "try_place_vote_as_dao"))
 }
 
-// TODO: set initial weights
 pub fn try_vote(
     deps: DepsMut,
     env: Env,
@@ -776,14 +775,13 @@ pub fn try_vote(
 
     // reset elector votes to motivate them vote again in next epoch
     ELECTOR_WEIGHTS.clear(deps.storage);
-    ELECTOR_VOTES.remove(deps.storage);
-    TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
-        Ok(calc_updated_essence_allocation(
-            &x,
-            &vec![],
-            &elector_votes_before,
-        ))
-    })?;
+    ELECTOR_VOTES.save(deps.storage, &vec![])?;
+    // reset dao votes as well
+    DAO_WEIGHTS.save(deps.storage, &vec![])?;
+    let mut total_votes = TOTAL_VOTES.load(deps.storage)?;
+    total_votes = calc_updated_essence_allocation(&total_votes, &vec![], &elector_votes_before);
+    total_votes = calc_updated_essence_allocation(&total_votes, &vec![], &dao_votes_before);
+    TOTAL_VOTES.save(deps.storage, &total_votes)?;
 
     // update epoch counter
     current_epoch.id += 1;
