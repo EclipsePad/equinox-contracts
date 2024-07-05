@@ -3,10 +3,12 @@ use cw_multi_test::{AppResponse, ContractWrapper, Executor};
 
 use eclipse_base::error::parse_err;
 use equinox_msg::voter::{
-    AddressConfig, DateConfig, EssenceInfo, ExecuteMsg, QueryMsg, TokenConfig, VotingListItem,
+    AddressConfig, BribesAllocationItem, DaoResponse, DateConfig, EpochInfo, EssenceInfo,
+    ExecuteMsg, QueryMsg, SudoMsg, TokenConfig, UserListResponse, UserResponse, VoterInfoResponse,
+    WeightAllocationItem,
 };
 
-use crate::suite_astro::helper::{ControllerHelper, Extension};
+use crate::suite_astro::helper::{Acc, ControllerHelper, Extension};
 
 const NAME: &str = "voter";
 
@@ -19,6 +21,8 @@ pub trait VoterExtension {
 
         worker_list: Option<Vec<&str>>,
 
+        eclipse_dao: &Addr,
+        eclipsepad_foundry: Option<String>,
         eclipsepad_minter: &Addr,
         eclipsepad_staking: &Addr,
         eclipsepad_tribute_market: Option<String>,
@@ -32,9 +36,9 @@ pub trait VoterExtension {
         xastro: &str,
         eclip_astro: &str,
 
-        epochs_start: u64,
+        genesis_epoch_start_date: u64,
         epoch_length: u64,
-        vote_cooldown: u64,
+        vote_delay: u64,
     );
 
     fn voter_try_accept_admin_role(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
@@ -44,6 +48,8 @@ pub trait VoterExtension {
         sender: impl ToString,
         admin: Option<impl ToString>,
         worker_list: Option<Vec<impl ToString>>,
+        eclipse_dao: Option<Addr>,
+        eclipsepad_foundry: Option<Addr>,
         eclipsepad_minter: Option<Addr>,
         eclipsepad_staking: Option<Addr>,
         eclipsepad_tribute_market: Option<Addr>,
@@ -65,12 +71,12 @@ pub trait VoterExtension {
     fn voter_try_update_date_config(
         &mut self,
         sender: impl ToString,
-        epochs_start: Option<u64>,
+        genesis_epoch_start_date: Option<u64>,
         epoch_length: Option<u64>,
-        vote_cooldown: Option<u64>,
+        vote_delay: Option<u64>,
     ) -> StdResult<AppResponse>;
 
-    fn voter_try_capture_essence(
+    fn voter_try_update_essence_allocation(
         &mut self,
         sender: impl ToString,
         user_and_essence_list: &[(impl ToString, EssenceInfo)],
@@ -84,11 +90,32 @@ pub trait VoterExtension {
         denom: &str,
     ) -> StdResult<AppResponse>;
 
-    fn voter_try_vote(
+    fn voter_try_swap_xastro_to_astro(
         &mut self,
         sender: impl ToString,
-        voting_list: &[VotingListItem],
+        amount: u128,
+        denom: &str,
     ) -> StdResult<AppResponse>;
+
+    fn voter_try_delegate(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
+
+    fn voter_try_undelegate(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
+
+    fn voter_try_place_vote(
+        &mut self,
+        sender: impl ToString,
+        weight_allocation: &[WeightAllocationItem],
+    ) -> StdResult<AppResponse>;
+
+    fn voter_try_place_vote_as_dao(
+        &mut self,
+        sender: impl ToString,
+        weight_allocation: &[WeightAllocationItem],
+    ) -> StdResult<AppResponse>;
+
+    fn voter_try_vote(&mut self) -> StdResult<AppResponse>;
+
+    fn voter_try_claim_rewards(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
 
     fn voter_query_address_config(&self) -> StdResult<AddressConfig>;
 
@@ -96,9 +123,43 @@ pub trait VoterExtension {
 
     fn voter_query_date_config(&self) -> StdResult<DateConfig>;
 
+    fn voter_query_rewards(&self) -> StdResult<Vec<(Uint128, String)>>;
+
+    fn voter_query_bribes_allocation(&self) -> StdResult<Vec<BribesAllocationItem>>;
+
     fn voter_query_voting_power(&self, address: impl ToString) -> StdResult<Uint128>;
 
     fn voter_query_xastro_price(&self) -> StdResult<Decimal>;
+
+    fn voter_query_user(
+        &self,
+        address: impl ToString,
+        block_time: Option<u64>,
+    ) -> StdResult<UserResponse>;
+
+    fn voter_query_elector_list(
+        &self,
+        amount: u32,
+        start_from: Option<String>,
+    ) -> StdResult<Vec<UserListResponse>>;
+
+    fn voter_query_delegator_list(
+        &self,
+        amount: u32,
+        start_from: Option<String>,
+    ) -> StdResult<Vec<UserListResponse>>;
+
+    fn voter_query_slacker_list(
+        &self,
+        amount: u32,
+        start_from: Option<String>,
+    ) -> StdResult<Vec<UserListResponse>>;
+
+    fn voter_query_dao_info(&self, block_time: Option<u64>) -> StdResult<DaoResponse>;
+
+    fn voter_query_voter_info(&self, block_time: Option<u64>) -> StdResult<VoterInfoResponse>;
+
+    fn voter_query_epoch_info(&self) -> StdResult<EpochInfo>;
 }
 
 impl VoterExtension for ControllerHelper {
@@ -124,6 +185,8 @@ impl VoterExtension for ControllerHelper {
 
         worker_list: Option<Vec<&str>>,
 
+        eclipse_dao: &Addr,
+        eclipsepad_foundry: Option<String>,
         eclipsepad_minter: &Addr,
         eclipsepad_staking: &Addr,
         eclipsepad_tribute_market: Option<String>,
@@ -137,9 +200,9 @@ impl VoterExtension for ControllerHelper {
         xastro: &str,
         eclip_astro: &str,
 
-        epochs_start: u64,
+        genesis_epoch_start_date: u64,
         epoch_length: u64,
-        vote_cooldown: u64,
+        vote_delay: u64,
     ) {
         let code_id = self.app.store_code(Box::new(
             ContractWrapper::new_with_empty(
@@ -155,11 +218,13 @@ impl VoterExtension for ControllerHelper {
             .app
             .instantiate_contract(
                 code_id,
-                self.owner.clone(),
+                self.acc(Acc::Owner),
                 &equinox_msg::voter::InstantiateMsg {
                     worker_list: worker_list
                         .map(|x| x.into_iter().map(|y| y.to_string()).collect()),
 
+                    eclipse_dao: eclipse_dao.to_string(),
+                    eclipsepad_foundry,
                     eclipsepad_minter: eclipsepad_minter.to_string(),
                     eclipsepad_staking: eclipsepad_staking.to_string(),
                     eclipsepad_tribute_market,
@@ -173,13 +238,13 @@ impl VoterExtension for ControllerHelper {
                     xastro: xastro.to_string(),
                     eclip_astro: eclip_astro.to_string(),
 
-                    epochs_start,
+                    genesis_epoch_start_date,
                     epoch_length,
-                    vote_cooldown,
+                    vote_delay,
                 },
                 &[],
                 NAME,
-                Some(self.owner.to_string()),
+                Some(self.acc(Acc::Owner).to_string()),
             )
             .unwrap();
 
@@ -206,6 +271,8 @@ impl VoterExtension for ControllerHelper {
         sender: impl ToString,
         admin: Option<impl ToString>,
         worker_list: Option<Vec<impl ToString>>,
+        eclipse_dao: Option<Addr>,
+        eclipsepad_foundry: Option<Addr>,
         eclipsepad_minter: Option<Addr>,
         eclipsepad_staking: Option<Addr>,
         eclipsepad_tribute_market: Option<Addr>,
@@ -223,6 +290,8 @@ impl VoterExtension for ControllerHelper {
                     admin: admin.map(|x| x.to_string()),
                     worker_list: worker_list
                         .map(|x| x.into_iter().map(|y| y.to_string()).collect()),
+                    eclipse_dao: eclipse_dao.map(|x| x.to_string()),
+                    eclipsepad_foundry: eclipsepad_foundry.map(|x| x.to_string()),
                     eclipsepad_minter: eclipsepad_minter.map(|x| x.to_string()),
                     eclipsepad_staking: eclipsepad_staking.map(|x| x.to_string()),
                     eclipsepad_tribute_market: eclipsepad_tribute_market.map(|x| x.to_string()),
@@ -262,25 +331,25 @@ impl VoterExtension for ControllerHelper {
     fn voter_try_update_date_config(
         &mut self,
         sender: impl ToString,
-        epochs_start: Option<u64>,
+        genesis_epoch_start_date: Option<u64>,
         epoch_length: Option<u64>,
-        vote_cooldown: Option<u64>,
+        vote_delay: Option<u64>,
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
                 Addr::unchecked(sender.to_string()),
                 self.voter_contract_address(),
                 &ExecuteMsg::UpdateDateConfig {
-                    epochs_start,
+                    genesis_epoch_start_date,
                     epoch_length,
-                    vote_cooldown,
+                    vote_delay,
                 },
                 &[],
             )
             .map_err(parse_err)
     }
 
-    fn voter_try_capture_essence(
+    fn voter_try_update_essence_allocation(
         &mut self,
         sender: impl ToString,
         user_and_essence_list: &[(impl ToString, EssenceInfo)],
@@ -290,7 +359,7 @@ impl VoterExtension for ControllerHelper {
             .execute_contract(
                 Addr::unchecked(sender.to_string()),
                 self.voter_contract_address(),
-                &ExecuteMsg::CaptureEssence {
+                &ExecuteMsg::UpdateEssenceAllocation {
                     user_and_essence_list: user_and_essence_list
                         .iter()
                         .map(|(user, essence)| (user.to_string(), essence.to_owned()))
@@ -318,18 +387,90 @@ impl VoterExtension for ControllerHelper {
             .map_err(parse_err)
     }
 
-    fn voter_try_vote(
+    fn voter_try_swap_xastro_to_astro(
         &mut self,
         sender: impl ToString,
-        voting_list: &[VotingListItem],
+        amount: u128,
+        denom: &str,
+    ) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(&sender.to_string()),
+                self.voter_contract_address(),
+                &equinox_msg::voter::ExecuteMsg::SwapXastroToAstro {},
+                &coins(amount, denom),
+            )
+            .map_err(parse_err)
+    }
+
+    fn voter_try_delegate(&mut self, sender: impl ToString) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.voter_contract_address(),
+                &ExecuteMsg::Delegate {},
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
+    fn voter_try_undelegate(&mut self, sender: impl ToString) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.voter_contract_address(),
+                &ExecuteMsg::Undelegate {},
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
+    fn voter_try_place_vote(
+        &mut self,
+        sender: impl ToString,
+        weight_allocation: &[WeightAllocationItem],
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
                 Addr::unchecked(sender.to_string()),
                 self.voter_contract_address(),
-                &ExecuteMsg::Vote {
-                    voting_list: voting_list.to_owned(),
+                &ExecuteMsg::PlaceVote {
+                    weight_allocation: weight_allocation.to_owned(),
                 },
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
+    fn voter_try_place_vote_as_dao(
+        &mut self,
+        sender: impl ToString,
+        weight_allocation: &[WeightAllocationItem],
+    ) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.voter_contract_address(),
+                &ExecuteMsg::PlaceVote {
+                    weight_allocation: weight_allocation.to_owned(),
+                },
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
+    fn voter_try_vote(&mut self) -> StdResult<AppResponse> {
+        self.app
+            .wasm_sudo(self.voter_contract_address(), &SudoMsg::Vote {})
+            .map_err(parse_err)
+    }
+
+    fn voter_try_claim_rewards(&mut self, sender: impl ToString) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.voter_contract_address(),
+                &ExecuteMsg::ClaimRewards {},
                 &[],
             )
             .map_err(parse_err)
@@ -353,6 +494,19 @@ impl VoterExtension for ControllerHelper {
             .query_wasm_smart(self.voter_contract_address(), &QueryMsg::DateConfig {})
     }
 
+    fn voter_query_rewards(&self) -> StdResult<Vec<(Uint128, String)>> {
+        self.app
+            .wrap()
+            .query_wasm_smart(self.voter_contract_address(), &QueryMsg::Rewards {})
+    }
+
+    fn voter_query_bribes_allocation(&self) -> StdResult<Vec<BribesAllocationItem>> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract_address(),
+            &QueryMsg::BribesAllocation {},
+        )
+    }
+
     fn voter_query_voting_power(&self, address: impl ToString) -> StdResult<Uint128> {
         self.app.wrap().query_wasm_smart(
             self.voter_contract_address(),
@@ -366,5 +520,72 @@ impl VoterExtension for ControllerHelper {
         self.app
             .wrap()
             .query_wasm_smart(self.voter_contract_address(), &QueryMsg::XastroPrice {})
+    }
+
+    fn voter_query_user(
+        &self,
+        address: impl ToString,
+        block_time: Option<u64>,
+    ) -> StdResult<UserResponse> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract_address(),
+            &QueryMsg::User {
+                address: address.to_string(),
+                block_time,
+            },
+        )
+    }
+
+    fn voter_query_elector_list(
+        &self,
+        amount: u32,
+        start_from: Option<String>,
+    ) -> StdResult<Vec<UserListResponse>> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract_address(),
+            &QueryMsg::ElectorList { amount, start_from },
+        )
+    }
+
+    fn voter_query_delegator_list(
+        &self,
+        amount: u32,
+        start_from: Option<String>,
+    ) -> StdResult<Vec<UserListResponse>> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract_address(),
+            &QueryMsg::ElectorList { amount, start_from },
+        )
+    }
+
+    fn voter_query_slacker_list(
+        &self,
+        amount: u32,
+        start_from: Option<String>,
+    ) -> StdResult<Vec<UserListResponse>> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract_address(),
+            &QueryMsg::ElectorList { amount, start_from },
+        )
+    }
+
+    fn voter_query_dao_info(&self, block_time: Option<u64>) -> StdResult<DaoResponse> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract_address(),
+            &QueryMsg::DaoInfo { block_time },
+        )
+    }
+
+    fn voter_query_voter_info(&self, block_time: Option<u64>) -> StdResult<VoterInfoResponse> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract_address(),
+            &QueryMsg::VoterInfo { block_time },
+        )
+    }
+
+    fn voter_query_epoch_info(&self) -> StdResult<EpochInfo> {
+        self.app
+            .wrap()
+            .query_wasm_smart(self.voter_contract_address(), &QueryMsg::EpochInfo {})
     }
 }

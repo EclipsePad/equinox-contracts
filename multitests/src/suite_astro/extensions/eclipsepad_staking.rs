@@ -7,7 +7,7 @@ use eclipse_base::{
     staking::msg::{ExecuteMsg, QueryEssenceResponse, QueryMsg},
 };
 
-use crate::suite_astro::helper::{ControllerHelper, Extension};
+use crate::suite_astro::helper::{Acc, ControllerHelper, Extension};
 
 const NAME: &str = "eclipsepad_staking";
 
@@ -111,7 +111,7 @@ impl EclipsepadStakingExtension for ControllerHelper {
             .app
             .instantiate_contract(
                 code_id,
-                self.owner.clone(),
+                self.acc(Acc::Owner).clone(),
                 &eclipse_base::staking::msg::InstantiateMsg {
                     equinox_voter: equinox_voter.as_ref().map(|x| x.to_string()),
                     beclip_minter: beclip_minter.as_ref().map(|x| x.to_string()),
@@ -136,7 +136,7 @@ impl EclipsepadStakingExtension for ControllerHelper {
                 },
                 &[],
                 NAME,
-                Some(self.owner.to_string()),
+                Some(self.acc(Acc::Owner).to_string()),
             )
             .unwrap();
 

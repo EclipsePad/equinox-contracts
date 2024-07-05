@@ -17,12 +17,12 @@ pub const XASTRO_MAINNET: &str =
 
 // https://github.com/astroport-fi/hidden_astroport_governance/blob/feat/revamped_vxastro/packages/astroport-governance/src/emissions_controller/consts.rs
 /// vxASTRO voting epoch starts on Mon May 20 00:00:00 UTC 2024
-pub const EPOCHS_START: u64 = 1716163200;
+pub const GENESIS_EPOCH_START_DATE: u64 = 1716163200;
 pub const DAY: u64 = 86400;
 /// vxASTRO voting epoch lasts 14 days
 pub const EPOCH_LENGTH: u64 = DAY * 14;
 /// User can vote once every 10 days
-pub const VOTE_COOLDOWN: u64 = DAY * 10;
+pub const VOTE_DELAY: u64 = DAY * 10;
 /// historical data vector max length
 pub const MAX_EPOCH_AMOUNT: u16 = 26;
 

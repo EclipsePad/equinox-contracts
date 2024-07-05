@@ -2,7 +2,7 @@
 members = [
     "contracts/*",
     "packages/*",
-    # "multitests",
+    "multitests",
 ]
 
 resolver = "2"
@@ -33,6 +33,8 @@ neutron-sdk             = "0.10.0"
 osmosis-std             = "0.21.0"
 derivative              = "2.2"
 itertools               = "0.12"
+strum                   = "0.24.1"
+strum_macros            = "0.24.3"
 
 equinox-msg             = { path = "./packages/equinox_msg" }
 eclipse-base            = { path = "./packages/eclipse-base" }

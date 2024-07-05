@@ -1,3 +1,6 @@
+use strum::IntoEnumIterator;
+use strum_macros::{Display, EnumIter, IntoStaticStr};
+
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::RewardInfo;
@@ -36,6 +39,22 @@ use crate::suite_astro::contracts::*;
 use crate::suite_astro::ibc_module::IbcMockModule;
 use crate::suite_astro::neutron_module::MockNeutronModule;
 use crate::suite_astro::stargate::StargateModule;
+
+#[derive(Debug, Clone, Copy, Display, IntoStaticStr, EnumIter)]
+pub enum Acc {
+    #[strum(serialize = "owner")]
+    Owner,
+    #[strum(serialize = "dao")]
+    Dao,
+    #[strum(serialize = "alice")]
+    Alice,
+    #[strum(serialize = "bob")]
+    Bob,
+    #[strum(serialize = "john")]
+    John,
+    #[strum(serialize = "kate")]
+    Kate,
+}
 
 pub const PROPOSAL_REQUIRED_DEPOSIT: Uint128 = Uint128::new(*DEPOSIT_INTERVAL.start());
 pub const PROPOSAL_VOTING_PERIOD: u64 = *VOTING_PERIOD_INTERVAL.start();
@@ -83,9 +102,7 @@ pub struct Extension {
 pub struct ControllerHelper {
     #[derivative(Debug = "ignore")]
     pub app: NeutronApp,
-    pub owner: Addr,
-    pub alice: Addr,
-    pub bob: Addr,
+    owner: Addr,
     pub assembly: Addr,
     pub astro: String,
     pub xastro: String,
@@ -95,17 +112,23 @@ pub struct ControllerHelper {
     pub whitelisting_fee: Coin,
     pub emission_controller: Addr,
     pub incentives: Addr,
+    // for additional users
+    pub account_list: Vec<(String, Addr)>,
     // for additional contracts
     pub extension_list: Vec<Extension>,
 }
 
 impl ControllerHelper {
     pub fn new() -> Self {
+        let astro_denom = "astro";
         let mut app = mock_ntrn_app();
         let owner = app.api().addr_make("owner");
-        let alice = app.api().addr_make("alice");
-        let bob = app.api().addr_make("bob");
-        let astro_denom = "astro";
+        let mut account_list: Vec<(String, Addr)> = vec![];
+
+        for account in Acc::iter() {
+            let acc = app.api().addr_make(&account.to_string());
+            account_list.push((account.to_string(), acc));
+        }
 
         let vxastro_code_id = app.store_code(vxastro_contract());
         let emissions_controller_code_id = app.store_code(emissions_controller());
@@ -326,8 +349,6 @@ impl ControllerHelper {
 
         let helper = Self {
             app,
-            alice,
-            bob,
             owner,
             xastro: xastro_denom.clone(),
             astro: astro_denom.to_string(),
@@ -338,6 +359,7 @@ impl ControllerHelper {
             emission_controller,
             incentives,
             assembly,
+            account_list,
             extension_list: vec![],
         };
         // dbg!(&helper);
@@ -708,5 +730,14 @@ impl ControllerHelper {
             .unwrap()
             .amount
             .u128()
+    }
+
+    pub fn acc(&self, acc: Acc) -> Addr {
+        self.account_list
+            .iter()
+            .find(|(addr, _)| addr == &acc.to_string())
+            .unwrap()
+            .to_owned()
+            .1
     }
 }

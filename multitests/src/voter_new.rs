@@ -1,15 +1,16 @@
-use cosmwasm_std::{coins, Addr, StdResult};
+use cosmwasm_std::{coins, StdResult};
 use cw_multi_test::Executor;
 
 use eclipse_base::assets::{Currency, Token};
-use voter::state::{EPOCHS_START, EPOCH_LENGTH, VOTE_COOLDOWN};
+use strum::IntoEnumIterator;
+use voter::state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY};
 
 use crate::suite_astro::{
     extensions::{
         eclipsepad_staking::EclipsepadStakingExtension, minter::MinterExtension,
         voter::VoterExtension,
     },
-    helper::ControllerHelper,
+    helper::{Acc, ControllerHelper},
 };
 
 const INITIAL_LIQUIDITY: u128 = 1_000_000;
@@ -35,7 +36,9 @@ fn prepare_helper() -> ControllerHelper {
         None,
     );
     h.voter_prepare_contract(
-        Some(vec![&h.owner.to_string()]),
+        Some(vec![&h.acc(Acc::Owner).to_string()]),
+        &h.acc(Acc::Dao),
+        None,
         &h.minter_contract_address(),
         &h.eclipsepad_staking_contract_address(),
         None,
@@ -47,13 +50,13 @@ fn prepare_helper() -> ControllerHelper {
         &h.astro.clone(),
         &h.xastro.clone(),
         ECLIP_ASTRO,
-        EPOCHS_START,
+        GENESIS_EPOCH_START_DATE,
         EPOCH_LENGTH,
-        VOTE_COOLDOWN,
+        VOTE_DELAY,
     );
 
     h.eclipsepad_staking_try_update_config(
-        &h.owner.to_string(),
+        &h.acc(Acc::Owner).to_string(),
         None,
         Some(h.voter_contract_address()),
         None,
@@ -67,19 +70,16 @@ fn prepare_helper() -> ControllerHelper {
     .unwrap();
 
     for token in [ECLIP, &h.astro.clone()] {
-        h.mint_tokens(
-            &Addr::unchecked(&h.owner.to_string()),
-            &coins(INITIAL_LIQUIDITY, token),
-        )
-        .unwrap();
+        h.mint_tokens(&h.acc(Acc::Owner), &coins(INITIAL_LIQUIDITY, token))
+            .unwrap();
     }
 
-    for user in [h.alice.clone(), h.bob.clone()] {
+    for user in Acc::iter() {
         for token in [ECLIP, &h.astro.clone(), &h.xastro.clone()] {
             h.app
                 .send_tokens(
-                    h.owner.clone(),
-                    Addr::unchecked(user.clone()),
+                    h.acc(Acc::Owner),
+                    h.acc(user),
                     &coins(INITIAL_LIQUIDITY / 10, token),
                 )
                 .unwrap();
@@ -93,7 +93,7 @@ fn prepare_helper() -> ControllerHelper {
     .unwrap();
 
     h.minter_try_register_currency(
-        &h.owner.to_string(),
+        &h.acc(Acc::Owner).to_string(),
         &Currency::new(&Token::new_native(ECLIP_ASTRO), 6),
         &h.voter_contract_address(),
     )
@@ -105,41 +105,35 @@ fn prepare_helper() -> ControllerHelper {
 #[test]
 fn swap_to_eclip_astro_default() -> StdResult<()> {
     let mut h = prepare_helper();
-    let ControllerHelper {
-        alice,
-        bob,
-        astro,
-        xastro,
-        ..
-    } = &ControllerHelper::new();
+    let ControllerHelper { astro, xastro, .. } = &ControllerHelper::new();
 
-    let alice_astro = h.query_balance(alice, astro);
-    let alice_xastro = h.query_balance(alice, xastro);
-    let alice_eclip_astro = h.query_balance(alice, ECLIP_ASTRO);
+    let alice_astro = h.query_balance(&h.acc(Acc::Alice), astro);
+    let alice_xastro = h.query_balance(&h.acc(Acc::Alice), xastro);
+    let alice_eclip_astro = h.query_balance(&h.acc(Acc::Alice), ECLIP_ASTRO);
     assert_eq!(alice_astro, 100_000);
     assert_eq!(alice_xastro, 100_000);
     assert_eq!(alice_eclip_astro, 0);
 
-    let bob_astro = h.query_balance(bob, astro);
-    let bob_xastro = h.query_balance(bob, xastro);
-    let bob_eclip_astro = h.query_balance(bob, ECLIP_ASTRO);
+    let bob_astro = h.query_balance(&h.acc(Acc::Bob), astro);
+    let bob_xastro = h.query_balance(&h.acc(Acc::Bob), xastro);
+    let bob_eclip_astro = h.query_balance(&h.acc(Acc::Bob), ECLIP_ASTRO);
     assert_eq!(bob_astro, 100_000);
     assert_eq!(bob_xastro, 100_000);
     assert_eq!(bob_eclip_astro, 0);
 
-    h.voter_try_swap_to_eclip_astro(alice, 1_000, astro)?;
-    h.voter_try_swap_to_eclip_astro(bob, 1_000, xastro)?;
+    h.voter_try_swap_to_eclip_astro(&h.acc(Acc::Alice), 1_000, astro)?;
+    h.voter_try_swap_to_eclip_astro(&h.acc(Acc::Bob), 1_000, xastro)?;
 
-    let alice_astro = h.query_balance(alice, astro);
-    let alice_xastro = h.query_balance(alice, xastro);
-    let alice_eclip_astro = h.query_balance(alice, ECLIP_ASTRO);
+    let alice_astro = h.query_balance(&h.acc(Acc::Alice), astro);
+    let alice_xastro = h.query_balance(&h.acc(Acc::Alice), xastro);
+    let alice_eclip_astro = h.query_balance(&h.acc(Acc::Alice), ECLIP_ASTRO);
     assert_eq!(alice_astro, 99_000);
     assert_eq!(alice_xastro, 100_000);
     assert_eq!(alice_eclip_astro, 1_000);
 
-    let bob_astro = h.query_balance(bob, astro);
-    let bob_xastro = h.query_balance(bob, xastro);
-    let bob_eclip_astro = h.query_balance(bob, ECLIP_ASTRO);
+    let bob_astro = h.query_balance(&h.acc(Acc::Bob), astro);
+    let bob_xastro = h.query_balance(&h.acc(Acc::Bob), xastro);
+    let bob_eclip_astro = h.query_balance(&h.acc(Acc::Bob), ECLIP_ASTRO);
     assert_eq!(bob_astro, 100_000);
     assert_eq!(bob_xastro, 99_000);
     assert_eq!(bob_eclip_astro, 1_000);

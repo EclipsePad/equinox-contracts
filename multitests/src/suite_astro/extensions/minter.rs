@@ -10,7 +10,7 @@ use eclipse_base::{
     },
 };
 
-use crate::suite_astro::helper::{ControllerHelper, Extension};
+use crate::suite_astro::helper::{Acc, ControllerHelper, Extension};
 
 const NAME: &str = "minter";
 
@@ -69,11 +69,11 @@ impl MinterExtension for ControllerHelper {
             .app
             .instantiate_contract(
                 code_id,
-                self.owner.clone(),
+                self.acc(Acc::Owner),
                 &eclipse_base::minter::msg::InstantiateMsg { cw20_code_id: None },
                 &[],
                 NAME,
-                Some(self.owner.to_string()),
+                Some(self.acc(Acc::Owner).to_string()),
             )
             .unwrap();
 
