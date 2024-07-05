@@ -33,6 +33,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("User is not found")]
+    UserIsNotFound,
+
     #[error("Pool isn't whitelisted")]
     PoolIsNotWhitelisted,
 

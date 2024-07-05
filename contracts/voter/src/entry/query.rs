@@ -1,8 +1,19 @@
-use cosmwasm_std::{Addr, Decimal, Deps, Env, StdResult, Uint128};
+use cosmwasm_std::{Decimal, Deps, Env, Order, StdError, StdResult, Uint128};
+use cw_storage_plus::Bound;
 use eclipse_base::converters::u128_to_dec;
-use equinox_msg::voter::{AddressConfig, DateConfig, TokenConfig};
+use equinox_msg::voter::{
+    AddressConfig, DaoResponse, DateConfig, EpochInfo, TokenConfig, UserListResponse,
+    UserListResponseItem, UserResponse, VoterInfoResponse,
+};
 
-use crate::state::{ADDRESS_CONFIG, DATE_CONFIG, TOKEN_CONFIG};
+use crate::{
+    error::ContractError,
+    state::{
+        ADDRESS_CONFIG, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, DELEGATOR_ESSENCE, ELECTOR_ESSENCE,
+        ELECTOR_VOTES, ELECTOR_WEIGHTS, EPOCH_COUNTER, SLACKER_ESSENCE, SLACKER_ESSENCE_ACC,
+        TOKEN_CONFIG, TOTAL_VOTES, VOTE_RESULTS,
+    },
+};
 
 pub fn query_address_config(deps: Deps, _env: Env) -> StdResult<AddressConfig> {
     ADDRESS_CONFIG.load(deps.storage)
@@ -99,3 +110,183 @@ pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Ui
 //         },
 //     )
 // }
+
+pub fn query_user(
+    deps: Deps,
+    env: Env,
+    address: String,
+    block_time: Option<u64>,
+) -> StdResult<UserResponse> {
+    let block_time = block_time.unwrap_or(env.block.time.seconds());
+    let user = &deps.api.addr_validate(&address)?;
+
+    if let Ok(essence_info) = ELECTOR_ESSENCE.load(deps.storage, user) {
+        let essence_value = essence_info.capture(block_time);
+        let weights = ELECTOR_WEIGHTS.load(deps.storage, user)?;
+
+        return Ok(UserResponse::Elector {
+            essence_info,
+            essence_value,
+            weights,
+        });
+    }
+
+    if let Ok(essence_info) = DELEGATOR_ESSENCE.load(deps.storage, user) {
+        let essence_value = essence_info.capture(block_time);
+
+        return Ok(UserResponse::Delegator {
+            essence_info,
+            essence_value,
+        });
+    }
+
+    if let Ok(essence_info) = SLACKER_ESSENCE.load(deps.storage, user) {
+        let essence_value = essence_info.capture(block_time);
+
+        return Ok(UserResponse::Slacker {
+            essence_info,
+            essence_value,
+        });
+    }
+
+    Err(StdError::generic_err(
+        ContractError::UserIsNotFound.to_string(),
+    ))
+}
+
+pub fn query_elector_list(
+    deps: Deps,
+    env: Env,
+    amount: u32,
+    start_from: Option<String>,
+) -> StdResult<UserListResponse> {
+    let block_time = env.block.time.seconds();
+    let address;
+    let start_bound = match start_from {
+        None => None,
+        Some(x) => {
+            address = deps.api.addr_validate(&x)?;
+            Some(Bound::exclusive(&address))
+        }
+    };
+
+    let list = ELECTOR_ESSENCE
+        .range(deps.storage, start_bound.clone(), None, Order::Ascending)
+        .take(amount as usize)
+        .map(|x| {
+            let (address, essence_info) = x.unwrap();
+            let weights = ELECTOR_WEIGHTS.load(deps.storage, &address)?;
+
+            Ok(UserListResponseItem {
+                address,
+                essence_info,
+                weights: Some(weights),
+            })
+        })
+        .collect::<StdResult<Vec<UserListResponseItem>>>()?;
+
+    Ok(UserListResponse { block_time, list })
+}
+
+pub fn query_delegator_list(
+    deps: Deps,
+    env: Env,
+    amount: u32,
+    start_from: Option<String>,
+) -> StdResult<UserListResponse> {
+    let block_time = env.block.time.seconds();
+    let address;
+    let start_bound = match start_from {
+        None => None,
+        Some(x) => {
+            address = deps.api.addr_validate(&x)?;
+            Some(Bound::exclusive(&address))
+        }
+    };
+
+    let list = DELEGATOR_ESSENCE
+        .range(deps.storage, start_bound.clone(), None, Order::Ascending)
+        .take(amount as usize)
+        .map(|x| {
+            let (address, essence_info) = x.unwrap();
+
+            UserListResponseItem {
+                address,
+                essence_info,
+                weights: None,
+            }
+        })
+        .collect::<Vec<UserListResponseItem>>();
+
+    Ok(UserListResponse { block_time, list })
+}
+
+pub fn query_slacker_list(
+    deps: Deps,
+    env: Env,
+    amount: u32,
+    start_from: Option<String>,
+) -> StdResult<UserListResponse> {
+    let block_time = env.block.time.seconds();
+    let address;
+    let start_bound = match start_from {
+        None => None,
+        Some(x) => {
+            address = deps.api.addr_validate(&x)?;
+            Some(Bound::exclusive(&address))
+        }
+    };
+
+    let list = SLACKER_ESSENCE
+        .range(deps.storage, start_bound.clone(), None, Order::Ascending)
+        .take(amount as usize)
+        .map(|x| {
+            let (address, essence_info) = x.unwrap();
+
+            UserListResponseItem {
+                address,
+                essence_info,
+                weights: None,
+            }
+        })
+        .collect::<Vec<UserListResponseItem>>();
+
+    Ok(UserListResponse { block_time, list })
+}
+
+pub fn query_dao_info(deps: Deps, env: Env, block_time: Option<u64>) -> StdResult<DaoResponse> {
+    let block_time = block_time.unwrap_or(env.block.time.seconds());
+    let essence_info = DAO_ESSENCE.load(deps.storage)?;
+    let essence_value = essence_info.capture(block_time);
+    let weights = DAO_WEIGHTS.load(deps.storage)?;
+
+    Ok(DaoResponse {
+        essence_info,
+        essence_value,
+        weights,
+    })
+}
+
+pub fn query_voter_info(
+    deps: Deps,
+    env: Env,
+    block_time: Option<u64>,
+) -> StdResult<VoterInfoResponse> {
+    let block_time = block_time.unwrap_or(env.block.time.seconds());
+    let elector_votes = ELECTOR_VOTES.load(deps.storage)?;
+    let slacker_essence_acc = SLACKER_ESSENCE_ACC.load(deps.storage)?;
+    let total_votes = TOTAL_VOTES.load(deps.storage)?;
+    let vote_results = VOTE_RESULTS.load(deps.storage)?;
+
+    Ok(VoterInfoResponse {
+        block_time,
+        elector_votes,
+        slacker_essence_acc,
+        total_votes,
+        vote_results,
+    })
+}
+
+pub fn query_epoch_info(deps: Deps, _env: Env) -> StdResult<EpochInfo> {
+    EPOCH_COUNTER.load(deps.storage)
+}

@@ -130,11 +130,32 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         QueryMsg::XastroPrice {} => to_json_binary(&q::query_xastro_price(deps, env)?),
 
-        QueryMsg::VoterInfo { address } => unimplemented!(),
+        QueryMsg::User {
+            address,
+            block_time,
+        } => to_json_binary(&q::query_user(deps, env, address, block_time)?),
 
-        QueryMsg::Essence { address } => unimplemented!(),
+        QueryMsg::ElectorList { amount, start_from } => {
+            to_json_binary(&q::query_elector_list(deps, env, amount, start_from)?)
+        }
 
-        QueryMsg::EssenceList { amount, start_from } => unimplemented!(),
+        QueryMsg::DelegatorList { amount, start_from } => {
+            to_json_binary(&q::query_delegator_list(deps, env, amount, start_from)?)
+        }
+
+        QueryMsg::SlackerList { amount, start_from } => {
+            to_json_binary(&q::query_slacker_list(deps, env, amount, start_from)?)
+        }
+
+        QueryMsg::DaoInfo { block_time } => {
+            to_json_binary(&q::query_dao_info(deps, env, block_time)?)
+        }
+
+        QueryMsg::VoterInfo { block_time } => {
+            to_json_binary(&q::query_voter_info(deps, env, block_time)?)
+        }
+
+        QueryMsg::EpochInfo {} => to_json_binary(&q::query_epoch_info(deps, env)?),
     }
 }
 

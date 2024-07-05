@@ -256,26 +256,111 @@ pub enum QueryMsg {
     #[returns(Decimal)]
     XastroPrice {},
 
-    #[returns(astroport_governance::emissions_controller::hub::UserInfoResponse)]
-    VoterInfo { address: String },
+    // #[returns(astroport_governance::emissions_controller::hub::UserInfoResponse)]
+    // VoterInfo {
+    //     address: String,
+    // },
 
-    /// get user essence or total essence
-    #[returns(EssenceInfo)]
-    Essence { address: String },
+    // /// get user essence or total essence
+    // #[returns(EssenceInfo)]
+    // Essence { address: String },
 
-    #[returns(QueryEssenceListResponse)]
-    EssenceList {
+    // #[returns(QueryEssenceListResponse)]
+    // EssenceList {
+    //     amount: u32,
+    //     start_from: Option<String>,
+    // },
+    //
+    #[returns(UserResponse)]
+    User {
+        address: String,
+        block_time: Option<u64>,
+    },
+
+    #[returns(UserListResponse)]
+    ElectorList {
         amount: u32,
         start_from: Option<String>,
     },
-    // TODO
-    // QueryUser {address: String},
-    // QueryElectorList,
-    // QueryDelegatorList,
-    // QueryLackerList,
-    // QueryDaoInfo,
-    // QueryVoterInfo
-    // QueryEpochInfo
+
+    #[returns(UserListResponse)]
+    DelegatorList {
+        amount: u32,
+        start_from: Option<String>,
+    },
+
+    #[returns(UserListResponse)]
+    SlackerList {
+        amount: u32,
+        start_from: Option<String>,
+    },
+
+    #[returns(DaoResponse)]
+    DaoInfo { block_time: Option<u64> },
+
+    #[returns(VoterInfoResponse)]
+    VoterInfo { block_time: Option<u64> },
+
+    #[returns(EpochInfo)]
+    EpochInfo {},
+}
+
+#[cw_serde]
+pub enum UserResponse {
+    Elector {
+        /// essence by elector address, slakers are excluded
+        essence_info: EssenceInfo,
+        essence_value: Uint128,
+        /// list of pools with weight allocations by elector address
+        weights: Vec<WeightAllocationItem>,
+    },
+    Delegator {
+        /// essence by delegator address
+        essence_info: EssenceInfo,
+        essence_value: Uint128,
+    },
+    Slacker {
+        /// essence by slacker address
+        essence_info: EssenceInfo,
+        essence_value: Uint128,
+    },
+}
+
+#[cw_serde]
+pub struct UserListResponse {
+    pub block_time: u64,
+    pub list: Vec<UserListResponseItem>,
+}
+
+#[cw_serde]
+pub struct UserListResponseItem {
+    pub address: Addr,
+    /// essence info by user address
+    pub essence_info: EssenceInfo,
+    /// list of pools with weight allocations by user address, Some for Elector
+    pub weights: Option<Vec<WeightAllocationItem>>,
+}
+
+#[cw_serde]
+pub struct DaoResponse {
+    /// essence by dao address, slakers are excluded
+    pub essence_info: EssenceInfo,
+    pub essence_value: Uint128,
+    /// list of pools with weight allocations by dao address
+    pub weights: Vec<WeightAllocationItem>,
+}
+
+#[cw_serde]
+pub struct VoterInfoResponse {
+    pub block_time: u64,
+    /// list of pools with essence allocations for all electors
+    pub elector_votes: Vec<EssenceAllocationItem>,
+    /// sum essence info over all slackers
+    pub slacker_essence_acc: EssenceInfo,
+    /// total list of pools with essence allocations, slakers are excluded
+    pub total_votes: Vec<EssenceAllocationItem>,
+    /// historical data, 26 epochs max
+    pub vote_results: Vec<VoteResults>,
 }
 
 #[cw_serde]
