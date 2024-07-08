@@ -1,9 +1,16 @@
-use cosmwasm_std::{coins, StdResult};
+use cosmwasm_std::{coins, StdResult, Uint128};
 use cw_multi_test::Executor;
 
-use eclipse_base::assets::{Currency, Token};
+use eclipse_base::{
+    assets::{Currency, Token},
+    converters::str_to_dec,
+};
+use equinox_msg::voter::{EssenceAllocationItem, EssenceInfo, WeightAllocationItem};
 use strum::IntoEnumIterator;
-use voter::state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY};
+use voter::{
+    math::{calc_essence_allocation, calc_updated_essence_allocation},
+    state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
+};
 
 use crate::suite_astro::{
     extensions::{
@@ -106,37 +113,314 @@ fn prepare_helper() -> ControllerHelper {
 fn swap_to_eclip_astro_default() -> StdResult<()> {
     let mut h = prepare_helper();
     let ControllerHelper { astro, xastro, .. } = &ControllerHelper::new();
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
 
-    let alice_astro = h.query_balance(&h.acc(Acc::Alice), astro);
-    let alice_xastro = h.query_balance(&h.acc(Acc::Alice), xastro);
-    let alice_eclip_astro = h.query_balance(&h.acc(Acc::Alice), ECLIP_ASTRO);
+    let alice_astro = h.query_balance(alice, astro);
+    let alice_xastro = h.query_balance(alice, xastro);
+    let alice_eclip_astro = h.query_balance(alice, ECLIP_ASTRO);
     assert_eq!(alice_astro, 100_000);
     assert_eq!(alice_xastro, 100_000);
     assert_eq!(alice_eclip_astro, 0);
 
-    let bob_astro = h.query_balance(&h.acc(Acc::Bob), astro);
-    let bob_xastro = h.query_balance(&h.acc(Acc::Bob), xastro);
-    let bob_eclip_astro = h.query_balance(&h.acc(Acc::Bob), ECLIP_ASTRO);
+    let bob_astro = h.query_balance(bob, astro);
+    let bob_xastro = h.query_balance(bob, xastro);
+    let bob_eclip_astro = h.query_balance(bob, ECLIP_ASTRO);
     assert_eq!(bob_astro, 100_000);
     assert_eq!(bob_xastro, 100_000);
     assert_eq!(bob_eclip_astro, 0);
 
-    h.voter_try_swap_to_eclip_astro(&h.acc(Acc::Alice), 1_000, astro)?;
-    h.voter_try_swap_to_eclip_astro(&h.acc(Acc::Bob), 1_000, xastro)?;
+    h.voter_try_swap_to_eclip_astro(alice, 1_000, astro)?;
+    h.voter_try_swap_to_eclip_astro(bob, 1_000, xastro)?;
 
-    let alice_astro = h.query_balance(&h.acc(Acc::Alice), astro);
-    let alice_xastro = h.query_balance(&h.acc(Acc::Alice), xastro);
-    let alice_eclip_astro = h.query_balance(&h.acc(Acc::Alice), ECLIP_ASTRO);
+    let alice_astro = h.query_balance(alice, astro);
+    let alice_xastro = h.query_balance(alice, xastro);
+    let alice_eclip_astro = h.query_balance(alice, ECLIP_ASTRO);
     assert_eq!(alice_astro, 99_000);
     assert_eq!(alice_xastro, 100_000);
     assert_eq!(alice_eclip_astro, 1_000);
 
-    let bob_astro = h.query_balance(&h.acc(Acc::Bob), astro);
-    let bob_xastro = h.query_balance(&h.acc(Acc::Bob), xastro);
-    let bob_eclip_astro = h.query_balance(&h.acc(Acc::Bob), ECLIP_ASTRO);
+    let bob_astro = h.query_balance(bob, astro);
+    let bob_xastro = h.query_balance(bob, xastro);
+    let bob_eclip_astro = h.query_balance(bob, ECLIP_ASTRO);
     assert_eq!(bob_astro, 100_000);
     assert_eq!(bob_xastro, 99_000);
     assert_eq!(bob_eclip_astro, 1_000);
 
     Ok(())
 }
+
+#[test]
+fn essence_info_math() -> StdResult<()> {
+    let essence_info_1 = EssenceInfo::new(20, 500_000_000, 40);
+    let essence_info_2 = EssenceInfo::new(10, 250_000_000, 20);
+
+    assert_eq!(essence_info_2.add(&essence_info_2), essence_info_1);
+    assert_eq!(essence_info_1.sub(&essence_info_2), essence_info_2);
+    assert_eq!(essence_info_1.sub(&essence_info_1).is_zero(), true);
+    // (20 * 50_000_000 - 500_000_000) / 31_536_000 + 40 = 55
+    assert_eq!(essence_info_1.capture(50_000_000).u128(), 55);
+
+    Ok(())
+}
+
+#[test]
+fn essence_allocation_math() -> StdResult<()> {
+    let essence_info = &EssenceInfo::new(20, 500_000_000, 40);
+    let weights = &vec![
+        WeightAllocationItem {
+            lp_token: "eclip-atom".to_string(),
+            weight: str_to_dec("0.2"),
+        },
+        WeightAllocationItem {
+            lp_token: "ntrn-atom".to_string(),
+            weight: str_to_dec("0.3"),
+        },
+        WeightAllocationItem {
+            lp_token: "astro-atom".to_string(),
+            weight: str_to_dec("0.5"),
+        },
+    ];
+    let expected_essence_allocation = vec![
+        EssenceAllocationItem {
+            lp_token: "eclip-atom".to_string(),
+            essence_info: EssenceInfo::new(4, 100_000_000, 8),
+        },
+        EssenceAllocationItem {
+            lp_token: "ntrn-atom".to_string(),
+            essence_info: EssenceInfo::new(6, 150_000_000, 12),
+        },
+        EssenceAllocationItem {
+            lp_token: "astro-atom".to_string(),
+            essence_info: EssenceInfo::new(10, 250_000_000, 20),
+        },
+    ];
+
+    let essence_allocation = calc_essence_allocation(essence_info, weights);
+    assert_eq!(essence_allocation, expected_essence_allocation);
+
+    Ok(())
+}
+
+#[test]
+fn updated_essence_allocation_math() -> StdResult<()> {
+    let essence_info = &EssenceInfo::new(20, 500_000_000, 40);
+    let alice_weights = &vec![
+        WeightAllocationItem {
+            lp_token: "eclip-atom".to_string(),
+            weight: str_to_dec("0.2"),
+        },
+        WeightAllocationItem {
+            lp_token: "ntrn-atom".to_string(),
+            weight: str_to_dec("0.3"),
+        },
+        WeightAllocationItem {
+            lp_token: "astro-atom".to_string(),
+            weight: str_to_dec("0.5"),
+        },
+    ];
+    let bob_weights_initial = &vec![
+        WeightAllocationItem {
+            lp_token: "eclip-atom".to_string(),
+            weight: str_to_dec("0.2"),
+        },
+        WeightAllocationItem {
+            lp_token: "ntrn-atom".to_string(),
+            weight: str_to_dec("0.3"),
+        },
+        WeightAllocationItem {
+            lp_token: "astro-atom".to_string(),
+            weight: str_to_dec("0.5"),
+        },
+    ];
+    let bob_weights_equal = &vec![
+        WeightAllocationItem {
+            lp_token: "eclip-atom".to_string(),
+            weight: str_to_dec("0.5"),
+        },
+        WeightAllocationItem {
+            lp_token: "ntrn-atom".to_string(),
+            weight: str_to_dec("0.3"),
+        },
+        WeightAllocationItem {
+            lp_token: "astro-atom".to_string(),
+            weight: str_to_dec("0.2"),
+        },
+    ];
+    let bob_weights_small = &vec![
+        WeightAllocationItem {
+            lp_token: "eclip-atom".to_string(),
+            weight: str_to_dec("0.7"),
+        },
+        WeightAllocationItem {
+            lp_token: "ntrn-atom".to_string(),
+            weight: str_to_dec("0.3"),
+        },
+    ];
+    let bob_weights_large = &vec![
+        WeightAllocationItem {
+            lp_token: "eclip-atom".to_string(),
+            weight: str_to_dec("0.1"),
+        },
+        WeightAllocationItem {
+            lp_token: "ntrn-atom".to_string(),
+            weight: str_to_dec("0.3"),
+        },
+        WeightAllocationItem {
+            lp_token: "astro-atom".to_string(),
+            weight: str_to_dec("0.3"),
+        },
+        WeightAllocationItem {
+            lp_token: "eclipastro-atom".to_string(),
+            weight: str_to_dec("0.3"),
+        },
+    ];
+
+    let essence_allocation_alice = &calc_essence_allocation(essence_info, alice_weights);
+    let essence_allocation_bob_initial =
+        &calc_essence_allocation(essence_info, bob_weights_initial);
+    let essence_allocation_bob_equal = &calc_essence_allocation(essence_info, bob_weights_equal);
+    let essence_allocation_bob_small = &calc_essence_allocation(essence_info, bob_weights_small);
+    let essence_allocation_bob_large = &calc_essence_allocation(essence_info, bob_weights_large);
+
+    // get initial total essence allocation
+    let essence_allocation = calc_updated_essence_allocation(
+        essence_allocation_alice,
+        essence_allocation_bob_initial,
+        &vec![],
+    );
+    assert_eq!(
+        essence_allocation,
+        vec![
+            EssenceAllocationItem {
+                lp_token: "eclip-atom".to_string(),
+                essence_info: EssenceInfo::new(8, 200_000_000, 16),
+            },
+            EssenceAllocationItem {
+                lp_token: "ntrn-atom".to_string(),
+                essence_info: EssenceInfo::new(12, 300_000_000, 24),
+            },
+            EssenceAllocationItem {
+                lp_token: "astro-atom".to_string(),
+                essence_info: EssenceInfo::new(20, 500_000_000, 40),
+            },
+        ]
+    );
+
+    // update bob allocation - equal amount of pools
+    // (20, 500_000_000, 40) * (0.2, 0.3, 0.5) + (20, 500_000_000, 40) * (0.5, 0.3, 0.2) =
+    // (20, 500_000_000, 40) * (0.7, 0.6, 0.7) =
+    // [(14, 350_000_000, 28), (12, 300_000_000, 24), (14, 350_000_000, 28)]
+    assert_eq!(
+        calc_updated_essence_allocation(
+            &essence_allocation,
+            essence_allocation_bob_equal,
+            essence_allocation_bob_initial,
+        ),
+        vec![
+            EssenceAllocationItem {
+                lp_token: "eclip-atom".to_string(),
+                essence_info: EssenceInfo::new(14, 350_000_000, 28),
+            },
+            EssenceAllocationItem {
+                lp_token: "ntrn-atom".to_string(),
+                essence_info: EssenceInfo::new(12, 300_000_000, 24),
+            },
+            EssenceAllocationItem {
+                lp_token: "astro-atom".to_string(),
+                essence_info: EssenceInfo::new(14, 350_000_000, 28),
+            },
+        ]
+    );
+
+    // update bob allocation - less amount of pools
+    // [(4, 100_000_000, 8), (6, 150_000_000, 12), (10, 250_000_000, 20)] +
+    // [(14, 350_000_000, 28), (6, 150_000_000, 12), (0, 0, 0)] =
+    // [(18, 450_000_000, 36), (12, 300_000_000, 24), (10, 250_000_000, 20)]
+    assert_eq!(
+        calc_updated_essence_allocation(
+            &essence_allocation,
+            essence_allocation_bob_small,
+            essence_allocation_bob_initial,
+        ),
+        vec![
+            EssenceAllocationItem {
+                lp_token: "eclip-atom".to_string(),
+                essence_info: EssenceInfo::new(18, 450_000_000, 36),
+            },
+            EssenceAllocationItem {
+                lp_token: "ntrn-atom".to_string(),
+                essence_info: EssenceInfo::new(12, 300_000_000, 24),
+            },
+            EssenceAllocationItem {
+                lp_token: "astro-atom".to_string(),
+                essence_info: EssenceInfo::new(10, 250_000_000, 20),
+            },
+        ]
+    );
+
+    // update bob allocation - greater amount of pools
+    // [(4, 100_000_000, 8), (6, 150_000_000, 12), (10, 250_000_000, 20)] +
+    // [(2, 50_000_000, 4), (6, 150_000_000, 12), (6, 150_000_000, 12), (6, 150_000_000, 12)] =
+    // [(6, 150_000_000, 12), (12, 300_000_000, 24), (16, 400_000_000, 32), (6, 150_000_000, 12)]
+    assert_eq!(
+        calc_updated_essence_allocation(
+            &essence_allocation,
+            essence_allocation_bob_large,
+            essence_allocation_bob_initial,
+        ),
+        vec![
+            EssenceAllocationItem {
+                lp_token: "eclip-atom".to_string(),
+                essence_info: EssenceInfo::new(6, 150_000_000, 12),
+            },
+            EssenceAllocationItem {
+                lp_token: "ntrn-atom".to_string(),
+                essence_info: EssenceInfo::new(12, 300_000_000, 24),
+            },
+            EssenceAllocationItem {
+                lp_token: "astro-atom".to_string(),
+                essence_info: EssenceInfo::new(16, 400_000_000, 32),
+            },
+            EssenceAllocationItem {
+                lp_token: "eclipastro-atom".to_string(),
+                essence_info: EssenceInfo::new(6, 150_000_000, 12),
+            },
+        ]
+    );
+
+    Ok(())
+}
+
+// TODO
+// +EssenceInfo math, captured essence
+// +calc_essence_allocation
+// +calc_updated_essence_allocation
+// calc_scaled_essence_allocation
+// 2 slackers + 2 electors + 2 delegators + dao (default voting)
+// slackers + electors + dao
+// slackers + delegators + dao
+// electors + delegators + dao
+// slackers + dao (passive voting)
+// electors + dao
+// delegators + dao
+// can't place vote after final voting
+// elector, slacker can delegate
+// delegator, dao can't delegate
+// delegator can't vote
+// delegator can undelegate
+// elector, slacker, dao can't undelegate
+// elector new epoch reset
+// dao new epoch reset
+// clearing storages
+// essence update will change weights
+// wrong weights
+// whitelisted pools
+// changing wl pools in each epoch
+// proper weights merging
+// historical data
+// user voted in e1, delegated in e2, undelegated in e3 - rewards, weights, essence
+// user delegated in e1, undelegated and voted in e2 - rewards, weights, essence
+// delegate-undelegate loop - rewards, weights, essence
+// vote-delegate-undelegate loop - rewards, weights, essence
+// changing settings before next epoch

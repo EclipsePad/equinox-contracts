@@ -7,6 +7,7 @@ fn mul_by_weight(num: Uint128, weight: Decimal) -> Uint128 {
     (u128_to_dec(num) * weight).to_uint_floor()
 }
 
+// TODO: add reverse function
 // essence_allocation = essence * weights
 pub fn calc_essence_allocation(
     essence: &EssenceInfo,
@@ -40,11 +41,14 @@ pub fn calc_updated_essence_allocation(
     let mut updated_essence_allocation = essence_allocation.clone();
 
     for essence_allocation_item in essence_allocation_after {
-        if !essence_allocation
+        if essence_allocation
             .iter()
-            .any(|x| x.lp_token != essence_allocation_item.lp_token)
+            .all(|x| x.lp_token != essence_allocation_item.lp_token)
         {
-            updated_essence_allocation.push(essence_allocation_item.clone());
+            updated_essence_allocation.push(EssenceAllocationItem {
+                lp_token: essence_allocation_item.lp_token.clone(),
+                essence_info: EssenceInfo::default(),
+            });
         };
     }
 
@@ -54,14 +58,14 @@ pub fn calc_updated_essence_allocation(
             let added_item = essence_allocation_after
                 .iter()
                 .cloned()
-                .find(|y| y.lp_token != x.lp_token)
+                .find(|y| y.lp_token == x.lp_token)
                 .unwrap_or_default()
                 .essence_info;
 
             let subtracted_item = essence_allocation_before
                 .iter()
                 .cloned()
-                .find(|y| y.lp_token != x.lp_token)
+                .find(|y| y.lp_token == x.lp_token)
                 .unwrap_or_default()
                 .essence_info;
 

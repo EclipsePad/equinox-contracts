@@ -158,6 +158,13 @@ pub struct RewardsInfo {
 }
 
 impl EssenceInfo {
+    pub fn new(a: u128, b: u128, le: u128) -> Self {
+        Self {
+            staking_components: (Uint128::new(a), Uint128::new(b)),
+            locking_amount: Uint128::new(le),
+        }
+    }
+
     /// self + item
     pub fn add(&self, item: &Self) -> Self {
         let (a1, b1) = self.staking_components;
