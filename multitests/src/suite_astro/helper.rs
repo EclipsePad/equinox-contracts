@@ -776,6 +776,10 @@ impl ControllerHelper {
             .1
     }
 
+    pub fn get_block_time(&self) -> u64 {
+        self.app.block_info().time.seconds()
+    }
+
     pub fn reset_time(&mut self) {
         self.app.update_block(|block| {
             block.time = Timestamp::default().plus_seconds(1_000);

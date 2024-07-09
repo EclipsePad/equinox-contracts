@@ -8,11 +8,16 @@ use eclipse_base::{
     assets::{Currency, Token},
     converters::str_to_dec,
 };
-use equinox_msg::voter::{EssenceAllocationItem, EssenceInfo, UserResponse, WeightAllocationItem};
+use equinox_msg::voter::{
+    DaoResponse, EssenceAllocationItem, EssenceInfo, UserResponse, VoterInfoResponse,
+    WeightAllocationItem,
+};
+use speculoos::assert_that;
 use strum::IntoEnumIterator;
 use voter::{
     math::{
         calc_essence_allocation, calc_scaled_essence_allocation, calc_updated_essence_allocation,
+        calc_weights_from_essence_allocation,
     },
     state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
 };
@@ -611,6 +616,203 @@ fn auto_updating_essence() -> StdResult<()> {
     Ok(())
 }
 
+#[test]
+fn changing_weights_by_essence() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    let weights_alice = &vec![
+        WeightAllocationItem {
+            lp_token: eclip_atom.to_string(),
+            weight: str_to_dec("0.2"),
+        },
+        WeightAllocationItem {
+            lp_token: ntrn_atom.to_string(),
+            weight: str_to_dec("0.3"),
+        },
+        WeightAllocationItem {
+            lp_token: astro_atom.to_string(),
+            weight: str_to_dec("0.5"),
+        },
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem {
+            lp_token: eclip_atom.to_string(),
+            weight: str_to_dec("0.5"),
+        },
+        WeightAllocationItem {
+            lp_token: ntrn_atom.to_string(),
+            weight: str_to_dec("0.3"),
+        },
+        WeightAllocationItem {
+            lp_token: astro_atom.to_string(),
+            weight: str_to_dec("0.2"),
+        },
+    ];
+
+    // stake and lock
+    for user in [alice, bob, john] {
+        h.eclipsepad_staking_try_stake(user, 1_000, ECLIP)?;
+        h.eclipsepad_staking_try_lock(user, 1_000, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    let essence_info_alice = h.voter_query_user(alice, None)?;
+    let essence_info_dao = h.voter_query_dao_info(None)?;
+    let voter_info = h.voter_query_voter_info(None)?;
+    let block_time = h.get_block_time();
+
+    assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+        essence_info: EssenceInfo::new(0, 0, 1_000),
+        essence_value: Uint128::new(1_000),
+        weights: weights_alice.to_vec(),
+    });
+    assert_that(&essence_info_dao).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new(0, 0, 1_000),
+        essence_value: Uint128::new(1_000),
+        weights: weights_dao.to_vec(),
+    });
+    assert_that(&voter_info).is_equal_to(VoterInfoResponse {
+        block_time: 1716163200,
+        elector_votes: vec![
+            EssenceAllocationItem {
+                lp_token: eclip_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 200),
+            },
+            EssenceAllocationItem {
+                lp_token: ntrn_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 300),
+            },
+            EssenceAllocationItem {
+                lp_token: astro_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 500),
+            },
+        ],
+        slacker_essence_acc: EssenceInfo::new(0, 0, 1_000),
+        total_votes: vec![
+            EssenceAllocationItem {
+                lp_token: eclip_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 700),
+            },
+            EssenceAllocationItem {
+                lp_token: ntrn_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 600),
+            },
+            EssenceAllocationItem {
+                lp_token: astro_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 700),
+            },
+        ],
+        vote_results: vec![],
+    });
+
+    assert_that(&calc_weights_from_essence_allocation(&voter_info.elector_votes, block_time).1)
+        .is_equal_to(weights_alice);
+    assert_that(&calc_weights_from_essence_allocation(&voter_info.total_votes, block_time).1)
+        .is_equal_to(vec![
+            WeightAllocationItem {
+                lp_token: eclip_atom.to_string(),
+                weight: str_to_dec("0.35"),
+            },
+            WeightAllocationItem {
+                lp_token: ntrn_atom.to_string(),
+                weight: str_to_dec("0.3"),
+            },
+            WeightAllocationItem {
+                lp_token: astro_atom.to_string(),
+                weight: str_to_dec("0.35"),
+            },
+        ]);
+
+    // change alice essence
+    h.wait(1);
+    h.eclipsepad_staking_try_stake(alice, 1_000, ECLIP)?;
+    h.eclipsepad_staking_try_lock(alice, 1_000, 4)?;
+
+    let essence_info_alice = h.voter_query_user(alice, None)?;
+    let essence_info_dao = h.voter_query_dao_info(None)?;
+    let voter_info = h.voter_query_voter_info(None)?;
+    let block_time = h.get_block_time();
+
+    assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+        essence_info: EssenceInfo::new(0, 0, 2_000),
+        essence_value: Uint128::new(2_000),
+        weights: weights_alice.to_vec(),
+    });
+    assert_that(&essence_info_dao).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new(0, 0, 1_000),
+        essence_value: Uint128::new(1_000),
+        weights: weights_dao.to_vec(),
+    });
+    assert_that(&voter_info).is_equal_to(VoterInfoResponse {
+        block_time,
+        elector_votes: vec![
+            EssenceAllocationItem {
+                lp_token: eclip_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 400),
+            },
+            EssenceAllocationItem {
+                lp_token: ntrn_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 600),
+            },
+            EssenceAllocationItem {
+                lp_token: astro_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 1_000),
+            },
+        ],
+        slacker_essence_acc: EssenceInfo::new(0, 0, 1_000),
+        // (400, 600, 1_000) + (500, 300, 200) = (900, 900, 1_200)
+        total_votes: vec![
+            EssenceAllocationItem {
+                lp_token: eclip_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 900),
+            },
+            EssenceAllocationItem {
+                lp_token: ntrn_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 900),
+            },
+            EssenceAllocationItem {
+                lp_token: astro_atom.to_string(),
+                essence_info: EssenceInfo::new(0, 0, 1_200),
+            },
+        ],
+        vote_results: vec![],
+    });
+
+    assert_that(&calc_weights_from_essence_allocation(&voter_info.elector_votes, block_time).1)
+        .is_equal_to(weights_alice);
+    // (900, 900, 1_200) / 3_000 = (0.3, 0.3, 0.4)
+    assert_that(&calc_weights_from_essence_allocation(&voter_info.total_votes, block_time).1)
+        .is_equal_to(vec![
+            WeightAllocationItem {
+                lp_token: eclip_atom.to_string(),
+                weight: str_to_dec("0.3"),
+            },
+            WeightAllocationItem {
+                lp_token: ntrn_atom.to_string(),
+                weight: str_to_dec("0.3"),
+            },
+            WeightAllocationItem {
+                lp_token: astro_atom.to_string(),
+                weight: str_to_dec("0.4"),
+            },
+        ]);
+
+    Ok(())
+}
+
 // #[test]
 // fn slackers_electors_delegators_dao_voting() -> StdResult<()> {
 //     let mut h = prepare_helper();
@@ -626,8 +828,8 @@ fn auto_updating_essence() -> StdResult<()> {
 // +calc_essence_allocation
 // +calc_updated_essence_allocation
 // +calc_scaled_essence_allocation
-// auto-updating essence in voter
-// essence update will change weights
+// +auto-updating essence in voter
+// +essence update will change weights
 // 2 slackers + 2 electors + 2 delegators + dao (default voting)
 // slackers + electors + dao
 // slackers + delegators + dao

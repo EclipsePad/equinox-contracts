@@ -273,6 +273,8 @@ pub fn try_update_essence_allocation(
                     ))
                 })?;
             }
+
+            continue;
         }
 
         // check if user is delegator and update
@@ -300,6 +302,8 @@ pub fn try_update_essence_allocation(
                     &essence_allocation_before,
                 ))
             })?;
+
+            continue;
         }
 
         // update/add user as slacker

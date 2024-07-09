@@ -7,7 +7,6 @@ fn mul_by_weight(num: Uint128, weight: Decimal) -> Uint128 {
     (u128_to_dec(num) * weight).to_uint_floor()
 }
 
-// TODO: add reverse function
 // essence_allocation = essence * weights
 pub fn calc_essence_allocation(
     essence: &EssenceInfo,
@@ -26,6 +25,30 @@ pub fn calc_essence_allocation(
             },
         })
         .collect()
+}
+
+// essence = sum(essence_allocation)
+// weights = essence_allocation / essence
+pub fn calc_weights_from_essence_allocation(
+    essence_allocation: &Vec<EssenceAllocationItem>,
+    block_time: u64,
+) -> (EssenceInfo, Vec<WeightAllocationItem>) {
+    let essence_info = essence_allocation
+        .iter()
+        .fold(EssenceInfo::default(), |acc, cur| {
+            acc.add(&cur.essence_info)
+        });
+    let essence_info_decimal = u128_to_dec(essence_info.capture(block_time));
+
+    let weights: Vec<WeightAllocationItem> = essence_allocation
+        .into_iter()
+        .map(|x| WeightAllocationItem {
+            lp_token: x.lp_token.clone(),
+            weight: u128_to_dec(x.essence_info.capture(block_time)) / essence_info_decimal,
+        })
+        .collect();
+
+    (essence_info, weights)
 }
 
 // updated_essence_allocation = essence_allocation + essence_allocation_after - essence_allocation_before

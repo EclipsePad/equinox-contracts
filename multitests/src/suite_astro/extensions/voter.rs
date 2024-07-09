@@ -452,7 +452,7 @@ impl VoterExtension for ControllerHelper {
             .execute_contract(
                 Addr::unchecked(sender.to_string()),
                 self.voter_contract_address(),
-                &ExecuteMsg::PlaceVote {
+                &ExecuteMsg::PlaceVoteAsDao {
                     weight_allocation: weight_allocation.to_owned(),
                 },
                 &[],
