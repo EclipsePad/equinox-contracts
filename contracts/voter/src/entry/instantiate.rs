@@ -10,7 +10,8 @@ use crate::{
     error::ContractError,
     state::{
         ADDRESS_CONFIG, CONTRACT_NAME, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, ELECTOR_VOTES,
-        EPOCH_COUNTER, IS_LOCKED, TOKEN_CONFIG, TOTAL_VOTES, TRANSFER_ADMIN_STATE, VOTE_RESULTS,
+        EPOCH_COUNTER, IS_LOCKED, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, TOTAL_VOTES,
+        TRANSFER_ADMIN_STATE, VOTE_RESULTS,
     },
 };
 
@@ -98,6 +99,7 @@ pub fn try_instantiate(
         },
     )?;
 
+    SLACKER_ESSENCE_ACC.save(deps.storage, &EssenceInfo::default())?;
     DAO_WEIGHTS.save(deps.storage, &vec![])?;
     DAO_ESSENCE.save(deps.storage, &EssenceInfo::default())?;
     ELECTOR_VOTES.save(deps.storage, &vec![])?;

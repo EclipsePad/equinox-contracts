@@ -56,6 +56,29 @@ pub enum Acc {
     Kate,
 }
 
+#[derive(Debug, Clone, Copy, Display, IntoStaticStr, EnumIter)]
+pub enum Pool {
+    #[strum(serialize = "eclip_atom")]
+    EclipAtom,
+    #[strum(serialize = "ntrn_atom")]
+    NtrnAtom,
+    #[strum(serialize = "astro_atom")]
+    AstroAtom,
+    #[strum(serialize = "usdc_atom")]
+    UsdcAtom, // not registered
+}
+
+impl Pool {
+    pub fn get_pair(&self) -> (&str, &str) {
+        match self {
+            Self::EclipAtom => ("eclip", "astro"),
+            Self::NtrnAtom => ("ntrn", "atom"),
+            Self::AstroAtom => ("astro", "atom"),
+            Self::UsdcAtom => ("usdc", "atom"),
+        }
+    }
+}
+
 pub const PROPOSAL_REQUIRED_DEPOSIT: Uint128 = Uint128::new(*DEPOSIT_INTERVAL.start());
 pub const PROPOSAL_VOTING_PERIOD: u64 = *VOTING_PERIOD_INTERVAL.start();
 pub const PROPOSAL_DELAY: u64 = *DELAY_INTERVAL.start();
@@ -112,6 +135,8 @@ pub struct ControllerHelper {
     pub whitelisting_fee: Coin,
     pub emission_controller: Addr,
     pub incentives: Addr,
+    // for pools
+    pub pool_list: Vec<(Pool, Addr)>,
     // for additional users
     pub account_list: Vec<(String, Addr)>,
     // for additional contracts
@@ -359,6 +384,7 @@ impl ControllerHelper {
             emission_controller,
             incentives,
             assembly,
+            pool_list: vec![],
             account_list,
             extension_list: vec![],
         };
@@ -732,6 +758,15 @@ impl ControllerHelper {
             .u128()
     }
 
+    pub fn pool(&self, pool: Pool) -> Addr {
+        self.pool_list
+            .iter()
+            .find(|(addr, _)| addr.to_string() == pool.to_string())
+            .unwrap()
+            .to_owned()
+            .1
+    }
+
     pub fn acc(&self, acc: Acc) -> Addr {
         self.account_list
             .iter()
@@ -739,5 +774,19 @@ impl ControllerHelper {
             .unwrap()
             .to_owned()
             .1
+    }
+
+    pub fn reset_time(&mut self) {
+        self.app.update_block(|block| {
+            block.time = Timestamp::default().plus_seconds(1_000);
+            block.height = 200;
+        });
+    }
+
+    pub fn wait(&mut self, delay_s: u64) {
+        self.app.update_block(|block| {
+            block.time = block.time.plus_seconds(delay_s);
+            block.height += delay_s / 5;
+        });
     }
 }

@@ -211,7 +211,8 @@ impl VoterExtension for ControllerHelper {
                 voter::contract::query,
             )
             .with_reply_empty(voter::contract::reply)
-            .with_migrate_empty(voter::contract::migrate),
+            .with_migrate_empty(voter::contract::migrate)
+            .with_sudo_empty(voter::contract::sudo),
         ));
 
         let contract_address = self

@@ -94,7 +94,17 @@ pub fn calc_scaled_essence_allocation(
         })
         .capture(block_time);
     let e2 = additional_essence.capture(block_time);
-    let k = Decimal::one() + additional_essence_fraction * u128_to_dec(e2) / u128_to_dec(e1);
+    // println!(
+    //     "essence_allocation, e1, e2 {:#?}",
+    //     (essence_allocation, e1, e2)
+    // );
+    // TODO: check if it's correct fix for e1 == 0
+    let k = Decimal::one()
+        + if e1.is_zero() {
+            Decimal::zero()
+        } else {
+            additional_essence_fraction * u128_to_dec(e2) / u128_to_dec(e1)
+        };
 
     essence_allocation
         .iter()

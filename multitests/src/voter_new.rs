@@ -1,14 +1,19 @@
-use cosmwasm_std::{coins, StdResult, Uint128};
+use astroport_governance::emissions_controller::hub::{
+    AstroPoolConfig, OutpostInfo, OutpostParams,
+};
+use cosmwasm_std::{coins, Addr, StdResult, Uint128};
 use cw_multi_test::Executor;
 
 use eclipse_base::{
     assets::{Currency, Token},
     converters::str_to_dec,
 };
-use equinox_msg::voter::{EssenceAllocationItem, EssenceInfo, WeightAllocationItem};
+use equinox_msg::voter::{EssenceAllocationItem, EssenceInfo, UserResponse, WeightAllocationItem};
 use strum::IntoEnumIterator;
 use voter::{
-    math::{calc_essence_allocation, calc_updated_essence_allocation},
+    math::{
+        calc_essence_allocation, calc_scaled_essence_allocation, calc_updated_essence_allocation,
+    },
     state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
 };
 
@@ -17,7 +22,7 @@ use crate::suite_astro::{
         eclipsepad_staking::EclipsepadStakingExtension, minter::MinterExtension,
         voter::VoterExtension,
     },
-    helper::{Acc, ControllerHelper},
+    helper::{Acc, ControllerHelper, Pool},
 };
 
 const INITIAL_LIQUIDITY: u128 = 1_000_000;
@@ -26,6 +31,8 @@ const ECLIP_ASTRO: &str = "eclipastro";
 
 fn prepare_helper() -> ControllerHelper {
     let mut h = ControllerHelper::new();
+    let astro = &h.astro.clone();
+    let owner = &h.acc(Acc::Owner);
 
     h.minter_prepare_contract();
     h.eclipsepad_staking_prepare_contract(
@@ -43,7 +50,7 @@ fn prepare_helper() -> ControllerHelper {
         None,
     );
     h.voter_prepare_contract(
-        Some(vec![&h.acc(Acc::Owner).to_string()]),
+        Some(vec![&owner.to_string()]),
         &h.acc(Acc::Dao),
         None,
         &h.minter_contract_address(),
@@ -63,7 +70,7 @@ fn prepare_helper() -> ControllerHelper {
     );
 
     h.eclipsepad_staking_try_update_config(
-        &h.acc(Acc::Owner).to_string(),
+        owner,
         None,
         Some(h.voter_contract_address()),
         None,
@@ -77,7 +84,7 @@ fn prepare_helper() -> ControllerHelper {
     .unwrap();
 
     for token in [ECLIP, &h.astro.clone()] {
-        h.mint_tokens(&h.acc(Acc::Owner), &coins(INITIAL_LIQUIDITY, token))
+        h.mint_tokens(owner, &coins(1_000 * INITIAL_LIQUIDITY, token))
             .unwrap();
     }
 
@@ -85,7 +92,7 @@ fn prepare_helper() -> ControllerHelper {
         for token in [ECLIP, &h.astro.clone(), &h.xastro.clone()] {
             h.app
                 .send_tokens(
-                    h.acc(Acc::Owner),
+                    owner.to_owned(),
                     h.acc(user),
                     &coins(INITIAL_LIQUIDITY / 10, token),
                 )
@@ -95,16 +102,52 @@ fn prepare_helper() -> ControllerHelper {
 
     h.mint_tokens(
         &h.minter_contract_address(),
-        &coins(INITIAL_LIQUIDITY, ECLIP_ASTRO),
+        &coins(1_000 * INITIAL_LIQUIDITY, ECLIP_ASTRO),
     )
     .unwrap();
 
     h.minter_try_register_currency(
-        &h.acc(Acc::Owner).to_string(),
+        owner,
         &Currency::new(&Token::new_native(ECLIP_ASTRO), 6),
         &h.voter_contract_address(),
     )
     .unwrap();
+
+    // whitelist pools
+    let prefix = "neutron";
+    let astro_pool = "neutron1f37v0rdvrred27tlqqcpkrqpzfv6ddr2dxqan2";
+    let astro_ibc_denom = "ibc/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    let channel = "channel-1";
+
+    h.add_outpost(
+        prefix,
+        OutpostInfo {
+            astro_denom: astro_ibc_denom.to_string(),
+            astro_pool_config: Some(AstroPoolConfig {
+                astro_pool: astro_pool.to_string(),
+                constant_emissions: Uint128::one(),
+            }),
+            params: Some(OutpostParams {
+                emissions_controller: h.emission_controller.to_string(),
+                ics20_channel: channel.to_string(),
+                voting_channel: channel.to_string(),
+            }),
+        },
+    )
+    .unwrap();
+
+    for pool in [Pool::EclipAtom, Pool::NtrnAtom, Pool::AstroAtom] {
+        // create pair
+        let (denom1, denom2) = pool.get_pair();
+        let pair = &Addr::unchecked(h.create_pair(denom1, denom2));
+        // add pair in pool_list
+        h.pool_list.push((pool, pair.to_owned()));
+        // add in wl
+        h.whitelist(owner, pair, &coins(1_000_000, astro)).unwrap();
+    }
+
+    h.voter_try_swap_to_eclip_astro(owner, 100_000_000, astro)
+        .unwrap();
 
     h
 }
@@ -392,18 +435,209 @@ fn updated_essence_allocation_math() -> StdResult<()> {
     Ok(())
 }
 
+#[test]
+fn scaled_essence_allocation_math() -> StdResult<()> {
+    let essence_info = &EssenceInfo::new(20, 500_000_000, 40);
+    let weights = &vec![
+        WeightAllocationItem {
+            lp_token: "eclip-atom".to_string(),
+            weight: str_to_dec("0.2"),
+        },
+        WeightAllocationItem {
+            lp_token: "ntrn-atom".to_string(),
+            weight: str_to_dec("0.3"),
+        },
+        WeightAllocationItem {
+            lp_token: "astro-atom".to_string(),
+            weight: str_to_dec("0.5"),
+        },
+    ];
+    let essence_allocation = &calc_essence_allocation(essence_info, weights);
+    let additional_essence = &EssenceInfo::new(20, 500_000_000, 40);
+    let additional_essence_fraction = str_to_dec("0.5");
+    let block_time: u64 = 50_000_000;
+
+    let scaled_essence_allocation = calc_scaled_essence_allocation(
+        essence_allocation,
+        additional_essence,
+        additional_essence_fraction,
+        block_time,
+    );
+    // (20, 500_000_000, 40) * (0.2, 0.3, 0.5) * 1.5 =
+    // [(6, 150_000_000, 12), (9, 225_000_000, 18), (15, 375_000_000, 30)]
+    assert_eq!(
+        scaled_essence_allocation,
+        vec![
+            EssenceAllocationItem {
+                lp_token: "eclip-atom".to_string(),
+                essence_info: EssenceInfo::new(6, 150_000_000, 12),
+            },
+            EssenceAllocationItem {
+                lp_token: "ntrn-atom".to_string(),
+                essence_info: EssenceInfo::new(9, 225_000_000, 18),
+            },
+            EssenceAllocationItem {
+                lp_token: "astro-atom".to_string(),
+                essence_info: EssenceInfo::new(15, 375_000_000, 30),
+            },
+        ]
+    );
+
+    Ok(())
+}
+
+#[test]
+fn auto_updating_essence() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    let weights = &vec![
+        WeightAllocationItem {
+            lp_token: eclip_atom.to_string(),
+            weight: str_to_dec("0.2"),
+        },
+        WeightAllocationItem {
+            lp_token: ntrn_atom.to_string(),
+            weight: str_to_dec("0.3"),
+        },
+        WeightAllocationItem {
+            lp_token: astro_atom.to_string(),
+            weight: str_to_dec("0.5"),
+        },
+    ];
+
+    // stake
+    for user in [alice, bob, john] {
+        h.eclipsepad_staking_try_stake(user, 1_000, ECLIP)?;
+    }
+
+    let essence_info_alice = h.voter_query_user(alice, None)?;
+    let essence_info_bob = h.voter_query_user(bob, None)?;
+    let essence_info_john = h.voter_query_user(john, None)?;
+
+    assert_eq!(
+        essence_info_alice,
+        UserResponse::Slacker {
+            essence_info: EssenceInfo::new(1000, 1716163200000, 0),
+            essence_value: Uint128::zero()
+        }
+    );
+    assert_eq!(
+        essence_info_bob,
+        UserResponse::Slacker {
+            essence_info: EssenceInfo::new(1000, 1716163200000, 0),
+            essence_value: Uint128::zero()
+        }
+    );
+    assert_eq!(
+        essence_info_john,
+        UserResponse::Slacker {
+            essence_info: EssenceInfo::new(1000, 1716163200000, 0),
+            essence_value: Uint128::zero()
+        }
+    );
+
+    // take roles: alice - elector, bob - delegator, john - slacker
+    h.voter_try_place_vote(alice, weights)?;
+    h.voter_try_delegate(bob)?;
+
+    let essence_info_alice = h.voter_query_user(alice, None)?;
+    let essence_info_bob = h.voter_query_user(bob, None)?;
+    let essence_info_john = h.voter_query_user(john, None)?;
+
+    assert_eq!(
+        essence_info_alice,
+        UserResponse::Elector {
+            essence_info: EssenceInfo::new(1000, 1716163200000, 0),
+            essence_value: Uint128::zero(),
+            weights: weights.to_vec()
+        }
+    );
+    assert_eq!(
+        essence_info_bob,
+        UserResponse::Delegator {
+            essence_info: EssenceInfo::new(1000, 1716163200000, 0),
+            essence_value: Uint128::zero()
+        }
+    );
+    assert_eq!(
+        essence_info_john,
+        UserResponse::Slacker {
+            essence_info: EssenceInfo::new(1000, 1716163200000, 0),
+            essence_value: Uint128::zero()
+        }
+    );
+
+    // change essence for slacker, elector, delegator
+    // lock
+    for user in [alice, bob, john] {
+        h.eclipsepad_staking_try_lock(user, 1_000, 4)?;
+    }
+
+    let essence_info_alice = h.voter_query_user(alice, None)?;
+    let essence_info_bob = h.voter_query_user(bob, None)?;
+    let essence_info_john = h.voter_query_user(john, None)?;
+
+    assert_eq!(
+        essence_info_alice,
+        UserResponse::Elector {
+            essence_info: EssenceInfo::new(0, 0, 1000),
+            essence_value: Uint128::new(1000),
+            weights: weights.to_vec()
+        }
+    );
+    assert_eq!(
+        essence_info_bob,
+        UserResponse::Delegator {
+            essence_info: EssenceInfo::new(0, 0, 1000),
+            essence_value: Uint128::new(1000),
+        }
+    );
+    assert_eq!(
+        essence_info_john,
+        UserResponse::Slacker {
+            essence_info: EssenceInfo::new(0, 0, 1000),
+            essence_value: Uint128::new(1000),
+        }
+    );
+
+    Ok(())
+}
+
+// #[test]
+// fn slackers_electors_delegators_dao_voting() -> StdResult<()> {
+//     let mut h = prepare_helper();
+//     let ControllerHelper { astro, xastro, .. } = &ControllerHelper::new();
+//     let alice = &h.acc(Acc::Alice);
+//     let bob = &h.acc(Acc::Bob);
+
+//     Ok(())
+// }
+
 // TODO
 // +EssenceInfo math, captured essence
 // +calc_essence_allocation
 // +calc_updated_essence_allocation
-// calc_scaled_essence_allocation
+// +calc_scaled_essence_allocation
+// auto-updating essence in voter
+// essence update will change weights
 // 2 slackers + 2 electors + 2 delegators + dao (default voting)
 // slackers + electors + dao
 // slackers + delegators + dao
 // electors + delegators + dao
-// slackers + dao (passive voting)
+// slackers + dao
 // electors + dao
 // delegators + dao
+// electors
+// delegators
+// slackers
 // can't place vote after final voting
 // elector, slacker can delegate
 // delegator, dao can't delegate
@@ -413,7 +647,6 @@ fn updated_essence_allocation_math() -> StdResult<()> {
 // elector new epoch reset
 // dao new epoch reset
 // clearing storages
-// essence update will change weights
 // wrong weights
 // whitelisted pools
 // changing wl pools in each epoch
