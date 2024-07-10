@@ -276,6 +276,10 @@ impl PoolInfoItem {
 pub struct VoteResults {
     pub epoch_id: u16,
     pub end_date: u64,
+    /// essence used in voting                                          \
+    /// dao w/o electors: delegated_essence + 0.2 * slacker_essence         \
+    /// dao w/o delegators: elector_essence + 0.8 * slacker_essence         \
+    /// dao w/o both electors and delegators: 0.2 * slacker_essence
     pub essence: Uint128,
     pub pool_info_list: Vec<PoolInfoItem>,
 }

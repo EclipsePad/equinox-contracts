@@ -54,6 +54,10 @@ pub enum Acc {
     John,
     #[strum(serialize = "kate")]
     Kate,
+    #[strum(serialize = "ruby")]
+    Ruby,
+    #[strum(serialize = "vlad")]
+    Vlad,
 }
 
 #[derive(Debug, Clone, Copy, Display, IntoStaticStr, EnumIter)]
