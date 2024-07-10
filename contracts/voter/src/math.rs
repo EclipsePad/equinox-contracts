@@ -1,13 +1,9 @@
-use cosmwasm_std::{Decimal, Uint128};
+use cosmwasm_std::Decimal;
 
 use eclipse_base::converters::u128_to_dec;
 use equinox_msg::voter::{EssenceAllocationItem, EssenceInfo, WeightAllocationItem};
 
-fn mul_by_weight(num: Uint128, weight: Decimal) -> Uint128 {
-    (u128_to_dec(num) * weight).to_uint_floor()
-}
-
-// essence_allocation = essence * weights
+/// essence_allocation = essence * weights
 pub fn calc_essence_allocation(
     essence: &EssenceInfo,
     weights: &Vec<WeightAllocationItem>,
@@ -19,16 +15,13 @@ pub fn calc_essence_allocation(
         .into_iter()
         .map(|x| EssenceAllocationItem {
             lp_token: x.lp_token.to_string(),
-            essence_info: EssenceInfo {
-                staking_components: (mul_by_weight(a, x.weight), mul_by_weight(b, x.weight)),
-                locking_amount: mul_by_weight(le, x.weight),
-            },
+            essence_info: EssenceInfo::new(a, b, le).scale(x.weight),
         })
         .collect()
 }
 
-// essence = sum(essence_allocation)
-// weights = essence_allocation / essence
+/// essence = sum(essence_allocation)                                                       \
+/// weights = essence_allocation / essence
 pub fn calc_weights_from_essence_allocation(
     essence_allocation: &Vec<EssenceAllocationItem>,
     block_time: u64,
@@ -51,11 +44,11 @@ pub fn calc_weights_from_essence_allocation(
     (essence_info, weights)
 }
 
-// updated_essence_allocation = essence_allocation + essence_allocation_after - essence_allocation_before
-// where essence_allocation - allocation for all users,
-// essence_allocation_after - new allocation for current user
-// essence_allocation_before - previous allocation for current user
-// all vectors can have different lengths
+/// updated_essence_allocation = essence_allocation + essence_allocation_after - essence_allocation_before          \
+/// where essence_allocation - allocation for all users,                                                            \
+/// essence_allocation_after - new allocation for current user                                                      \
+/// essence_allocation_before - previous allocation for current user                                                \
+/// all vectors can have different lengths
 pub fn calc_updated_essence_allocation(
     essence_allocation: &Vec<EssenceAllocationItem>,
     essence_allocation_after: &Vec<EssenceAllocationItem>,
@@ -101,51 +94,13 @@ pub fn calc_updated_essence_allocation(
         .collect()
 }
 
-// e2 = (1 + E2/E1) * e1
-// E1 = sum_over_pools(e1)(t = block_time)
-// E2 = e2(t = block_time)
+/// scaled_essence_allocation = (base_essence + additional_essence_fraction * additional_essence) * base_weights
 pub fn calc_scaled_essence_allocation(
-    essence_allocation: &Vec<EssenceAllocationItem>,
+    base_essence: &EssenceInfo,
+    base_weights: &Vec<WeightAllocationItem>,
     additional_essence: &EssenceInfo,
     additional_essence_fraction: Decimal,
-    block_time: u64,
 ) -> Vec<EssenceAllocationItem> {
-    let e1 = essence_allocation
-        .iter()
-        .fold(EssenceInfo::default(), |acc, cur| {
-            acc.add(&cur.essence_info)
-        })
-        .capture(block_time);
-    let e2 = additional_essence.capture(block_time);
-    // println!(
-    //     "essence_allocation, e1, e2 {:#?}",
-    //     (essence_allocation, e1, e2)
-    // );
-    // TODO: check if it's correct fix for e1 == 0
-    let k = Decimal::one()
-        + if e1.is_zero() {
-            Decimal::zero()
-        } else {
-            additional_essence_fraction * u128_to_dec(e2) / u128_to_dec(e1)
-        };
-
-    essence_allocation
-        .iter()
-        .map(|x| {
-            let (mut a, mut b) = x.essence_info.staking_components;
-            let mut le = x.essence_info.locking_amount;
-
-            a = (k * u128_to_dec(a)).to_uint_floor();
-            b = (k * u128_to_dec(b)).to_uint_floor();
-            le = (k * u128_to_dec(le)).to_uint_floor();
-
-            EssenceAllocationItem {
-                lp_token: x.lp_token.to_string(),
-                essence_info: EssenceInfo {
-                    staking_components: (a, b),
-                    locking_amount: le,
-                },
-            }
-        })
-        .collect()
+    let essence = &base_essence.add(&additional_essence.scale(additional_essence_fraction));
+    calc_essence_allocation(essence, base_weights)
 }

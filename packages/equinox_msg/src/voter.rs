@@ -1,6 +1,8 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
+use eclipse_base::converters::u128_to_dec;
+
 #[cw_serde]
 pub struct MigrateMsg {
     pub version: String,
@@ -158,10 +160,13 @@ pub struct RewardsInfo {
 }
 
 impl EssenceInfo {
-    pub fn new(a: u128, b: u128, le: u128) -> Self {
+    pub fn new<T>(a: T, b: T, le: T) -> Self
+    where
+        Uint128: From<T>,
+    {
         Self {
-            staking_components: (Uint128::new(a), Uint128::new(b)),
-            locking_amount: Uint128::new(le),
+            staking_components: (Uint128::from(a), Uint128::from(b)),
+            locking_amount: Uint128::from(le),
         }
     }
 
@@ -184,6 +189,20 @@ impl EssenceInfo {
         Self {
             staking_components: (a1 - a2, b1 - b2),
             locking_amount: self.locking_amount - item.locking_amount,
+        }
+    }
+
+    /// k * self
+    pub fn scale(&self, k: Decimal) -> Self {
+        let (a, b) = self.staking_components;
+        let le = self.locking_amount;
+
+        Self {
+            staking_components: (
+                (k * u128_to_dec(a)).to_uint_floor(),
+                (k * u128_to_dec(b)).to_uint_floor(),
+            ),
+            locking_amount: (k * u128_to_dec(le)).to_uint_floor(),
         }
     }
 

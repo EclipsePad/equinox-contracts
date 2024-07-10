@@ -20,6 +20,7 @@ use crate::{
     helpers::{try_unlock, try_unlock_and_check, verify_weight_allocation},
     math::{
         calc_essence_allocation, calc_scaled_essence_allocation, calc_updated_essence_allocation,
+        calc_weights_from_essence_allocation,
     },
     state::{
         ADDRESS_CONFIG, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, DELEGATOR_ESSENCE,
@@ -722,11 +723,13 @@ pub fn try_vote(
     let elector_additional_essence_fraction = str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION);
     // 80 % goes to electors
     let elector_votes_before = ELECTOR_VOTES.load(deps.storage)?;
+    let (base_essence, base_weights) =
+        calc_weights_from_essence_allocation(&elector_votes_before, block_time);
     let elector_votes_after = calc_scaled_essence_allocation(
-        &elector_votes_before,
+        &base_essence,
+        &base_weights,
         &slacker_essence,
         elector_additional_essence_fraction,
-        block_time,
     );
     total_votes =
         calc_updated_essence_allocation(&total_votes, &elector_votes_after, &elector_votes_before);
@@ -735,10 +738,10 @@ pub fn try_vote(
     let weights_before = DAO_WEIGHTS.load(deps.storage)?;
     let dao_votes_before = calc_essence_allocation(&dao_essence, &weights_before);
     let dao_votes_after = calc_scaled_essence_allocation(
-        &dao_votes_before,
+        &dao_essence,
+        &weights_before,
         &slacker_essence,
         Decimal::one() - elector_additional_essence_fraction,
-        block_time,
     );
     total_votes =
         calc_updated_essence_allocation(&total_votes, &dao_votes_after, &dao_votes_before);
