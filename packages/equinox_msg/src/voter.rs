@@ -1,7 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
-use eclipse_base::converters::u128_to_dec;
+use eclipse_base::converters::{str_to_dec, u128_to_dec};
 
 #[cw_serde]
 pub struct MigrateMsg {
@@ -145,11 +145,13 @@ pub struct EssenceAllocationItem {
     pub essence_info: EssenceInfo,
 }
 
-#[cw_serde]
-#[derive(Default)]
-pub struct EssenceInfo {
-    pub staking_components: (Uint128, Uint128),
-    pub locking_amount: Uint128,
+impl EssenceAllocationItem {
+    pub fn new(lp_token: impl ToString, essence_info: &EssenceInfo) -> Self {
+        Self {
+            lp_token: lp_token.to_string(),
+            essence_info: essence_info.to_owned(),
+        }
+    }
 }
 
 #[cw_serde]
@@ -157,6 +159,13 @@ pub struct EssenceInfo {
 pub struct RewardsInfo {
     pub amount: Uint128,
     pub last_update_epoch: u16,
+}
+
+#[cw_serde]
+#[derive(Default)]
+pub struct EssenceInfo {
+    pub staking_components: (Uint128, Uint128),
+    pub locking_amount: Uint128,
 }
 
 impl EssenceInfo {
@@ -236,11 +245,30 @@ pub struct WeightAllocationItem {
     pub weight: Decimal,
 }
 
+impl WeightAllocationItem {
+    pub fn new(lp_token: impl ToString, weight: &str) -> Self {
+        Self {
+            lp_token: lp_token.to_string(),
+            weight: str_to_dec(weight),
+        }
+    }
+}
+
 #[cw_serde]
 pub struct PoolInfoItem {
     pub lp_token: String,
     pub weight: Decimal,
     pub rewards: Uint128,
+}
+
+impl PoolInfoItem {
+    pub fn new(lp_token: impl ToString, weight: &str, rewards: u128) -> Self {
+        Self {
+            lp_token: lp_token.to_string(),
+            weight: str_to_dec(weight),
+            rewards: Uint128::new(rewards),
+        }
+    }
 }
 
 #[cw_serde]

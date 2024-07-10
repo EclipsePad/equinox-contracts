@@ -167,16 +167,16 @@ fn swap_to_eclip_astro_default() -> StdResult<()> {
     let alice_astro = h.query_balance(alice, astro);
     let alice_xastro = h.query_balance(alice, xastro);
     let alice_eclip_astro = h.query_balance(alice, ECLIP_ASTRO);
-    assert_eq!(alice_astro, 100_000);
-    assert_eq!(alice_xastro, 100_000);
-    assert_eq!(alice_eclip_astro, 0);
+    assert_that(&alice_astro).is_equal_to(100_000);
+    assert_that(&alice_xastro).is_equal_to(100_000);
+    assert_that(&alice_eclip_astro).is_equal_to(0);
 
     let bob_astro = h.query_balance(bob, astro);
     let bob_xastro = h.query_balance(bob, xastro);
     let bob_eclip_astro = h.query_balance(bob, ECLIP_ASTRO);
-    assert_eq!(bob_astro, 100_000);
-    assert_eq!(bob_xastro, 100_000);
-    assert_eq!(bob_eclip_astro, 0);
+    assert_that(&bob_astro).is_equal_to(100_000);
+    assert_that(&bob_xastro).is_equal_to(100_000);
+    assert_that(&bob_eclip_astro).is_equal_to(0);
 
     h.voter_try_swap_to_eclip_astro(alice, 1_000, astro)?;
     h.voter_try_swap_to_eclip_astro(bob, 1_000, xastro)?;
@@ -184,16 +184,16 @@ fn swap_to_eclip_astro_default() -> StdResult<()> {
     let alice_astro = h.query_balance(alice, astro);
     let alice_xastro = h.query_balance(alice, xastro);
     let alice_eclip_astro = h.query_balance(alice, ECLIP_ASTRO);
-    assert_eq!(alice_astro, 99_000);
-    assert_eq!(alice_xastro, 100_000);
-    assert_eq!(alice_eclip_astro, 1_000);
+    assert_that(&alice_astro).is_equal_to(99_000);
+    assert_that(&alice_xastro).is_equal_to(100_000);
+    assert_that(&alice_eclip_astro).is_equal_to(1_000);
 
     let bob_astro = h.query_balance(bob, astro);
     let bob_xastro = h.query_balance(bob, xastro);
     let bob_eclip_astro = h.query_balance(bob, ECLIP_ASTRO);
-    assert_eq!(bob_astro, 100_000);
-    assert_eq!(bob_xastro, 99_000);
-    assert_eq!(bob_eclip_astro, 1_000);
+    assert_that(&bob_astro).is_equal_to(100_000);
+    assert_that(&bob_xastro).is_equal_to(99_000);
+    assert_that(&bob_eclip_astro).is_equal_to(1_000);
 
     Ok(())
 }
@@ -203,125 +203,74 @@ fn essence_info_math() -> StdResult<()> {
     let essence_info_1 = EssenceInfo::new::<u128>(20, 500_000_000, 40);
     let essence_info_2 = EssenceInfo::new::<u128>(10, 250_000_000, 20);
 
-    assert_eq!(essence_info_2.add(&essence_info_2), essence_info_1);
-    assert_eq!(essence_info_1.sub(&essence_info_2), essence_info_2);
-    assert_eq!(essence_info_1.sub(&essence_info_1).is_zero(), true);
+    assert_that(&essence_info_2.add(&essence_info_2)).is_equal_to(&essence_info_1);
+    assert_that(&essence_info_1.sub(&essence_info_2)).is_equal_to(essence_info_2);
+    assert_that(&essence_info_1.sub(&essence_info_1).is_zero()).is_equal_to(true);
     // (20 * 50_000_000 - 500_000_000) / 31_536_000 + 40 = 55
-    assert_eq!(essence_info_1.capture(50_000_000).u128(), 55);
+    assert_that(&essence_info_1.capture(50_000_000).u128()).is_equal_to(55);
 
     Ok(())
 }
 
 #[test]
 fn essence_allocation_math() -> StdResult<()> {
+    let h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
     let essence_info = &EssenceInfo::new::<u128>(20, 500_000_000, 40);
     let weights = &vec![
-        WeightAllocationItem {
-            lp_token: "eclip-atom".to_string(),
-            weight: str_to_dec("0.2"),
-        },
-        WeightAllocationItem {
-            lp_token: "ntrn-atom".to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: "astro-atom".to_string(),
-            weight: str_to_dec("0.5"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
     ];
     let expected_essence_allocation = vec![
-        EssenceAllocationItem {
-            lp_token: "eclip-atom".to_string(),
-            essence_info: EssenceInfo::new::<u128>(4, 100_000_000, 8),
-        },
-        EssenceAllocationItem {
-            lp_token: "ntrn-atom".to_string(),
-            essence_info: EssenceInfo::new::<u128>(6, 150_000_000, 12),
-        },
-        EssenceAllocationItem {
-            lp_token: "astro-atom".to_string(),
-            essence_info: EssenceInfo::new::<u128>(10, 250_000_000, 20),
-        },
+        EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(4, 100_000_000, 8)),
+        EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(6, 150_000_000, 12)),
+        EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(10, 250_000_000, 20)),
     ];
 
     let essence_allocation = calc_essence_allocation(essence_info, weights);
-    assert_eq!(essence_allocation, expected_essence_allocation);
+    assert_that(&essence_allocation).is_equal_to(expected_essence_allocation);
 
     Ok(())
 }
 
 #[test]
 fn updated_essence_allocation_math() -> StdResult<()> {
+    let h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
     let essence_info = &EssenceInfo::new::<u128>(20, 500_000_000, 40);
     let alice_weights = &vec![
-        WeightAllocationItem {
-            lp_token: "eclip-atom".to_string(),
-            weight: str_to_dec("0.2"),
-        },
-        WeightAllocationItem {
-            lp_token: "ntrn-atom".to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: "astro-atom".to_string(),
-            weight: str_to_dec("0.5"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
     ];
     let bob_weights_initial = &vec![
-        WeightAllocationItem {
-            lp_token: "eclip-atom".to_string(),
-            weight: str_to_dec("0.2"),
-        },
-        WeightAllocationItem {
-            lp_token: "ntrn-atom".to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: "astro-atom".to_string(),
-            weight: str_to_dec("0.5"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
     ];
     let bob_weights_equal = &vec![
-        WeightAllocationItem {
-            lp_token: "eclip-atom".to_string(),
-            weight: str_to_dec("0.5"),
-        },
-        WeightAllocationItem {
-            lp_token: "ntrn-atom".to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: "astro-atom".to_string(),
-            weight: str_to_dec("0.2"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
     ];
     let bob_weights_small = &vec![
-        WeightAllocationItem {
-            lp_token: "eclip-atom".to_string(),
-            weight: str_to_dec("0.7"),
-        },
-        WeightAllocationItem {
-            lp_token: "ntrn-atom".to_string(),
-            weight: str_to_dec("0.3"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.7"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
     ];
     let bob_weights_large = &vec![
-        WeightAllocationItem {
-            lp_token: "eclip-atom".to_string(),
-            weight: str_to_dec("0.1"),
-        },
-        WeightAllocationItem {
-            lp_token: "ntrn-atom".to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: "astro-atom".to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: "eclipastro-atom".to_string(),
-            weight: str_to_dec("0.3"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.1"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.3"),
+        WeightAllocationItem::new(Pool::UsdcAtom, "0.3"),
     ];
 
     let essence_allocation_alice = &calc_essence_allocation(essence_info, alice_weights);
@@ -337,125 +286,77 @@ fn updated_essence_allocation_math() -> StdResult<()> {
         essence_allocation_bob_initial,
         &vec![],
     );
-    assert_eq!(
-        essence_allocation,
-        vec![
-            EssenceAllocationItem {
-                lp_token: "eclip-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(8, 200_000_000, 16),
-            },
-            EssenceAllocationItem {
-                lp_token: "ntrn-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(12, 300_000_000, 24),
-            },
-            EssenceAllocationItem {
-                lp_token: "astro-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(20, 500_000_000, 40),
-            },
-        ]
-    );
+    assert_that(&essence_allocation).is_equal_to(vec![
+        EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(8, 200_000_000, 16)),
+        EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(12, 300_000_000, 24)),
+        EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(20, 500_000_000, 40)),
+    ]);
 
     // update bob allocation - equal amount of pools
     // (20, 500_000_000, 40) * (0.2, 0.3, 0.5) + (20, 500_000_000, 40) * (0.5, 0.3, 0.2) =
     // (20, 500_000_000, 40) * (0.7, 0.6, 0.7) =
     // [(14, 350_000_000, 28), (12, 300_000_000, 24), (14, 350_000_000, 28)]
-    assert_eq!(
-        calc_updated_essence_allocation(
-            &essence_allocation,
-            essence_allocation_bob_equal,
-            essence_allocation_bob_initial,
-        ),
-        vec![
-            EssenceAllocationItem {
-                lp_token: "eclip-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(14, 350_000_000, 28),
-            },
-            EssenceAllocationItem {
-                lp_token: "ntrn-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(12, 300_000_000, 24),
-            },
-            EssenceAllocationItem {
-                lp_token: "astro-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(14, 350_000_000, 28),
-            },
-        ]
-    );
+    assert_that(&calc_updated_essence_allocation(
+        &essence_allocation,
+        essence_allocation_bob_equal,
+        essence_allocation_bob_initial,
+    ))
+    .is_equal_to(vec![
+        EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(14, 350_000_000, 28)),
+        EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(12, 300_000_000, 24)),
+        EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(14, 350_000_000, 28)),
+    ]);
 
     // update bob allocation - less amount of pools
     // [(4, 100_000_000, 8), (6, 150_000_000, 12), (10, 250_000_000, 20)] +
     // [(14, 350_000_000, 28), (6, 150_000_000, 12), (0, 0, 0)] =
     // [(18, 450_000_000, 36), (12, 300_000_000, 24), (10, 250_000_000, 20)]
-    assert_eq!(
-        calc_updated_essence_allocation(
-            &essence_allocation,
-            essence_allocation_bob_small,
-            essence_allocation_bob_initial,
-        ),
-        vec![
-            EssenceAllocationItem {
-                lp_token: "eclip-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(18, 450_000_000, 36),
-            },
-            EssenceAllocationItem {
-                lp_token: "ntrn-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(12, 300_000_000, 24),
-            },
-            EssenceAllocationItem {
-                lp_token: "astro-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(10, 250_000_000, 20),
-            },
-        ]
-    );
+    assert_that(&calc_updated_essence_allocation(
+        &essence_allocation,
+        essence_allocation_bob_small,
+        essence_allocation_bob_initial,
+    ))
+    .is_equal_to(vec![
+        EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(18, 450_000_000, 36)),
+        EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(12, 300_000_000, 24)),
+        EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(10, 250_000_000, 20)),
+    ]);
 
     // update bob allocation - greater amount of pools
     // [(4, 100_000_000, 8), (6, 150_000_000, 12), (10, 250_000_000, 20)] +
     // [(2, 50_000_000, 4), (6, 150_000_000, 12), (6, 150_000_000, 12), (6, 150_000_000, 12)] =
     // [(6, 150_000_000, 12), (12, 300_000_000, 24), (16, 400_000_000, 32), (6, 150_000_000, 12)]
-    assert_eq!(
-        calc_updated_essence_allocation(
-            &essence_allocation,
-            essence_allocation_bob_large,
-            essence_allocation_bob_initial,
+    assert_that(&calc_updated_essence_allocation(
+        &essence_allocation,
+        essence_allocation_bob_large,
+        essence_allocation_bob_initial,
+    ))
+    .is_equal_to(vec![
+        EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(6, 150_000_000, 12)),
+        EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(12, 300_000_000, 24)),
+        EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(16, 400_000_000, 32)),
+        EssenceAllocationItem::new(
+            Pool::UsdcAtom,
+            &EssenceInfo::new::<u128>(6, 150_000_000, 12),
         ),
-        vec![
-            EssenceAllocationItem {
-                lp_token: "eclip-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(6, 150_000_000, 12),
-            },
-            EssenceAllocationItem {
-                lp_token: "ntrn-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(12, 300_000_000, 24),
-            },
-            EssenceAllocationItem {
-                lp_token: "astro-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(16, 400_000_000, 32),
-            },
-            EssenceAllocationItem {
-                lp_token: "eclipastro-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(6, 150_000_000, 12),
-            },
-        ]
-    );
+    ]);
 
     Ok(())
 }
 
 #[test]
 fn scaled_essence_allocation_math() -> StdResult<()> {
+    let h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
     let essence_info = &EssenceInfo::new::<u128>(20, 500_000_000, 40);
     let weights = &vec![
-        WeightAllocationItem {
-            lp_token: "eclip-atom".to_string(),
-            weight: str_to_dec("0.2"),
-        },
-        WeightAllocationItem {
-            lp_token: "ntrn-atom".to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: "astro-atom".to_string(),
-            weight: str_to_dec("0.5"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
     ];
 
     let additional_essence = &EssenceInfo::new::<u128>(20, 500_000_000, 40);
@@ -468,23 +369,11 @@ fn scaled_essence_allocation_math() -> StdResult<()> {
     );
     // (20, 500_000_000, 40) * (0.2, 0.3, 0.5) * 1.5 =
     // [(6, 150_000_000, 12), (9, 225_000_000, 18), (15, 375_000_000, 30)]
-    assert_eq!(
-        scaled_essence_allocation,
-        vec![
-            EssenceAllocationItem {
-                lp_token: "eclip-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(6, 150_000_000, 12),
-            },
-            EssenceAllocationItem {
-                lp_token: "ntrn-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(9, 225_000_000, 18),
-            },
-            EssenceAllocationItem {
-                lp_token: "astro-atom".to_string(),
-                essence_info: EssenceInfo::new::<u128>(15, 375_000_000, 30),
-            },
-        ]
-    );
+    assert_that(&scaled_essence_allocation).is_equal_to(vec![
+        EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(6, 150_000_000, 12)),
+        EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(9, 225_000_000, 18)),
+        EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(15, 375_000_000, 30)),
+    ]);
 
     Ok(())
 }
@@ -502,18 +391,9 @@ fn auto_updating_essence() -> StdResult<()> {
     let john = &h.acc(Acc::John);
 
     let weights = &vec![
-        WeightAllocationItem {
-            lp_token: eclip_atom.to_string(),
-            weight: str_to_dec("0.2"),
-        },
-        WeightAllocationItem {
-            lp_token: ntrn_atom.to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: astro_atom.to_string(),
-            weight: str_to_dec("0.5"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
     ];
 
     // stake
@@ -525,27 +405,18 @@ fn auto_updating_essence() -> StdResult<()> {
     let essence_info_bob = h.voter_query_user(bob, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_eq!(
-        essence_info_alice,
-        UserResponse::Slacker {
-            essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
-            essence_value: Uint128::zero()
-        }
-    );
-    assert_eq!(
-        essence_info_bob,
-        UserResponse::Slacker {
-            essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
-            essence_value: Uint128::zero()
-        }
-    );
-    assert_eq!(
-        essence_info_john,
-        UserResponse::Slacker {
-            essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
-            essence_value: Uint128::zero()
-        }
-    );
+    assert_that(&essence_info_alice).is_equal_to(UserResponse::Slacker {
+        essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
+        essence_value: Uint128::zero(),
+    });
+    assert_that(&essence_info_bob).is_equal_to(UserResponse::Slacker {
+        essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
+        essence_value: Uint128::zero(),
+    });
+    assert_that(&essence_info_john).is_equal_to(UserResponse::Slacker {
+        essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
+        essence_value: Uint128::zero(),
+    });
 
     // take roles: alice - elector, bob - delegator, john - slacker
     h.voter_try_place_vote(alice, weights)?;
@@ -555,28 +426,19 @@ fn auto_updating_essence() -> StdResult<()> {
     let essence_info_bob = h.voter_query_user(bob, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_eq!(
-        essence_info_alice,
-        UserResponse::Elector {
-            essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
-            essence_value: Uint128::zero(),
-            weights: weights.to_vec()
-        }
-    );
-    assert_eq!(
-        essence_info_bob,
-        UserResponse::Delegator {
-            essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
-            essence_value: Uint128::zero()
-        }
-    );
-    assert_eq!(
-        essence_info_john,
-        UserResponse::Slacker {
-            essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
-            essence_value: Uint128::zero()
-        }
-    );
+    assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+        essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
+        essence_value: Uint128::zero(),
+        weights: weights.to_vec(),
+    });
+    assert_that(&essence_info_bob).is_equal_to(UserResponse::Delegator {
+        essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
+        essence_value: Uint128::zero(),
+    });
+    assert_that(&essence_info_john).is_equal_to(UserResponse::Slacker {
+        essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
+        essence_value: Uint128::zero(),
+    });
 
     // change essence for slacker, elector, delegator
     // lock
@@ -588,28 +450,19 @@ fn auto_updating_essence() -> StdResult<()> {
     let essence_info_bob = h.voter_query_user(bob, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_eq!(
-        essence_info_alice,
-        UserResponse::Elector {
-            essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
-            essence_value: Uint128::new(1000),
-            weights: weights.to_vec()
-        }
-    );
-    assert_eq!(
-        essence_info_bob,
-        UserResponse::Delegator {
-            essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
-            essence_value: Uint128::new(1000),
-        }
-    );
-    assert_eq!(
-        essence_info_john,
-        UserResponse::Slacker {
-            essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
-            essence_value: Uint128::new(1000),
-        }
-    );
+    assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
+        essence_value: Uint128::new(1000),
+        weights: weights.to_vec(),
+    });
+    assert_that(&essence_info_bob).is_equal_to(UserResponse::Delegator {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
+        essence_value: Uint128::new(1000),
+    });
+    assert_that(&essence_info_john).is_equal_to(UserResponse::Slacker {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
+        essence_value: Uint128::new(1000),
+    });
 
     Ok(())
 }
@@ -628,32 +481,14 @@ fn changing_weights_by_essence() -> StdResult<()> {
     let john = &h.acc(Acc::John);
 
     let weights_alice = &vec![
-        WeightAllocationItem {
-            lp_token: eclip_atom.to_string(),
-            weight: str_to_dec("0.2"),
-        },
-        WeightAllocationItem {
-            lp_token: ntrn_atom.to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: astro_atom.to_string(),
-            weight: str_to_dec("0.5"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
     ];
     let weights_dao = &vec![
-        WeightAllocationItem {
-            lp_token: eclip_atom.to_string(),
-            weight: str_to_dec("0.5"),
-        },
-        WeightAllocationItem {
-            lp_token: ntrn_atom.to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: astro_atom.to_string(),
-            weight: str_to_dec("0.2"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
     ];
 
     // stake and lock
@@ -685,33 +520,15 @@ fn changing_weights_by_essence() -> StdResult<()> {
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time: 1716163200,
         elector_votes: vec![
-            EssenceAllocationItem {
-                lp_token: eclip_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 200),
-            },
-            EssenceAllocationItem {
-                lp_token: ntrn_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 300),
-            },
-            EssenceAllocationItem {
-                lp_token: astro_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 500),
-            },
+            EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 200)),
+            EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 300)),
+            EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 500)),
         ],
         slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 1_000),
         total_votes: vec![
-            EssenceAllocationItem {
-                lp_token: eclip_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 700),
-            },
-            EssenceAllocationItem {
-                lp_token: ntrn_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 600),
-            },
-            EssenceAllocationItem {
-                lp_token: astro_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 700),
-            },
+            EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 700)),
+            EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 600)),
+            EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 700)),
         ],
         vote_results: vec![],
     });
@@ -720,18 +537,9 @@ fn changing_weights_by_essence() -> StdResult<()> {
         .is_equal_to(weights_alice);
     assert_that(&calc_weights_from_essence_allocation(&voter_info.total_votes, block_time).1)
         .is_equal_to(vec![
-            WeightAllocationItem {
-                lp_token: eclip_atom.to_string(),
-                weight: str_to_dec("0.35"),
-            },
-            WeightAllocationItem {
-                lp_token: ntrn_atom.to_string(),
-                weight: str_to_dec("0.3"),
-            },
-            WeightAllocationItem {
-                lp_token: astro_atom.to_string(),
-                weight: str_to_dec("0.35"),
-            },
+            WeightAllocationItem::new(eclip_atom, "0.35"),
+            WeightAllocationItem::new(ntrn_atom, "0.3"),
+            WeightAllocationItem::new(astro_atom, "0.35"),
         ]);
 
     // change alice essence
@@ -757,34 +565,16 @@ fn changing_weights_by_essence() -> StdResult<()> {
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time,
         elector_votes: vec![
-            EssenceAllocationItem {
-                lp_token: eclip_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 400),
-            },
-            EssenceAllocationItem {
-                lp_token: ntrn_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 600),
-            },
-            EssenceAllocationItem {
-                lp_token: astro_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
-            },
+            EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 400)),
+            EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 600)),
+            EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 1_000)),
         ],
         slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 1_000),
         // (400, 600, 1_000) + (500, 300, 200) = (900, 900, 1_200)
         total_votes: vec![
-            EssenceAllocationItem {
-                lp_token: eclip_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 900),
-            },
-            EssenceAllocationItem {
-                lp_token: ntrn_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 900),
-            },
-            EssenceAllocationItem {
-                lp_token: astro_atom.to_string(),
-                essence_info: EssenceInfo::new::<u128>(0, 0, 1_200),
-            },
+            EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
+            EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
+            EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 1_200)),
         ],
         vote_results: vec![],
     });
@@ -794,18 +584,9 @@ fn changing_weights_by_essence() -> StdResult<()> {
     // (900, 900, 1_200) / 3_000 = (0.3, 0.3, 0.4)
     assert_that(&calc_weights_from_essence_allocation(&voter_info.total_votes, block_time).1)
         .is_equal_to(vec![
-            WeightAllocationItem {
-                lp_token: eclip_atom.to_string(),
-                weight: str_to_dec("0.3"),
-            },
-            WeightAllocationItem {
-                lp_token: ntrn_atom.to_string(),
-                weight: str_to_dec("0.3"),
-            },
-            WeightAllocationItem {
-                lp_token: astro_atom.to_string(),
-                weight: str_to_dec("0.4"),
-            },
+            WeightAllocationItem::new(eclip_atom, "0.3"),
+            WeightAllocationItem::new(ntrn_atom, "0.3"),
+            WeightAllocationItem::new(astro_atom, "0.4"),
         ]);
 
     Ok(())
@@ -825,32 +606,14 @@ fn electors_delegators_slackers_dao_voting() -> StdResult<()> {
     let john = &h.acc(Acc::John);
 
     let weights_alice = &vec![
-        WeightAllocationItem {
-            lp_token: eclip_atom.to_string(),
-            weight: str_to_dec("0.2"),
-        },
-        WeightAllocationItem {
-            lp_token: ntrn_atom.to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: astro_atom.to_string(),
-            weight: str_to_dec("0.5"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
     ];
     let weights_dao = &vec![
-        WeightAllocationItem {
-            lp_token: eclip_atom.to_string(),
-            weight: str_to_dec("0.5"),
-        },
-        WeightAllocationItem {
-            lp_token: ntrn_atom.to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: astro_atom.to_string(),
-            weight: str_to_dec("0.2"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
     ];
 
     // stake and lock
@@ -884,21 +647,9 @@ fn electors_delegators_slackers_dao_voting() -> StdResult<()> {
             // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 3_000) + (0.5, 0.3, 0.2) * (2_000 + 0.2 * 3_000) =
             // (680, 1_020, 1_700) + (1_300, 780, 520) = (1_980, 1_800, 2_220) = (0.33, 0.3, 0.37)
             pool_info_list: vec![
-                PoolInfoItem {
-                    lp_token: eclip_atom.to_string(),
-                    weight: str_to_dec("0.33"),
-                    rewards: Uint128::zero(),
-                },
-                PoolInfoItem {
-                    lp_token: ntrn_atom.to_string(),
-                    weight: str_to_dec("0.3"),
-                    rewards: Uint128::zero(),
-                },
-                PoolInfoItem {
-                    lp_token: astro_atom.to_string(),
-                    weight: str_to_dec("0.37"),
-                    rewards: Uint128::zero(),
-                },
+                PoolInfoItem::new(eclip_atom, "0.33", 0),
+                PoolInfoItem::new(ntrn_atom, "0.3", 0),
+                PoolInfoItem::new(astro_atom, "0.37", 0),
             ],
         }],
     });
@@ -944,32 +695,14 @@ fn electors_slackers_dao_voting() -> StdResult<()> {
     let john = &h.acc(Acc::John);
 
     let weights_alice = &vec![
-        WeightAllocationItem {
-            lp_token: eclip_atom.to_string(),
-            weight: str_to_dec("0.2"),
-        },
-        WeightAllocationItem {
-            lp_token: ntrn_atom.to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: astro_atom.to_string(),
-            weight: str_to_dec("0.5"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
     ];
     let weights_dao = &vec![
-        WeightAllocationItem {
-            lp_token: eclip_atom.to_string(),
-            weight: str_to_dec("0.5"),
-        },
-        WeightAllocationItem {
-            lp_token: ntrn_atom.to_string(),
-            weight: str_to_dec("0.3"),
-        },
-        WeightAllocationItem {
-            lp_token: astro_atom.to_string(),
-            weight: str_to_dec("0.2"),
-        },
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
     ];
 
     // stake and lock
@@ -1001,21 +734,9 @@ fn electors_slackers_dao_voting() -> StdResult<()> {
             // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 5_000) + (0.5, 0.3, 0.2) * (0.2 * 5_000) =
             // (1_000, 1_500, 2_500) + (500, 300, 200) = (1_500, 1_800, 2_700) = (0.25, 0.3, 0.45)
             pool_info_list: vec![
-                PoolInfoItem {
-                    lp_token: eclip_atom.to_string(),
-                    weight: str_to_dec("0.25"),
-                    rewards: Uint128::zero(),
-                },
-                PoolInfoItem {
-                    lp_token: ntrn_atom.to_string(),
-                    weight: str_to_dec("0.3"),
-                    rewards: Uint128::zero(),
-                },
-                PoolInfoItem {
-                    lp_token: astro_atom.to_string(),
-                    weight: str_to_dec("0.45"),
-                    rewards: Uint128::zero(),
-                },
+                PoolInfoItem::new(eclip_atom, "0.25", 0),
+                PoolInfoItem::new(ntrn_atom, "0.3", 0),
+                PoolInfoItem::new(astro_atom, "0.45", 0),
             ],
         }],
     });
