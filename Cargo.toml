@@ -41,6 +41,7 @@ equinox-msg             = { path = "./packages/equinox_msg" }
 eclipse-base            = { path = "./packages/eclipse-base" }
 eclipsepad-staking      = { path = "./packages/eclipsepad-staking" }
 minter-mocks            = { path = "./packages/minter-mocks" }
+tribute-market-mocks    = { path = "./packages/tribute-market-mocks" }
 cw20-gift               = { path = "./packages/cw20-gift" }
 
 eclipastro-token        = { path = "./contracts/token" }

@@ -26,6 +26,7 @@ pub mod suite_astro {
     pub mod extensions {
         pub mod eclipsepad_staking;
         pub mod minter;
+        pub mod tribute_market_mocks;
         pub mod voter;
     }
 }

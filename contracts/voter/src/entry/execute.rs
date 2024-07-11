@@ -782,6 +782,7 @@ pub fn try_vote(
         Ok(x)
     })?;
 
+    // TODO: save essence info and move elector -> slacker
     // reset elector votes to motivate them vote again in next epoch
     ELECTOR_WEIGHTS.clear(deps.storage);
     ELECTOR_VOTES.save(deps.storage, &vec![])?;

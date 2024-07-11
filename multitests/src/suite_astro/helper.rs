@@ -61,6 +61,16 @@ pub enum Acc {
 }
 
 #[derive(Debug, Clone, Copy, Display, IntoStaticStr, EnumIter)]
+pub enum Denom {
+    #[strum(serialize = "ntrn")]
+    Ntrn,
+    #[strum(serialize = "atom")]
+    Atom,
+    #[strum(serialize = "usdc")]
+    Usdc,
+}
+
+#[derive(Debug, Clone, Copy, Display, IntoStaticStr, EnumIter)]
 pub enum Pool {
     #[strum(serialize = "eclip_atom")]
     EclipAtom,

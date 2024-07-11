@@ -2023,6 +2023,7 @@ dependencies = [
  "strum_macros 0.24.3",
  "timelock-staking",
  "token-converter",
+ "tribute-market-mocks",
  "voter",
 ]
 
@@ -3546,6 +3547,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c06d3da6113f116aaee68e4d601191614c9053067f9ab7f6edbcb161237daa54"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "tribute-market-mocks"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "eclipse-base",
+ "semver",
+ "serde",
 ]
 
 [[package]]
