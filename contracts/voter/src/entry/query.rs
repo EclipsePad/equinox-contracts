@@ -122,7 +122,7 @@ pub fn query_user(
 
     if let Ok(essence_info) = ELECTOR_ESSENCE.load(deps.storage, user) {
         let essence_value = essence_info.capture(block_time);
-        let weights = ELECTOR_WEIGHTS.load(deps.storage, user)?;
+        let weights = ELECTOR_WEIGHTS.load(deps.storage, user).unwrap_or_default();
 
         return Ok(UserResponse::Elector {
             essence_info,
@@ -175,7 +175,9 @@ pub fn query_elector_list(
         .take(amount as usize)
         .map(|x| {
             let (address, essence_info) = x.unwrap();
-            let weights = ELECTOR_WEIGHTS.load(deps.storage, &address)?;
+            let weights = ELECTOR_WEIGHTS
+                .load(deps.storage, &address)
+                .unwrap_or_default();
 
             Ok(UserListResponseItem {
                 address,
@@ -258,7 +260,7 @@ pub fn query_dao_info(deps: Deps, env: Env, block_time: Option<u64>) -> StdResul
     let block_time = block_time.unwrap_or(env.block.time.seconds());
     let essence_info = DAO_ESSENCE.load(deps.storage)?;
     let essence_value = essence_info.capture(block_time);
-    let weights = DAO_WEIGHTS.load(deps.storage)?;
+    let weights = DAO_WEIGHTS.load(deps.storage).unwrap_or_default();
 
     Ok(DaoResponse {
         essence_info,

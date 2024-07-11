@@ -33,6 +33,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("Delegator is not found")]
+    DelegatorIsNotFound,
+
     #[error("User is not found")]
     UserIsNotFound,
 

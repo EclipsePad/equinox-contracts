@@ -15,6 +15,7 @@ use equinox_msg::voter::{
 use speculoos::assert_that;
 use strum::IntoEnumIterator;
 use voter::{
+    error::ContractError,
     math::{
         calc_essence_allocation, calc_scaled_essence_allocation, calc_updated_essence_allocation,
         calc_weights_from_essence_allocation,
@@ -27,7 +28,7 @@ use crate::suite_astro::{
         eclipsepad_staking::EclipsepadStakingExtension, minter::MinterExtension,
         voter::VoterExtension,
     },
-    helper::{Acc, ControllerHelper, Pool},
+    helper::{assert_error, Acc, ControllerHelper, Pool},
 };
 
 const INITIAL_LIQUIDITY: u128 = 1_000_000;
@@ -204,10 +205,11 @@ fn essence_info_math() -> StdResult<()> {
     let essence_info_2 = EssenceInfo::new::<u128>(10, 250_000_000, 20);
 
     assert_that(&essence_info_2.add(&essence_info_2)).is_equal_to(&essence_info_1);
-    assert_that(&essence_info_1.sub(&essence_info_2)).is_equal_to(essence_info_2);
+    assert_that(&essence_info_1.sub(&essence_info_2)).is_equal_to(&essence_info_2);
     assert_that(&essence_info_1.sub(&essence_info_1).is_zero()).is_equal_to(true);
     // (20 * 50_000_000 - 500_000_000) / 31_536_000 + 40 = 55
     assert_that(&essence_info_1.capture(50_000_000).u128()).is_equal_to(55);
+    assert_that(&essence_info_1.scale(str_to_dec("0.5"))).is_equal_to(essence_info_2);
 
     Ok(())
 }
@@ -1199,6 +1201,478 @@ fn slackers_voting() -> StdResult<()> {
     Ok(())
 }
 
+#[test]
+fn change_vote_after_dao_voting() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    let weights_alice_before = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+    let weights_alice_after = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, &weights_alice_before)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // revote
+    h.voter_try_place_vote(alice, &weights_alice_after)?;
+
+    // final voting
+    h.wait(h.voter_query_date_config()?.vote_delay);
+    h.voter_try_vote()?;
+
+    let block_time = h.get_block_time();
+    let voter_info = h.voter_query_voter_info(None)?;
+
+    assert_that(&voter_info).is_equal_to(VoterInfoResponse {
+        block_time,
+        elector_votes: vec![],
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 3_000),
+        total_votes: vec![],
+        vote_results: vec![VoteResults {
+            epoch_id: 1,
+            end_date: 1717372800,
+            // 1_000 + 0.8 * 3_000 + 2_000 + 0.2 * 3_000 = 6_000
+            essence: Uint128::new(6_000),
+            // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 3_000) + (0.5, 0.3, 0.2) * (2_000 + 0.2 * 3_000) =
+            // (680, 1_020, 1_700) + (1_300, 780, 520) = (1_980, 1_800, 2_220) = (0.33, 0.3, 0.37)
+            pool_info_list: vec![
+                PoolInfoItem::new(eclip_atom, "0.33", 0),
+                PoolInfoItem::new(ntrn_atom, "0.3", 0),
+                PoolInfoItem::new(astro_atom, "0.37", 0),
+            ],
+        }],
+    });
+
+    Ok(())
+}
+
+#[test]
+fn user_actions_after_final_voting() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // final voting
+    h.wait(h.voter_query_date_config()?.vote_delay);
+    h.voter_try_vote()?;
+
+    // try vote, undelegate, delegate
+    let res = h.voter_try_place_vote(alice, weights_dao).unwrap_err();
+    assert_error(&res, ContractError::EpochEnd);
+    let res = h.voter_try_undelegate(bob).unwrap_err();
+    assert_error(&res, ContractError::EpochEnd);
+    let res = h.voter_try_delegate(john).unwrap_err();
+    assert_error(&res, ContractError::EpochEnd);
+
+    Ok(())
+}
+
+#[test]
+fn electors_and_slackers_can_delegate() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_delegate(bob)?;
+
+    // check roles
+    let essence_info_alice = h.voter_query_user(alice, None)?;
+    let essence_info_john = h.voter_query_user(john, None)?;
+
+    assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
+        essence_value: Uint128::new(1_000),
+        weights: weights_alice.to_vec(),
+    });
+    assert_that(&essence_info_john).is_equal_to(UserResponse::Slacker {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 3_000),
+        essence_value: Uint128::new(3_000),
+    });
+
+    // delegate
+    h.voter_try_delegate(alice)?;
+    h.voter_try_delegate(john)?;
+
+    // check roles
+    let essence_info_alice = h.voter_query_user(alice, None)?;
+    let essence_info_john = h.voter_query_user(john, None)?;
+
+    assert_that(&essence_info_alice).is_equal_to(UserResponse::Delegator {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
+        essence_value: Uint128::new(1_000),
+    });
+    assert_that(&essence_info_john).is_equal_to(UserResponse::Delegator {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 3_000),
+        essence_value: Uint128::new(3_000),
+    });
+
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // final voting
+    h.wait(h.voter_query_date_config()?.vote_delay);
+    h.voter_try_vote()?;
+
+    let block_time = h.get_block_time();
+    let voter_info = h.voter_query_voter_info(None)?;
+
+    assert_that(&voter_info).is_equal_to(VoterInfoResponse {
+        block_time,
+        elector_votes: vec![],
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 0),
+        total_votes: vec![],
+        vote_results: vec![VoteResults {
+            epoch_id: 1,
+            end_date: 1717372800,
+            essence: Uint128::new(6_000),
+            pool_info_list: vec![
+                PoolInfoItem::new(eclip_atom, "0.5", 0),
+                PoolInfoItem::new(ntrn_atom, "0.3", 0),
+                PoolInfoItem::new(astro_atom, "0.2", 0),
+            ],
+        }],
+    });
+
+    Ok(())
+}
+
+#[test]
+fn delegators_and_dao_can_not_delegate() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    let weights = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, weights)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_place_vote_as_dao(dao, weights)?;
+
+    // delegate
+    let res = h.voter_try_delegate(bob).unwrap_err();
+    assert_error(&res, ContractError::DelegateTwice);
+    let res = h.voter_try_delegate(dao).unwrap_err();
+    assert_error(&res, ContractError::DelegateTwice);
+
+    Ok(())
+}
+
+#[test]
+fn delegators_can_not_vote() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    let weights = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, weights)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_place_vote_as_dao(dao, weights)?;
+
+    // place vote as delegator
+    let res = h.voter_try_place_vote(bob, weights).unwrap_err();
+    assert_error(&res, ContractError::DelegatorCanNotVote);
+
+    Ok(())
+}
+
+#[test]
+fn undelegate_default() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // undelegate
+    h.voter_try_undelegate(bob)?;
+    for user in [alice, john, dao] {
+        let res = h.voter_try_undelegate(user).unwrap_err();
+        assert_error(&res, ContractError::DelegatorIsNotFound);
+    }
+
+    // final voting
+    h.wait(h.voter_query_date_config()?.vote_delay);
+    h.voter_try_vote()?;
+
+    let block_time = h.get_block_time();
+    let voter_info = h.voter_query_voter_info(None)?;
+
+    assert_that(&voter_info).is_equal_to(VoterInfoResponse {
+        block_time,
+        elector_votes: vec![],
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 5_000),
+        total_votes: vec![],
+        vote_results: vec![VoteResults {
+            epoch_id: 1,
+            end_date: 1717372800,
+            // 1_000 + 0.8 * 5_000 + 0.2 * 5_000 = 6_000
+            essence: Uint128::new(6_000),
+            // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 5_000) + (0.5, 0.3, 0.2) * 0.2 * 5_000 =
+            // (1_000, 1_500, 2_500) + (500, 300, 200) = (1_500, 1_800, 2_700) = (0.25, 0.3, 0.45)
+            pool_info_list: vec![
+                PoolInfoItem::new(eclip_atom, "0.25", 0),
+                PoolInfoItem::new(ntrn_atom, "0.3", 0),
+                PoolInfoItem::new(astro_atom, "0.45", 0),
+            ],
+        }],
+    });
+
+    Ok(())
+}
+
+// #[test]
+// fn reset_electors_and_dao_on_epoch_start() -> StdResult<()> {
+//     let mut h = prepare_helper();
+
+//     let eclip_atom = &h.pool(Pool::EclipAtom);
+//     let ntrn_atom = &h.pool(Pool::NtrnAtom);
+//     let astro_atom = &h.pool(Pool::AstroAtom);
+
+//     let dao = &h.acc(Acc::Dao);
+//     let alice = &h.acc(Acc::Alice);
+//     let bob = &h.acc(Acc::Bob);
+//     let john = &h.acc(Acc::John);
+
+//     let weights_alice = &vec![
+//         WeightAllocationItem::new(eclip_atom, "0.2"),
+//         WeightAllocationItem::new(ntrn_atom, "0.3"),
+//         WeightAllocationItem::new(astro_atom, "0.5"),
+//     ];
+//     let weights_dao = &vec![
+//         WeightAllocationItem::new(eclip_atom, "0.5"),
+//         WeightAllocationItem::new(ntrn_atom, "0.3"),
+//         WeightAllocationItem::new(astro_atom, "0.2"),
+//     ];
+
+//     // stake and lock
+//     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+//         h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+//         h.eclipsepad_staking_try_lock(user, amount, 4)?;
+//     }
+
+//     // place votes
+//     h.voter_try_place_vote(alice, weights_alice)?;
+//     h.voter_try_delegate(bob)?;
+//     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+//     // check votes
+//     let essence_info_alice = h.voter_query_user(alice, None)?;
+//     let essence_info_dao = h.voter_query_dao_info(None)?;
+//     let voter_info = h.voter_query_voter_info(None)?;
+
+//     assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+//         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
+//         essence_value: Uint128::new(1_000),
+//         weights: weights_alice.to_vec(),
+//     });
+//     assert_that(&essence_info_dao).is_equal_to(DaoResponse {
+//         essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
+//         essence_value: Uint128::new(2_000),
+//         weights: weights_dao.to_vec(),
+//     });
+//     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
+//         block_time: h.get_block_time(),
+//         elector_votes: vec![
+//             EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 200)),
+//             EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 300)),
+//             EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 500)),
+//         ],
+//         slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 3_000),
+//         total_votes: vec![
+//             EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 1_200)),
+//             EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
+//             EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
+//         ],
+//         vote_results: vec![],
+//     });
+
+//     // final voting
+//     h.wait(h.voter_query_date_config()?.vote_delay);
+//     h.voter_try_vote()?;
+
+//     // check votes
+//     let essence_info_alice = h.voter_query_user(alice, None)?;
+//     let essence_info_dao = h.voter_query_dao_info(None)?;
+//     let voter_info = h.voter_query_voter_info(None)?;
+
+//     assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+//         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
+//         essence_value: Uint128::new(1_000),
+//         weights: vec![],
+//     });
+//     assert_that(&essence_info_dao).is_equal_to(DaoResponse {
+//         essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
+//         essence_value: Uint128::new(2_000),
+//         weights: vec![],
+//     });
+//     // assert_that(&voter_info).is_equal_to(VoterInfoResponse {
+//     //     block_time: h.get_block_time(),
+//     //     elector_votes: vec![
+//     //         EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 0)),
+//     //         EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 0)),
+//     //         EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 0)),
+//     //     ],
+//     //     slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 3_000),
+//     //     total_votes: vec![
+//     //         EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 1_200)),
+//     //         EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
+//     //         EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
+//     //     ],
+//     //     vote_results: vec![],
+//     // });
+
+//     // // wait new epoch
+//     // h.wait(h.voter_query_epoch_info()?.start_date - h.get_block_time());
+
+//     Ok(())
+// }
+
 // TODO
 // +EssenceInfo math, captured essence
 // +calc_essence_allocation
@@ -1216,15 +1690,13 @@ fn slackers_voting() -> StdResult<()> {
 // +electors
 // +delegators
 // +slackers
-// changing vote after dao
-// can't place vote after final voting
-// elector, slacker can delegate
-// delegator, dao can't delegate
-// delegator can't vote
-// delegator can undelegate
-// elector, slacker, dao can't undelegate
-// elector new epoch reset
-// dao new epoch reset
+// +changing vote after dao
+// +users can't act after final voting
+// +elector, slacker can delegate
+// +delegator, dao can't delegate
+// +delegator can't vote
+// +delegator can undelegate; elector, slacker, dao can't undelegate
+// reset electors and dao on epoch start
 // clearing storages
 // wrong weights
 // whitelisted pools

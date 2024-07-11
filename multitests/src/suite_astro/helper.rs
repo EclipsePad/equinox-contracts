@@ -798,3 +798,17 @@ impl ControllerHelper {
         });
     }
 }
+
+pub fn assert_error<S: std::fmt::Debug + ToString>(
+    subject: &S,
+    err: impl ToString + Sized + std::fmt::Debug,
+) {
+    let expected_error_name = &format!("{:#?}", err);
+    let expected_error_text = &err.to_string();
+
+    speculoos::assert_that(subject).matches(|x| {
+        let error = format!("{:#?}", x);
+
+        error.contains(expected_error_name) || error.contains(expected_error_text)
+    });
+}

@@ -547,7 +547,9 @@ pub fn try_undelegate(
     try_unlock_and_check(deps.storage, block_time)?;
 
     // check if user is delegator and update
-    let essence = DELEGATOR_ESSENCE.load(deps.storage, sender)?;
+    let essence = DELEGATOR_ESSENCE
+        .load(deps.storage, sender)
+        .map_err(|_| ContractError::DelegatorIsNotFound)?;
 
     // update own essence
     DELEGATOR_ESSENCE.remove(deps.storage, sender);
