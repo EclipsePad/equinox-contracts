@@ -7,10 +7,10 @@ use cw_storage_plus::{Item, Map};
 pub struct Config {
     pub astro_token: String,
     pub xastro_token: String,
-    // pub eclipastro_token: Addr,
-    // pub lp_token: Addr,
     pub astro_generator: Addr,
     pub staking_contract: Addr,
+    // pub eclipastro_token: Addr,
+    // pub lp_token: Addr,
     // pub lp_contract: Addr,
     // pub converter: Addr,
 }
@@ -20,10 +20,10 @@ impl Default for Config {
         Config {
             astro_token: "".to_string(),
             xastro_token: "".to_string(),
-            // eclipastro_token: Addr::unchecked(""),
-            // lp_token: Addr::unchecked(""),
             astro_generator: Addr::unchecked(""),
             staking_contract: Addr::unchecked(""),
+            // eclipastro_token: Addr::unchecked(""),
+            // lp_token: Addr::unchecked(""),
             // lp_contract: Addr::unchecked(""),
             // converter: Addr::unchecked(""),
         }

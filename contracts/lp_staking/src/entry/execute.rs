@@ -175,9 +175,9 @@ pub fn _stake(
     amount: Uint128,
     recipient: Option<String>,
 ) -> Result<Response, ContractError> {
-    let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
-    let reward_weights = REWARD_WEIGHTS.load(deps.storage).unwrap_or_default();
     let recipient = recipient.unwrap_or(sender.clone());
+    let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
+    let mut recipient_staking = STAKING.load(deps.storage, &recipient).unwrap_or_default();
     let mut response = Response::new();
 
     if total_staking.gt(&Uint128::zero()) {
@@ -185,11 +185,8 @@ pub fn _stake(
     } else {
         LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
     }
-    let mut recipient_staking = STAKING.load(deps.storage, &recipient).unwrap_or_default();
-    if recipient_staking.reward_weights.is_empty() {
-        recipient_staking.reward_weights = reward_weights;
-    }
-
+    let reward_weights = REWARD_WEIGHTS.load(deps.storage).unwrap_or_default();
+    recipient_staking.reward_weights = reward_weights;
     total_staking += amount;
     recipient_staking.staked = recipient_staking.staked.checked_add(amount).unwrap();
 
@@ -393,7 +390,6 @@ pub fn unstake(
     recipient: Option<String>,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
-
     let mut user_staking = STAKING.load(deps.storage, &info.sender.to_string())?;
     let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
 
@@ -412,7 +408,8 @@ pub fn unstake(
     if total_staking.gt(&Uint128::zero()) {
         response = _claim(deps.branch(), env, receiver.clone(), None)?;
     }
-
+    let reward_weights = REWARD_WEIGHTS.load(deps.storage)?;
+    user_staking.reward_weights = reward_weights;
     total_staking = total_staking.checked_sub(amount).unwrap();
     user_staking.staked = user_staking.staked.checked_sub(amount).unwrap();
 

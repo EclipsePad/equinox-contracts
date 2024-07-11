@@ -1,6 +1,5 @@
 DIR_NAME=$(echo ${PWD##*/})
 CODEGEN_PATH="./codegen"
-INTERFACES_PATH="../../scripts/neutron/src/interfaces"
 
 # generate schema
 cargo schema
@@ -19,6 +18,3 @@ cosmwasm-ts-codegen generate \
   --out $CODEGEN_PATH \
   --name $DIR_NAME \
   --no-bundle
-
-cp -r "$CODEGEN_PATH/." $INTERFACES_PATH
-find $INTERFACES_PATH -type f -name "*react-query.ts" -delete

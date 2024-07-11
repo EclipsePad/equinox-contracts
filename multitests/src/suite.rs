@@ -11,11 +11,18 @@ use astroport::{
     vesting::{self, ExecuteMsg as VestingExecuteMsg, VestingAccount},
 };
 use cosmwasm_std::{
-    coin, coins, testing::{MockApi, MockStorage}, to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Decimal, DepsMut, Empty, Env, GovMsg, IbcMsg, IbcQuery, MessageInfo, RecoverPubkeyError, Response, StdError, StdResult, Storage, Timestamp, Uint128, VerificationError
+    coin, coins,
+    testing::{MockApi, MockStorage},
+    to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Decimal, DepsMut, Empty, Env, GovMsg,
+    IbcMsg, IbcQuery, MessageInfo, RecoverPubkeyError, Response, StdError, StdResult, Storage,
+    Timestamp, Uint128, VerificationError,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
-use cw_multi_test::{AddressGenerator, App, AppBuilder, AppResponse, BankKeeper, ContractWrapper, DistributionKeeper, Executor, FailingModule, StakeKeeper, WasmKeeper};
+use cw_multi_test::{
+    AddressGenerator, App, AppBuilder, AppResponse, BankKeeper, ContractWrapper,
+    DistributionKeeper, Executor, FailingModule, StakeKeeper, WasmKeeper,
+};
 use equinox_msg::{
     lockdrop::{
         Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
@@ -202,8 +209,6 @@ fn store_lockdrop(app: &mut TestApp) -> u64 {
     app.store_code(contract)
 }
 
-
-
 pub struct TestApi {
     mock_api: MockApi,
 }
@@ -356,19 +361,20 @@ impl SuiteBuilder {
         let admin = Addr::unchecked(ADMIN);
 
         let mut app = AppBuilder::new()
-        .with_stargate(MockStargate::default())
-        .with_wasm(WasmKeeper::new().with_address_generator(TestAddr))
-        .with_api(TestApi::new())
-        .with_block(BlockInfo {
-            height: 1,
-            time: Timestamp::from_seconds(1696810000),
-            chain_id: "cw-multitest-1".to_string(),
-        }).build(|router, _, storage| {
-            router
-                .bank
-                .init_balance(storage, &admin, coins(u128::MAX, ASTRO_DENOM))
-                .unwrap()
-        });
+            .with_stargate(MockStargate::default())
+            .with_wasm(WasmKeeper::new().with_address_generator(TestAddr))
+            .with_api(TestApi::new())
+            .with_block(BlockInfo {
+                height: 1,
+                time: Timestamp::from_seconds(1696810000),
+                chain_id: "cw-multitest-1".to_string(),
+            })
+            .build(|router, _, storage| {
+                router
+                    .bank
+                    .init_balance(storage, &admin, coins(u128::MAX, ASTRO_DENOM))
+                    .unwrap()
+            });
 
         let tracking_code_id = store_tracking_code(&mut app);
 

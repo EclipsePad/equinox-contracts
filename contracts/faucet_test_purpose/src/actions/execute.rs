@@ -9,7 +9,7 @@ use cw_utils::nonpayable;
 use crate::{
     error::ContractError,
     msg::UpdateConfig,
-    state::{Config, CONFIG, LAST_CLAIMED, OWNER},
+    state::{CONFIG, LAST_CLAIMED, OWNER},
 };
 
 const MINIMUM_BALANCE: u128 = 1_000_000_000u128;
@@ -36,7 +36,7 @@ pub fn update_config(
     new_config: UpdateConfig,
 ) -> Result<Response, ContractError> {
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-    let mut config = Config::default();
+    let mut config = CONFIG.load(deps.storage)?;
     if let Some(astro_token) = new_config.astro_token {
         config.astro_token = astro_token;
     }
@@ -246,10 +246,6 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     msg_list.push(CosmosMsg::Bank(BankMsg::Send {
         to_address: sender_address.to_string(),
         amount: vec![coin(amount_to_send.u128(), config.astro_token.clone())],
-    }));
-    msg_list.push(CosmosMsg::Bank(BankMsg::Send {
-        to_address: sender_address.to_string(),
-        amount: vec![coin(amount_to_send.u128(), config.xastro_token.clone())],
     }));
     // msg_list.push(
     //     WasmMsg::Execute {

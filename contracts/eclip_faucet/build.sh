@@ -39,7 +39,7 @@ cd ../..
 docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/rust-optimizer:0.14.0
+  cosmwasm/rust-optimizer:0.15.1
 
 # check if contract is ready to be uploaded to the blockchain
 if [ -e $WASM ]; then
