@@ -42,6 +42,8 @@ pub fn try_instantiate(
                 .unwrap_or_default(),
             ContractError::InvalidDenom(msg.beclip.to_string().clone())
         );
+    } else {
+        let _ = deps.api.addr_validate(&msg.beclip.to_string())?;
     }
     if msg.eclip.is_native_token() {
         ensure!(
@@ -49,6 +51,8 @@ pub fn try_instantiate(
                 .unwrap_or_default(),
             ContractError::InvalidDenom(msg.eclip.to_string().clone())
         );
+    } else {
+        let _ = deps.api.addr_validate(&msg.eclip.to_string())?;
     }
     if let Some(mut lock_configs) = msg.lock_configs.clone() {
         lock_configs.sort_by(|a, b| a.duration.cmp(&b.duration));
@@ -98,19 +102,19 @@ pub fn try_instantiate(
         xastro_token: msg.xastro_token,
         beclip: msg.beclip,
         eclip: msg.eclip,
-        eclipastro_token: msg.eclipastro_token,
-        converter: msg.converter,
+        eclipastro_token: deps.api.addr_validate(msg.eclipastro_token.as_str())?,
+        converter: deps.api.addr_validate(msg.converter.as_str())?,
         single_sided_staking: None,
         lp_staking: None,
         liquidity_pool: None,
         lp_token: None,
-        dao_treasury_address: msg.dao_treasury_address,
+        dao_treasury_address: deps.api.addr_validate(msg.dao_treasury_address.as_str())?,
         lock_configs: msg.lock_configs.unwrap_or(DEFAULT_LOCK_CONFIGS.to_vec()),
         init_timestamp: msg.init_timestamp,
         deposit_window: msg.deposit_window.unwrap_or(DEFAULT_DEPOSIT_WINDOW),
         withdrawal_window: msg.withdrawal_window.unwrap_or(DEFAULT_WITHDRAW_WINDOW),
         lockdrop_incentives: Uint128::zero(),
-        astro_staking: msg.astro_staking,
+        astro_staking: deps.api.addr_validate(msg.astro_staking.as_str())?,
         claims_allowed: false,
         countdown_start_at: 0u64,
     };

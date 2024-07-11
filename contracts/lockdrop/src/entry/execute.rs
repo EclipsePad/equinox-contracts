@@ -51,12 +51,12 @@ pub fn try_update_config(
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
 
     if let Some(single_sided_staking) = new_cfg.single_sided_staking {
-        cfg.single_sided_staking = Some(single_sided_staking.clone());
+        cfg.single_sided_staking = Some(deps.api.addr_validate(single_sided_staking.as_str())?);
         attributes.push(attr("new_single_sided_staking", &single_sided_staking));
     }
 
     if let Some(lp_staking) = new_cfg.lp_staking {
-        cfg.lp_staking = Some(lp_staking.clone());
+        cfg.lp_staking = Some(deps.api.addr_validate(lp_staking.as_str())?);
         attributes.push(attr("new_lp_staking", &lp_staking));
     }
 
@@ -64,14 +64,14 @@ pub fn try_update_config(
         let pool_info: PairInfo = deps
             .querier
             .query_wasm_smart(&liquidity_pool, &AstroportPairQueryMsg::Pair {})?;
-        cfg.liquidity_pool = Some(liquidity_pool.clone());
+        cfg.liquidity_pool = Some(deps.api.addr_validate(liquidity_pool.as_str())?);
         cfg.lp_token = Some(pool_info.liquidity_token.clone());
         attributes.push(attr("new_liquidity_pool", &liquidity_pool));
         attributes.push(attr("new_lp_token", &pool_info.liquidity_token));
     }
 
     if let Some(dao_treasury_address) = new_cfg.dao_treasury_address {
-        cfg.dao_treasury_address = dao_treasury_address.clone();
+        cfg.dao_treasury_address = deps.api.addr_validate(dao_treasury_address.as_str())?;
         attributes.push(attr("new_dao_treasury_address", &dao_treasury_address));
     };
     CONFIG.save(deps.storage, &cfg)?;
