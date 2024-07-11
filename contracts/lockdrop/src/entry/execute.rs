@@ -56,12 +56,12 @@ pub fn try_update_config(
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
 
     if let Some(single_sided_staking) = new_cfg.single_sided_staking {
-        cfg.single_sided_staking = Some(single_sided_staking.clone());
+        cfg.single_sided_staking = Some(deps.api.addr_validate(single_sided_staking.as_str())?);
         attributes.push(attr("new_single_sided_staking", &single_sided_staking));
     }
 
     if let Some(lp_staking) = new_cfg.lp_staking {
-        cfg.lp_staking = Some(lp_staking.clone());
+        cfg.lp_staking = Some(deps.api.addr_validate(lp_staking.as_str())?);
         attributes.push(attr("new_lp_staking", &lp_staking));
     }
 
@@ -69,7 +69,7 @@ pub fn try_update_config(
         let pool_info: PairInfo = deps
             .querier
             .query_wasm_smart(&liquidity_pool, &AstroportPairQueryMsg::Pair {})?;
-        cfg.liquidity_pool = Some(liquidity_pool.clone());
+        cfg.liquidity_pool = Some(deps.api.addr_validate(liquidity_pool.as_str())?);
         cfg.lp_token = Some(AssetInfo::NativeToken {
             denom: pool_info.liquidity_token.clone(),
         });
@@ -78,17 +78,17 @@ pub fn try_update_config(
     }
 
     if let Some(eclipastro_token) = new_cfg.eclipastro_token {
-        cfg.eclipastro_token = Some(eclipastro_token.clone());
+        cfg.eclipastro_token = Some(deps.api.addr_validate(eclipastro_token.as_str())?);
         attributes.push(attr("new_eclipastro_token", &eclipastro_token));
     };
 
     if let Some(converter) = new_cfg.converter {
-        cfg.converter = Some(converter.clone());
+        cfg.converter = Some(deps.api.addr_validate(converter.as_str())?);
         attributes.push(attr("new_converter", &converter));
     };
 
     if let Some(dao_treasury_address) = new_cfg.dao_treasury_address {
-        cfg.dao_treasury_address = Some(dao_treasury_address.clone());
+        cfg.dao_treasury_address = Some(deps.api.addr_validate(dao_treasury_address.as_str())?);
         attributes.push(attr("new_dao_treasury_address", &dao_treasury_address));
     };
     CONFIG.save(deps.storage, &cfg)?;
@@ -1147,11 +1147,11 @@ pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, 
     let lp_pool_assets = query_lp_pool_assets(deps.as_ref())?;
     let eclipastro_asset = lp_pool_assets
         .iter()
-        .find(|a| a.to_string() == cfg.eclipastro_token.clone().unwrap())
+        .find(|a| a.info.to_string() == cfg.eclipastro_token.clone().unwrap())
         .unwrap();
     let xastro_asset = lp_pool_assets
         .iter()
-        .find(|a| a.to_string() == cfg.xastro_token.clone())
+        .find(|a| a.info.to_string() == cfg.xastro_token.clone())
         .unwrap();
     let mut xastro_exchange_amount = xastro_amount_to_stake.multiply_ratio(1u128, 2u128);
     let mut msgs = vec![];

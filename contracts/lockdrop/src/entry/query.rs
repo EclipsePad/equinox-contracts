@@ -1,6 +1,6 @@
 use astroport::{
     asset::{Asset, AssetInfo},
-    pair::{PoolResponse, QueryMsg},
+    pair::{PoolResponse, QueryMsg as PoolQueryMsg},
     staking::QueryMsg as AstroportStakingQueryMsg,
 };
 use cosmwasm_std::{
@@ -832,6 +832,6 @@ pub fn query_lp_pool_assets(deps: Deps) -> StdResult<Vec<Asset>> {
     let cfg = CONFIG.load(deps.storage)?;
     let response: PoolResponse = deps
         .querier
-        .query_wasm_smart(cfg.astro_staking, &QueryMsg::Pool {})?;
+        .query_wasm_smart(cfg.liquidity_pool.unwrap(), &PoolQueryMsg::Pool {})?;
     Ok(response.assets)
 }
