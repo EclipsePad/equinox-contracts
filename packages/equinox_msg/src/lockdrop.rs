@@ -156,7 +156,8 @@ pub enum CallbackMsg {
     },
     DepositIntoPool {
         prev_eclipastro_balance: Uint128,
-        xastro_amount: Uint128,
+        total_xastro_amount: Uint128,
+        xastro_amount_to_deposit: Uint128,
         weighted_amount: Uint128,
     },
     StakeLpToken {

@@ -7,7 +7,7 @@ use astroport::{
 use cosmwasm_std::{
     attr, coin, ensure, ensure_eq, ensure_ne, from_json, to_json_binary, Addr, BankMsg, Coin,
     CosmosMsg, DepsMut, Env, MessageInfo, Order, QuerierWrapper, Response, StdError, StdResult,
-    Uint128, WasmMsg,
+    Uint128, Uint256, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
@@ -31,6 +31,7 @@ use crate::{
         calculate_single_staking_user_rewards, calculate_updated_lp_reward_weights,
         calculate_updated_single_staking_reward_weights, check_deposit_window,
         check_lockdrop_ended, get_user_lp_lockdrop_incentives, get_user_single_lockdrop_incentives,
+        query_astro_staking_total_deposit, query_astro_staking_total_shares, query_lp_pool_assets,
     },
     error::ContractError,
     math::{calculate_max_withdrawal_amount_allowed, calculate_weight},
@@ -1007,13 +1008,15 @@ pub fn _handle_callback(
         ),
         CallbackMsg::DepositIntoPool {
             prev_eclipastro_balance,
-            xastro_amount,
+            total_xastro_amount,
+            xastro_amount_to_deposit,
             weighted_amount,
         } => handle_deposit_into_pool(
             deps,
             env,
             prev_eclipastro_balance,
-            xastro_amount,
+            total_xastro_amount,
+            xastro_amount_to_deposit,
             weighted_amount,
         ),
         CallbackMsg::StakeLpToken {
@@ -1139,14 +1142,41 @@ pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, 
             .unwrap()
         });
 
-    let half_xastro_amount = xastro_amount_to_stake / Uint128::from(2u128);
-
+    let astro_staking_total_deposit = query_astro_staking_total_deposit(deps.as_ref())?;
+    let astro_staking_total_shares = query_astro_staking_total_shares(deps.as_ref())?;
+    let lp_pool_assets = query_lp_pool_assets(deps.as_ref())?;
+    let eclipastro_asset = lp_pool_assets
+        .iter()
+        .find(|a| a.to_string() == cfg.eclipastro_token.clone().unwrap())
+        .unwrap();
+    let xastro_asset = lp_pool_assets
+        .iter()
+        .find(|a| a.to_string() == cfg.xastro_token.clone())
+        .unwrap();
+    let mut xastro_exchange_amount = xastro_amount_to_stake.multiply_ratio(1u128, 2u128);
     let mut msgs = vec![];
-    if half_xastro_amount.gt(&Uint128::zero()) {
+
+    if !eclipastro_asset.amount.is_zero() && !xastro_asset.amount.is_zero() {
+        let numerator = Uint256::from_uint128(astro_staking_total_shares)
+            .checked_mul(Uint256::from_uint128(eclipastro_asset.amount))
+            .unwrap();
+        let denominator = numerator
+            .checked_add(
+                Uint256::from_uint128(astro_staking_total_deposit)
+                    .checked_mul(Uint256::from_uint128(xastro_asset.amount))
+                    .unwrap(),
+            )
+            .unwrap();
+        xastro_exchange_amount = Uint256::from_uint128(xastro_amount_to_stake)
+            .multiply_ratio(numerator, denominator)
+            .try_into()
+            .unwrap();
+    }
+    if xastro_exchange_amount.gt(&Uint128::zero()) {
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.converter.unwrap().to_string(),
             msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
-            funds: vec![coin(half_xastro_amount.u128(), cfg.xastro_token)],
+            funds: vec![coin(xastro_exchange_amount.u128(), cfg.xastro_token)],
         }));
     }
 
@@ -1163,7 +1193,8 @@ pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, 
     msgs.push(
         CallbackMsg::DepositIntoPool {
             prev_eclipastro_balance: prev_eclipastro_balance.balance,
-            xastro_amount: xastro_amount_to_stake,
+            total_xastro_amount: xastro_amount_to_stake,
+            xastro_amount_to_deposit: xastro_amount_to_stake - xastro_exchange_amount,
             weighted_amount: total_weighted_xastro_amount_to_staking,
         }
         .to_cosmos_msg(&env)?,
@@ -1254,7 +1285,8 @@ fn handle_deposit_into_pool(
     deps: DepsMut,
     env: Env,
     prev_eclipastro_balance: Uint128,
-    xastro_amount: Uint128,
+    total_xastro_amount: Uint128,
+    xastro_amount_to_deposit: Uint128,
     weighted_amount: Uint128,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
@@ -1270,13 +1302,12 @@ fn handle_deposit_into_pool(
         .balance
         .checked_sub(prev_eclipastro_balance)
         .unwrap();
-    let xastro_amount_to_deposit = xastro_amount / Uint128::from(2u128);
     ensure!(
         eclipastro_amount_to_deposit.gt(&Uint128::zero())
             && xastro_amount_to_deposit.gt(&Uint128::zero()),
         ContractError::InvalidTokenBalance {}
     );
-    state.total_xastro = xastro_amount;
+    state.total_xastro = total_xastro_amount;
     state.weighted_total_xastro = weighted_amount;
     LP_LOCKUP_STATE.save(deps.storage, &state)?;
     let msgs = vec![

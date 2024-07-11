@@ -1,4 +1,8 @@
-use astroport::asset::{Asset, AssetInfo};
+use astroport::{
+    asset::{Asset, AssetInfo},
+    pair::{PoolResponse, QueryMsg},
+    staking::QueryMsg as AstroportStakingQueryMsg,
+};
 use cosmwasm_std::{
     Addr, BankQuery, Coin, Decimal256, Deps, Env, Order, QuerierWrapper, QueryRequest, StdResult,
     SupplyResponse, Uint128, Uint256,
@@ -808,4 +812,26 @@ pub fn check_withdrawal_window(deps: Deps, current_time: u64) -> StdResult<bool>
     let cfg = CONFIG.load(deps.storage)?;
     Ok(current_time >= cfg.init_timestamp + cfg.deposit_window
         && current_time < cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window)
+}
+
+pub fn query_astro_staking_total_deposit(deps: Deps) -> StdResult<Uint128> {
+    let cfg = CONFIG.load(deps.storage)?;
+    deps.querier.query_wasm_smart(
+        cfg.astro_staking,
+        &AstroportStakingQueryMsg::TotalDeposit {},
+    )
+}
+
+pub fn query_astro_staking_total_shares(deps: Deps) -> StdResult<Uint128> {
+    let cfg = CONFIG.load(deps.storage)?;
+    deps.querier
+        .query_wasm_smart(cfg.astro_staking, &AstroportStakingQueryMsg::TotalShares {})
+}
+
+pub fn query_lp_pool_assets(deps: Deps) -> StdResult<Vec<Asset>> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let response: PoolResponse = deps
+        .querier
+        .query_wasm_smart(cfg.astro_staking, &QueryMsg::Pool {})?;
+    Ok(response.assets)
 }
