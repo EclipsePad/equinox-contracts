@@ -24,6 +24,7 @@ pub mod suite_astro {
     pub mod stargate;
 
     pub mod extensions {
+        pub mod astroport_router;
         pub mod eclipsepad_staking;
         pub mod minter;
         pub mod tribute_market_mocks;

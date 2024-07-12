@@ -36,7 +36,7 @@ pub trait EclipsepadStakingExtension {
         &mut self,
         sender: impl ToString,
         amount: u128,
-        denom: &str,
+        denom: impl ToString,
     ) -> StdResult<AppResponse>;
 
     fn eclipsepad_staking_try_lock(
@@ -151,14 +151,14 @@ impl EclipsepadStakingExtension for ControllerHelper {
         &mut self,
         sender: impl ToString,
         amount: u128,
-        denom: &str,
+        denom: impl ToString,
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
                 Addr::unchecked(sender.to_string()),
                 self.eclipsepad_staking_contract_address(),
                 &ExecuteMsg::Stake {},
-                &coins(amount, denom),
+                &coins(amount, denom.to_string()),
             )
             .map_err(parse_err)
     }

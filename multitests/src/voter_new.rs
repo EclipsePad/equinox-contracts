@@ -1,3 +1,4 @@
+use astroport::{asset::AssetInfo, router::SwapOperation};
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, OutpostInfo, OutpostParams, VotedPoolInfo,
 };
@@ -25,27 +26,27 @@ use voter::{
 
 use crate::suite_astro::{
     extensions::{
-        eclipsepad_staking::EclipsepadStakingExtension, minter::MinterExtension,
-        tribute_market_mocks::TributeMarketExtension, voter::VoterExtension,
+        astroport_router::AstroportRouterExtension, eclipsepad_staking::EclipsepadStakingExtension,
+        minter::MinterExtension, tribute_market_mocks::TributeMarketExtension,
+        voter::VoterExtension,
     },
     helper::{assert_error, Acc, ControllerHelper, Denom, Pool},
 };
 
 const INITIAL_LIQUIDITY: u128 = 1_000_000;
-const ECLIP: &str = "eclip";
-const ECLIP_ASTRO: &str = "eclipastro";
 
 fn prepare_helper() -> ControllerHelper {
     let mut h = ControllerHelper::new();
     let astro = &h.astro.clone();
     let owner = &h.acc(Acc::Owner);
 
+    h.astroport_router_prepare_contract();
     h.tribute_market_prepare_contract();
     h.minter_prepare_contract();
     h.eclipsepad_staking_prepare_contract(
         None,
         None,
-        Some(ECLIP),
+        Some(&Denom::Eclip.to_string()),
         None,
         None,
         None,
@@ -70,7 +71,7 @@ fn prepare_helper() -> ControllerHelper {
         None,
         &h.astro.clone(),
         &h.xastro.clone(),
-        ECLIP_ASTRO,
+        &Denom::EclipAstro.to_string(),
         GENESIS_EPOCH_START_DATE,
         EPOCH_LENGTH,
         VOTE_DELAY,
@@ -90,13 +91,17 @@ fn prepare_helper() -> ControllerHelper {
     )
     .unwrap();
 
-    for token in [ECLIP, &h.astro.clone()] {
-        h.mint_tokens(owner, &coins(1_000 * INITIAL_LIQUIDITY, token))
+    for token in [Denom::Eclip, Denom::Astro] {
+        h.mint_tokens(owner, &coins(1_000 * INITIAL_LIQUIDITY, token.to_string()))
             .unwrap();
     }
 
     for user in Acc::iter() {
-        for token in [ECLIP, &h.astro.clone(), &h.xastro.clone()] {
+        for token in [
+            &Denom::Eclip.to_string(),
+            &Denom::Astro.to_string(),
+            &h.xastro.clone(),
+        ] {
             h.app
                 .send_tokens(
                     owner.to_owned(),
@@ -109,13 +114,13 @@ fn prepare_helper() -> ControllerHelper {
 
     h.mint_tokens(
         &h.minter_contract_address(),
-        &coins(1_000 * INITIAL_LIQUIDITY, ECLIP_ASTRO),
+        &coins(1_000 * INITIAL_LIQUIDITY, Denom::EclipAstro.to_string()),
     )
     .unwrap();
 
     h.minter_try_register_currency(
         owner,
-        &Currency::new(&Token::new_native(ECLIP_ASTRO), 6),
+        &Currency::new(&Token::new_native(&Denom::EclipAstro.to_string()), 6),
         &h.voter_contract_address(),
     )
     .unwrap();
@@ -157,18 +162,64 @@ fn prepare_helper() -> ControllerHelper {
 
     for pool in [Pool::EclipAtom, Pool::NtrnAtom, Pool::AstroAtom] {
         // create pair
-        let (denom1, denom2) = pool.get_pair();
-        let pair = &Addr::unchecked(h.create_pair(denom1, denom2));
+        let (denom_a, denom_b) = &pool.get_pair();
+        let pair_info = h.create_pair(denom_a, denom_b);
+        let pair = &Addr::unchecked(pair_info.liquidity_token);
         // add pair in pool_list
         h.pool_list.push((pool, pair.to_owned()));
         // add in wl
         h.whitelist(owner, pair, &coins(1_000_000, astro)).unwrap();
+
+        // provide liquidity
+        h.mint_tokens(owner, &coins(INITIAL_LIQUIDITY, denom_a))
+            .unwrap();
+        h.mint_tokens(owner, &coins(INITIAL_LIQUIDITY, denom_b))
+            .unwrap();
+
+        h.provide_liquidity(
+            owner,
+            pair_info.contract_addr,
+            denom_a,
+            denom_b,
+            INITIAL_LIQUIDITY,
+        )
+        .unwrap();
     }
 
     h.voter_try_swap_to_eclip_astro(owner, 100_000_000, astro)
         .unwrap();
 
     h
+}
+
+#[test]
+fn router_default() -> StdResult<()> {
+    let mut h = prepare_helper();
+    let alice = &h.acc(Acc::Alice);
+
+    let res =
+        h.astroport_router_query_simulate_swap_operations(1_000, Denom::Eclip, Denom::Atom)?;
+
+    let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
+    h.astroport_router_try_execute_swap_operations(
+        alice,
+        Denom::Eclip,
+        1_000,
+        &vec![SwapOperation::AstroSwap {
+            offer_asset_info: AssetInfo::NativeToken {
+                denom: Denom::Eclip.to_string(),
+            },
+            ask_asset_info: AssetInfo::NativeToken {
+                denom: Denom::Atom.to_string(),
+            },
+        }],
+    )?;
+
+    let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
+    assert_that(&(alice_atom_balance_after - alice_atom_balance_before))
+        .is_equal_to(res.amount.u128());
+
+    Ok(())
 }
 
 #[test]
@@ -180,14 +231,14 @@ fn swap_to_eclip_astro_default() -> StdResult<()> {
 
     let alice_astro = h.query_balance(alice, astro);
     let alice_xastro = h.query_balance(alice, xastro);
-    let alice_eclip_astro = h.query_balance(alice, ECLIP_ASTRO);
+    let alice_eclip_astro = h.query_balance(alice, Denom::EclipAstro);
     assert_that(&alice_astro).is_equal_to(100_000);
     assert_that(&alice_xastro).is_equal_to(100_000);
     assert_that(&alice_eclip_astro).is_equal_to(0);
 
     let bob_astro = h.query_balance(bob, astro);
     let bob_xastro = h.query_balance(bob, xastro);
-    let bob_eclip_astro = h.query_balance(bob, ECLIP_ASTRO);
+    let bob_eclip_astro = h.query_balance(bob, Denom::EclipAstro);
     assert_that(&bob_astro).is_equal_to(100_000);
     assert_that(&bob_xastro).is_equal_to(100_000);
     assert_that(&bob_eclip_astro).is_equal_to(0);
@@ -197,14 +248,14 @@ fn swap_to_eclip_astro_default() -> StdResult<()> {
 
     let alice_astro = h.query_balance(alice, astro);
     let alice_xastro = h.query_balance(alice, xastro);
-    let alice_eclip_astro = h.query_balance(alice, ECLIP_ASTRO);
+    let alice_eclip_astro = h.query_balance(alice, Denom::EclipAstro);
     assert_that(&alice_astro).is_equal_to(99_000);
     assert_that(&alice_xastro).is_equal_to(100_000);
     assert_that(&alice_eclip_astro).is_equal_to(1_000);
 
     let bob_astro = h.query_balance(bob, astro);
     let bob_xastro = h.query_balance(bob, xastro);
-    let bob_eclip_astro = h.query_balance(bob, ECLIP_ASTRO);
+    let bob_eclip_astro = h.query_balance(bob, Denom::EclipAstro);
     assert_that(&bob_astro).is_equal_to(100_000);
     assert_that(&bob_xastro).is_equal_to(99_000);
     assert_that(&bob_eclip_astro).is_equal_to(1_000);
@@ -413,7 +464,7 @@ fn auto_updating_essence() -> StdResult<()> {
 
     // stake
     for user in [alice, bob, john] {
-        h.eclipsepad_staking_try_stake(user, 1_000, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, 1_000, Denom::Eclip)?;
     }
 
     let essence_info_alice = h.voter_query_user(alice, None)?;
@@ -508,7 +559,7 @@ fn changing_weights_by_essence() -> StdResult<()> {
 
     // stake and lock
     for user in [alice, bob, john] {
-        h.eclipsepad_staking_try_stake(user, 1_000, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, 1_000, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, 1_000, 4)?;
     }
 
@@ -559,7 +610,7 @@ fn changing_weights_by_essence() -> StdResult<()> {
 
     // change alice essence
     h.wait(1);
-    h.eclipsepad_staking_try_stake(alice, 1_000, ECLIP)?;
+    h.eclipsepad_staking_try_stake(alice, 1_000, Denom::Eclip)?;
     h.eclipsepad_staking_try_lock(alice, 1_000, 4)?;
 
     let essence_info_alice = h.voter_query_user(alice, None)?;
@@ -648,7 +699,7 @@ fn electors_delegators_slackers_dao_voting() -> StdResult<()> {
         (ruby, 5_000),
         (vlad, 6_000),
     ] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -745,7 +796,7 @@ fn electors_slackers_dao_voting() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -804,7 +855,7 @@ fn delegators_slackers_dao_voting() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -868,7 +919,7 @@ fn electors_delegators_dao_voting() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -929,7 +980,7 @@ fn slackers_dao_voting() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -991,7 +1042,7 @@ fn electors_dao_voting() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
         h.voter_try_place_vote(user, weights_alice)?;
     }
@@ -1049,7 +1100,7 @@ fn delegators_dao_voting() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
         h.voter_try_delegate(user)?;
     }
@@ -1106,7 +1157,7 @@ fn electors_voting() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
         // place votes
         h.voter_try_place_vote(user, weights_alice)?;
@@ -1151,7 +1202,7 @@ fn delegators_voting() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
         h.voter_try_delegate(user)?;
     }
@@ -1189,7 +1240,7 @@ fn slackers_voting() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -1247,7 +1298,7 @@ fn change_vote_after_dao_voting() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -1315,7 +1366,7 @@ fn user_actions_after_final_voting() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -1365,7 +1416,7 @@ fn electors_and_slackers_can_delegate() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -1454,7 +1505,7 @@ fn delegators_and_dao_can_not_delegate() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -1493,7 +1544,7 @@ fn delegators_can_not_vote() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -1535,7 +1586,7 @@ fn undelegate_default() -> StdResult<()> {
 
     // stake and lock
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
@@ -1607,7 +1658,7 @@ fn undelegate_default() -> StdResult<()> {
 
 //     // stake and lock
 //     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-//         h.eclipsepad_staking_try_stake(user, amount, ECLIP)?;
+//         h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
 //         h.eclipsepad_staking_try_lock(user, amount, 4)?;
 //     }
 

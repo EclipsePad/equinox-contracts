@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter, IntoStaticStr};
 
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::RewardInfo;
 use astroport::token::{Logo, MinterResponse};
@@ -62,10 +62,16 @@ pub enum Acc {
 
 #[derive(Debug, Clone, Copy, Display, IntoStaticStr, EnumIter)]
 pub enum Denom {
+    #[strum(serialize = "eclip")]
+    Eclip,
+    #[strum(serialize = "eclipastro")]
+    EclipAstro,
     #[strum(serialize = "ntrn")]
     Ntrn,
     #[strum(serialize = "atom")]
     Atom,
+    #[strum(serialize = "astro")]
+    Astro,
     #[strum(serialize = "usdc")]
     Usdc,
 }
@@ -83,12 +89,12 @@ pub enum Pool {
 }
 
 impl Pool {
-    pub fn get_pair(&self) -> (&str, &str) {
+    pub fn get_pair(&self) -> (String, String) {
         match self {
-            Self::EclipAtom => ("eclip", "astro"),
-            Self::NtrnAtom => ("ntrn", "atom"),
-            Self::AstroAtom => ("astro", "atom"),
-            Self::UsdcAtom => ("usdc", "atom"),
+            Self::EclipAtom => (Denom::Eclip.to_string(), Denom::Atom.to_string()),
+            Self::NtrnAtom => (Denom::Ntrn.to_string(), Denom::Atom.to_string()),
+            Self::AstroAtom => (Denom::Astro.to_string(), Denom::Atom.to_string()),
+            Self::UsdcAtom => (Denom::Usdc.to_string(), Denom::Atom.to_string()),
         }
     }
 }
@@ -159,7 +165,6 @@ pub struct ControllerHelper {
 
 impl ControllerHelper {
     pub fn new() -> Self {
-        let astro_denom = "astro";
         let mut app = mock_ntrn_app();
         let owner = app.api().addr_make("owner");
         let mut account_list: Vec<(String, Addr)> = vec![];
@@ -215,7 +220,7 @@ impl ControllerHelper {
                 &incentives::InstantiateMsg {
                     owner: owner.to_string(),
                     factory: factory.to_string(),
-                    astro_token: AssetInfo::native(astro_denom),
+                    astro_token: AssetInfo::native(Denom::Astro.to_string()),
                     vesting_contract: app.api().addr_make("vesting").to_string(),
                     incentivization_fee_info: None,
                     guardian: None,
@@ -240,7 +245,7 @@ impl ControllerHelper {
         )
         .unwrap();
 
-        let astro_staking_amount = coins(1_000000, astro_denom);
+        let astro_staking_amount = coins(1_000000, Denom::Astro.to_string());
         app.sudo(
             BankSudo::Mint {
                 to_address: owner.to_string(),
@@ -251,7 +256,7 @@ impl ControllerHelper {
         .unwrap();
 
         let msg = staking::InstantiateMsg {
-            deposit_token_denom: astro_denom.to_string(),
+            deposit_token_denom: Denom::Astro.to_string().to_string(),
             tracking_admin: owner.to_string(),
             tracking_code_id: tracker_code_id,
             token_factory_addr: app.api().addr_make("token_factory").to_string(),
@@ -287,7 +292,7 @@ impl ControllerHelper {
                 owner.clone(),
                 &astroport_governance::builder_unlock::InstantiateMsg {
                     owner: owner.to_string(),
-                    astro_denom: astro_denom.to_string(),
+                    astro_denom: Denom::Astro.to_string().to_string(),
                     max_allocations_amount: Default::default(),
                 },
                 &[],
@@ -324,7 +329,7 @@ impl ControllerHelper {
             )
             .unwrap();
 
-        let whitelisting_fee = coin(1_000_000, astro_denom);
+        let whitelisting_fee = coin(1_000_000, Denom::Astro.to_string());
         let emission_controller = app
             .instantiate_contract(
                 emissions_controller_code_id,
@@ -341,7 +346,7 @@ impl ControllerHelper {
                     },
                     xastro_denom: xastro_denom.clone(),
                     factory: factory.to_string(),
-                    astro_denom: astro_denom.to_string(),
+                    astro_denom: Denom::Astro.to_string(),
                     pools_per_outpost: 5,
                     whitelisting_fee: whitelisting_fee.clone(),
                     fee_receiver: app.api().addr_make("fee_receiver").to_string(),
@@ -390,7 +395,7 @@ impl ControllerHelper {
             app,
             owner,
             xastro: xastro_denom.clone(),
-            astro: astro_denom.to_string(),
+            astro: Denom::Astro.to_string().to_string(),
             factory,
             staking,
             vxastro,
@@ -500,7 +505,7 @@ impl ControllerHelper {
         )
     }
 
-    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> String {
+    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> PairInfo {
         let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
         self.app
             .execute_contract(
@@ -519,7 +524,34 @@ impl ControllerHelper {
             .wrap()
             .query_wasm_smart::<PairInfo>(&self.factory, &factory::QueryMsg::Pair { asset_infos })
             .unwrap()
-            .liquidity_token
+    }
+
+    pub fn provide_liquidity(
+        &mut self,
+        sender: impl ToString,
+        pair_address: impl ToString,
+        denom_a: impl ToString,
+        denom_b: impl ToString,
+        amount: u128,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender.to_string()),
+            Addr::unchecked(&pair_address.to_string()),
+            &astroport::pair::ExecuteMsg::ProvideLiquidity {
+                assets: vec![
+                    Asset::from(coin(amount, denom_a.to_string())),
+                    Asset::from(coin(amount, denom_b.to_string())),
+                ],
+                slippage_tolerance: None,
+                auto_stake: Some(false),
+                receiver: None,
+                min_lp_to_receive: None,
+            },
+            &[
+                coin(amount, denom_a.to_string()),
+                coin(amount, denom_b.to_string()),
+            ],
+        )
     }
 
     pub fn vote(&mut self, user: &Addr, votes: &[(String, Decimal)]) -> AnyResult<AppResponse> {
@@ -763,10 +795,10 @@ impl ControllerHelper {
             .map(|x| x.rewards)
     }
 
-    pub fn query_balance(&self, address: &Addr, denom: &str) -> u128 {
+    pub fn query_balance(&self, address: &Addr, denom: impl ToString) -> u128 {
         self.app
             .wrap()
-            .query_balance(address, denom)
+            .query_balance(address, denom.to_string())
             .unwrap()
             .amount
             .u128()
