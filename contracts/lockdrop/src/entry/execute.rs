@@ -1153,25 +1153,29 @@ pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, 
         .iter()
         .find(|a| a.info.to_string() == cfg.xastro_token.clone())
         .unwrap();
-    let mut xastro_exchange_amount = xastro_amount_to_stake.multiply_ratio(1u128, 2u128);
+    let numerator = Uint256::from_uint128(astro_staking_total_shares)
+        .checked_mul(Uint256::from_uint128(eclipastro_asset.amount))
+        .unwrap();
+    let denominator = numerator
+        .checked_add(
+            Uint256::from_uint128(astro_staking_total_deposit)
+                .checked_mul(Uint256::from_uint128(xastro_asset.amount))
+                .unwrap(),
+        )
+        .unwrap();
+
+    let xastro_exchange_amount =
+        if eclipastro_asset.amount.is_zero() || xastro_asset.amount.is_zero() {
+            xastro_amount_to_stake.multiply_ratio(1u128, 2u128)
+        } else {
+            Uint256::from_uint128(xastro_amount_to_stake)
+                .multiply_ratio(numerator, denominator)
+                .try_into()
+                .unwrap()
+        };
+
     let mut msgs = vec![];
 
-    if !eclipastro_asset.amount.is_zero() && !xastro_asset.amount.is_zero() {
-        let numerator = Uint256::from_uint128(astro_staking_total_shares)
-            .checked_mul(Uint256::from_uint128(eclipastro_asset.amount))
-            .unwrap();
-        let denominator = numerator
-            .checked_add(
-                Uint256::from_uint128(astro_staking_total_deposit)
-                    .checked_mul(Uint256::from_uint128(xastro_asset.amount))
-                    .unwrap(),
-            )
-            .unwrap();
-        xastro_exchange_amount = Uint256::from_uint128(xastro_amount_to_stake)
-            .multiply_ratio(numerator, denominator)
-            .try_into()
-            .unwrap();
-    }
     if xastro_exchange_amount.gt(&Uint128::zero()) {
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.converter.unwrap().to_string(),

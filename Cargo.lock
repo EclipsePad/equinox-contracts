@@ -1018,6 +1018,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
+name = "lp-depositor"
+version = "0.1.2"
+dependencies = [
+ "astroport 5.1.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-controllers",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "cw20 1.1.2",
+ "equinox-msg",
+ "semver",
+ "thiserror",
+]
+
+[[package]]
 name = "lp-staking"
 version = "0.1.2"
 dependencies = [

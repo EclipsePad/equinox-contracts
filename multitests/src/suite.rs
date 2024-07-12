@@ -344,6 +344,7 @@ pub const STABILITY_POOL_REWARD_HOLDER: &str = "wasm1_stability_pool_reward_hold
 pub const CE_REWARD_HOLDER: &str = "wasm1_ce_reward_holder";
 pub const ECLIP_DENOM: &str = "factory/wasm1_admin/eclip";
 pub const COIN_REGISTRY: &str = "wasm1_coin_registry";
+pub const CHAIN_ID: &str = "cw-multitest-1";
 
 pub const ALICE: &str = "wasm1_alice";
 pub const BOB: &str = "wasm1_bob";
@@ -367,7 +368,7 @@ impl SuiteBuilder {
             .with_block(BlockInfo {
                 height: 1,
                 time: Timestamp::from_seconds(1696810000),
-                chain_id: "cw-multitest-1".to_string(),
+                chain_id: CHAIN_ID.to_string(),
             })
             .build(|router, _, storage| {
                 router

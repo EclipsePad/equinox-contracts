@@ -1,0 +1,29 @@
+[package]
+name                    = "lp-depositor"
+version.workspace       = true
+edition.workspace       = true
+repository.workspace    = true
+authors.workspace       = true
+license.workspace       = true
+description             = "convert ASTRO/xASTRO to eclipASTRO and xASTRO, deposit them to Astroport eclipASTRO-xASTRO lp"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dependencies]
+cosmwasm-schema         = { workspace = true }
+cosmwasm-std            = { workspace = true }
+cw-controllers          = { workspace = true }
+cw-storage-plus         = { workspace = true }
+cw-utils                = { workspace = true }
+cw2                     = { workspace = true }
+cw20                    = { workspace = true }
+semver                  = { workspace = true }
+thiserror               = { workspace = true }
+equinox-msg             = { workspace = true }
+astroport               = { workspace = true }
