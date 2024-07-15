@@ -7,7 +7,7 @@ use cosmwasm_std::{
     coin, coins, ensure, ensure_eq, from_json, to_json_binary, CosmosMsg, DepsMut, Env,
     MessageInfo, Response, Uint128, WasmMsg,
 };
-use cw20::{BalanceResponse, Cw20QueryMsg, Cw20ReceiveMsg};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
 use equinox_msg::{
     lp_depositor::{CallbackMsg, Cw20HookMsg},
@@ -58,9 +58,9 @@ pub fn try_convert(
     }
     if asset.denom == config.xastro {
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.staking_contract.to_string(),
-            msg: to_json_binary(&AstroportStakingExecuteMsg::Enter { receiver: None })?,
-            funds: vec![coin(amount_to_eclipastro.u128(), config.xastro.clone())],
+            contract_addr: config.converter_contract.to_string(),
+            msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
+            funds: coins(amount_to_eclipastro.u128(), config.xastro),
         }));
     }
     msgs.push(CallbackMsg::DepositIntoPool { recipient }.to_cosmos_msg(&env)?);
@@ -104,30 +104,41 @@ fn try_deposit_into_pool(
             && xastro_balance.amount.gt(&Uint128::zero()),
         ContractError::InvalidTokenBalance {}
     );
-    let msgs = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.lp_contract.to_string(),
-        msg: to_json_binary(&PairExecuteMsg::ProvideLiquidity {
-            assets: vec![
-                Asset {
-                    info: AssetInfo::Token {
-                        contract_addr: cfg.eclipastro.clone(),
+    let msgs = vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.eclipastro.to_string(),
+            msg: to_json_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                spender: cfg.lp_contract.clone().to_string(),
+                amount: eclipastro_balance.balance,
+                expires: None,
+            })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.lp_contract.to_string(),
+            msg: to_json_binary(&PairExecuteMsg::ProvideLiquidity {
+                assets: vec![
+                    Asset {
+                        info: AssetInfo::Token {
+                            contract_addr: cfg.eclipastro.clone(),
+                        },
+                        amount: eclipastro_balance.balance,
                     },
-                    amount: eclipastro_balance.balance,
-                },
-                Asset {
-                    info: AssetInfo::NativeToken {
-                        denom: cfg.xastro.clone(),
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: cfg.xastro.clone(),
+                        },
+                        amount: xastro_balance.amount,
                     },
-                    amount: xastro_balance.amount,
-                },
-            ],
-            slippage_tolerance: None,
-            auto_stake: Some(false),
-            receiver: Some(recipient),
-            min_lp_to_receive: None,
-        })?,
-        funds: vec![coin(xastro_balance.amount.u128(), cfg.xastro.clone())],
-    })];
+                ],
+                slippage_tolerance: None,
+                auto_stake: Some(false),
+                receiver: Some(recipient),
+                min_lp_to_receive: None,
+            })?,
+            funds: vec![coin(xastro_balance.amount.u128(), cfg.xastro.clone())],
+        }),
+    ];
     Ok(Response::new().add_messages(msgs))
 }
 
