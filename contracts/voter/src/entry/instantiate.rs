@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, StdResult, Uint128};
 use cw2::set_contract_version;
 
 use equinox_msg::voter::{
@@ -10,8 +10,8 @@ use crate::{
     error::ContractError,
     state::{
         ADDRESS_CONFIG, CONTRACT_NAME, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, ELECTOR_VOTES,
-        EPOCH_COUNTER, IS_LOCKED, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, TOTAL_VOTES,
-        TRANSFER_ADMIN_STATE, VOTE_RESULTS,
+        EPOCH_COUNTER, IS_LOCKED, SLACKER_ESSENCE_ACC, SWAP_REWARDS_REPLY_ID_CNT,
+        TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_VOTES, TRANSFER_ADMIN_STATE, VOTE_RESULTS,
     },
 };
 
@@ -66,6 +66,7 @@ pub fn try_instantiate(
             astroport_emission_controller: deps
                 .api
                 .addr_validate(&msg.astroport_emission_controller)?,
+            astroport_router: deps.api.addr_validate(&msg.astroport_router)?,
             astroport_tribute_market: msg
                 .astroport_tribute_market
                 .map(|x| deps.api.addr_validate(&x))
@@ -106,6 +107,9 @@ pub fn try_instantiate(
     TOTAL_VOTES.save(deps.storage, &vec![])?;
     VOTE_RESULTS.save(deps.storage, &vec![])?;
     IS_LOCKED.save(deps.storage, &false)?;
+
+    SWAP_REWARDS_REPLY_ID_CNT.save(deps.storage, &0)?;
+    TEMPORARY_REWARDS.save(deps.storage, &Uint128::zero())?;
 
     Ok(Response::new().add_attribute("action", "instantiate"))
 }

@@ -2,6 +2,12 @@ use cosmwasm_std::StdError;
 use cw_controllers::AdminError;
 use thiserror::Error;
 
+impl From<semver::Error> for ContractError {
+    fn from(err: semver::Error) -> Self {
+        Self::SemVer(err.to_string())
+    }
+}
+
 /// ## Description
 /// This enum describes registry contract errors!
 #[derive(Error, Debug, PartialEq)]
@@ -32,6 +38,15 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized,
+
+    #[error("Event isn't found")]
+    EventIsNotFound,
+
+    #[error("Attribute isn't found")]
+    AttributeIsNotFound,
+
+    #[error("Reply ID counter overflow")]
+    ReplyIdCounterOverflow,
 
     #[error("Delegator is not found")]
     DelegatorIsNotFound,
@@ -80,10 +95,4 @@ pub enum ContractError {
 
     #[error("Msg version is not equal contract new version!")]
     ImproperMsgVersion,
-}
-
-impl From<semver::Error> for ContractError {
-    fn from(err: semver::Error) -> Self {
-        Self::SemVer(err.to_string())
-    }
 }

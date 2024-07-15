@@ -8,7 +8,7 @@ use equinox_msg::voter::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SudoM
 use crate::{
     entry::{execute as e, instantiate::try_instantiate, migrate::migrate_contract, query as q},
     error::ContractError,
-    state::STAKE_ASTRO_REPLY_ID,
+    state::{STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_MAX, SWAP_REWARDS_REPLY_ID_MIN},
 };
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
@@ -45,6 +45,7 @@ pub fn execute(
             astroport_assembly,
             astroport_voting_escrow,
             astroport_emission_controller,
+            astroport_router,
             astroport_tribute_market,
         } => e::try_update_address_config(
             deps,
@@ -61,6 +62,7 @@ pub fn execute(
             astroport_assembly,
             astroport_voting_escrow,
             astroport_emission_controller,
+            astroport_router,
             astroport_tribute_market,
         ),
 
@@ -107,6 +109,10 @@ pub fn execute(
         }
 
         ExecuteMsg::ClaimRewards {} => unimplemented!(),
+
+        ExecuteMsg::UpdateRouteList { route_list } => {
+            e::try_update_route_list(deps, env, info, route_list)
+        }
     }
 }
 
@@ -120,7 +126,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         QueryMsg::DateConfig {} => to_json_binary(&q::query_date_config(deps, env)?),
 
-        QueryMsg::Rewards {} => unimplemented!(),
+        QueryMsg::Rewards {} => to_json_binary(&q::query_rewards(deps, env)?),
 
         QueryMsg::BribesAllocation {} => unimplemented!(),
 
@@ -156,6 +162,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
 
         QueryMsg::EpochInfo {} => to_json_binary(&q::query_epoch_info(deps, env)?),
+
+        QueryMsg::RouteList { amount, start_from } => {
+            to_json_binary(&q::query_route_list(deps, env, amount, start_from)?)
+        }
     }
 }
 
@@ -171,6 +181,9 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, Contract
 
     match id {
         STAKE_ASTRO_REPLY_ID => e::handle_stake_astro_reply(deps, env, &result),
+        SWAP_REWARDS_REPLY_ID_MIN..=SWAP_REWARDS_REPLY_ID_MAX => {
+            e::handle_swap_reply(deps, env, &result)
+        }
         _ => Err(ContractError::UnknownReplyId(id)),
     }
 }
@@ -179,6 +192,9 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, Contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
     match msg {
+        // TODO: use Process
         SudoMsg::Vote {} => e::try_vote(deps, env),
+
+        SudoMsg::ClaimAndSwap {} => e::try_claim_and_swap(deps, env),
     }
 }

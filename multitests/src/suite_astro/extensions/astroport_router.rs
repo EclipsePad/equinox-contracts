@@ -1,4 +1,4 @@
-use cosmwasm_std::{coins, Addr, StdResult, Uint128};
+use cosmwasm_std::{coin, coins, Addr, Coin, StdResult, Uint128};
 use cw_multi_test::{AppResponse, ContractWrapper, Executor};
 
 use eclipse_base::error::parse_err;
@@ -24,6 +24,13 @@ pub trait AstroportRouterExtension {
         denom: impl ToString,
         amount: u128,
         operations: &Vec<SwapOperation>,
+    ) -> StdResult<AppResponse>;
+
+    fn astroport_router_try_execute_batch_swap(
+        &mut self,
+        sender: impl ToString,
+        operations: &Vec<SwapOperation>,
+        funds_in: &Vec<(u128, impl ToString)>,
     ) -> StdResult<AppResponse>;
 
     fn astroport_router_query_simulate_swap_operations(
@@ -101,6 +108,32 @@ impl AstroportRouterExtension for ControllerHelper {
                     max_spread: None,
                 },
                 &coins(amount, denom.to_string()),
+            )
+            .map_err(parse_err)
+    }
+
+    fn astroport_router_try_execute_batch_swap(
+        &mut self,
+        sender: impl ToString,
+        operations: &Vec<SwapOperation>,
+        funds_in: &Vec<(u128, impl ToString)>,
+    ) -> StdResult<AppResponse> {
+        let send_funds = &funds_in
+            .into_iter()
+            .map(|(amount, denom)| coin(amount.to_owned(), denom.to_string()))
+            .collect::<Vec<Coin>>();
+
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.astroport_router_contract_address(),
+                &ExecuteMsg::ExecuteSwapOperations {
+                    operations: operations.to_owned(),
+                    minimum_receive: None,
+                    to: None,
+                    max_spread: None,
+                },
+                send_funds,
             )
             .map_err(parse_err)
     }

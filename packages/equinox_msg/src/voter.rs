@@ -32,6 +32,8 @@ pub struct InstantiateMsg {
     pub astroport_voting_escrow: String,
     /// TODO
     pub astroport_emission_controller: String,
+    /// to sell rewards
+    pub astroport_router: String,
     /// to get bribes for voting
     pub astroport_tribute_market: Option<String>,
 
@@ -54,6 +56,8 @@ pub struct InstantiateMsg {
 pub enum SudoMsg {
     // x/cron
     Vote {},
+
+    ClaimAndSwap {},
 }
 
 #[cw_serde]
@@ -87,6 +91,8 @@ pub enum ExecuteMsg {
         astroport_voting_escrow: Option<String>,
         /// TODO
         astroport_emission_controller: Option<String>,
+        /// to sell rewards
+        astroport_router: Option<String>,
         /// to get bribes for voting
         astroport_tribute_market: Option<String>,
     },
@@ -136,6 +142,40 @@ pub enum ExecuteMsg {
 
     /// withdraw bribe rewards
     ClaimRewards {},
+
+    UpdateRouteList {
+        route_list: Vec<RouteListItem>,
+    },
+}
+
+#[cw_serde]
+pub struct RouteItem {
+    pub denom_in: String,
+    pub denom_out: String,
+}
+
+impl RouteItem {
+    pub fn new(denom_in: impl ToString, denom_out: impl ToString) -> Self {
+        Self {
+            denom_in: denom_in.to_string(),
+            denom_out: denom_out.to_string(),
+        }
+    }
+}
+
+#[cw_serde]
+pub struct RouteListItem {
+    pub denom: String,
+    pub route: Vec<RouteItem>,
+}
+
+impl RouteListItem {
+    pub fn new(denom: impl ToString, route: &[RouteItem]) -> Self {
+        Self {
+            denom: denom.to_string(),
+            route: route.to_owned(),
+        }
+    }
 }
 
 #[cw_serde]
@@ -276,11 +316,12 @@ impl PoolInfoItem {
 pub struct VoteResults {
     pub epoch_id: u16,
     pub end_date: u64,
-    /// essence used in voting                                          \
+    /// essence used in voting                                              \
     /// dao w/o electors: delegated_essence + 0.2 * slacker_essence         \
     /// dao w/o delegators: elector_essence + 0.8 * slacker_essence         \
     /// dao w/o both electors and delegators: 0.2 * slacker_essence
     pub essence: Uint128,
+    pub dao_essence: Uint128,
     pub pool_info_list: Vec<PoolInfoItem>,
 }
 
@@ -361,6 +402,12 @@ pub enum QueryMsg {
 
     #[returns(EpochInfo)]
     EpochInfo {},
+
+    #[returns(Vec<RouteListItem>)]
+    RouteList {
+        amount: u32,
+        start_from: Option<String>,
+    },
 }
 
 #[cw_serde]
@@ -459,6 +506,8 @@ pub struct AddressConfig {
     pub astroport_voting_escrow: Addr,
     /// TODO
     pub astroport_emission_controller: Addr,
+    /// to sell rewards
+    pub astroport_router: Addr,
     /// to get bribes for voting
     pub astroport_tribute_market: Option<Addr>,
 }

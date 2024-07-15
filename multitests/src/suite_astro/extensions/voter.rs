@@ -4,8 +4,8 @@ use cw_multi_test::{AppResponse, ContractWrapper, Executor};
 use eclipse_base::error::parse_err;
 use equinox_msg::voter::{
     AddressConfig, BribesAllocationItem, DaoResponse, DateConfig, EpochInfo, EssenceInfo,
-    ExecuteMsg, QueryMsg, SudoMsg, TokenConfig, UserListResponse, UserResponse, VoterInfoResponse,
-    WeightAllocationItem,
+    ExecuteMsg, QueryMsg, RouteListItem, SudoMsg, TokenConfig, UserListResponse, UserResponse,
+    VoterInfoResponse, WeightAllocationItem,
 };
 
 use crate::suite_astro::helper::{Acc, ControllerHelper, Extension};
@@ -30,6 +30,7 @@ pub trait VoterExtension {
         astroport_assembly: &Addr,
         astroport_voting_escrow: &Addr,
         astroport_emission_controller: &Addr,
+        astroport_router: &Addr,
         astroport_tribute_market: Option<String>,
 
         astro: &str,
@@ -57,6 +58,7 @@ pub trait VoterExtension {
         astroport_assembly: Option<Addr>,
         astroport_voting_escrow: Option<Addr>,
         astroport_emission_controller: Option<Addr>,
+        astroport_router: Option<Addr>,
         astroport_tribute_market: Option<Addr>,
     ) -> StdResult<AppResponse>;
 
@@ -113,7 +115,15 @@ pub trait VoterExtension {
         weight_allocation: &[WeightAllocationItem],
     ) -> StdResult<AppResponse>;
 
+    fn voter_try_update_route_list(
+        &mut self,
+        sender: impl ToString,
+        route_list: &[RouteListItem],
+    ) -> StdResult<AppResponse>;
+
     fn voter_try_vote(&mut self) -> StdResult<AppResponse>;
+
+    fn voter_try_claim_and_swap(&mut self) -> StdResult<AppResponse>;
 
     fn voter_try_claim_rewards(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
 
@@ -160,6 +170,12 @@ pub trait VoterExtension {
     fn voter_query_voter_info(&self, block_time: Option<u64>) -> StdResult<VoterInfoResponse>;
 
     fn voter_query_epoch_info(&self) -> StdResult<EpochInfo>;
+
+    fn voter_query_route_list(
+        &self,
+        amount: u32,
+        start_from: Option<String>,
+    ) -> StdResult<Vec<RouteListItem>>;
 }
 
 impl VoterExtension for ControllerHelper {
@@ -194,6 +210,7 @@ impl VoterExtension for ControllerHelper {
         astroport_assembly: &Addr,
         astroport_voting_escrow: &Addr,
         astroport_emission_controller: &Addr,
+        astroport_router: &Addr,
         astroport_tribute_market: Option<String>,
 
         astro: &str,
@@ -233,6 +250,7 @@ impl VoterExtension for ControllerHelper {
                     astroport_assembly: astroport_assembly.to_string(),
                     astroport_voting_escrow: astroport_voting_escrow.to_string(),
                     astroport_emission_controller: astroport_emission_controller.to_string(),
+                    astroport_router: astroport_router.to_string(),
                     astroport_tribute_market,
 
                     astro: astro.to_string(),
@@ -281,6 +299,7 @@ impl VoterExtension for ControllerHelper {
         astroport_assembly: Option<Addr>,
         astroport_voting_escrow: Option<Addr>,
         astroport_emission_controller: Option<Addr>,
+        astroport_router: Option<Addr>,
         astroport_tribute_market: Option<Addr>,
     ) -> StdResult<AppResponse> {
         self.app
@@ -301,6 +320,7 @@ impl VoterExtension for ControllerHelper {
                     astroport_voting_escrow: astroport_voting_escrow.map(|x| x.to_string()),
                     astroport_emission_controller: astroport_emission_controller
                         .map(|x| x.to_string()),
+                    astroport_router: astroport_router.map(|x| x.to_string()),
                     astroport_tribute_market: astroport_tribute_market.map(|x| x.to_string()),
                 },
                 &[],
@@ -460,9 +480,32 @@ impl VoterExtension for ControllerHelper {
             .map_err(parse_err)
     }
 
+    fn voter_try_update_route_list(
+        &mut self,
+        sender: impl ToString,
+        route_list: &[RouteListItem],
+    ) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.voter_contract_address(),
+                &ExecuteMsg::UpdateRouteList {
+                    route_list: route_list.to_owned(),
+                },
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
     fn voter_try_vote(&mut self) -> StdResult<AppResponse> {
         self.app
             .wasm_sudo(self.voter_contract_address(), &SudoMsg::Vote {})
+            .map_err(parse_err)
+    }
+
+    fn voter_try_claim_and_swap(&mut self) -> StdResult<AppResponse> {
+        self.app
+            .wasm_sudo(self.voter_contract_address(), &SudoMsg::ClaimAndSwap {})
             .map_err(parse_err)
     }
 
@@ -588,5 +631,16 @@ impl VoterExtension for ControllerHelper {
         self.app
             .wrap()
             .query_wasm_smart(self.voter_contract_address(), &QueryMsg::EpochInfo {})
+    }
+
+    fn voter_query_route_list(
+        &self,
+        amount: u32,
+        start_from: Option<String>,
+    ) -> StdResult<Vec<RouteListItem>> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract_address(),
+            &QueryMsg::RouteList { amount, start_from },
+        )
     }
 }

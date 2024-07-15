@@ -1,14 +1,17 @@
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
 use equinox_msg::voter::{
     AddressConfig, DateConfig, EpochInfo, EssenceAllocationItem, EssenceInfo, RewardsInfo,
-    TokenConfig, TransferAdminState, VoteResults, WeightAllocationItem,
+    RouteItem, TokenConfig, TransferAdminState, VoteResults, WeightAllocationItem,
 };
 
 /// Contract name that is used for migration
 pub const CONTRACT_NAME: &str = "eclipse-equinox-voter";
 
 pub const STAKE_ASTRO_REPLY_ID: u64 = 1;
+pub const SWAP_REWARDS_REPLY_ID_MIN: u64 = 10;
+pub const SWAP_REWARDS_REPLY_ID_MAX: u64 = SWAP_REWARDS_REPLY_ID_MIN + u8::MAX as u64;
+pub const SWAP_REWARDS_REPLY_ID_CNT: Item<u8> = Item::new("swap_rewards_reply_cnt");
 
 pub const ASTRO_MAINNET: &str =
     "factory/neutron1ffus553eet978k024lmssw0czsxwr97mggyv85lpcsdkft8v9ufsz3sa07/astro";
@@ -30,8 +33,6 @@ pub const MAX_EPOCH_AMOUNT: u16 = 26;
 pub const ELECTOR_ADDITIONAL_ESSENCE_FRACTION: &str = "0.8";
 
 pub const TRANSFER_ADMIN_TIMEOUT: u64 = 3600;
-
-// TODO: add initial weights config
 
 /// blocks the contract to prevent placing votes or voting after final voting at the epoch end
 pub const IS_LOCKED: Item<bool> = Item::new("is_locked");
@@ -68,9 +69,13 @@ pub const DAO_ESSENCE: Item<EssenceInfo> = Item::new("dao_essence");
 /// total list of pools with essence allocations, slakers are excluded
 pub const TOTAL_VOTES: Item<Vec<EssenceAllocationItem>> = Item::new("total_votes");
 
+/// temporary storage fro eclip bribe rewards
+pub const TEMPORARY_REWARDS: Item<Uint128> = Item::new("temporary_rewards");
 /// bribe rewards info by user address
 pub const BRIBE_REWARDS: Map<&Addr, RewardsInfo> = Map::new("bribe_rewards");
 /// current epoch id and start date
 pub const EPOCH_COUNTER: Item<EpochInfo> = Item::new("epoch_counter");
 /// historical data, 26 epochs max
 pub const VOTE_RESULTS: Item<Vec<VoteResults>> = Item::new("vote_results");
+/// route by 1st denom_in, last denom_out is ECLIP
+pub const ROUTE_CONFIG: Map<&str, Vec<RouteItem>> = Map::new("route_config");

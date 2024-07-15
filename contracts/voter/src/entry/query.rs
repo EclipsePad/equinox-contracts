@@ -1,17 +1,17 @@
 use cosmwasm_std::{Decimal, Deps, Env, Order, StdError, StdResult, Uint128};
 use cw_storage_plus::Bound;
-use eclipse_base::converters::u128_to_dec;
+use eclipse_base::{converters::u128_to_dec, utils::unwrap_field};
 use equinox_msg::voter::{
-    AddressConfig, DaoResponse, DateConfig, EpochInfo, TokenConfig, UserListResponse,
-    UserListResponseItem, UserResponse, VoterInfoResponse,
+    AddressConfig, DaoResponse, DateConfig, EpochInfo, RouteListItem, TokenConfig,
+    UserListResponse, UserListResponseItem, UserResponse, VoterInfoResponse,
 };
 
 use crate::{
     error::ContractError,
     state::{
         ADDRESS_CONFIG, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, DELEGATOR_ESSENCE, ELECTOR_ESSENCE,
-        ELECTOR_VOTES, ELECTOR_WEIGHTS, EPOCH_COUNTER, SLACKER_ESSENCE, SLACKER_ESSENCE_ACC,
-        TOKEN_CONFIG, TOTAL_VOTES, VOTE_RESULTS,
+        ELECTOR_VOTES, ELECTOR_WEIGHTS, EPOCH_COUNTER, ROUTE_CONFIG, SLACKER_ESSENCE,
+        SLACKER_ESSENCE_ACC, TOKEN_CONFIG, TOTAL_VOTES, VOTE_RESULTS,
     },
 };
 
@@ -25,6 +25,26 @@ pub fn query_token_config(deps: Deps, _env: Env) -> StdResult<TokenConfig> {
 
 pub fn query_date_config(deps: Deps, _env: Env) -> StdResult<DateConfig> {
     DATE_CONFIG.load(deps.storage)
+}
+
+pub fn query_rewards(deps: Deps, env: Env) -> StdResult<Vec<(Uint128, String)>> {
+    let address_config = ADDRESS_CONFIG.load(deps.storage)?;
+    let astroport_tribute_market = &unwrap_field(
+        address_config.astroport_tribute_market,
+        "astroport_tribute_market",
+    )?;
+
+    let rewards = deps.querier.query_wasm_smart::<Vec<(String, Uint128)>>(
+        astroport_tribute_market,
+        &tribute_market_mocks::msg::QueryMsg::QueryRewards {
+            user: env.contract.address.to_string(),
+        },
+    )?;
+
+    Ok(rewards
+        .into_iter()
+        .map(|(denom, amount)| (amount, denom))
+        .collect())
 }
 
 pub fn query_xastro_price(deps: Deps, _env: Env) -> StdResult<Decimal> {
@@ -291,4 +311,30 @@ pub fn query_voter_info(
 
 pub fn query_epoch_info(deps: Deps, _env: Env) -> StdResult<EpochInfo> {
     EPOCH_COUNTER.load(deps.storage)
+}
+
+pub fn query_route_list(
+    deps: Deps,
+    _env: Env,
+    amount: u32,
+    start_from: Option<String>,
+) -> StdResult<Vec<RouteListItem>> {
+    let denom;
+    let start_bound = match start_from {
+        None => None,
+        Some(x) => {
+            denom = x;
+            Some(Bound::exclusive(&*denom))
+        }
+    };
+
+    ROUTE_CONFIG
+        .range(deps.storage, start_bound.clone(), None, Order::Ascending)
+        .take(amount as usize)
+        .map(|x| {
+            let (denom, route) = x.unwrap();
+
+            Ok(RouteListItem { denom, route })
+        })
+        .collect::<StdResult<Vec<RouteListItem>>>()
 }

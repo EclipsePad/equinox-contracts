@@ -1,10 +1,11 @@
-use cosmwasm_std::{Decimal, Deps, Storage};
+use astroport::{asset::AssetInfo, router::SwapOperation};
+use cosmwasm_std::{Decimal, Deps, StdResult, Storage};
 
-use equinox_msg::voter::WeightAllocationItem;
+use equinox_msg::voter::{RouteItem, WeightAllocationItem};
 
 use crate::{
     error::ContractError,
-    state::{ADDRESS_CONFIG, EPOCH_COUNTER, IS_LOCKED},
+    state::{ADDRESS_CONFIG, EPOCH_COUNTER, IS_LOCKED, ROUTE_CONFIG},
 };
 
 pub fn verify_weight_allocation(
@@ -88,4 +89,24 @@ pub fn try_unlock(storage: &mut dyn Storage, block_time: u64) -> Result<bool, Co
     }
 
     Ok(is_locked)
+}
+
+pub fn get_route(storage: &dyn Storage, denom: &str) -> StdResult<Vec<SwapOperation>> {
+    Ok(ROUTE_CONFIG
+        .load(storage, denom)?
+        .iter()
+        .map(
+            |RouteItem {
+                 denom_in,
+                 denom_out,
+             }| SwapOperation::AstroSwap {
+                offer_asset_info: AssetInfo::NativeToken {
+                    denom: denom_in.to_string(),
+                },
+                ask_asset_info: AssetInfo::NativeToken {
+                    denom: denom_out.to_string(),
+                },
+            },
+        )
+        .collect())
 }

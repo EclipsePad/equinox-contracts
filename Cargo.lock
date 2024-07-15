@@ -3665,6 +3665,7 @@ dependencies = [
  "equinox-msg",
  "semver",
  "thiserror",
+ "tribute-market-mocks",
 ]
 
 [[package]]
