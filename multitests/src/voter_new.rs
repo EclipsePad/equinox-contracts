@@ -126,44 +126,6 @@ fn prepare_helper() -> ControllerHelper {
     )
     .unwrap();
 
-    // add bribes in tribute market
-    let bribes_allocation = &vec![
-        BribesAllocationItem::new(
-            Pool::EclipAtom,
-            &vec![
-                (100 * INITIAL_LIQUIDITY, Denom::Atom),
-                (100 * INITIAL_LIQUIDITY, Denom::Eclip),
-            ],
-        ),
-        BribesAllocationItem::new(
-            Pool::NtrnAtom,
-            &vec![
-                (200 * INITIAL_LIQUIDITY, Denom::Ntrn),
-                (120 * INITIAL_LIQUIDITY, Denom::Atom),
-            ],
-        ),
-        BribesAllocationItem::new(
-            Pool::AstroAtom,
-            &vec![(100 * INITIAL_LIQUIDITY, Denom::Astro)],
-        ),
-    ];
-
-    h.tribute_market_try_set_bribes_allocation(owner, bribes_allocation)
-        .unwrap();
-
-    // let reward_denoms = &vec![Denom::Atom, Denom::Ntrn, Denom::Astro];
-    // for denom in reward_denoms {
-    //     h.mint_tokens(owner, &coins(INITIAL_LIQUIDITY, denom.to_string()))
-    //         .unwrap();
-    // }
-
-    // let denom_and_amount_list: Vec<(String, u128)> = reward_denoms
-    //     .into_iter()
-    //     .map(|denom| (denom.to_string(), INITIAL_LIQUIDITY))
-    //     .collect();
-    // h.tribute_market_try_deposit_rewards(owner, &denom_and_amount_list)
-    //     .unwrap();
-
     // whitelist pools
     let prefix = "neutron";
     let astro_pool = "neutron1f37v0rdvrred27tlqqcpkrqpzfv6ddr2dxqan2";
@@ -238,6 +200,31 @@ fn prepare_helper() -> ControllerHelper {
         ],
     )
     .unwrap();
+
+    // add bribes in tribute market
+    let bribes_allocation: Vec<BribesAllocationItem> = vec![
+        BribesAllocationItem::new(
+            h.pool(Pool::EclipAtom),
+            &vec![
+                (100 * INITIAL_LIQUIDITY, Denom::Atom),
+                (100 * INITIAL_LIQUIDITY, Denom::Eclip),
+            ],
+        ),
+        BribesAllocationItem::new(
+            h.pool(Pool::NtrnAtom),
+            &vec![
+                (200 * INITIAL_LIQUIDITY, Denom::Ntrn),
+                (120 * INITIAL_LIQUIDITY, Denom::Atom),
+            ],
+        ),
+        BribesAllocationItem::new(
+            h.pool(Pool::AstroAtom),
+            &vec![(100 * INITIAL_LIQUIDITY, Denom::Astro)],
+        ),
+    ];
+
+    h.tribute_market_try_set_bribes_allocation(owner, &bribes_allocation)
+        .unwrap();
 
     h
 }
@@ -318,6 +305,11 @@ fn claim_and_swap_default() -> StdResult<()> {
 
     let rewards = h.tribute_market_query_rewards(h.voter_contract_address())?;
     println!("rewards {:#?}\n", rewards);
+
+    let atom = h.query_balance(&h.tribute_market_contract_address(), Denom::Atom);
+    let astro = h.query_balance(&h.tribute_market_contract_address(), Denom::Astro);
+
+    println!("atom, astro {:#?}", (atom, astro));
 
     // let rewards = h.voter_query_rewards()?;
     // println!("rewards {:#?}\n", rewards);

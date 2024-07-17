@@ -87,9 +87,9 @@ pub fn try_allocate_rewards(
         let pool_info_list: Vec<PoolInfoItem> = user_to_tribute_voting_power_ratio_allocation
             .iter()
             .cloned()
-            .map(|(lp_token, _weight)| PoolInfoItem {
+            .map(|(lp_token, weight)| PoolInfoItem {
                 lp_token,
-                weight: Decimal::zero(),
+                weight,
                 rewards: vec![],
             })
             .collect();
@@ -100,26 +100,24 @@ pub fn try_allocate_rewards(
             &user_to_tribute_voting_power_ratio_allocation,
         );
 
-        let mut rewards: Vec<(Uint128, String)> = pool_info_list_with_rewards
-            .into_iter()
+        let rewards_raw: Vec<(Uint128, String)> = pool_info_list_with_rewards
+            .iter()
             .map(|x| x.rewards.clone())
             .flatten()
             .collect();
 
-        for (_amount, denom) in rewards.clone() {
-            if rewards
-                .iter()
-                .all(|(_, current_denom)| current_denom != &denom)
-            {
-                rewards.push((Uint128::zero(), denom.to_string()));
-            }
-        }
-
-        rewards = rewards
+        let mut denom_list: Vec<String> = rewards_raw
             .iter()
-            .map(|(_amount, denom)| {
+            .map(|(_, denom)| denom.to_owned())
+            .collect();
+        denom_list.sort_unstable();
+        denom_list.dedup();
+
+        let rewards: Vec<(Uint128, String)> = denom_list
+            .iter()
+            .map(|denom| {
                 let amount =
-                    rewards
+                    rewards_raw
                         .iter()
                         .fold(Uint128::zero(), |acc, (cur_amount, cur_denom)| {
                             if cur_denom != denom {

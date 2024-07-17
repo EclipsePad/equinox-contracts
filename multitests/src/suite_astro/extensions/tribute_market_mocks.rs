@@ -38,7 +38,7 @@ pub trait TributeMarketExtension {
     fn tribute_market_query_rewards(
         &self,
         user: impl ToString,
-    ) -> StdResult<Vec<(String, Uint128)>>;
+    ) -> StdResult<Vec<(Uint128, String)>>;
 
     fn query_bribes_allocation(&self) -> StdResult<Vec<BribesAllocationItem>>;
 }
@@ -190,7 +190,7 @@ impl TributeMarketExtension for ControllerHelper {
     fn tribute_market_query_rewards(
         &self,
         user: impl ToString,
-    ) -> StdResult<Vec<(String, Uint128)>> {
+    ) -> StdResult<Vec<(Uint128, String)>> {
         self.app.wrap().query_wasm_smart(
             self.tribute_market_contract_address(),
             &QueryMsg::Rewards {
