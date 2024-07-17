@@ -23,4 +23,6 @@ cw-utils = { workspace = true }
 cw2 = { workspace = true }
 serde = { workspace = true }
 eclipse-base = { workspace = true }
+equinox-msg = { workspace = true }
+astroport-governance = { workspace = true }
 semver = { workspace = true }

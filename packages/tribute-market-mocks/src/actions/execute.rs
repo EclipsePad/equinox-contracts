@@ -1,33 +1,140 @@
+use astroport_governance::emissions_controller::hub::{UserInfoResponse, VotedPoolInfo};
 use cosmwasm_std::{
-    coin, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, Uint128,
+    coin, Addr, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError,
+    StdResult, Uint128,
 };
 
-use eclipse_base::error::ContractError;
+use eclipse_base::{converters::u128_to_dec, error::ContractError};
+use equinox_msg::voter::{BribesAllocationItem, PoolInfoItem};
 
-use crate::state::{
-    CLAIMABLE_REWARDS_PER_TX, INSTANTIATION_DATE, REWARDS, REWARDS_DISTRIBUTION_DELAY,
-    REWARDS_DIVIDER,
+use crate::{
+    state::{BRIBES_ALLOCATION, CONFIG, INSTANTIATION_DATE, REWARDS, REWARDS_DISTRIBUTION_DELAY},
+    types::Config,
 };
 
-pub fn try_deposit_rewards(
+pub fn try_set_bribes_allocation(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
+    bribes_allocation: Vec<BribesAllocationItem>,
 ) -> Result<Response, ContractError> {
-    let divider = Uint128::new(REWARDS_DIVIDER);
-    let claimable_rewards: Vec<(String, Uint128)> = info
-        .funds
-        .into_iter()
-        .map(|x| (x.denom, x.amount / divider))
-        .collect();
-    let rewards: Vec<(String, Uint128)> = claimable_rewards
-        .iter()
-        .cloned()
-        .map(|(denom, amount)| (denom, amount * divider))
-        .collect();
+    BRIBES_ALLOCATION.save(deps.storage, &bribes_allocation)?;
 
-    CLAIMABLE_REWARDS_PER_TX.save(deps.storage, &claimable_rewards)?;
-    REWARDS.save(deps.storage, &rewards)?;
+    Ok(Response::new().add_attribute("action", "try_set_bribes_allocation"))
+}
+
+pub fn try_allocate_rewards(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    users: Vec<String>,
+) -> Result<Response, ContractError> {
+    let Config {
+        astroport_emission_controller,
+        astroport_voting_escrow,
+    } = CONFIG.load(deps.storage)?;
+
+    // get user bribes allocation:
+    // 1) query tribute market bribes allocation
+    let tribute_market_bribe_allocation = BRIBES_ALLOCATION.load(deps.storage)?;
+
+    for user in users {
+        // 2) query user voting power
+        let user_voting_power = deps.querier.query_wasm_smart::<Uint128>(
+            astroport_voting_escrow.clone(),
+            &astroport_governance::voting_escrow::QueryMsg::UserVotingPower {
+                user: user.clone(),
+                timestamp: None,
+            },
+        )?;
+        let user_voting_power_decimal = u128_to_dec(user_voting_power);
+
+        // 3) get voter to tribute market voting power ratio allocation
+        let user_to_tribute_voting_power_ratio_allocation = deps
+            .querier
+            .query_wasm_smart::<UserInfoResponse>(
+                astroport_emission_controller.clone(),
+                &astroport_governance::emissions_controller::hub::QueryMsg::UserInfo {
+                    user: user.clone(),
+                    timestamp: None,
+                },
+            )?
+            .applied_votes
+            .iter()
+            .map(|(lp_token, weight)| -> StdResult<(String, Decimal)> {
+                let tribute_market_voting_power = deps
+                    .querier
+                    .query_wasm_smart::<VotedPoolInfo>(
+                        astroport_emission_controller.clone(),
+                        &astroport_governance::emissions_controller::hub::QueryMsg::VotedPool {
+                            pool: lp_token.to_owned(),
+                            timestamp: None,
+                        },
+                    )?
+                    .voting_power;
+
+                let ratio = if tribute_market_voting_power.is_zero() {
+                    Decimal::zero()
+                } else {
+                    user_voting_power_decimal * weight / u128_to_dec(tribute_market_voting_power)
+                };
+
+                Ok((lp_token.to_owned(), ratio))
+            })
+            .collect::<StdResult<Vec<(String, Decimal)>>>()?;
+
+        // 4) get rewards
+        let pool_info_list: Vec<PoolInfoItem> = user_to_tribute_voting_power_ratio_allocation
+            .iter()
+            .cloned()
+            .map(|(lp_token, _weight)| PoolInfoItem {
+                lp_token,
+                weight: Decimal::zero(),
+                rewards: vec![],
+            })
+            .collect();
+
+        let pool_info_list_with_rewards = calc_pool_info_list_with_rewards(
+            &pool_info_list,
+            &tribute_market_bribe_allocation,
+            &user_to_tribute_voting_power_ratio_allocation,
+        );
+
+        let mut rewards: Vec<(Uint128, String)> = pool_info_list_with_rewards
+            .into_iter()
+            .map(|x| x.rewards.clone())
+            .flatten()
+            .collect();
+
+        for (_amount, denom) in rewards.clone() {
+            if rewards
+                .iter()
+                .all(|(_, current_denom)| current_denom != &denom)
+            {
+                rewards.push((Uint128::zero(), denom.to_string()));
+            }
+        }
+
+        rewards = rewards
+            .iter()
+            .map(|(_amount, denom)| {
+                let amount =
+                    rewards
+                        .iter()
+                        .fold(Uint128::zero(), |acc, (cur_amount, cur_denom)| {
+                            if cur_denom != denom {
+                                acc
+                            } else {
+                                acc + cur_amount
+                            }
+                        });
+
+                (amount, denom.to_owned())
+            })
+            .collect();
+
+        REWARDS.save(deps.storage, &Addr::unchecked(user), &rewards)?;
+    }
 
     Ok(Response::new().add_attribute("action", "try_deposit_rewards"))
 }
@@ -47,14 +154,60 @@ pub fn try_claim_rewards(
 
     let msg: CosmosMsg = CosmosMsg::Bank(BankMsg::Send {
         to_address: sender.to_string(),
-        amount: CLAIMABLE_REWARDS_PER_TX
-            .load(deps.storage)?
+        amount: REWARDS
+            .load(deps.storage, sender)?
             .into_iter()
-            .map(|(denom, amount)| coin(amount.u128(), denom))
+            .map(|(amount, denom)| coin(amount.u128(), denom))
             .collect(),
     });
 
     Ok(Response::new()
         .add_message(msg)
         .add_attribute("action", "try_claim_rewards"))
+}
+
+/// voter_bribe_allocation = tribute_market_bribe_allocation * voter_voting_power_allocation / tribute_market_voting_power_allocation
+fn calc_pool_info_list_with_rewards(
+    pool_info_list_without_rewards: &[PoolInfoItem],
+    tribute_market_bribe_allocation: &[BribesAllocationItem],
+    voter_to_tribute_voting_power_ratio_allocation: &[(String, Decimal)],
+) -> Vec<PoolInfoItem> {
+    pool_info_list_without_rewards
+        .iter()
+        .cloned()
+        .map(|mut pool_info_item| {
+            let tribute_rewards = tribute_market_bribe_allocation
+                .iter()
+                .cloned()
+                .find(|x| x.lp_token == pool_info_item.lp_token)
+                .unwrap_or(BribesAllocationItem {
+                    lp_token: Addr::unchecked(String::default()),
+                    rewards: vec![],
+                })
+                .rewards;
+
+            let (_, voter_to_tribute_voting_power_ratio) =
+                voter_to_tribute_voting_power_ratio_allocation
+                    .iter()
+                    .cloned()
+                    .find(|(lp_token, _)| lp_token == &pool_info_item.lp_token)
+                    .unwrap_or((String::default(), Decimal::zero()));
+
+            if voter_to_tribute_voting_power_ratio.is_zero() {
+                pool_info_item.rewards = vec![];
+                return pool_info_item;
+            }
+
+            pool_info_item.rewards = tribute_rewards
+                .into_iter()
+                .map(|(amount, denom)| {
+                    (
+                        (u128_to_dec(amount) * voter_to_tribute_voting_power_ratio).to_uint_floor(),
+                        denom,
+                    )
+                })
+                .collect();
+            pool_info_item
+        })
+        .collect()
 }

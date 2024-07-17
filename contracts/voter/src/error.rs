@@ -39,6 +39,15 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("Unequal pools")]
+    UnequalPools,
+
+    #[error("Last vote results aren't found")]
+    LastVoteResultsAreNotFound,
+
+    #[error("Rewards aren't found")]
+    RewardsAreNotFound,
+
     #[error("Event isn't found")]
     EventIsNotFound,
 
@@ -62,6 +71,9 @@ pub enum ContractError {
 
     #[error("Epoch is completed")]
     EpochEnd,
+
+    #[error("New epoch isn't started yet")]
+    EpochIsNotStarted,
 
     #[error("It's impossible to delegate twice")]
     DelegateTwice,

@@ -3553,12 +3553,14 @@ dependencies = [
 name = "tribute-market-mocks"
 version = "1.0.0"
 dependencies = [
+ "astroport-governance 4.0.0-rc.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "eclipse-base",
+ "equinox-msg",
  "semver",
  "serde",
 ]

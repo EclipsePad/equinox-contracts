@@ -1,7 +1,9 @@
-use cosmwasm_std::Decimal;
+use cosmwasm_std::{Addr, Decimal, Uint128};
 
 use eclipse_base::converters::u128_to_dec;
-use equinox_msg::voter::{EssenceAllocationItem, EssenceInfo, WeightAllocationItem};
+use equinox_msg::voter::{
+    BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem, WeightAllocationItem,
+};
 
 /// essence_allocation = essence * weights
 pub fn calc_essence_allocation(
@@ -104,3 +106,51 @@ pub fn calc_scaled_essence_allocation(
     let essence = &base_essence.add(&additional_essence.scale(additional_essence_fraction));
     calc_essence_allocation(essence, base_weights)
 }
+
+/// voter_bribe_allocation = tribute_market_bribe_allocation * voter_voting_power_allocation / tribute_market_voting_power_allocation
+pub fn calc_pool_info_list_with_rewards(
+    pool_info_list_without_rewards: &[PoolInfoItem],
+    tribute_market_bribe_allocation: &[BribesAllocationItem],
+    voter_to_tribute_voting_power_ratio_allocation: &[(String, Decimal)],
+) -> Vec<PoolInfoItem> {
+    pool_info_list_without_rewards
+        .iter()
+        .cloned()
+        .map(|mut pool_info_item| {
+            let tribute_rewards = tribute_market_bribe_allocation
+                .iter()
+                .cloned()
+                .find(|x| x.lp_token == pool_info_item.lp_token)
+                .unwrap_or(BribesAllocationItem {
+                    lp_token: Addr::unchecked(String::default()),
+                    rewards: vec![],
+                })
+                .rewards;
+
+            let (_, voter_to_tribute_voting_power_ratio) =
+                voter_to_tribute_voting_power_ratio_allocation
+                    .iter()
+                    .cloned()
+                    .find(|(lp_token, _)| lp_token == &pool_info_item.lp_token)
+                    .unwrap_or((String::default(), Decimal::zero()));
+
+            if voter_to_tribute_voting_power_ratio.is_zero() {
+                pool_info_item.rewards = vec![];
+                return pool_info_item;
+            }
+
+            pool_info_item.rewards = tribute_rewards
+                .into_iter()
+                .map(|(amount, denom)| {
+                    (
+                        (u128_to_dec(amount) * voter_to_tribute_voting_power_ratio).to_uint_floor(),
+                        denom,
+                    )
+                })
+                .collect();
+            pool_info_item
+        })
+        .collect()
+}
+
+// TODO: calc_elector_rewards, calc_delegator_rewards, calc_dao_rewards, split_rewards

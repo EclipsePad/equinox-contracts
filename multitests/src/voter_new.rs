@@ -10,8 +10,8 @@ use eclipse_base::{
     converters::str_to_dec,
 };
 use equinox_msg::voter::{
-    DaoResponse, EssenceAllocationItem, EssenceInfo, PoolInfoItem, RouteItem, RouteListItem,
-    UserResponse, VoteResults, VoterInfoResponse, WeightAllocationItem,
+    BribesAllocationItem, DaoResponse, EssenceAllocationItem, EssenceInfo, PoolInfoItem, RouteItem,
+    RouteListItem, UserResponse, VoteResults, VoterInfoResponse, WeightAllocationItem,
 };
 use speculoos::assert_that;
 use strum::IntoEnumIterator;
@@ -41,7 +41,7 @@ fn prepare_helper() -> ControllerHelper {
     let owner = &h.acc(Acc::Owner);
 
     h.astroport_router_prepare_contract();
-    h.tribute_market_prepare_contract();
+    h.tribute_market_prepare_contract(&h.vxastro.clone(), &h.emission_controller.clone());
     h.minter_prepare_contract();
     h.eclipsepad_staking_prepare_contract(
         None,
@@ -126,19 +126,43 @@ fn prepare_helper() -> ControllerHelper {
     )
     .unwrap();
 
-    // add rewards in tribute market
-    let reward_denoms = &vec![Denom::Atom, Denom::Ntrn, Denom::Astro];
-    for denom in reward_denoms {
-        h.mint_tokens(owner, &coins(INITIAL_LIQUIDITY, denom.to_string()))
-            .unwrap();
-    }
+    // add bribes in tribute market
+    let bribes_allocation = &vec![
+        BribesAllocationItem::new(
+            Pool::EclipAtom,
+            &vec![
+                (100 * INITIAL_LIQUIDITY, Denom::Atom),
+                (100 * INITIAL_LIQUIDITY, Denom::Eclip),
+            ],
+        ),
+        BribesAllocationItem::new(
+            Pool::NtrnAtom,
+            &vec![
+                (200 * INITIAL_LIQUIDITY, Denom::Ntrn),
+                (120 * INITIAL_LIQUIDITY, Denom::Atom),
+            ],
+        ),
+        BribesAllocationItem::new(
+            Pool::AstroAtom,
+            &vec![(100 * INITIAL_LIQUIDITY, Denom::Astro)],
+        ),
+    ];
 
-    let denom_and_amount_list: Vec<(String, u128)> = reward_denoms
-        .into_iter()
-        .map(|denom| (denom.to_string(), INITIAL_LIQUIDITY))
-        .collect();
-    h.tribute_market_try_deposit_rewards(owner, &denom_and_amount_list)
+    h.tribute_market_try_set_bribes_allocation(owner, bribes_allocation)
         .unwrap();
+
+    // let reward_denoms = &vec![Denom::Atom, Denom::Ntrn, Denom::Astro];
+    // for denom in reward_denoms {
+    //     h.mint_tokens(owner, &coins(INITIAL_LIQUIDITY, denom.to_string()))
+    //         .unwrap();
+    // }
+
+    // let denom_and_amount_list: Vec<(String, u128)> = reward_denoms
+    //     .into_iter()
+    //     .map(|denom| (denom.to_string(), INITIAL_LIQUIDITY))
+    //     .collect();
+    // h.tribute_market_try_deposit_rewards(owner, &denom_and_amount_list)
+    //     .unwrap();
 
     // whitelist pools
     let prefix = "neutron";
@@ -218,6 +242,34 @@ fn prepare_helper() -> ControllerHelper {
     h
 }
 
+// #[test]
+// fn calc_voter_bribe_allocation_math() -> StdResult<()> {
+//     let tribute_market_bribe_allocation = &[
+//         BribesAllocationItem::new("atom-eclip", &[(100, "atom"), (100, "eclip")]),
+//         BribesAllocationItem::new("ntrn-atom", &[(200, "ntrn"), (120, "atom")]),
+//         BribesAllocationItem::new("ntrn-usdc", &[(100, "ntrn")]),
+//     ];
+
+//     // 50 % "atom-eclip", 25 % "ntrn-atom"
+//     let voter_rewards: Vec<(Uint128, String)> = [(80, "atom"), (50, "eclip"), (50, "ntrn")]
+//         .into_iter()
+//         .map(|(amount, denom)| (Uint128::new(amount), denom.to_string()))
+//         .collect();
+
+//     let expected_voter_rewards_bribe_allocation = &vec![
+//         BribesAllocationItem::new("atom-eclip", &[(50, "atom"), (50, "eclip")]),
+//         BribesAllocationItem::new("ntrn-atom", &[(50, "ntrn"), (30, "atom")]),
+//     ];
+
+//     let voter_rewards_bribe_allocation =
+//         &calc_voter_bribe_allocation(tribute_market_bribe_allocation, &voter_rewards);
+
+//     assert_that(&voter_rewards_bribe_allocation)
+//         .is_equal_to(expected_voter_rewards_bribe_allocation);
+
+//     Ok(())
+// }
+
 #[test]
 fn claim_and_swap_default() -> StdResult<()> {
     let mut h = prepare_helper();
@@ -226,6 +278,7 @@ fn claim_and_swap_default() -> StdResult<()> {
     let ntrn_atom = &h.pool(Pool::NtrnAtom);
     let astro_atom = &h.pool(Pool::AstroAtom);
 
+    let owner = &h.acc(Acc::Owner);
     let dao = &h.acc(Acc::Dao);
     let alice = &h.acc(Acc::Alice);
     let bob = &h.acc(Acc::Bob);
@@ -261,12 +314,16 @@ fn claim_and_swap_default() -> StdResult<()> {
     h.voter_try_vote()?;
 
     h.wait(epoch_length - vote_delay + 1);
+    h.tribute_market_try_allocate_rewards(owner, &[h.voter_contract_address()])?;
 
-    let rewards = h.voter_query_rewards()?;
+    let rewards = h.tribute_market_query_rewards(h.voter_contract_address())?;
     println!("rewards {:#?}\n", rewards);
 
-    let res = h.voter_try_claim_and_swap()?;
-    println!("{:#?}\n", res);
+    // let rewards = h.voter_query_rewards()?;
+    // println!("rewards {:#?}\n", rewards);
+
+    // let res = h.voter_try_claim()?;
+    // println!("{:#?}\n", res);
 
     // let block_time = h.get_block_time();
     // let voter_info = h.voter_query_voter_info(None)?;
@@ -964,15 +1021,16 @@ fn electors_delegators_slackers_dao_voting() -> StdResult<()> {
             // 3_000 + 0.8 * 11_000 + 7_000 + 0.2 * 11_000 = 21_000 (20_999)
             essence: Uint128::new(20_999),
             dao_essence: Uint128::new(9_200),
+            dao_eclip_rewards: Uint128::new(0),
             // ((0.2, 0.3, 0.5) * 1_000 + (0.1, 0.7, 0.2) * 2_000) * ((3_000 + 0.8 * 11_000) / 3_000) +
             // (0.5, 0.3, 0.2) * (7_000 + 0.2 * 11_000) =
             // ((200, 300, 500) + (200, 1_400, 400)) * (11_800 / 3_000) + (0.5, 0.3, 0.2) * 9_200 =
             // (400, 1_700, 900) * 3.93 + (4_600 + 2_760 + 1_840) =
             // (6_173, 9_446, 5_379) = (0.294, 0.45, 0.256)
             pool_info_list: vec![
-                PoolInfoItem::new(eclip_atom, "0.293966379351397685", 0),
-                PoolInfoItem::new(ntrn_atom, "0.449830944330682413", 0),
-                PoolInfoItem::new(astro_atom, "0.2562026763179199", 0),
+                PoolInfoItem::new(eclip_atom, "0.293966379351397685", &[]),
+                PoolInfoItem::new(ntrn_atom, "0.449830944330682413", &[]),
+                PoolInfoItem::new(astro_atom, "0.2562026763179199", &[]),
             ],
         }],
     });
@@ -1058,12 +1116,13 @@ fn electors_slackers_dao_voting() -> StdResult<()> {
             // 1_000 + 0.8 * 5_000 + 0.2 * 5_000 = 6_000
             essence: Uint128::new(6_000),
             dao_essence: Uint128::new(1_000),
+            dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 5_000) + (0.5, 0.3, 0.2) * (0.2 * 5_000) =
             // (1_000, 1_500, 2_500) + (500, 300, 200) = (1_500, 1_800, 2_700) = (0.25, 0.3, 0.45)
             pool_info_list: vec![
-                PoolInfoItem::new(eclip_atom, "0.25", 0),
-                PoolInfoItem::new(ntrn_atom, "0.3", 0),
-                PoolInfoItem::new(astro_atom, "0.45", 0),
+                PoolInfoItem::new(eclip_atom, "0.25", &[]),
+                PoolInfoItem::new(ntrn_atom, "0.3", &[]),
+                PoolInfoItem::new(astro_atom, "0.45", &[]),
             ],
         }],
     });
@@ -1118,12 +1177,13 @@ fn delegators_slackers_dao_voting() -> StdResult<()> {
             // 2_000 + 0.2 * 4_000 = 2_800
             essence: Uint128::new(2_800),
             dao_essence: Uint128::new(2_800),
+            dao_eclip_rewards: Uint128::new(0),
             // (0.5, 0.3, 0.2) * (2_000 + 0.2 * 4_000) =
             // (1_400, 740, 560) = (0.5, 0.3, 0.2)
             pool_info_list: vec![
-                PoolInfoItem::new(eclip_atom, "0.5", 0),
-                PoolInfoItem::new(ntrn_atom, "0.3", 0),
-                PoolInfoItem::new(astro_atom, "0.2", 0),
+                PoolInfoItem::new(eclip_atom, "0.5", &[]),
+                PoolInfoItem::new(ntrn_atom, "0.3", &[]),
+                PoolInfoItem::new(astro_atom, "0.2", &[]),
             ],
         }],
     });
@@ -1185,12 +1245,13 @@ fn electors_delegators_dao_voting() -> StdResult<()> {
             // 1_000 + 5_000 = 6_000
             essence: Uint128::new(6_000),
             dao_essence: Uint128::new(5_000),
+            dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * 1_000 + (0.5, 0.3, 0.2) * 5_000 =
             // (200, 300, 500) + (2_500, 1_500, 1_000) = (2_700, 1_800, 1_500) = (0.45, 0.3, 0.25)
             pool_info_list: vec![
-                PoolInfoItem::new(eclip_atom, "0.45", 0),
-                PoolInfoItem::new(ntrn_atom, "0.3", 0),
-                PoolInfoItem::new(astro_atom, "0.25", 0),
+                PoolInfoItem::new(eclip_atom, "0.45", &[]),
+                PoolInfoItem::new(ntrn_atom, "0.3", &[]),
+                PoolInfoItem::new(astro_atom, "0.25", &[]),
             ],
         }],
     });
@@ -1244,11 +1305,12 @@ fn slackers_dao_voting() -> StdResult<()> {
             // 0.2 * 6_000 = 1_200
             essence: Uint128::new(1_200),
             dao_essence: Uint128::new(1_200),
+            dao_eclip_rewards: Uint128::new(0),
             // (0.5, 0.3, 0.2) * 1_200 = (600, 360, 240) = (0.5, 0.3, 0.2)
             pool_info_list: vec![
-                PoolInfoItem::new(eclip_atom, "0.5", 0),
-                PoolInfoItem::new(ntrn_atom, "0.3", 0),
-                PoolInfoItem::new(astro_atom, "0.2", 0),
+                PoolInfoItem::new(eclip_atom, "0.5", &[]),
+                PoolInfoItem::new(ntrn_atom, "0.3", &[]),
+                PoolInfoItem::new(astro_atom, "0.2", &[]),
             ],
         }],
     });
@@ -1308,11 +1370,12 @@ fn electors_dao_voting() -> StdResult<()> {
             // 6_000
             essence: Uint128::new(6_000),
             dao_essence: Uint128::new(0),
+            dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * 6_000 = (0.2, 0.3, 0.5)
             pool_info_list: vec![
-                PoolInfoItem::new(eclip_atom, "0.2", 0),
-                PoolInfoItem::new(ntrn_atom, "0.3", 0),
-                PoolInfoItem::new(astro_atom, "0.5", 0),
+                PoolInfoItem::new(eclip_atom, "0.2", &[]),
+                PoolInfoItem::new(ntrn_atom, "0.3", &[]),
+                PoolInfoItem::new(astro_atom, "0.5", &[]),
             ],
         }],
     });
@@ -1367,11 +1430,12 @@ fn delegators_dao_voting() -> StdResult<()> {
             // 6_000
             essence: Uint128::new(6_000),
             dao_essence: Uint128::new(6_000),
+            dao_eclip_rewards: Uint128::new(0),
             // (0.5, 0.3, 0.2) * 6_000 = (0.5, 0.3, 0.2)
             pool_info_list: vec![
-                PoolInfoItem::new(eclip_atom, "0.5", 0),
-                PoolInfoItem::new(ntrn_atom, "0.3", 0),
-                PoolInfoItem::new(astro_atom, "0.2", 0),
+                PoolInfoItem::new(eclip_atom, "0.5", &[]),
+                PoolInfoItem::new(ntrn_atom, "0.3", &[]),
+                PoolInfoItem::new(astro_atom, "0.2", &[]),
             ],
         }],
     });
@@ -1423,11 +1487,12 @@ fn electors_voting() -> StdResult<()> {
             // 6_000
             essence: Uint128::new(6_000),
             dao_essence: Uint128::new(0),
+            dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * 6_000 = (0.2, 0.3, 0.5)
             pool_info_list: vec![
-                PoolInfoItem::new(eclip_atom, "0.2", 0),
-                PoolInfoItem::new(ntrn_atom, "0.3", 0),
-                PoolInfoItem::new(astro_atom, "0.5", 0),
+                PoolInfoItem::new(eclip_atom, "0.2", &[]),
+                PoolInfoItem::new(ntrn_atom, "0.3", &[]),
+                PoolInfoItem::new(astro_atom, "0.5", &[]),
             ],
         }],
     });
@@ -1467,6 +1532,7 @@ fn delegators_voting() -> StdResult<()> {
             end_date: 1717372800,
             essence: Uint128::new(0),
             dao_essence: Uint128::new(6_000),
+            dao_eclip_rewards: Uint128::new(0),
             pool_info_list: vec![],
         }],
     });
@@ -1505,6 +1571,7 @@ fn slackers_voting() -> StdResult<()> {
             end_date: 1717372800,
             essence: Uint128::new(0),
             dao_essence: Uint128::new(1_200),
+            dao_eclip_rewards: Uint128::new(0),
             pool_info_list: vec![],
         }],
     });
@@ -1573,12 +1640,13 @@ fn change_vote_after_dao_voting() -> StdResult<()> {
             // 1_000 + 0.8 * 3_000 + 2_000 + 0.2 * 3_000 = 6_000
             essence: Uint128::new(6_000),
             dao_essence: Uint128::new(2_600),
+            dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 3_000) + (0.5, 0.3, 0.2) * (2_000 + 0.2 * 3_000) =
             // (680, 1_020, 1_700) + (1_300, 780, 520) = (1_980, 1_800, 2_220) = (0.33, 0.3, 0.37)
             pool_info_list: vec![
-                PoolInfoItem::new(eclip_atom, "0.33", 0),
-                PoolInfoItem::new(ntrn_atom, "0.3", 0),
-                PoolInfoItem::new(astro_atom, "0.37", 0),
+                PoolInfoItem::new(eclip_atom, "0.33", &[]),
+                PoolInfoItem::new(ntrn_atom, "0.3", &[]),
+                PoolInfoItem::new(astro_atom, "0.37", &[]),
             ],
         }],
     });
@@ -1720,10 +1788,11 @@ fn electors_and_slackers_can_delegate() -> StdResult<()> {
             end_date: 1717372800,
             essence: Uint128::new(6_000),
             dao_essence: Uint128::new(6_000),
+            dao_eclip_rewards: Uint128::new(0),
             pool_info_list: vec![
-                PoolInfoItem::new(eclip_atom, "0.5", 0),
-                PoolInfoItem::new(ntrn_atom, "0.3", 0),
-                PoolInfoItem::new(astro_atom, "0.2", 0),
+                PoolInfoItem::new(eclip_atom, "0.5", &[]),
+                PoolInfoItem::new(ntrn_atom, "0.3", &[]),
+                PoolInfoItem::new(astro_atom, "0.2", &[]),
             ],
         }],
     });
@@ -1867,12 +1936,13 @@ fn undelegate_default() -> StdResult<()> {
             // 1_000 + 0.8 * 5_000 + 0.2 * 5_000 = 6_000
             essence: Uint128::new(6_000),
             dao_essence: Uint128::new(1_000),
+            dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 5_000) + (0.5, 0.3, 0.2) * 0.2 * 5_000 =
             // (1_000, 1_500, 2_500) + (500, 300, 200) = (1_500, 1_800, 2_700) = (0.25, 0.3, 0.45)
             pool_info_list: vec![
-                PoolInfoItem::new(eclip_atom, "0.25", 0),
-                PoolInfoItem::new(ntrn_atom, "0.3", 0),
-                PoolInfoItem::new(astro_atom, "0.45", 0),
+                PoolInfoItem::new(eclip_atom, "0.25", &[]),
+                PoolInfoItem::new(ntrn_atom, "0.3", &[]),
+                PoolInfoItem::new(astro_atom, "0.45", &[]),
             ],
         }],
     });

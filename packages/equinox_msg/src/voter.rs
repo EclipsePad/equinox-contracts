@@ -57,7 +57,9 @@ pub enum SudoMsg {
     // x/cron
     Vote {},
 
-    ClaimAndSwap {},
+    Claim {},
+
+    Swap {},
 }
 
 #[cw_serde]
@@ -298,15 +300,18 @@ impl WeightAllocationItem {
 pub struct PoolInfoItem {
     pub lp_token: String,
     pub weight: Decimal,
-    pub rewards: Uint128,
+    pub rewards: Vec<(Uint128, String)>,
 }
 
 impl PoolInfoItem {
-    pub fn new(lp_token: impl ToString, weight: &str, rewards: u128) -> Self {
+    pub fn new(lp_token: impl ToString, weight: &str, rewards: &[(u128, &str)]) -> Self {
         Self {
             lp_token: lp_token.to_string(),
             weight: str_to_dec(weight),
-            rewards: Uint128::new(rewards),
+            rewards: rewards
+                .into_iter()
+                .map(|(amount, denom)| (Uint128::new(amount.to_owned()), denom.to_string()))
+                .collect(),
         }
     }
 }
@@ -322,6 +327,8 @@ pub struct VoteResults {
     /// dao w/o both electors and delegators: 0.2 * slacker_essence
     pub essence: Uint128,
     pub dao_essence: Uint128,
+    /// 20 % self + 80 % delegators
+    pub dao_eclip_rewards: Uint128,
     pub pool_info_list: Vec<PoolInfoItem>,
 }
 
@@ -477,7 +484,19 @@ pub struct QueryEssenceListResponse {
 #[cw_serde]
 pub struct BribesAllocationItem {
     pub lp_token: Addr,
-    pub rewards: Uint128, // TODO: probably must be Vec<(Uint128, String)>
+    pub rewards: Vec<(Uint128, String)>,
+}
+
+impl BribesAllocationItem {
+    pub fn new(lp_token: impl ToString, rewards: &[(u128, impl ToString)]) -> Self {
+        Self {
+            lp_token: Addr::unchecked(lp_token.to_string()),
+            rewards: rewards
+                .into_iter()
+                .map(|(amount, denom)| (Uint128::new(amount.to_owned()), denom.to_string()))
+                .collect(),
+        }
+    }
 }
 
 #[cw_serde]

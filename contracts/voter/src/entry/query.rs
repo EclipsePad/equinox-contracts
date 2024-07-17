@@ -36,7 +36,7 @@ pub fn query_rewards(deps: Deps, env: Env) -> StdResult<Vec<(Uint128, String)>> 
 
     let rewards = deps.querier.query_wasm_smart::<Vec<(String, Uint128)>>(
         astroport_tribute_market,
-        &tribute_market_mocks::msg::QueryMsg::QueryRewards {
+        &tribute_market_mocks::msg::QueryMsg::Rewards {
             user: env.contract.address.to_string(),
         },
     )?;

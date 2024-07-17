@@ -123,7 +123,9 @@ pub trait VoterExtension {
 
     fn voter_try_vote(&mut self) -> StdResult<AppResponse>;
 
-    fn voter_try_claim_and_swap(&mut self) -> StdResult<AppResponse>;
+    fn voter_try_claim(&mut self) -> StdResult<AppResponse>;
+
+    fn voter_try_swap(&mut self) -> StdResult<AppResponse>;
 
     fn voter_try_claim_rewards(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
 
@@ -503,9 +505,15 @@ impl VoterExtension for ControllerHelper {
             .map_err(parse_err)
     }
 
-    fn voter_try_claim_and_swap(&mut self) -> StdResult<AppResponse> {
+    fn voter_try_claim(&mut self) -> StdResult<AppResponse> {
         self.app
-            .wasm_sudo(self.voter_contract_address(), &SudoMsg::ClaimAndSwap {})
+            .wasm_sudo(self.voter_contract_address(), &SudoMsg::Claim {})
+            .map_err(parse_err)
+    }
+
+    fn voter_try_swap(&mut self) -> StdResult<AppResponse> {
+        self.app
+            .wasm_sudo(self.voter_contract_address(), &SudoMsg::Swap {})
             .map_err(parse_err)
     }
 

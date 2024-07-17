@@ -195,6 +195,8 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
         // TODO: use Process
         SudoMsg::Vote {} => e::try_vote(deps, env),
 
-        SudoMsg::ClaimAndSwap {} => e::try_claim_and_swap(deps, env),
+        SudoMsg::Claim {} => e::try_claim(deps, env),
+
+        SudoMsg::Swap {} => e::try_swap(deps, env),
     }
 }

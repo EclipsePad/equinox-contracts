@@ -31,7 +31,11 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::DepositRewards {} => e::try_deposit_rewards(deps, env, info),
+        ExecuteMsg::SetBribesAllocation { bribes_allocation } => {
+            e::try_set_bribes_allocation(deps, env, info, bribes_allocation)
+        }
+
+        ExecuteMsg::AllocateRewards { users } => e::try_allocate_rewards(deps, env, info, users),
 
         ExecuteMsg::ClaimRewards {} => e::try_claim_rewards(deps, env, info),
     }
@@ -41,7 +45,9 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::QueryRewards { user } => to_json_binary(&q::query_rewards(deps, env, user)?),
+        QueryMsg::Rewards { user } => to_json_binary(&q::query_rewards(deps, env, user)?),
+
+        QueryMsg::BribesAllocation {} => to_json_binary(&q::query_bribes_allocation(deps, env)?),
     }
 }
 
