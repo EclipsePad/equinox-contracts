@@ -245,7 +245,7 @@ impl ControllerHelper {
         )
         .unwrap();
 
-        let astro_staking_amount = coins(1_000000, Denom::Astro.to_string());
+        let astro_staking_amount = coins(1_000_000, Denom::Astro.to_string());
         app.sudo(
             BankSudo::Mint {
                 to_address: owner.to_string(),
@@ -483,6 +483,13 @@ impl ControllerHelper {
         self.app.update_block(|block| {
             block.height += blocks;
         })
+    }
+
+    pub fn total_vp(&self, timestamp: Option<u64>) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            &self.vxastro,
+            &voting_escrow::QueryMsg::TotalVotingPower { timestamp },
+        )
     }
 
     pub fn user_vp(&self, user: &Addr, timestamp: Option<u64>) -> StdResult<Uint128> {

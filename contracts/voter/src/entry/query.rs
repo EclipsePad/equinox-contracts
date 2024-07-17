@@ -34,17 +34,12 @@ pub fn query_rewards(deps: Deps, env: Env) -> StdResult<Vec<(Uint128, String)>> 
         "astroport_tribute_market",
     )?;
 
-    let rewards = deps.querier.query_wasm_smart::<Vec<(String, Uint128)>>(
+    deps.querier.query_wasm_smart::<Vec<(Uint128, String)>>(
         astroport_tribute_market,
         &tribute_market_mocks::msg::QueryMsg::Rewards {
             user: env.contract.address.to_string(),
         },
-    )?;
-
-    Ok(rewards
-        .into_iter()
-        .map(|(denom, amount)| (amount, denom))
-        .collect())
+    )
 }
 
 pub fn query_xastro_price(deps: Deps, _env: Env) -> StdResult<Decimal> {

@@ -2,12 +2,13 @@ use astroport::{asset::AssetInfo, router::SwapOperation};
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, OutpostInfo, OutpostParams, VotedPoolInfo,
 };
-use cosmwasm_std::{coins, Addr, StdResult, Uint128};
+use cosmwasm_std::{coins, Addr, Decimal, StdResult, Uint128};
 use cw_multi_test::Executor;
 
 use eclipse_base::{
     assets::{Currency, Token},
     converters::str_to_dec,
+    error::parse_err,
 };
 use equinox_msg::voter::{
     BribesAllocationItem, DaoResponse, EssenceAllocationItem, EssenceInfo, PoolInfoItem, RouteItem,
@@ -18,8 +19,8 @@ use strum::IntoEnumIterator;
 use voter::{
     error::ContractError,
     math::{
-        calc_essence_allocation, calc_scaled_essence_allocation, calc_updated_essence_allocation,
-        calc_weights_from_essence_allocation,
+        calc_essence_allocation, calc_pool_info_list_with_rewards, calc_scaled_essence_allocation,
+        calc_updated_essence_allocation, calc_weights_from_essence_allocation,
     },
     state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
 };
@@ -175,6 +176,7 @@ fn prepare_helper() -> ControllerHelper {
         .unwrap();
     }
 
+    // initial voter's voting power is 100_000_000
     h.voter_try_swap_to_eclip_astro(owner, 100_000_000, astro)
         .unwrap();
 
@@ -206,8 +208,8 @@ fn prepare_helper() -> ControllerHelper {
         BribesAllocationItem::new(
             h.pool(Pool::EclipAtom),
             &vec![
-                (100 * INITIAL_LIQUIDITY, Denom::Atom),
                 (100 * INITIAL_LIQUIDITY, Denom::Eclip),
+                (100 * INITIAL_LIQUIDITY, Denom::Atom),
             ],
         ),
         BribesAllocationItem::new(
@@ -229,37 +231,40 @@ fn prepare_helper() -> ControllerHelper {
     h
 }
 
-// #[test]
-// fn calc_voter_bribe_allocation_math() -> StdResult<()> {
-//     let tribute_market_bribe_allocation = &[
-//         BribesAllocationItem::new("atom-eclip", &[(100, "atom"), (100, "eclip")]),
-//         BribesAllocationItem::new("ntrn-atom", &[(200, "ntrn"), (120, "atom")]),
-//         BribesAllocationItem::new("ntrn-usdc", &[(100, "ntrn")]),
-//     ];
+#[test]
+fn calc_voter_bribe_allocation_math() -> StdResult<()> {
+    let tribute_market_bribe_allocation = &[
+        BribesAllocationItem::new(Pool::EclipAtom, &[(100, Denom::Atom), (100, Denom::Eclip)]),
+        BribesAllocationItem::new(Pool::NtrnAtom, &[(200, Denom::Ntrn), (120, Denom::Atom)]),
+        BribesAllocationItem::new(Pool::AstroAtom, &[(100, Denom::Ntrn)]),
+    ];
 
-//     // 50 % "atom-eclip", 25 % "ntrn-atom"
-//     let voter_rewards: Vec<(Uint128, String)> = [(80, "atom"), (50, "eclip"), (50, "ntrn")]
-//         .into_iter()
-//         .map(|(amount, denom)| (Uint128::new(amount), denom.to_string()))
-//         .collect();
+    let voter_to_tribute_voting_power_ratio_allocation: Vec<(String, Decimal)> = vec![
+        (Pool::EclipAtom.to_string(), str_to_dec("0.5")),
+        (Pool::NtrnAtom.to_string(), str_to_dec("0.25")),
+    ];
 
-//     let expected_voter_rewards_bribe_allocation = &vec![
-//         BribesAllocationItem::new("atom-eclip", &[(50, "atom"), (50, "eclip")]),
-//         BribesAllocationItem::new("ntrn-atom", &[(50, "ntrn"), (30, "atom")]),
-//     ];
+    let voter_rewards_bribe_allocation = &calc_pool_info_list_with_rewards(
+        &[
+            PoolInfoItem::new(Pool::EclipAtom, "0", &[]),
+            PoolInfoItem::new(Pool::NtrnAtom, "0", &[]),
+        ],
+        tribute_market_bribe_allocation,
+        &voter_to_tribute_voting_power_ratio_allocation,
+    );
 
-//     let voter_rewards_bribe_allocation =
-//         &calc_voter_bribe_allocation(tribute_market_bribe_allocation, &voter_rewards);
+    assert_that(&voter_rewards_bribe_allocation).is_equal_to(&vec![
+        PoolInfoItem::new(Pool::EclipAtom, "0", &[(50, "atom"), (50, "eclip")]),
+        PoolInfoItem::new(Pool::NtrnAtom, "0", &[(50, "ntrn"), (30, "atom")]),
+    ]);
 
-//     assert_that(&voter_rewards_bribe_allocation)
-//         .is_equal_to(expected_voter_rewards_bribe_allocation);
-
-//     Ok(())
-// }
+    Ok(())
+}
 
 #[test]
-fn claim_and_swap_default() -> StdResult<()> {
+fn bribes_allocation_default() -> StdResult<()> {
     let mut h = prepare_helper();
+    let ControllerHelper { xastro, .. } = &ControllerHelper::new();
 
     let eclip_atom = &h.pool(Pool::EclipAtom);
     let ntrn_atom = &h.pool(Pool::NtrnAtom);
@@ -270,6 +275,7 @@ fn claim_and_swap_default() -> StdResult<()> {
     let alice = &h.acc(Acc::Alice);
     let bob = &h.acc(Acc::Bob);
     let john = &h.acc(Acc::John);
+    let kate = &h.acc(Acc::Kate);
 
     let weights_alice = &vec![
         WeightAllocationItem::new(eclip_atom, "0.2"),
@@ -300,49 +306,192 @@ fn claim_and_swap_default() -> StdResult<()> {
     h.wait(vote_delay);
     h.voter_try_vote()?;
 
+    // check voting power and votes allocation
+    let tribute_voting_power = h.total_vp(None)?;
+    let voted_pools = h.query_voted_pools(None)?;
+
+    let block_time = 1716163200;
+    assert_that(&tribute_voting_power.u128()).is_equal_to(100_000_000);
+    assert_that(&voted_pools).is_equal_to(vec![
+        (
+            eclip_atom.to_string(),
+            VotedPoolInfo {
+                init_ts: block_time,
+                voting_power: Uint128::new(33_000_000),
+            },
+        ),
+        (
+            ntrn_atom.to_string(),
+            VotedPoolInfo {
+                init_ts: block_time,
+                voting_power: Uint128::new(30_000_000),
+            },
+        ),
+        (
+            astro_atom.to_string(),
+            VotedPoolInfo {
+                init_ts: block_time,
+                voting_power: Uint128::new(37_000_000),
+            },
+        ),
+    ]);
+
+    // vote interacting with emissions_controller directly
+    h.mint_tokens(kate, &coins(100 * INITIAL_LIQUIDITY, xastro))
+        .map_err(parse_err)?;
+    h.lock(kate, 100 * INITIAL_LIQUIDITY).map_err(parse_err)?;
+    h.vote(
+        kate,
+        &[
+            (h.pool(Pool::EclipAtom).to_string(), str_to_dec("0.5")),
+            (h.pool(Pool::AstroAtom).to_string(), str_to_dec("0.5")),
+        ],
+    )
+    .map_err(parse_err)?;
+
+    // check voting power and votes allocation
+    let kate_voting_power = h.user_vp(kate, None)?;
+    let tribute_voting_power = h.total_vp(None)?;
+    let voted_pools = h.query_voted_pools(None)?;
+
+    let block_time = 1716163200;
+    assert_that(&kate_voting_power.u128()).is_equal_to(199_009_900);
+    assert_that(&tribute_voting_power.u128()).is_equal_to(299_009_900);
+    assert_that(&voted_pools).is_equal_to(vec![
+        (
+            eclip_atom.to_string(),
+            VotedPoolInfo {
+                init_ts: block_time,
+                voting_power: Uint128::new(132_504_950),
+            },
+        ),
+        (
+            ntrn_atom.to_string(),
+            VotedPoolInfo {
+                init_ts: block_time,
+                voting_power: Uint128::new(30_000_000),
+            },
+        ),
+        (
+            astro_atom.to_string(),
+            VotedPoolInfo {
+                init_ts: block_time,
+                voting_power: Uint128::new(136_504_950),
+            },
+        ),
+    ]);
+
+    // allocate rewards
     h.wait(epoch_length - vote_delay + 1);
-    h.tribute_market_try_allocate_rewards(owner, &[h.voter_contract_address()])?;
+    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
 
-    let rewards = h.tribute_market_query_rewards(h.voter_contract_address())?;
-    println!("rewards {:#?}\n", rewards);
+    // check rewards allocation
+    let voter_rewards = h.tribute_market_query_rewards(h.voter_contract_address())?;
+    let kate_rewards = h.tribute_market_query_rewards(kate)?;
 
-    let atom = h.query_balance(&h.tribute_market_contract_address(), Denom::Atom);
-    let astro = h.query_balance(&h.tribute_market_contract_address(), Denom::Astro);
+    // tribute bribe allocation
+    // eclip-atom: 100 atom, 100 eclip
+    // ntrn-atom: 200 ntrn, 120 atom
+    // astro-atom: 100 astro
+    //
+    // voter voting power: 100_000_000
+    // kate voting power: 199_009_900
+    //
+    // voter votes allocation
+    // eclip-atom: 0.33
+    // ntrn-atom: 0.3
+    // astro-atom: 0.37
+    //
+    // kate votes allocation
+    // eclip-atom: 0.5
+    // astro-atom: 0.5
+    //
+    // user_rewards_per_denom = sum_over_pools(tribute_rewards * (user_vp * user_votes) / sum_over_users(user_vp * user_votes))
+    //
+    // voter rewards
+    // astro = 100 * (100_000_000 * 0.37) / ((100_000_000 * 0.37) + (199_009_900 * 0.5)) = 27.105244
+    // atom = 100 * (100_000_000 * 0.33) / ((100_000_000 * 0.33) + (199_009_900 * 0.5)) +
+    //        120 * (100_000_000 * 0.3) / ((100_000_000 * 0.3) + 0) = 144.904729
+    // eclip = 100 * (100_000_000 * 0.33) / ((100_000_000 * 0.33) + (199_009_900 * 0.5)) = 24.904729
+    // ntrn = 200 * (100_000_000 * 0.3) / ((100_000_000 * 0.3) + 0) = 200
+    //
+    // kate rewards
+    // astro = 100 * (199_009_900 * 0.5) / ((100_000_000 * 0.37) + (199_009_900 * 0.5)) = 72.894755
+    // atom = 100 * (199_009_900 * 0.5) / ((100_000_000 * 0.33) + (199_009_900 * 0.5)) = 75.095270
+    // eclip = 100 * (199_009_900 * 0.5) / ((100_000_000 * 0.33) + (199_009_900 * 0.5)) = 75.095270
+    assert_that(&voter_rewards).is_equal_to(vec![
+        (Uint128::new(27_105_244), Denom::Astro.to_string()),
+        (Uint128::new(144_904_729), Denom::Atom.to_string()),
+        (Uint128::new(24_904_729), Denom::Eclip.to_string()),
+        (Uint128::new(200_000_000), Denom::Ntrn.to_string()),
+    ]);
+    assert_that(&kate_rewards).is_equal_to(vec![
+        (Uint128::new(72_894_755), Denom::Astro.to_string()),
+        (Uint128::new(75_095_270), Denom::Atom.to_string()),
+        (Uint128::new(75_095_270), Denom::Eclip.to_string()),
+    ]);
 
-    println!("atom, astro {:#?}", (atom, astro));
+    let voter_rewards_from_voter = h.voter_query_rewards()?;
+    assert_that(&voter_rewards).is_equal_to(voter_rewards_from_voter);
 
-    // let rewards = h.voter_query_rewards()?;
-    // println!("rewards {:#?}\n", rewards);
+    // claim rewards
+    let voter_astro_before = h.query_balance(&h.voter_contract_address(), Denom::Astro);
+    let voter_atom_before = h.query_balance(&h.voter_contract_address(), Denom::Atom);
+    let voter_eclip_before = h.query_balance(&h.voter_contract_address(), Denom::Eclip);
+    let voter_ntrn_before = h.query_balance(&h.voter_contract_address(), Denom::Ntrn);
 
-    // let res = h.voter_try_claim()?;
-    // println!("{:#?}\n", res);
+    h.voter_try_claim()?;
 
-    // let block_time = h.get_block_time();
-    // let voter_info = h.voter_query_voter_info(None)?;
-    // let voted_pools = h.query_voted_pools(None)?;
+    let voter_astro_after = h.query_balance(&h.voter_contract_address(), Denom::Astro);
+    let voter_atom_after = h.query_balance(&h.voter_contract_address(), Denom::Atom);
+    let voter_eclip_after = h.query_balance(&h.voter_contract_address(), Denom::Eclip);
+    let voter_ntrn_after = h.query_balance(&h.voter_contract_address(), Denom::Ntrn);
 
-    // assert_that(&voter_info).is_equal_to(VoterInfoResponse {
-    //     block_time,
-    //     elector_votes: vec![],
-    //     slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 11_000),
-    //     total_votes: vec![],
-    //     vote_results: vec![VoteResults {
-    //         epoch_id: 1,
-    //         end_date: 1717372800,
-    //         // 3_000 + 0.8 * 11_000 + 7_000 + 0.2 * 11_000 = 21_000 (20_999)
-    //         essence: Uint128::new(20_999),
-    //         // ((0.2, 0.3, 0.5) * 1_000 + (0.1, 0.7, 0.2) * 2_000) * ((3_000 + 0.8 * 11_000) / 3_000) +
-    //         // (0.5, 0.3, 0.2) * (7_000 + 0.2 * 11_000) =
-    //         // ((200, 300, 500) + (200, 1_400, 400)) * (11_800 / 3_000) + (0.5, 0.3, 0.2) * 9_200 =
-    //         // (400, 1_700, 900) * 3.93 + (4_600 + 2_760 + 1_840) =
-    //         // (6_173, 9_446, 5_379) = (0.294, 0.45, 0.256)
-    //         pool_info_list: vec![
-    //             PoolInfoItem::new(eclip_atom, "0.293966379351397685", 0),
-    //             PoolInfoItem::new(ntrn_atom, "0.449830944330682413", 0),
-    //             PoolInfoItem::new(astro_atom, "0.2562026763179199", 0),
-    //         ],
-    //     }],
-    // });
+    assert_that(&(voter_astro_after - voter_astro_before)).is_equal_to(27_105_244);
+    assert_that(&(voter_atom_after - voter_atom_before)).is_equal_to(144_904_729);
+    assert_that(&(voter_eclip_after - voter_eclip_before)).is_equal_to(24_904_729);
+    assert_that(&(voter_ntrn_after - voter_ntrn_before)).is_equal_to(200_000_000);
+
+    // check vote results
+    let block_time = h.get_block_time();
+    let voter_info = h.voter_query_voter_info(None)?;
+
+    assert_that(&voter_info).is_equal_to(VoterInfoResponse {
+        block_time,
+        elector_votes: vec![],
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 3_000),
+        total_votes: vec![],
+        vote_results: vec![VoteResults {
+            epoch_id: 1,
+            end_date: 1717372800,
+            essence: Uint128::new(6_000),
+            dao_essence: Uint128::new(2_600),
+            dao_eclip_rewards: Uint128::new(0),
+            pool_info_list: vec![
+                PoolInfoItem::new(
+                    eclip_atom,
+                    "0.33",
+                    &[
+                        (24_904_729, &Denom::Eclip.to_string()),
+                        (24_904_729, &Denom::Atom.to_string()),
+                    ],
+                ),
+                PoolInfoItem::new(
+                    ntrn_atom,
+                    "0.3",
+                    &[
+                        (200_000_000, &Denom::Ntrn.to_string()),
+                        (120_000_000, &Denom::Atom.to_string()),
+                    ],
+                ),
+                PoolInfoItem::new(
+                    astro_atom,
+                    "0.37",
+                    &[(27_105_244, &Denom::Astro.to_string())],
+                ),
+            ],
+        }],
+    });
 
     Ok(())
 }

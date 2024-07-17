@@ -831,7 +831,6 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let block_time = env.block.time.seconds();
     let epoch = EPOCH_COUNTER.load(deps.storage)?;
     let AddressConfig {
-        astroport_router,
         astroport_tribute_market,
         astroport_emission_controller,
         astroport_voting_escrow,
@@ -848,7 +847,7 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     // check rewards
     let rewards = deps
         .querier
-        .query_wasm_smart::<Vec<(String, Uint128)>>(
+        .query_wasm_smart::<Vec<(Uint128, String)>>(
             astroport_tribute_market,
             &tribute_market_mocks::msg::QueryMsg::Rewards {
                 user: env.contract.address.to_string(),
