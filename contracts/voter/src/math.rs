@@ -153,56 +153,51 @@ pub fn calc_pool_info_list_with_rewards(
         .collect()
 }
 
+/// pool_info_list_with_voter_rewards -> (pool_info_list_with_elector_rewards, dao_rewards)                                     \
 /// dao_rewards_per_denom = sum_over_pools(voter_rewards * (dao_essence * dao_weight) / (voter_essence * voter_weight))
-pub fn calc_dao_rewards(
+pub fn split_rewards(
     pool_info_list: &[PoolInfoItem],
     dao_weight_list: &[WeightAllocationItem],
     elector_essence: Uint128,
     dao_essence: Uint128,
-) -> Vec<(Uint128, String)> {
-    if dao_essence.is_zero() || elector_essence.is_zero() {
-        return vec![];
-    }
-
-    // scale rewards
+) -> (Vec<PoolInfoItem>, Vec<(Uint128, String)>) {
+    // scale and split rewards
     let essence_ratio = u128_to_dec(dao_essence) / u128_to_dec(elector_essence + dao_essence);
-    let rewards_raw: Vec<(Uint128, String)> = pool_info_list
-        .into_iter()
-        .map(
-            |PoolInfoItem {
-                 lp_token,
-                 weight,
-                 rewards,
-             }| {
-                let dao_weight = dao_weight_list
-                    .iter()
-                    .find(|x| &x.lp_token == lp_token)
-                    .unwrap_or(&WeightAllocationItem {
-                        lp_token: String::default(),
-                        weight: Decimal::zero(),
-                    })
-                    .weight;
+    let mut dao_rewards_raw: Vec<(Uint128, String)> = vec![];
 
-                if dao_weight.is_zero() || weight.is_zero() {
-                    return vec![];
-                }
+    let pool_info_list_new: Vec<PoolInfoItem> = pool_info_list
+        .iter()
+        .cloned()
+        .map(|mut pool_info_item| {
+            let dao_weight = dao_weight_list
+                .iter()
+                .find(|x| x.lp_token == pool_info_item.lp_token)
+                .unwrap_or(&WeightAllocationItem {
+                    lp_token: String::default(),
+                    weight: Decimal::zero(),
+                })
+                .weight;
 
-                let rewards_ratio = essence_ratio * dao_weight / weight;
+            let rewards_ratio = essence_ratio * dao_weight / pool_info_item.weight;
 
-                rewards
-                    .iter()
-                    .cloned()
-                    .map(|(amount, denom)| {
-                        ((u128_to_dec(amount) * rewards_ratio).to_uint_floor(), denom)
-                    })
-                    .collect()
-            },
-        )
-        .flatten()
+            pool_info_item.rewards = pool_info_item
+                .rewards
+                .iter()
+                .cloned()
+                .map(|(amount, denom)| {
+                    let dao_amount = (u128_to_dec(amount) * rewards_ratio).to_uint_floor();
+                    dao_rewards_raw.push((dao_amount, denom.clone()));
+
+                    (amount - dao_amount, denom)
+                })
+                .collect();
+
+            pool_info_item
+        })
         .collect();
 
     // get unique denom list
-    let mut denom_list: Vec<String> = rewards_raw
+    let mut denom_list: Vec<String> = dao_rewards_raw
         .iter()
         .map(|(_, denom)| denom.to_owned())
         .collect();
@@ -210,11 +205,11 @@ pub fn calc_dao_rewards(
     denom_list.dedup();
 
     // aggregate rewards by denom
-    denom_list
+    let dao_rewards: Vec<(Uint128, String)> = denom_list
         .iter()
         .map(|denom| {
             let amount =
-                rewards_raw
+                dao_rewards_raw
                     .iter()
                     .fold(Uint128::zero(), |acc, (cur_amount, cur_denom)| {
                         if cur_denom != denom {
@@ -226,7 +221,9 @@ pub fn calc_dao_rewards(
 
             (amount, denom.to_owned())
         })
-        .collect()
+        .collect();
+
+    (pool_info_list_new, dao_rewards)
 }
 
-// TODO: calc_elector_rewards, calc_delegator_rewards,  split_rewards
+// TODO: calc_elector_rewards, calc_delegator_rewards

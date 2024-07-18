@@ -32,7 +32,7 @@ use crate::{
     helpers::{get_route, try_unlock, try_unlock_and_check, verify_weight_allocation},
     math::{
         calc_essence_allocation, calc_pool_info_list_with_rewards, calc_scaled_essence_allocation,
-        calc_updated_essence_allocation, calc_weights_from_essence_allocation,
+        calc_updated_essence_allocation, calc_weights_from_essence_allocation, split_rewards,
     },
 };
 
@@ -167,6 +167,7 @@ pub fn try_update_token_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
+    eclip: Option<String>,
     astro: Option<String>,
     xastro: Option<String>,
     eclip_astro: Option<String>,
@@ -176,6 +177,10 @@ pub fn try_update_token_config(
 
     if info.sender != admin {
         Err(ContractError::Unauthorized)?;
+    }
+
+    if let Some(x) = eclip {
+        config.eclip = x;
     }
 
     if let Some(x) = astro {
@@ -843,9 +848,7 @@ pub fn try_vote(
         .add_attribute("action", "try_vote"))
 }
 
-// TODO: as tx is heavy to call by staking and users may not place vote a lot of time
-// try to trigger it by x/cron
-// TODO: maybe split claim and swap as tx is still heavy, add state machine
+// TODO: split claim and swap as tx is still heavy, add state machine
 pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let block_time = env.block.time.seconds();
     let epoch = EPOCH_COUNTER.load(deps.storage)?;
@@ -989,64 +992,75 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         .add_attribute("action", "try_claim"))
 }
 
-pub fn try_swap(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+pub fn try_swap(deps: DepsMut, _env: Env) -> Result<Response, ContractError> {
     let mut response = Response::new().add_attribute("action", "try_swap");
 
-    let block_time = env.block.time.seconds();
     let epoch = EPOCH_COUNTER.load(deps.storage)?;
     let rewards_claim_stage = REWARDS_CLAIM_STAGE.load(deps.storage)?;
+    let TokenConfig { eclip, .. } = TOKEN_CONFIG.load(deps.storage)?;
     let AddressConfig {
-        astroport_router,
-        astroport_tribute_market,
-        astroport_emission_controller,
-        astroport_voting_escrow,
-        ..
+        astroport_router, ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
-    let astroport_tribute_market =
-        &unwrap_field(astroport_tribute_market, "astroport_tribute_market")?;
 
     // only claimed -> swapped transition is allowed
     if !matches!(rewards_claim_stage, RewardsClaimStage::Claimed) {
         Err(ContractError::WrongRewardsClaimStage)?;
     }
 
-    // TODO: query bribes allocation and write elector rewards in vote results
-
-    // only dao related rewards must be exchanged to eclip
-    let vote_results = VOTE_RESULTS.load(deps.storage)?;
+    // write elector rewards in vote results
+    let mut vote_results = VOTE_RESULTS.load(deps.storage)?;
     let vote_results_last = vote_results.last().ok_or(ContractError::Unauthorized)?;
-    // let dao_fraction =
-    //     u128_to_dec(vote_results_last.dao_essence) / u128_to_dec(vote_results_last.essence);
 
-    // // swap rewards
-    // let mut swap_rewards_reply_cnt = SWAP_REWARDS_REPLY_ID_CNT.load(deps.storage)?;
+    let (pool_info_list_with_elector_rewards, dao_rewards) = split_rewards(
+        &vote_results_last.pool_info_list,
+        &vote_results_last.dao_weights,
+        vote_results_last.elector_essence,
+        vote_results_last.dao_essence,
+    );
 
-    // for (denom_in, amount_in) in rewards {
-    //     let dao_amount = (u128_to_dec(amount_in) * dao_fraction).to_uint_floor();
-    //     let elector_amount = amount_in - dao_amount;
+    vote_results = vote_results
+        .into_iter()
+        .map(|mut x| {
+            if x.epoch_id + 1 == epoch.id {
+                x.pool_info_list = pool_info_list_with_elector_rewards.clone();
+            }
 
-    //     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-    //         contract_addr: astroport_router.to_string(),
-    //         msg: to_json_binary(&astroport::router::ExecuteMsg::ExecuteSwapOperations {
-    //             operations: get_route(deps.storage, &denom_in)?,
-    //             minimum_receive: None,
-    //             to: None,
-    //             max_spread: None,
-    //         })?,
-    //         funds: coins(dao_amount.u128(), &denom_in),
-    //     });
+            x
+        })
+        .collect();
+    VOTE_RESULTS.save(deps.storage, &vote_results)?;
 
-    //     // use reply id with counter to process eclip rewards on last swap
-    //     let swap_rewards_reply_id = SWAP_REWARDS_REPLY_ID_MIN + swap_rewards_reply_cnt as u64;
-    //     let submsg = SubMsg::reply_on_success(msg, swap_rewards_reply_id);
-    //     response = response.add_submessage(submsg);
+    // swap dao rewards to eclip
+    let mut swap_rewards_reply_cnt = SWAP_REWARDS_REPLY_ID_CNT.load(deps.storage)?;
 
-    //     swap_rewards_reply_cnt = swap_rewards_reply_cnt
-    //         .checked_add(1)
-    //         .ok_or(ContractError::ReplyIdCounterOverflow)?;
-    // }
+    for (amount_in, denom_in) in dao_rewards {
+        if denom_in == eclip {
+            TEMPORARY_REWARDS.save(deps.storage, &amount_in)?;
+            continue;
+        }
 
-    // SWAP_REWARDS_REPLY_ID_CNT.save(deps.storage, &swap_rewards_reply_cnt)?;
+        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: astroport_router.to_string(),
+            msg: to_json_binary(&astroport::router::ExecuteMsg::ExecuteSwapOperations {
+                operations: get_route(deps.storage, &denom_in)?,
+                minimum_receive: None,
+                to: None,
+                max_spread: None,
+            })?,
+            funds: coins(amount_in.u128(), &denom_in),
+        });
+
+        // use reply id with counter to process eclip rewards on last swap
+        let swap_rewards_reply_id = SWAP_REWARDS_REPLY_ID_MIN + swap_rewards_reply_cnt as u64;
+        let submsg = SubMsg::reply_on_success(msg, swap_rewards_reply_id);
+        response = response.add_submessage(submsg);
+
+        swap_rewards_reply_cnt = swap_rewards_reply_cnt
+            .checked_add(1)
+            .ok_or(ContractError::ReplyIdCounterOverflow)?;
+    }
+
+    SWAP_REWARDS_REPLY_ID_CNT.save(deps.storage, &swap_rewards_reply_cnt)?;
 
     Ok(response)
 }
@@ -1100,25 +1114,9 @@ pub fn handle_swap_reply(
         let vote_results = x
             .into_iter()
             .map(|mut y| {
-                if y.epoch_id + 1 != epoch.id {
-                    return y;
+                if y.epoch_id + 1 == epoch.id {
+                    y.dao_eclip_rewards = temporary_rewards;
                 }
-
-                // update dao eclip rewards
-                y.dao_eclip_rewards = temporary_rewards;
-
-                y.pool_info_list = y
-                    .pool_info_list
-                    .into_iter()
-                    .map(|mut z| {
-                        if z.lp_token != "eclip_lp" {
-                            return z;
-                        }
-
-                        z.rewards = vec![(temporary_rewards, "eclip".to_string())];
-                        z
-                    })
-                    .collect();
 
                 y
             })

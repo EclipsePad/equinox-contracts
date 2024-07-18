@@ -81,6 +81,7 @@ pub fn try_instantiate(
     TOKEN_CONFIG.save(
         deps.storage,
         &TokenConfig {
+            eclip: msg.eclip,
             astro: msg.astro,
             xastro: msg.xastro,
             eclip_astro: msg.eclip_astro,

@@ -253,6 +253,8 @@ pub struct AddressConfig {
 
 #[cw_serde]
 pub struct TokenConfig {
+    /// ECLIP denom
+    pub eclip: String,
     /// ASTRO denom
     pub astro: String,
     /// xASTRO denom

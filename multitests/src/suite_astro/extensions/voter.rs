@@ -38,6 +38,7 @@ pub trait VoterExtension {
         astroport_router: &Addr,
         astroport_tribute_market: Option<String>,
 
+        eclip: &str,
         astro: &str,
         xastro: &str,
         eclip_astro: &str,
@@ -70,6 +71,7 @@ pub trait VoterExtension {
     fn voter_try_update_token_config(
         &mut self,
         sender: impl ToString,
+        eclip: Option<&str>,
         astro: Option<&str>,
         xastro: Option<&str>,
         eclip_astro: Option<&str>,
@@ -220,6 +222,7 @@ impl VoterExtension for ControllerHelper {
         astroport_router: &Addr,
         astroport_tribute_market: Option<String>,
 
+        eclip: &str,
         astro: &str,
         xastro: &str,
         eclip_astro: &str,
@@ -260,6 +263,7 @@ impl VoterExtension for ControllerHelper {
                     astroport_router: astroport_router.to_string(),
                     astroport_tribute_market,
 
+                    eclip: eclip.to_string(),
                     astro: astro.to_string(),
                     xastro: xastro.to_string(),
                     eclip_astro: eclip_astro.to_string(),
@@ -338,6 +342,7 @@ impl VoterExtension for ControllerHelper {
     fn voter_try_update_token_config(
         &mut self,
         sender: impl ToString,
+        eclip: Option<&str>,
         astro: Option<&str>,
         xastro: Option<&str>,
         eclip_astro: Option<&str>,
@@ -347,6 +352,7 @@ impl VoterExtension for ControllerHelper {
                 Addr::unchecked(sender.to_string()),
                 self.voter_contract_address(),
                 &ExecuteMsg::UpdateTokenConfig {
+                    eclip: eclip.map(|x| x.to_string()),
                     astro: astro.map(|x| x.to_string()),
                     xastro: xastro.map(|x| x.to_string()),
                     eclip_astro: eclip_astro.map(|x| x.to_string()),

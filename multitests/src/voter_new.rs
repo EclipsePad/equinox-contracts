@@ -78,6 +78,7 @@ fn prepare_helper() -> ControllerHelper {
         &h.emission_controller.clone(),
         &h.astroport_router_contract_address(),
         Some(h.tribute_market_contract_address().to_string()),
+        &Denom::Eclip.to_string(),
         &h.astro.clone(),
         &h.xastro.clone(),
         &Denom::EclipAstro.to_string(),
@@ -158,6 +159,8 @@ fn prepare_helper() -> ControllerHelper {
     .unwrap();
 
     for pool in [Pool::EclipAtom, Pool::NtrnAtom, Pool::AstroAtom] {
+        const POOL_LIQUIDITY: u128 = 100_000_000_000_000_000_000;
+
         // create pair
         let (denom_a, denom_b) = &pool.get_pair();
         let pair_info = h.create_pair(denom_a, denom_b);
@@ -168,9 +171,9 @@ fn prepare_helper() -> ControllerHelper {
         h.whitelist(owner, pair, &coins(1_000_000, astro)).unwrap();
 
         // provide liquidity
-        h.mint_tokens(owner, &coins(100_000 * INITIAL_LIQUIDITY, denom_a))
+        h.mint_tokens(owner, &coins(POOL_LIQUIDITY, denom_a))
             .unwrap();
-        h.mint_tokens(owner, &coins(100_000 * INITIAL_LIQUIDITY, denom_b))
+        h.mint_tokens(owner, &coins(POOL_LIQUIDITY, denom_b))
             .unwrap();
 
         h.provide_liquidity(
@@ -178,7 +181,7 @@ fn prepare_helper() -> ControllerHelper {
             pair_info.contract_addr,
             denom_a,
             denom_b,
-            100_000 * INITIAL_LIQUIDITY,
+            POOL_LIQUIDITY,
         )
         .unwrap();
     }
@@ -502,6 +505,66 @@ fn bribes_allocation_default() -> StdResult<()> {
         }],
     });
 
+    // swap dao rewards to eclip
+    h.voter_try_swap()?;
+
+    // check vote results
+    let block_time = h.get_block_time();
+    let voter_info = h.voter_query_voter_info(None)?;
+
+    assert_that(&voter_info).is_equal_to(VoterInfoResponse {
+        block_time,
+        elector_votes: vec![],
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 3_000),
+        total_votes: vec![],
+        vote_results: vec![VoteResults {
+            epoch_id: 1,
+            end_date: 1717372800,
+            elector_essence: Uint128::new(3_400),
+            dao_essence: Uint128::new(2_600),
+            elector_weights: weights_alice.to_owned(),
+            dao_weights: weights_dao.to_owned(),
+            // dao_eclip_rewards = sum_over_denoms(dao_rewards_per_denom)
+            // dao_rewards_per_denom = sum_over_pools(voter_rewards * (dao_essence * dao_weight) / (voter_essence * voter_weight))
+            //
+            // 16_351_589 + 16_351_589 + 86_666_666 + 52_000_000 + 6_348_976 = 177_718_820
+            dao_eclip_rewards: Uint128::new(177_718_814),
+            // dao_rewards_per_denom = sum_over_pools(voter_rewards * (dao_essence * dao_weight) / (voter_essence * voter_weight))
+            // elector_rewards_per_denom = rewards_per_denom - dao_rewards_per_denom
+            //
+            // eclip_in_eclip_atom = 24_904_729 - 24_904_729 * (2_600 * 0.5) / (6_000 * 0.33) = 24_904_729 - 16_351_589 = 8_553_140
+            // atom_in_eclip_atom = 24_904_729 - 24_904_729 * (2_600 * 0.5) / (6_000 * 0.33) = 24_904_729 - 16_351_589 = 8_553_140
+            //
+            // ntrn_in_ntrn_atom = 200_000_000 - 200_000_000 * (2_600 * 0.3) / (6_000 * 0.3) = 200_000_000 - 86_666_666 = 113_333_334
+            // atom_in_ntrn_atom = 120_000_000 - 120_000_000 * (2_600 * 0.3) / (6_000 * 0.3) = 120_000_000 - 52_000_000 = 68_000_000
+            //
+            // astro_in_astro_atom = 27_105_244 - 27_105_244 * (2_600 * 0.2) / (6_000 * 0.37) = 27_105_244 - 6_348_976 = 20_756_268
+            pool_info_list: vec![
+                PoolInfoItem::new(
+                    eclip_atom,
+                    "0.33",
+                    &[
+                        (8_553_140, &Denom::Eclip.to_string()),
+                        (8_553_140, &Denom::Atom.to_string()),
+                    ],
+                ),
+                PoolInfoItem::new(
+                    ntrn_atom,
+                    "0.3",
+                    &[
+                        (113_333_334, &Denom::Ntrn.to_string()),
+                        (68_000_001, &Denom::Atom.to_string()),
+                    ],
+                ),
+                PoolInfoItem::new(
+                    astro_atom,
+                    "0.37",
+                    &[(20_756_268, &Denom::Astro.to_string())],
+                ),
+            ],
+        }],
+    });
+
     Ok(())
 }
 
@@ -592,77 +655,6 @@ fn router_batch_swap() -> StdResult<()> {
 
     Ok(())
 }
-
-// #[test]
-// fn router_batch_swap() -> StdResult<()> {
-//     let mut h = prepare_helper();
-//     let alice = &h.acc(Acc::Alice);
-
-//     // mint tokens
-//     for denom in [Denom::Ntrn, Denom::Atom] {
-//         h.mint_tokens(alice, &coins(1_000, denom.to_string()))
-//             .unwrap();
-//     }
-
-//     // check balances
-//     let alice_ntrn_balance_before = h.query_balance(alice, Denom::Ntrn);
-//     let alice_astro_balance_before = h.query_balance(alice, Denom::Astro);
-//     let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
-//     let alice_eclip_balance_before = h.query_balance(alice, Denom::Eclip);
-
-//     assert_that(&alice_ntrn_balance_before).is_equal_to(1_000);
-//     assert_that(&alice_astro_balance_before).is_equal_to(100_000);
-//     assert_that(&alice_atom_balance_before).is_equal_to(1_000);
-//     assert_that(&alice_eclip_balance_before).is_equal_to(100_000);
-
-//     // try to swap [600 NTRN, 500 ASTRO, 400 ATOM] -> 1_500 ECLIP using [NTRN-ATOM, ASTRO-ATOM, ATOM-ECLIP] route
-//     // 600 NTRN -> 600 ATOM
-//     // 500 ASTRO -> 500 ATOM
-//     // (600 + 500 + 400) ATOM -> 1_500 ECLIP
-//     h.astroport_router_try_execute_batch_swap(
-//         alice,
-//         &vec![
-//             SwapOperation::AstroSwap {
-//                 offer_asset_info: AssetInfo::NativeToken {
-//                     denom: Denom::Ntrn.to_string(),
-//                 },
-//                 ask_asset_info: AssetInfo::NativeToken {
-//                     denom: Denom::Atom.to_string(),
-//                 },
-//             },
-//             SwapOperation::AstroSwap {
-//                 offer_asset_info: AssetInfo::NativeToken {
-//                     denom: Denom::Astro.to_string(),
-//                 },
-//                 ask_asset_info: AssetInfo::NativeToken {
-//                     denom: Denom::Atom.to_string(),
-//                 },
-//             },
-//             SwapOperation::AstroSwap {
-//                 offer_asset_info: AssetInfo::NativeToken {
-//                     denom: Denom::Atom.to_string(),
-//                 },
-//                 ask_asset_info: AssetInfo::NativeToken {
-//                     denom: Denom::Eclip.to_string(),
-//                 },
-//             },
-//         ],
-//         &vec![(600, Denom::Ntrn), (500, Denom::Astro), (400, Denom::Atom)],
-//     )?;
-
-//     // check balances
-//     let alice_ntrn_balance_after = h.query_balance(alice, Denom::Ntrn);
-//     let alice_astro_balance_after = h.query_balance(alice, Denom::Astro);
-//     let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
-//     let alice_eclip_balance_after = h.query_balance(alice, Denom::Eclip);
-
-//     assert_that(&alice_ntrn_balance_after).is_equal_to(400);
-//     assert_that(&alice_astro_balance_after).is_equal_to(99_500);
-//     assert_that(&alice_atom_balance_after).is_equal_to(600);
-//     assert_that(&alice_eclip_balance_after).is_equal_to(101_497);
-
-//     Ok(())
-// }
 
 #[test]
 fn swap_to_eclip_astro_default() -> StdResult<()> {

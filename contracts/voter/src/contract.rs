@@ -69,10 +69,11 @@ pub fn execute(
         ),
 
         ExecuteMsg::UpdateTokenConfig {
+            eclip,
             astro,
             xastro,
             eclip_astro,
-        } => e::try_update_token_config(deps, env, info, astro, xastro, eclip_astro),
+        } => e::try_update_token_config(deps, env, info, eclip, astro, xastro, eclip_astro),
 
         ExecuteMsg::UpdateDateConfig {
             genesis_epoch_start_date,

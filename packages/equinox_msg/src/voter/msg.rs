@@ -39,6 +39,8 @@ pub struct InstantiateMsg {
     /// to get bribes for voting
     pub astroport_tribute_market: Option<String>,
 
+    /// ECLIP denom
+    pub eclip: String,
     /// ASTRO denom
     pub astro: String,
     /// xASTRO denom
@@ -103,6 +105,8 @@ pub enum ExecuteMsg {
 
     /// update token related config
     UpdateTokenConfig {
+        /// ECLIP denom
+        eclip: Option<String>,
         /// ASTRO denom
         astro: Option<String>,
         /// xASTRO denom
