@@ -5,10 +5,14 @@ use equinox_msg::voter::{
     msg::InstantiateMsg,
     state::{
         ADDRESS_CONFIG, CONTRACT_NAME, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, ELECTOR_VOTES,
-        EPOCH_COUNTER, IS_LOCKED, SLACKER_ESSENCE_ACC, SWAP_REWARDS_REPLY_ID_CNT,
-        TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_VOTES, TRANSFER_ADMIN_STATE, VOTE_RESULTS,
+        EPOCH_COUNTER, IS_LOCKED, REWARDS_CLAIM_STAGE, SLACKER_ESSENCE_ACC,
+        SWAP_REWARDS_REPLY_ID_CNT, TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_VOTES,
+        TRANSFER_ADMIN_STATE, VOTE_RESULTS,
     },
-    types::{AddressConfig, DateConfig, EpochInfo, EssenceInfo, TokenConfig, TransferAdminState},
+    types::{
+        AddressConfig, DateConfig, EpochInfo, EssenceInfo, RewardsClaimStage, TokenConfig,
+        TransferAdminState,
+    },
 };
 
 use crate::error::ContractError;
@@ -33,6 +37,8 @@ pub fn try_instantiate(
             deadline: block_time,
         },
     )?;
+
+    REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::default())?;
 
     ADDRESS_CONFIG.save(
         deps.storage,

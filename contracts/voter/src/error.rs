@@ -39,6 +39,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("Wrong rewards claim stage")]
+    WrongRewardsClaimStage,
+
     #[error("Unequal pools")]
     UnequalPools,
 

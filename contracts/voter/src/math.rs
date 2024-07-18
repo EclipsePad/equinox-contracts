@@ -153,4 +153,80 @@ pub fn calc_pool_info_list_with_rewards(
         .collect()
 }
 
-// TODO: calc_elector_rewards, calc_delegator_rewards, calc_dao_rewards, split_rewards
+/// dao_rewards_per_denom = sum_over_pools(voter_rewards * (dao_essence * dao_weight) / (voter_essence * voter_weight))
+pub fn calc_dao_rewards(
+    pool_info_list: &[PoolInfoItem],
+    dao_weight_list: &[WeightAllocationItem],
+    elector_essence: Uint128,
+    dao_essence: Uint128,
+) -> Vec<(Uint128, String)> {
+    if dao_essence.is_zero() || elector_essence.is_zero() {
+        return vec![];
+    }
+
+    // scale rewards
+    let essence_ratio = u128_to_dec(dao_essence) / u128_to_dec(elector_essence + dao_essence);
+    let rewards_raw: Vec<(Uint128, String)> = pool_info_list
+        .into_iter()
+        .map(
+            |PoolInfoItem {
+                 lp_token,
+                 weight,
+                 rewards,
+             }| {
+                let dao_weight = dao_weight_list
+                    .iter()
+                    .find(|x| &x.lp_token == lp_token)
+                    .unwrap_or(&WeightAllocationItem {
+                        lp_token: String::default(),
+                        weight: Decimal::zero(),
+                    })
+                    .weight;
+
+                if dao_weight.is_zero() || weight.is_zero() {
+                    return vec![];
+                }
+
+                let rewards_ratio = essence_ratio * dao_weight / weight;
+
+                rewards
+                    .iter()
+                    .cloned()
+                    .map(|(amount, denom)| {
+                        ((u128_to_dec(amount) * rewards_ratio).to_uint_floor(), denom)
+                    })
+                    .collect()
+            },
+        )
+        .flatten()
+        .collect();
+
+    // get unique denom list
+    let mut denom_list: Vec<String> = rewards_raw
+        .iter()
+        .map(|(_, denom)| denom.to_owned())
+        .collect();
+    denom_list.sort_unstable();
+    denom_list.dedup();
+
+    // aggregate rewards by denom
+    denom_list
+        .iter()
+        .map(|denom| {
+            let amount =
+                rewards_raw
+                    .iter()
+                    .fold(Uint128::zero(), |acc, (cur_amount, cur_denom)| {
+                        if cur_denom != denom {
+                            acc
+                        } else {
+                            acc + cur_amount
+                        }
+                    });
+
+            (amount, denom.to_owned())
+        })
+        .collect()
+}
+
+// TODO: calc_elector_rewards, calc_delegator_rewards,  split_rewards

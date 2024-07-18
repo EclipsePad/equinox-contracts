@@ -471,8 +471,10 @@ fn bribes_allocation_default() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            essence: Uint128::new(6_000),
+            elector_essence: Uint128::new(3_400),
             dao_essence: Uint128::new(2_600),
+            elector_weights: weights_alice.to_owned(),
+            dao_weights: weights_dao.to_owned(),
             dao_eclip_rewards: Uint128::new(0),
             pool_info_list: vec![
                 PoolInfoItem::new(
@@ -1166,9 +1168,16 @@ fn electors_delegators_slackers_dao_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            // 3_000 + 0.8 * 11_000 + 7_000 + 0.2 * 11_000 = 21_000 (20_999)
-            essence: Uint128::new(20_999),
+            // 3_000 + 0.8 * 11_000
+            elector_essence: Uint128::new(11_799),
+            // 7_000 + 0.2 * 11_000
             dao_essence: Uint128::new(9_200),
+            elector_weights: vec![
+                WeightAllocationItem::new(eclip_atom, "0.133333333333333333"),
+                WeightAllocationItem::new(ntrn_atom, "0.566666666666666666"),
+                WeightAllocationItem::new(astro_atom, "0.3"),
+            ],
+            dao_weights: weights_dao.to_owned(),
             dao_eclip_rewards: Uint128::new(0),
             // ((0.2, 0.3, 0.5) * 1_000 + (0.1, 0.7, 0.2) * 2_000) * ((3_000 + 0.8 * 11_000) / 3_000) +
             // (0.5, 0.3, 0.2) * (7_000 + 0.2 * 11_000) =
@@ -1261,9 +1270,12 @@ fn electors_slackers_dao_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            // 1_000 + 0.8 * 5_000 + 0.2 * 5_000 = 6_000
-            essence: Uint128::new(6_000),
+            // 1_000 + 0.8 * 5_000
+            elector_essence: Uint128::new(5_000),
+            // 0.2 * 5_000
             dao_essence: Uint128::new(1_000),
+            elector_weights: weights_alice.to_owned(),
+            dao_weights: weights_dao.to_owned(),
             dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 5_000) + (0.5, 0.3, 0.2) * (0.2 * 5_000) =
             // (1_000, 1_500, 2_500) + (500, 300, 200) = (1_500, 1_800, 2_700) = (0.25, 0.3, 0.45)
@@ -1322,9 +1334,11 @@ fn delegators_slackers_dao_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
+            elector_essence: Uint128::new(0),
             // 2_000 + 0.2 * 4_000 = 2_800
-            essence: Uint128::new(2_800),
             dao_essence: Uint128::new(2_800),
+            elector_weights: vec![],
+            dao_weights: weights_dao.to_owned(),
             dao_eclip_rewards: Uint128::new(0),
             // (0.5, 0.3, 0.2) * (2_000 + 0.2 * 4_000) =
             // (1_400, 740, 560) = (0.5, 0.3, 0.2)
@@ -1390,9 +1404,10 @@ fn electors_delegators_dao_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            // 1_000 + 5_000 = 6_000
-            essence: Uint128::new(6_000),
+            elector_essence: Uint128::new(1_000),
             dao_essence: Uint128::new(5_000),
+            elector_weights: weights_alice.to_owned(),
+            dao_weights: weights_dao.to_owned(),
             dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * 1_000 + (0.5, 0.3, 0.2) * 5_000 =
             // (200, 300, 500) + (2_500, 1_500, 1_000) = (2_700, 1_800, 1_500) = (0.45, 0.3, 0.25)
@@ -1450,9 +1465,11 @@ fn slackers_dao_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
+            elector_essence: Uint128::new(0),
             // 0.2 * 6_000 = 1_200
-            essence: Uint128::new(1_200),
             dao_essence: Uint128::new(1_200),
+            elector_weights: vec![],
+            dao_weights: weights_dao.to_owned(),
             dao_eclip_rewards: Uint128::new(0),
             // (0.5, 0.3, 0.2) * 1_200 = (600, 360, 240) = (0.5, 0.3, 0.2)
             pool_info_list: vec![
@@ -1515,9 +1532,10 @@ fn electors_dao_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            // 6_000
-            essence: Uint128::new(6_000),
+            elector_essence: Uint128::new(6_000),
             dao_essence: Uint128::new(0),
+            elector_weights: weights_alice.to_owned(),
+            dao_weights: weights_dao.to_owned(),
             dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * 6_000 = (0.2, 0.3, 0.5)
             pool_info_list: vec![
@@ -1575,9 +1593,10 @@ fn delegators_dao_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            // 6_000
-            essence: Uint128::new(6_000),
+            elector_essence: Uint128::new(0),
             dao_essence: Uint128::new(6_000),
+            elector_weights: vec![],
+            dao_weights: weights_dao.to_owned(),
             dao_eclip_rewards: Uint128::new(0),
             // (0.5, 0.3, 0.2) * 6_000 = (0.5, 0.3, 0.2)
             pool_info_list: vec![
@@ -1632,9 +1651,10 @@ fn electors_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            // 6_000
-            essence: Uint128::new(6_000),
+            elector_essence: Uint128::new(6_000),
             dao_essence: Uint128::new(0),
+            elector_weights: weights_alice.to_owned(),
+            dao_weights: vec![],
             dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * 6_000 = (0.2, 0.3, 0.5)
             pool_info_list: vec![
@@ -1678,8 +1698,10 @@ fn delegators_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            essence: Uint128::new(0),
+            elector_essence: Uint128::new(0),
             dao_essence: Uint128::new(6_000),
+            elector_weights: vec![],
+            dao_weights: vec![],
             dao_eclip_rewards: Uint128::new(0),
             pool_info_list: vec![],
         }],
@@ -1717,8 +1739,10 @@ fn slackers_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            essence: Uint128::new(0),
+            elector_essence: Uint128::new(0),
             dao_essence: Uint128::new(1_200),
+            elector_weights: vec![],
+            dao_weights: vec![],
             dao_eclip_rewards: Uint128::new(0),
             pool_info_list: vec![],
         }],
@@ -1785,9 +1809,12 @@ fn change_vote_after_dao_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            // 1_000 + 0.8 * 3_000 + 2_000 + 0.2 * 3_000 = 6_000
-            essence: Uint128::new(6_000),
+            // 1_000 + 0.8 * 3_000
+            elector_essence: Uint128::new(3_400),
+            // 2_000 + 0.2 * 3_000
             dao_essence: Uint128::new(2_600),
+            elector_weights: weights_alice_after.to_owned(),
+            dao_weights: weights_dao.to_owned(),
             dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 3_000) + (0.5, 0.3, 0.2) * (2_000 + 0.2 * 3_000) =
             // (680, 1_020, 1_700) + (1_300, 780, 520) = (1_980, 1_800, 2_220) = (0.33, 0.3, 0.37)
@@ -1934,8 +1961,10 @@ fn electors_and_slackers_can_delegate() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            essence: Uint128::new(6_000),
+            elector_essence: Uint128::new(0),
             dao_essence: Uint128::new(6_000),
+            elector_weights: vec![],
+            dao_weights: weights_dao.to_owned(),
             dao_eclip_rewards: Uint128::new(0),
             pool_info_list: vec![
                 PoolInfoItem::new(eclip_atom, "0.5", &[]),
@@ -2081,9 +2110,12 @@ fn undelegate_default() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            // 1_000 + 0.8 * 5_000 + 0.2 * 5_000 = 6_000
-            essence: Uint128::new(6_000),
+            // 1_000 + 0.8 * 5_000
+            elector_essence: Uint128::new(5_000),
+            // 0.2 * 5_000
             dao_essence: Uint128::new(1_000),
+            elector_weights: weights_alice.to_owned(),
+            dao_weights: weights_dao.to_owned(),
             dao_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 5_000) + (0.5, 0.3, 0.2) * 0.2 * 5_000 =
             // (1_000, 1_500, 2_500) + (500, 300, 200) = (1_500, 1_800, 2_700) = (0.25, 0.3, 0.45)
@@ -2240,3 +2272,5 @@ fn undelegate_default() -> StdResult<()> {
 // delegate-undelegate loop - rewards, weights, essence
 // vote-delegate-undelegate loop - rewards, weights, essence
 // changing settings before next epoch
+// rotating claim stage
+// user claim on wrong stage

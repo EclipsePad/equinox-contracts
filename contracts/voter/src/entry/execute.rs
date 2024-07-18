@@ -15,15 +15,15 @@ use equinox_msg::voter::{
     state::{
         ADDRESS_CONFIG, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, DELEGATOR_ESSENCE,
         ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE, ELECTOR_VOTES, ELECTOR_WEIGHTS,
-        EPOCH_COUNTER, IS_LOCKED, MAX_EPOCH_AMOUNT, RECIPIENT, ROUTE_CONFIG, SLACKER_ESSENCE,
-        SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT,
+        EPOCH_COUNTER, IS_LOCKED, MAX_EPOCH_AMOUNT, RECIPIENT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG,
+        SLACKER_ESSENCE, SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT,
         SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_VOTES,
         TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, VOTE_RESULTS,
     },
     types::{
         AddressConfig, BribesAllocationItem, DateConfig, EssenceAllocationItem, EssenceInfo,
-        PoolInfoItem, RouteListItem, TokenConfig, TransferAdminState, VoteResults,
-        WeightAllocationItem,
+        PoolInfoItem, RewardsClaimStage, RouteListItem, TokenConfig, TransferAdminState,
+        VoteResults, WeightAllocationItem,
     },
 };
 
@@ -706,6 +706,7 @@ pub fn try_vote(
     // info: MessageInfo
 ) -> Result<Response, ContractError> {
     let block_time = env.block.time.seconds();
+    let rewards_claim_stage = REWARDS_CLAIM_STAGE.load(deps.storage)?;
     let AddressConfig {
         astroport_emission_controller,
         ..
@@ -716,6 +717,13 @@ pub fn try_vote(
         ..
     } = DATE_CONFIG.load(deps.storage)?;
     let mut current_epoch = EPOCH_COUNTER.load(deps.storage)?;
+
+    // TODO: use it as well on user rewards claim
+    // only swapped -> unclaimed transition is allowed
+    if !matches!(rewards_claim_stage, RewardsClaimStage::Swapped) {
+        Err(ContractError::WrongRewardsClaimStage)?;
+    }
+    REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::Unclaimed)?;
 
     // final voting must be executed single time right before epoch end
     if IS_LOCKED.load(deps.storage)? {
@@ -735,11 +743,11 @@ pub fn try_vote(
     let elector_additional_essence_fraction = str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION);
     // 80 % goes to electors
     let elector_votes_before = ELECTOR_VOTES.load(deps.storage)?;
-    let (base_essence, base_weights) =
+    let (base_essence, elector_weights) =
         calc_weights_from_essence_allocation(&elector_votes_before, block_time);
     let elector_votes_after = calc_scaled_essence_allocation(
         &base_essence,
-        &base_weights,
+        &elector_weights,
         &slacker_essence,
         elector_additional_essence_fraction,
     );
@@ -747,11 +755,14 @@ pub fn try_vote(
         calc_updated_essence_allocation(&total_votes, &elector_votes_after, &elector_votes_before);
     // 20 % goes to dao
     let dao_essence = DAO_ESSENCE.load(deps.storage)?;
-    let weights_before = DAO_WEIGHTS.load(deps.storage)?;
-    let dao_votes_before = calc_essence_allocation(&dao_essence, &weights_before);
+    let full_dao_essence = dao_essence
+        .add(&slacker_essence.scale(Decimal::one() - elector_additional_essence_fraction))
+        .capture(block_time);
+    let dao_weights = DAO_WEIGHTS.load(deps.storage)?;
+    let dao_votes_before = calc_essence_allocation(&dao_essence, &dao_weights);
     let dao_votes_after = calc_scaled_essence_allocation(
         &dao_essence,
-        &weights_before,
+        &dao_weights,
         &slacker_essence,
         Decimal::one() - elector_additional_essence_fraction,
     );
@@ -759,10 +770,13 @@ pub fn try_vote(
         calc_updated_essence_allocation(&total_votes, &dao_votes_after, &dao_votes_before);
 
     // update vote results
-    let total_essence = total_votes.iter().fold(Uint128::zero(), |acc, cur| {
-        acc + cur.essence_info.capture(block_time)
-    });
-    let total_essence_decimal = u128_to_dec(total_essence);
+    let full_elector_essence = elector_votes_after
+        .iter()
+        .fold(Uint128::zero(), |acc, cur| {
+            acc + cur.essence_info.capture(block_time)
+        });
+
+    let total_essence_decimal = u128_to_dec(full_elector_essence + full_dao_essence);
     let votes: Vec<(String, Decimal)> = total_votes
         .iter()
         .map(|x| {
@@ -777,18 +791,21 @@ pub fn try_vote(
         x.push(VoteResults {
             epoch_id: current_epoch.id,
             end_date: current_epoch.start_date + epoch_length,
-            essence: total_essence,
-            dao_essence: dao_essence
-                .add(&slacker_essence.scale(Decimal::one() - elector_additional_essence_fraction))
-                .capture(block_time),
-            dao_eclip_rewards: Uint128::zero(),
+
+            elector_essence: full_elector_essence,
+            dao_essence: full_dao_essence,
+
+            elector_weights,
+            dao_weights,
+
+            dao_eclip_rewards: Uint128::zero(), // will be updated on claim and swap
             pool_info_list: votes
                 .iter()
                 .cloned()
                 .map(|(lp_token, weight)| PoolInfoItem {
                     lp_token,
                     weight,
-                    rewards: vec![], // TODO: update when tribute market will be released
+                    rewards: vec![], // will be updated on claim and swap
                 })
                 .collect(),
         });
@@ -832,6 +849,7 @@ pub fn try_vote(
 pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let block_time = env.block.time.seconds();
     let epoch = EPOCH_COUNTER.load(deps.storage)?;
+    let rewards_claim_stage = REWARDS_CLAIM_STAGE.load(deps.storage)?;
     let AddressConfig {
         astroport_tribute_market,
         astroport_emission_controller,
@@ -840,6 +858,12 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     } = ADDRESS_CONFIG.load(deps.storage)?;
     let astroport_tribute_market =
         &unwrap_field(astroport_tribute_market, "astroport_tribute_market")?;
+
+    // only unclaimed -> claimed transition is allowed
+    if !matches!(rewards_claim_stage, RewardsClaimStage::Unclaimed) {
+        Err(ContractError::WrongRewardsClaimStage)?;
+    }
+    REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::Claimed)?;
 
     // execute only on new epoch
     if block_time < epoch.start_date {
@@ -970,6 +994,7 @@ pub fn try_swap(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
     let block_time = env.block.time.seconds();
     let epoch = EPOCH_COUNTER.load(deps.storage)?;
+    let rewards_claim_stage = REWARDS_CLAIM_STAGE.load(deps.storage)?;
     let AddressConfig {
         astroport_router,
         astroport_tribute_market,
@@ -980,162 +1005,48 @@ pub fn try_swap(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let astroport_tribute_market =
         &unwrap_field(astroport_tribute_market, "astroport_tribute_market")?;
 
-    // execute only on new epoch
-    if block_time < epoch.start_date {
-        Err(ContractError::EpochIsNotStarted)?;
+    // only claimed -> swapped transition is allowed
+    if !matches!(rewards_claim_stage, RewardsClaimStage::Claimed) {
+        Err(ContractError::WrongRewardsClaimStage)?;
     }
-
-    // check rewards
-    let rewards = deps
-        .querier
-        .query_wasm_smart::<Vec<(String, Uint128)>>(
-            astroport_tribute_market,
-            &tribute_market_mocks::msg::QueryMsg::Rewards {
-                user: env.contract.address.to_string(),
-            },
-        )
-        .unwrap_or_default();
-
-    if rewards.is_empty() {
-        Err(ContractError::RewardsAreNotFound)?;
-    }
-
-    // get voter bribes allocation:
-    // 1) query tribute market bribes allocation
-    let tribute_market_bribe_allocation =
-        deps.querier.query_wasm_smart::<Vec<BribesAllocationItem>>(
-            astroport_tribute_market,
-            &tribute_market_mocks::msg::QueryMsg::BribesAllocation {},
-        )?;
-
-    // 2) query voter voting power
-    let voter_voting_power = deps.querier.query_wasm_smart::<Uint128>(
-        astroport_voting_escrow,
-        &astroport_governance::voting_escrow::QueryMsg::UserVotingPower {
-            user: env.contract.address.to_string(),
-            timestamp: Some(epoch.start_date),
-        },
-    )?;
-    let voter_voting_power_decimal = u128_to_dec(voter_voting_power);
-
-    // 3) get voter to tribute market voting power ratio allocation
-    let voter_to_tribute_voting_power_ratio_allocation = deps
-        .querier
-        .query_wasm_smart::<UserInfoResponse>(
-            astroport_emission_controller.clone(),
-            &astroport_governance::emissions_controller::hub::QueryMsg::UserInfo {
-                user: env.contract.address.to_string(),
-                timestamp: Some(epoch.start_date),
-            },
-        )?
-        .applied_votes
-        .iter()
-        .map(|(lp_token, weight)| -> StdResult<(String, Decimal)> {
-            let tribute_market_voting_power = deps
-                .querier
-                .query_wasm_smart::<VotedPoolInfo>(
-                    astroport_emission_controller.clone(),
-                    &astroport_governance::emissions_controller::hub::QueryMsg::VotedPool {
-                        pool: lp_token.to_owned(),
-                        timestamp: Some(epoch.start_date),
-                    },
-                )?
-                .voting_power;
-
-            let ratio = if tribute_market_voting_power.is_zero() {
-                Decimal::zero()
-            } else {
-                voter_voting_power_decimal * weight / u128_to_dec(tribute_market_voting_power)
-            };
-
-            Ok((lp_token.to_owned(), ratio))
-        })
-        .collect::<StdResult<Vec<(String, Decimal)>>>()?;
-
-    // 4) update vote results
-    let mut vote_results = VOTE_RESULTS.load(deps.storage)?;
-
-    // compare pools from vote results and applied votes
-    let last_vote_results = &vote_results
-        .iter()
-        .last()
-        .ok_or(ContractError::LastVoteResultsAreNotFound)?
-        .pool_info_list;
-
-    let applied_votes_pool_list: Vec<String> = voter_to_tribute_voting_power_ratio_allocation
-        .iter()
-        .map(|(lp_token, _ratio)| lp_token.to_owned())
-        .collect();
-
-    if !(last_vote_results.len() == applied_votes_pool_list.len()
-        && last_vote_results
-            .iter()
-            .all(|x| applied_votes_pool_list.contains(&x.lp_token)))
-    {
-        Err(ContractError::UnequalPools)?;
-    }
-
-    vote_results = vote_results
-        .into_iter()
-        .map(|mut x| {
-            if x.epoch_id + 1 == epoch.id {
-                x.pool_info_list = calc_pool_info_list_with_rewards(
-                    &x.pool_info_list,
-                    &tribute_market_bribe_allocation,
-                    &voter_to_tribute_voting_power_ratio_allocation,
-                );
-            }
-
-            x
-        })
-        .collect();
-    VOTE_RESULTS.save(deps.storage, &vote_results)?;
 
     // TODO: query bribes allocation and write elector rewards in vote results
-
-    // claim rewards
-    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: astroport_tribute_market.to_string(),
-        msg: to_json_binary(&tribute_market_mocks::msg::ExecuteMsg::ClaimRewards {})?,
-        funds: vec![],
-    });
-    response = response.add_message(msg);
 
     // only dao related rewards must be exchanged to eclip
     let vote_results = VOTE_RESULTS.load(deps.storage)?;
     let vote_results_last = vote_results.last().ok_or(ContractError::Unauthorized)?;
-    let dao_fraction =
-        u128_to_dec(vote_results_last.dao_essence) / u128_to_dec(vote_results_last.essence);
+    // let dao_fraction =
+    //     u128_to_dec(vote_results_last.dao_essence) / u128_to_dec(vote_results_last.essence);
 
-    // swap rewards
-    let mut swap_rewards_reply_cnt = SWAP_REWARDS_REPLY_ID_CNT.load(deps.storage)?;
+    // // swap rewards
+    // let mut swap_rewards_reply_cnt = SWAP_REWARDS_REPLY_ID_CNT.load(deps.storage)?;
 
-    for (denom_in, amount_in) in rewards {
-        let dao_amount = (u128_to_dec(amount_in) * dao_fraction).to_uint_floor();
-        let elector_amount = amount_in - dao_amount;
+    // for (denom_in, amount_in) in rewards {
+    //     let dao_amount = (u128_to_dec(amount_in) * dao_fraction).to_uint_floor();
+    //     let elector_amount = amount_in - dao_amount;
 
-        let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: astroport_router.to_string(),
-            msg: to_json_binary(&astroport::router::ExecuteMsg::ExecuteSwapOperations {
-                operations: get_route(deps.storage, &denom_in)?,
-                minimum_receive: None,
-                to: None,
-                max_spread: None,
-            })?,
-            funds: coins(dao_amount.u128(), &denom_in),
-        });
+    //     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+    //         contract_addr: astroport_router.to_string(),
+    //         msg: to_json_binary(&astroport::router::ExecuteMsg::ExecuteSwapOperations {
+    //             operations: get_route(deps.storage, &denom_in)?,
+    //             minimum_receive: None,
+    //             to: None,
+    //             max_spread: None,
+    //         })?,
+    //         funds: coins(dao_amount.u128(), &denom_in),
+    //     });
 
-        // use reply id with counter to process eclip rewards on last swap
-        let swap_rewards_reply_id = SWAP_REWARDS_REPLY_ID_MIN + swap_rewards_reply_cnt as u64;
-        let submsg = SubMsg::reply_on_success(msg, swap_rewards_reply_id);
-        response = response.add_submessage(submsg);
+    //     // use reply id with counter to process eclip rewards on last swap
+    //     let swap_rewards_reply_id = SWAP_REWARDS_REPLY_ID_MIN + swap_rewards_reply_cnt as u64;
+    //     let submsg = SubMsg::reply_on_success(msg, swap_rewards_reply_id);
+    //     response = response.add_submessage(submsg);
 
-        swap_rewards_reply_cnt = swap_rewards_reply_cnt
-            .checked_add(1)
-            .ok_or(ContractError::ReplyIdCounterOverflow)?;
-    }
+    //     swap_rewards_reply_cnt = swap_rewards_reply_cnt
+    //         .checked_add(1)
+    //         .ok_or(ContractError::ReplyIdCounterOverflow)?;
+    // }
 
-    SWAP_REWARDS_REPLY_ID_CNT.save(deps.storage, &swap_rewards_reply_cnt)?;
+    // SWAP_REWARDS_REPLY_ID_CNT.save(deps.storage, &swap_rewards_reply_cnt)?;
 
     Ok(response)
 }
@@ -1176,6 +1087,9 @@ pub fn handle_swap_reply(
 
         return Ok(response);
     }
+
+    // only claimed -> swapped transition is allowed
+    REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::Swapped)?;
 
     // distribute to previous epoch according to weights
     let temporary_rewards = eclip_amount + TEMPORARY_REWARDS.load(deps.storage)?;

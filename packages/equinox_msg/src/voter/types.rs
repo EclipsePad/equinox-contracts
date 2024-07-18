@@ -4,6 +4,19 @@ use cosmwasm_std::{Addr, Decimal, Uint128};
 use eclipse_base::converters::{str_to_dec, u128_to_dec};
 
 #[cw_serde]
+pub enum RewardsClaimStage {
+    Unclaimed,
+    Claimed,
+    Swapped,
+}
+
+impl Default for RewardsClaimStage {
+    fn default() -> Self {
+        Self::Swapped
+    }
+}
+
+#[cw_serde]
 pub struct RouteItem {
     pub denom_in: String,
     pub denom_out: String,
@@ -150,6 +163,25 @@ impl WeightAllocationItem {
 }
 
 #[cw_serde]
+#[derive(Default)]
+pub struct VoteResults {
+    pub epoch_id: u16,
+    pub end_date: u64,
+
+    /// full_elector_essence = elector_essence + 0.8 * slacker_essence
+    pub elector_essence: Uint128,
+    /// full_dao_essence = delegated_essence + 0.2 * slacker_essence
+    pub dao_essence: Uint128,
+
+    pub elector_weights: Vec<WeightAllocationItem>,
+    pub dao_weights: Vec<WeightAllocationItem>,
+
+    /// 0.2 self + 0.8 delegators
+    pub dao_eclip_rewards: Uint128,
+    pub pool_info_list: Vec<PoolInfoItem>,
+}
+
+#[cw_serde]
 pub struct PoolInfoItem {
     pub lp_token: String,
     pub weight: Decimal,
@@ -167,22 +199,6 @@ impl PoolInfoItem {
                 .collect(),
         }
     }
-}
-
-#[cw_serde]
-#[derive(Default)]
-pub struct VoteResults {
-    pub epoch_id: u16,
-    pub end_date: u64,
-    /// essence used in voting                                              \
-    /// dao w/o electors: delegated_essence + 0.2 * slacker_essence         \
-    /// dao w/o delegators: elector_essence + 0.8 * slacker_essence         \
-    /// dao w/o both electors and delegators: 0.2 * slacker_essence
-    pub essence: Uint128,
-    pub dao_essence: Uint128,
-    /// 20 % self + 80 % delegators
-    pub dao_eclip_rewards: Uint128,
-    pub pool_info_list: Vec<PoolInfoItem>,
 }
 
 #[cw_serde]

@@ -2,8 +2,8 @@ use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
 
 use super::types::{
-    AddressConfig, DateConfig, EpochInfo, EssenceAllocationItem, EssenceInfo, RewardsInfo,
-    RouteItem, TokenConfig, TransferAdminState, VoteResults, WeightAllocationItem,
+    AddressConfig, DateConfig, EpochInfo, EssenceAllocationItem, EssenceInfo, RewardsClaimStage,
+    RewardsInfo, RouteItem, TokenConfig, TransferAdminState, VoteResults, WeightAllocationItem,
 };
 
 /// Contract name that is used for migration
@@ -41,6 +41,9 @@ pub const IS_LOCKED: Item<bool> = Item::new("is_locked");
 pub const ADDRESS_CONFIG: Item<AddressConfig> = Item::new("address_config");
 pub const TOKEN_CONFIG: Item<TokenConfig> = Item::new("token_config");
 pub const DATE_CONFIG: Item<DateConfig> = Item::new("date_config");
+
+/// state machine to rotate actions executed by x/cron
+pub const REWARDS_CLAIM_STAGE: Item<RewardsClaimStage> = Item::new("rewards_claim_stage");
 
 /// Stores the state of changing admin process
 pub const TRANSFER_ADMIN_STATE: Item<TransferAdminState> = Item::new("transfer_admin_state");
