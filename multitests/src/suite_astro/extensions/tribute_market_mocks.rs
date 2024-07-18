@@ -3,7 +3,7 @@ use cw_multi_test::{AppResponse, BankSudo, ContractWrapper, Executor};
 
 use eclipse_base::error::parse_err;
 
-use equinox_msg::voter::BribesAllocationItem;
+use equinox_msg::voter::types::BribesAllocationItem;
 use tribute_market_mocks::msg::{ExecuteMsg, QueryMsg};
 
 use crate::suite_astro::helper::{Acc, ControllerHelper, Extension};

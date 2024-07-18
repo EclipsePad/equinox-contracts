@@ -3,7 +3,7 @@ use std::str::FromStr;
 use astroport_governance::emissions_controller::hub::{UserInfoResponse, VotedPoolInfo};
 use cosmwasm_std::{
     coins, to_json_binary, Addr, CosmosMsg, Decimal, DepsMut, Empty, Env, MessageInfo, ReplyOn,
-    Response, StdError, StdResult, Storage, SubMsg, SubMsgResult, Uint128, WasmMsg,
+    Response, StdResult, Storage, SubMsg, SubMsgResult, Uint128, WasmMsg,
 };
 
 use eclipse_base::{
@@ -12,9 +12,19 @@ use eclipse_base::{
     utils::{check_funds, unwrap_field, FundsType},
 };
 use equinox_msg::voter::{
-    AddressConfig, BribesAllocationItem, DateConfig, EssenceAllocationItem, EssenceInfo,
-    PoolInfoItem, RouteListItem, TokenConfig, TransferAdminState, VoteResults,
-    WeightAllocationItem,
+    state::{
+        ADDRESS_CONFIG, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, DELEGATOR_ESSENCE,
+        ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE, ELECTOR_VOTES, ELECTOR_WEIGHTS,
+        EPOCH_COUNTER, IS_LOCKED, MAX_EPOCH_AMOUNT, RECIPIENT, ROUTE_CONFIG, SLACKER_ESSENCE,
+        SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT,
+        SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_VOTES,
+        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, VOTE_RESULTS,
+    },
+    types::{
+        AddressConfig, BribesAllocationItem, DateConfig, EssenceAllocationItem, EssenceInfo,
+        PoolInfoItem, RouteListItem, TokenConfig, TransferAdminState, VoteResults,
+        WeightAllocationItem,
+    },
 };
 
 use crate::{
@@ -23,14 +33,6 @@ use crate::{
     math::{
         calc_essence_allocation, calc_pool_info_list_with_rewards, calc_scaled_essence_allocation,
         calc_updated_essence_allocation, calc_weights_from_essence_allocation,
-    },
-    state::{
-        ADDRESS_CONFIG, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, DELEGATOR_ESSENCE,
-        ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE, ELECTOR_VOTES, ELECTOR_WEIGHTS,
-        EPOCH_COUNTER, IS_LOCKED, MAX_EPOCH_AMOUNT, RECIPIENT, ROUTE_CONFIG, SLACKER_ESSENCE,
-        SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT,
-        SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_VOTES,
-        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, VOTE_RESULTS,
     },
 };
 

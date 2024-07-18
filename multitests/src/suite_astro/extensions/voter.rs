@@ -3,9 +3,14 @@ use cw_multi_test::{AppResponse, ContractWrapper, Executor};
 
 use eclipse_base::error::parse_err;
 use equinox_msg::voter::{
-    AddressConfig, BribesAllocationItem, DaoResponse, DateConfig, EpochInfo, EssenceInfo,
-    ExecuteMsg, QueryMsg, RouteListItem, SudoMsg, TokenConfig, UserListResponse, UserResponse,
-    VoterInfoResponse, WeightAllocationItem,
+    msg::{
+        DaoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, SudoMsg, UserListResponse, UserResponse,
+        VoterInfoResponse,
+    },
+    types::{
+        AddressConfig, BribesAllocationItem, DateConfig, EpochInfo, EssenceInfo, RouteListItem,
+        TokenConfig, WeightAllocationItem,
+    },
 };
 
 use crate::suite_astro::helper::{Acc, ControllerHelper, Extension};
@@ -239,7 +244,7 @@ impl VoterExtension for ControllerHelper {
             .instantiate_contract(
                 code_id,
                 self.acc(Acc::Owner),
-                &equinox_msg::voter::InstantiateMsg {
+                &InstantiateMsg {
                     worker_list: worker_list
                         .map(|x| x.into_iter().map(|y| y.to_string()).collect()),
 
@@ -404,7 +409,7 @@ impl VoterExtension for ControllerHelper {
             .execute_contract(
                 Addr::unchecked(&sender.to_string()),
                 self.voter_contract_address(),
-                &equinox_msg::voter::ExecuteMsg::SwapToEclipAstro {},
+                &ExecuteMsg::SwapToEclipAstro {},
                 &coins(amount, denom),
             )
             .map_err(parse_err)
@@ -420,7 +425,7 @@ impl VoterExtension for ControllerHelper {
             .execute_contract(
                 Addr::unchecked(&sender.to_string()),
                 self.voter_contract_address(),
-                &equinox_msg::voter::ExecuteMsg::SwapXastroToAstro {},
+                &ExecuteMsg::SwapXastroToAstro {},
                 &coins(amount, denom),
             )
             .map_err(parse_err)

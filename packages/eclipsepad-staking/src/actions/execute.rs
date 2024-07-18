@@ -20,7 +20,7 @@ use eclipse_base::{
     },
     utils::{add_funds_to_exec_msg, check_funds, unwrap_field, FundsType},
 };
-use equinox_msg::voter::{EssenceInfo, QueryEssenceListResponse};
+use equinox_msg::voter::{msg::QueryEssenceListResponse, types::EssenceInfo};
 
 use crate::{helpers, math};
 
@@ -149,10 +149,12 @@ pub fn try_stake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
-            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::UpdateEssenceAllocation {
-                user_and_essence_list,
-                total_essence,
-            })?,
+            msg: to_json_binary(
+                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    user_and_essence_list,
+                    total_essence,
+                },
+            )?,
             funds: vec![],
         });
 
@@ -385,10 +387,12 @@ pub fn try_lock(
 
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
-            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::UpdateEssenceAllocation {
-                user_and_essence_list,
-                total_essence,
-            })?,
+            msg: to_json_binary(
+                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    user_and_essence_list,
+                    total_essence,
+                },
+            )?,
             funds: vec![],
         });
 
@@ -499,10 +503,12 @@ pub fn try_unstake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respons
 
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
-            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::UpdateEssenceAllocation {
-                user_and_essence_list,
-                total_essence,
-            })?,
+            msg: to_json_binary(
+                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    user_and_essence_list,
+                    total_essence,
+                },
+            )?,
             funds: vec![],
         });
 
@@ -683,10 +689,12 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
 
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
-            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::UpdateEssenceAllocation {
-                user_and_essence_list,
-                total_essence,
-            })?,
+            msg: to_json_binary(
+                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    user_and_essence_list,
+                    total_essence,
+                },
+            )?,
             funds: vec![],
         });
 
@@ -856,10 +864,12 @@ pub fn try_relock(
 
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
-            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::UpdateEssenceAllocation {
-                user_and_essence_list,
-                total_essence,
-            })?,
+            msg: to_json_binary(
+                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    user_and_essence_list,
+                    total_essence,
+                },
+            )?,
             funds: vec![],
         });
 
@@ -1061,10 +1071,12 @@ pub fn try_withdraw(
 
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
-            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::UpdateEssenceAllocation {
-                user_and_essence_list,
-                total_essence,
-            })?,
+            msg: to_json_binary(
+                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    user_and_essence_list,
+                    total_essence,
+                },
+            )?,
             funds: vec![],
         });
 
@@ -1220,10 +1232,12 @@ pub fn try_bond(
 
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
-            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::UpdateEssenceAllocation {
-                user_and_essence_list,
-                total_essence,
-            })?,
+            msg: to_json_binary(
+                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    user_and_essence_list,
+                    total_essence,
+                },
+            )?,
             funds: vec![],
         });
 
@@ -1442,10 +1456,12 @@ pub fn try_bond_for(
 
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
-            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::UpdateEssenceAllocation {
-                user_and_essence_list,
-                total_essence,
-            })?,
+            msg: to_json_binary(
+                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    user_and_essence_list,
+                    total_essence,
+                },
+            )?,
             funds: vec![],
         });
 
@@ -1627,10 +1643,12 @@ pub fn try_unbond(
 
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
-            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::UpdateEssenceAllocation {
-                user_and_essence_list,
-                total_essence,
-            })?,
+            msg: to_json_binary(
+                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    user_and_essence_list,
+                    total_essence,
+                },
+            )?,
             funds: vec![],
         });
 
@@ -1962,10 +1980,12 @@ pub fn try_aggregate_vaults(
 
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
-            msg: to_json_binary(&equinox_msg::voter::ExecuteMsg::UpdateEssenceAllocation {
-                user_and_essence_list,
-                total_essence,
-            })?,
+            msg: to_json_binary(
+                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    user_and_essence_list,
+                    total_essence,
+                },
+            )?,
             funds: vec![],
         });
 

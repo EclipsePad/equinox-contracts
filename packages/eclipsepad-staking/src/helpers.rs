@@ -14,7 +14,7 @@ use eclipse_base::{
         types::{Config, LockerInfo, PaginationConfig, StakerInfo, State},
     },
 };
-use equinox_msg::voter::{EssenceInfo, QueryEssenceListResponse};
+use equinox_msg::voter::{msg::QueryEssenceListResponse, types::EssenceInfo};
 
 use crate::math;
 

@@ -2,18 +2,16 @@ use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, StdResult, Uint128
 use cw2::set_contract_version;
 
 use equinox_msg::voter::{
-    AddressConfig, DateConfig, EpochInfo, EssenceInfo, InstantiateMsg, TokenConfig,
-    TransferAdminState,
-};
-
-use crate::{
-    error::ContractError,
+    msg::InstantiateMsg,
     state::{
         ADDRESS_CONFIG, CONTRACT_NAME, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, ELECTOR_VOTES,
         EPOCH_COUNTER, IS_LOCKED, SLACKER_ESSENCE_ACC, SWAP_REWARDS_REPLY_ID_CNT,
         TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_VOTES, TRANSFER_ADMIN_STATE, VOTE_RESULTS,
     },
+    types::{AddressConfig, DateConfig, EpochInfo, EssenceInfo, TokenConfig, TransferAdminState},
 };
+
+use crate::error::ContractError;
 
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 

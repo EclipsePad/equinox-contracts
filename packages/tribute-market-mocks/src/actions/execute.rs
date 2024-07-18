@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 use eclipse_base::{converters::u128_to_dec, error::ContractError};
-use equinox_msg::voter::{BribesAllocationItem, PoolInfoItem};
+use equinox_msg::voter::types::{BribesAllocationItem, PoolInfoItem};
 
 use crate::{
     state::{BRIBES_ALLOCATION, CONFIG, INSTANTIATION_DATE, REWARDS, REWARDS_DISTRIBUTION_DELAY},

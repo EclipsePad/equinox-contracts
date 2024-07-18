@@ -1,6 +1,7 @@
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
-use equinox_msg::voter::{
+
+use super::types::{
     AddressConfig, DateConfig, EpochInfo, EssenceAllocationItem, EssenceInfo, RewardsInfo,
     RouteItem, TokenConfig, TransferAdminState, VoteResults, WeightAllocationItem,
 };

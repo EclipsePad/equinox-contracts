@@ -15,7 +15,7 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub enum ExecuteMsg {
     SetBribesAllocation {
-        bribes_allocation: Vec<equinox_msg::voter::BribesAllocationItem>,
+        bribes_allocation: Vec<equinox_msg::voter::types::BribesAllocationItem>,
     },
 
     AllocateRewards {
@@ -31,6 +31,6 @@ pub enum QueryMsg {
     #[returns(Vec<(Uint128, String)>)]
     Rewards { user: String },
 
-    #[returns(Vec<equinox_msg::voter::BribesAllocationItem>)]
+    #[returns(Vec<equinox_msg::voter::types::BribesAllocationItem>)]
     BribesAllocation {},
 }

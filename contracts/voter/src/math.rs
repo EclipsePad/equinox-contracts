@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
 use eclipse_base::converters::u128_to_dec;
-use equinox_msg::voter::{
+use equinox_msg::voter::types::{
     BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem, WeightAllocationItem,
 };
 

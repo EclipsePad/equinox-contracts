@@ -7,7 +7,7 @@ use cosmwasm_std::{
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use equinox_msg::token_converter::{Cw20HookMsg, RewardConfig, UpdateConfig};
-use equinox_msg::voter::{ExecuteMsg as VoterExecuteMsg, QueryMsg as VoterQueryMsg};
+use equinox_msg::voter::msg::{ExecuteMsg as VoterExecuteMsg, QueryMsg as VoterQueryMsg};
 
 use crate::{
     contract::STAKE_TOKEN_REPLY_ID,

@@ -7,7 +7,7 @@ use crate::{
 use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
 use equinox_msg::{
     token_converter::{Config, Reward, RewardConfig, RewardResponse},
-    voter::QueryMsg as VoterQueryMsg,
+    voter::msg::QueryMsg as VoterQueryMsg,
 };
 
 /// query owner

@@ -1,5 +1,5 @@
 use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
-use equinox_msg::voter::BribesAllocationItem;
+use equinox_msg::voter::types::BribesAllocationItem;
 
 use crate::state::{BRIBES_ALLOCATION, INSTANTIATION_DATE, REWARDS, REWARDS_DISTRIBUTION_DELAY};
 

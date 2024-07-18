@@ -1,12 +1,12 @@
 use astroport::{asset::AssetInfo, router::SwapOperation};
 use cosmwasm_std::{Decimal, Deps, StdResult, Storage};
 
-use equinox_msg::voter::{RouteItem, WeightAllocationItem};
-
-use crate::{
-    error::ContractError,
+use equinox_msg::voter::{
     state::{ADDRESS_CONFIG, EPOCH_COUNTER, IS_LOCKED, ROUTE_CONFIG},
+    types::{RouteItem, WeightAllocationItem},
 };
+
+use crate::error::ContractError;
 
 pub fn verify_weight_allocation(
     deps: Deps,

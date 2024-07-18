@@ -6,4 +6,9 @@ pub mod reward_distributor;
 pub mod timelock_staking;
 pub mod token;
 pub mod token_converter;
-pub mod voter;
+
+pub mod voter {
+    pub mod msg;
+    pub mod state;
+    pub mod types;
+}

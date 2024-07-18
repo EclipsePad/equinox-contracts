@@ -1,19 +1,18 @@
 use cosmwasm_std::{Decimal, Deps, Env, Order, StdError, StdResult, Uint128};
 use cw_storage_plus::Bound;
+
 use eclipse_base::{converters::u128_to_dec, utils::unwrap_field};
 use equinox_msg::voter::{
-    AddressConfig, DaoResponse, DateConfig, EpochInfo, RouteListItem, TokenConfig,
-    UserListResponse, UserListResponseItem, UserResponse, VoterInfoResponse,
-};
-
-use crate::{
-    error::ContractError,
+    msg::{DaoResponse, UserListResponse, UserListResponseItem, UserResponse, VoterInfoResponse},
     state::{
         ADDRESS_CONFIG, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, DELEGATOR_ESSENCE, ELECTOR_ESSENCE,
         ELECTOR_VOTES, ELECTOR_WEIGHTS, EPOCH_COUNTER, ROUTE_CONFIG, SLACKER_ESSENCE,
         SLACKER_ESSENCE_ACC, TOKEN_CONFIG, TOTAL_VOTES, VOTE_RESULTS,
     },
+    types::{AddressConfig, DateConfig, EpochInfo, RouteListItem, TokenConfig},
 };
+
+use crate::error::ContractError;
 
 pub fn query_address_config(deps: Deps, _env: Env) -> StdResult<AddressConfig> {
     ADDRESS_CONFIG.load(deps.storage)

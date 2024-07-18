@@ -2,27 +2,34 @@ use astroport::{asset::AssetInfo, router::SwapOperation};
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, OutpostInfo, OutpostParams, VotedPoolInfo,
 };
+
 use cosmwasm_std::{coins, Addr, Decimal, StdResult, Uint128};
 use cw_multi_test::Executor;
+
+use speculoos::assert_that;
+use strum::IntoEnumIterator;
 
 use eclipse_base::{
     assets::{Currency, Token},
     converters::str_to_dec,
     error::parse_err,
 };
+
 use equinox_msg::voter::{
-    BribesAllocationItem, DaoResponse, EssenceAllocationItem, EssenceInfo, PoolInfoItem, RouteItem,
-    RouteListItem, UserResponse, VoteResults, VoterInfoResponse, WeightAllocationItem,
+    msg::{DaoResponse, UserResponse, VoterInfoResponse},
+    state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
+    types::{
+        BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem, RouteItem,
+        RouteListItem, VoteResults, WeightAllocationItem,
+    },
 };
-use speculoos::assert_that;
-use strum::IntoEnumIterator;
+
 use voter::{
     error::ContractError,
     math::{
         calc_essence_allocation, calc_pool_info_list_with_rewards, calc_scaled_essence_allocation,
         calc_updated_essence_allocation, calc_weights_from_essence_allocation,
     },
-    state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
 };
 
 use crate::suite_astro::{
