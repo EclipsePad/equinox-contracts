@@ -182,7 +182,7 @@ pub fn query_user_single_lockup_info(
                 let user_rewards = calculate_single_staking_user_rewards(
                     deps,
                     updated_reward_weights,
-                    pending_lockdrop_incentives,
+                    pending_lockdrop_incentives.clone(),
                     user_lockup_info.clone(),
                 )
                 .unwrap();
@@ -191,7 +191,7 @@ pub fn query_user_single_lockup_info(
                     xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
                     eclipastro_staked: user_lockup_info.total_eclipastro_staked,
                     eclipastro_withdrawed: user_lockup_info.total_eclipastro_withdrawed,
-                    lockdrop_incentives: user_lockup_info.lockdrop_incentives,
+                    lockdrop_incentives: user_lockup_info.lockdrop_incentives.clone(),
                     withdrawal_flag: user_lockup_info.withdrawal_flag,
                     staking_rewards: vec![
                         Asset {
@@ -202,11 +202,11 @@ pub fn query_user_single_lockup_info(
                         },
                         Asset {
                             info: cfg.beclip.clone(),
-                            amount: user_rewards.beclip,
+                            amount: user_rewards.beclip - pending_lockdrop_incentives.beclip,
                         },
                         Asset {
                             info: cfg.eclip.clone(),
-                            amount: user_rewards.eclip,
+                            amount: user_rewards.eclip - pending_lockdrop_incentives.eclip,
                         },
                     ],
                     countdown_start_at: cfg.countdown_start_at,
@@ -282,7 +282,7 @@ pub fn query_user_lp_lockup_info(
                 let user_rewards = calculate_lp_staking_user_rewards(
                     deps,
                     updated_reward_weights,
-                    pending_lockdrop_incentives,
+                    pending_lockdrop_incentives.clone(),
                     user_lockup_info.clone(),
                 )
                 .unwrap();
@@ -291,7 +291,7 @@ pub fn query_user_lp_lockup_info(
                     xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
                     lp_token_staked: user_lockup_info.total_lp_staked,
                     lp_token_withdrawed: user_lockup_info.total_lp_withdrawed,
-                    lockdrop_incentives: user_lockup_info.lockdrop_incentives,
+                    lockdrop_incentives: user_lockup_info.lockdrop_incentives.clone(),
                     withdrawal_flag: user_lockup_info.withdrawal_flag,
                     staking_rewards: vec![
                         Asset {
@@ -302,11 +302,11 @@ pub fn query_user_lp_lockup_info(
                         },
                         Asset {
                             info: cfg.beclip.clone(),
-                            amount: user_rewards.beclip,
+                            amount: user_rewards.beclip - pending_lockdrop_incentives.beclip,
                         },
                         Asset {
                             info: cfg.eclip.clone(),
-                            amount: user_rewards.eclip,
+                            amount: user_rewards.eclip - pending_lockdrop_incentives.eclip,
                         },
                     ],
                     countdown_start_at: cfg.countdown_start_at,
@@ -685,7 +685,7 @@ pub fn calculate_single_staking_user_rewards(
     eclip_reward += pending_lockdrop_incentives.eclip;
     Ok(SingleStakingRewards {
         eclipastro: eclipastro_reward,
-        eclip: beclip_reward,
+        eclip: eclip_reward,
         beclip: beclip_reward,
     })
 }

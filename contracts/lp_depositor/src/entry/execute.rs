@@ -1,6 +1,6 @@
 use astroport::{
     asset::{Asset, AssetInfo},
-    pair::ExecuteMsg as PairExecuteMsg,
+    pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg},
     staking::ExecuteMsg as AstroportStakingExecuteMsg,
 };
 use cosmwasm_std::{
@@ -165,18 +165,16 @@ pub fn receive_cw20(
             let recipient = recipient.unwrap_or(sender.to_string());
             let msgs = vec![
                 CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: cfg.lp_contract.to_string(),
-                    msg: to_json_binary(&PairExecuteMsg::Swap {
-                        offer_asset: Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: cfg.eclipastro,
-                            },
-                            amount: amount.multiply_ratio(1u128, 2u128),
-                        },
-                        ask_asset_info: None,
-                        belief_price: None,
-                        max_spread: None,
-                        to: None,
+                    contract_addr: cfg.eclipastro.to_string(),
+                    msg: to_json_binary(&Cw20ExecuteMsg::Send {
+                        contract: cfg.lp_contract.to_string(),
+                        amount: amount.multiply_ratio(1u128, 2u128),
+                        msg: to_json_binary(&PairCw20HookMsg::Swap {
+                            ask_asset_info: None,
+                            belief_price: None,
+                            max_spread: None,
+                            to: None,
+                        })?,
                     })?,
                     funds: vec![],
                 }),

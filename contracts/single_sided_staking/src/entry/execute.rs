@@ -345,6 +345,9 @@ pub fn restake(mut deps: DepsMut, env: Env, data: RestakeData) -> Result<Respons
     let amount = data.amount;
     let add_amount = data.add_amount;
     let recipient = data.recipient;
+    let is_allowed_user = ALLOWED_USERS
+        .load(deps.storage, &sender.to_string())
+        .unwrap_or_default();
 
     ensure!(
         from_duration <= to_duration,
@@ -368,16 +371,15 @@ pub fn restake(mut deps: DepsMut, env: Env, data: RestakeData) -> Result<Respons
     let mut restake_amount = user_staking_from.staked;
 
     if let Some(amount) = amount {
-        let is_allowed_user = ALLOWED_USERS
-            .load(deps.storage, &sender.to_string())
-            .unwrap_or_default();
-        if is_allowed_user {
-            ensure!(
-                !user_staking_from.staked >= amount,
-                ContractError::ExceedAmount {}
-            );
-            restake_amount = amount;
-        }
+        ensure!(
+            is_allowed_user,
+            ContractError::NotAllowed(sender.to_string())
+        );
+        ensure!(
+            !user_staking_from.staked >= amount,
+            ContractError::ExceedAmount {}
+        );
+        restake_amount = amount;
     }
 
     let current_time = env.block.time.seconds();
@@ -706,6 +708,9 @@ pub fn unstake(
 ) -> Result<Response, ContractError> {
     let locked_at = locked_at.unwrap_or_default();
     let sender = info.sender.to_string();
+    let is_allowed_user = ALLOWED_USERS
+        .load(deps.storage, &sender)
+        .unwrap_or_default();
     let mut response = _claim_single(
         deps.branch(),
         env.clone(),
@@ -717,6 +722,9 @@ pub fn unstake(
 
     let config = CONFIG.load(deps.storage)?;
     let mut user_staking = USER_STAKED.load(deps.storage, (&sender, duration, locked_at))?;
+    if amount.is_some() && duration > 0 {
+        ensure!(is_allowed_user, ContractError::NotAllowed(sender.clone()));
+    }
     let unlock_amount = amount.unwrap_or(user_staking.staked);
     ensure!(
         user_staking.staked >= unlock_amount,
