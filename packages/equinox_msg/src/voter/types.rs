@@ -65,7 +65,7 @@ impl EssenceAllocationItem {
 #[cw_serde]
 #[derive(Default)]
 pub struct RewardsInfo {
-    pub amount: Uint128,
+    pub value: Vec<(Uint128, String)>,
     pub last_update_epoch: u16,
 }
 

@@ -50,36 +50,36 @@ pub const TRANSFER_ADMIN_STATE: Item<TransferAdminState> = Item::new("transfer_a
 /// temporary storage for eclipASTRO recipients
 pub const RECIPIENT: Item<Addr> = Item::new("recipient");
 
-/// list of pools with weight allocations by elector address
+/// essence info by user address
+pub const USER_ESSENCE: Map<&Addr, EssenceInfo> = Map::new("user_essence");
+/// bribe rewards info by user address
+pub const USER_REWARDS: Map<&Addr, RewardsInfo> = Map::new("user_rewards");
+
+/// list of pools with weight allocations by elector address (to affect on total allocation)
 pub const ELECTOR_WEIGHTS: Map<&Addr, Vec<WeightAllocationItem>> = Map::new("elector_weights");
-/// essence info by elector address, slakers are excluded
-pub const ELECTOR_ESSENCE: Map<&Addr, EssenceInfo> = Map::new("elector_essence");
-/// list of pools with essence allocations for all electors
-pub const ELECTOR_VOTES: Item<Vec<EssenceAllocationItem>> = Item::new("elector_votes");
+/// list of pools with weight allocations by elector address (to calculate user rewards)
+pub const ELECTOR_WEIGHTS_REF: Map<&Addr, Vec<WeightAllocationItem>> =
+    Map::new("elector_weights_ref");
+/// dao list of pools with weight allocations
+pub const ELECTOR_WEIGHTS_ACC: Item<Vec<WeightAllocationItem>> = Item::new("elector_weights_acc");
+/// sum essence info over all electors, slackers are excluded
+pub const ELECTOR_ESSENCE_ACC: Item<EssenceInfo> = Item::new("elector_essence_acc");
 
-/// essence info by delegator address
-pub const DELEGATOR_ESSENCE: Map<&Addr, EssenceInfo> = Map::new("delegator_essence");
+/// delegator addresses
+pub const DELEGATOR_ADDRESSES: Map<&Addr, bool> = Map::new("delegator_addresses");
+/// dao list of pools with weight allocations
+pub const DAO_WEIGHTS_ACC: Item<Vec<WeightAllocationItem>> = Item::new("dao_weights_acc");
+/// dao essence info, slackers are excluded
+pub const DAO_ESSENCE_ACC: Item<EssenceInfo> = Item::new("dao_essence_acc");
 
-/// essence info by slacker address
-pub const SLACKER_ESSENCE: Map<&Addr, EssenceInfo> = Map::new("slacker_essence");
 /// sum essence info over all slackers
 pub const SLACKER_ESSENCE_ACC: Item<EssenceInfo> = Item::new("slacker_essence_acc");
 
-/// dao list of pools with weight allocations
-pub const DAO_WEIGHTS: Item<Vec<WeightAllocationItem>> = Item::new("dao_weights");
-/// dao essence info, slakers are excluded
-pub const DAO_ESSENCE: Item<EssenceInfo> = Item::new("dao_essence");
-
-/// total list of pools with essence allocations, slakers are excluded
-pub const TOTAL_VOTES: Item<Vec<EssenceAllocationItem>> = Item::new("total_votes");
-
-/// temporary storage fro eclip bribe rewards
-pub const TEMPORARY_REWARDS: Item<Uint128> = Item::new("temporary_rewards");
-/// bribe rewards info by user address
-pub const BRIBE_REWARDS: Map<&Addr, RewardsInfo> = Map::new("bribe_rewards");
-/// current epoch id and start date
-pub const EPOCH_COUNTER: Item<EpochInfo> = Item::new("epoch_counter");
 /// historical data, 26 epochs max
 pub const VOTE_RESULTS: Item<Vec<VoteResults>> = Item::new("vote_results");
+/// temporary storage fro eclip bribe rewards
+pub const TEMPORARY_REWARDS: Item<Uint128> = Item::new("temporary_rewards");
+/// current epoch id and start date
+pub const EPOCH_COUNTER: Item<EpochInfo> = Item::new("epoch_counter");
 /// route by 1st denom_in, last denom_out is ECLIP
 pub const ROUTE_CONFIG: Map<&str, Vec<RouteItem>> = Map::new("route_config");

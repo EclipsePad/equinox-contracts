@@ -16,7 +16,7 @@ use eclipse_base::{
 };
 
 use equinox_msg::voter::{
-    msg::{DaoResponse, UserResponse, VoterInfoResponse},
+    msg::{DaoResponse, UserResponse, UserType, VoterInfoResponse},
     state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
     types::{
         BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem, RouteItem,
@@ -469,7 +469,7 @@ fn bribes_allocation_default() -> StdResult<()> {
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time,
         elector_votes: vec![],
-        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 3_000),
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 4_000),
         total_votes: vec![],
         vote_results: vec![VoteResults {
             epoch_id: 1,
@@ -515,7 +515,7 @@ fn bribes_allocation_default() -> StdResult<()> {
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time,
         elector_votes: vec![],
-        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 3_000),
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 4_000),
         total_votes: vec![],
         vote_results: vec![VoteResults {
             epoch_id: 1,
@@ -905,17 +905,23 @@ fn auto_updating_essence() -> StdResult<()> {
     let essence_info_bob = h.voter_query_user(bob, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse::Slacker {
+    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+        user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
+        weights: vec![],
     });
-    assert_that(&essence_info_bob).is_equal_to(UserResponse::Slacker {
+    assert_that(&essence_info_bob).is_equal_to(UserResponse {
+        user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
+        weights: vec![],
     });
-    assert_that(&essence_info_john).is_equal_to(UserResponse::Slacker {
+    assert_that(&essence_info_john).is_equal_to(UserResponse {
+        user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
+        weights: vec![],
     });
 
     // take roles: alice - elector, bob - delegator, john - slacker
@@ -926,18 +932,23 @@ fn auto_updating_essence() -> StdResult<()> {
     let essence_info_bob = h.voter_query_user(bob, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+        user_type: UserType::Elector,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
-        weights: weights.to_vec(),
+        weights: weights.to_owned(),
     });
-    assert_that(&essence_info_bob).is_equal_to(UserResponse::Delegator {
+    assert_that(&essence_info_bob).is_equal_to(UserResponse {
+        user_type: UserType::Delegator,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
+        weights: vec![],
     });
-    assert_that(&essence_info_john).is_equal_to(UserResponse::Slacker {
+    assert_that(&essence_info_john).is_equal_to(UserResponse {
+        user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
+        weights: vec![],
     });
 
     // change essence for slacker, elector, delegator
@@ -950,18 +961,23 @@ fn auto_updating_essence() -> StdResult<()> {
     let essence_info_bob = h.voter_query_user(bob, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+        user_type: UserType::Elector,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
         essence_value: Uint128::new(1000),
-        weights: weights.to_vec(),
+        weights: weights.to_owned(),
     });
-    assert_that(&essence_info_bob).is_equal_to(UserResponse::Delegator {
+    assert_that(&essence_info_bob).is_equal_to(UserResponse {
+        user_type: UserType::Delegator,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
         essence_value: Uint128::new(1000),
+        weights: vec![],
     });
-    assert_that(&essence_info_john).is_equal_to(UserResponse::Slacker {
+    assert_that(&essence_info_john).is_equal_to(UserResponse {
+        user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
         essence_value: Uint128::new(1000),
+        weights: vec![],
     });
 
     Ok(())
@@ -1007,15 +1023,16 @@ fn changing_weights_by_essence() -> StdResult<()> {
     let voter_info = h.voter_query_voter_info(None)?;
     let block_time = h.get_block_time();
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+        user_type: UserType::Elector,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
-        weights: weights_alice.to_vec(),
+        weights: weights_alice.to_owned(),
     });
     assert_that(&essence_info_dao).is_equal_to(DaoResponse {
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
-        weights: weights_dao.to_vec(),
+        weights: weights_dao.to_owned(),
     });
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time: 1716163200,
@@ -1025,10 +1042,12 @@ fn changing_weights_by_essence() -> StdResult<()> {
             EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 500)),
         ],
         slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 1_000),
+        // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 1_000) + (0.5, 0.3, 0.2) * (1_000 + 0.2 * 1_000) =
+        // (360, 540, 900) + (600, 360, 240) = (960, 900, 1_140)
         total_votes: vec![
-            EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 700)),
-            EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 600)),
-            EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 700)),
+            EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 960)),
+            EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
+            EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 1_140)),
         ],
         vote_results: vec![],
     });
@@ -1037,9 +1056,9 @@ fn changing_weights_by_essence() -> StdResult<()> {
         .is_equal_to(weights_alice);
     assert_that(&calc_weights_from_essence_allocation(&voter_info.total_votes, block_time).1)
         .is_equal_to(vec![
-            WeightAllocationItem::new(eclip_atom, "0.35"),
+            WeightAllocationItem::new(eclip_atom, "0.32"),
             WeightAllocationItem::new(ntrn_atom, "0.3"),
-            WeightAllocationItem::new(astro_atom, "0.35"),
+            WeightAllocationItem::new(astro_atom, "0.38"),
         ]);
 
     // change alice essence
@@ -1052,15 +1071,16 @@ fn changing_weights_by_essence() -> StdResult<()> {
     let voter_info = h.voter_query_voter_info(None)?;
     let block_time = h.get_block_time();
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+        user_type: UserType::Elector,
         essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
         essence_value: Uint128::new(2_000),
-        weights: weights_alice.to_vec(),
+        weights: weights_alice.to_owned(),
     });
     assert_that(&essence_info_dao).is_equal_to(DaoResponse {
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
-        weights: weights_dao.to_vec(),
+        weights: weights_dao.to_owned(),
     });
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time,
@@ -1070,23 +1090,24 @@ fn changing_weights_by_essence() -> StdResult<()> {
             EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 1_000)),
         ],
         slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 1_000),
-        // (400, 600, 1_000) + (500, 300, 200) = (900, 900, 1_200)
+        // (0.2, 0.3, 0.5) * (2_000 + 0.8 * 1_000) + (0.5, 0.3, 0.2) * (1_000 + 0.2 * 1_000) =
+        // (560, 840, 1_400) + (600, 360, 240) = (1_160, 1_200, 1_640)
         total_votes: vec![
-            EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
-            EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
-            EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 1_200)),
+            EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 1_160)),
+            EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 1_200)),
+            EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 1_640)),
         ],
         vote_results: vec![],
     });
 
     assert_that(&calc_weights_from_essence_allocation(&voter_info.elector_votes, block_time).1)
         .is_equal_to(weights_alice);
-    // (900, 900, 1_200) / 3_000 = (0.3, 0.3, 0.4)
+    // (1_160, 1_200, 1_640) / 4_000 = (0.3, 0.3, 0.4)
     assert_that(&calc_weights_from_essence_allocation(&voter_info.total_votes, block_time).1)
         .is_equal_to(vec![
-            WeightAllocationItem::new(eclip_atom, "0.3"),
+            WeightAllocationItem::new(eclip_atom, "0.29"),
             WeightAllocationItem::new(ntrn_atom, "0.3"),
-            WeightAllocationItem::new(astro_atom, "0.4"),
+            WeightAllocationItem::new(astro_atom, "0.41"),
         ]);
 
     Ok(())
@@ -1155,13 +1176,13 @@ fn electors_delegators_slackers_dao_voting() -> StdResult<()> {
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time,
         elector_votes: vec![],
-        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 11_000),
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 14_000),
         total_votes: vec![],
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
             // 3_000 + 0.8 * 11_000
-            elector_essence: Uint128::new(11_799),
+            elector_essence: Uint128::new(11_800),
             // 7_000 + 0.2 * 11_000
             dao_essence: Uint128::new(9_200),
             elector_weights: vec![
@@ -1257,7 +1278,7 @@ fn electors_slackers_dao_voting() -> StdResult<()> {
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time,
         elector_votes: vec![],
-        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 5_000),
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 6_000),
         total_votes: vec![],
         vote_results: vec![VoteResults {
             epoch_id: 1,
@@ -1326,7 +1347,7 @@ fn delegators_slackers_dao_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            elector_essence: Uint128::new(0),
+            elector_essence: Uint128::new(3_200),
             // 2_000 + 0.2 * 4_000 = 2_800
             dao_essence: Uint128::new(2_800),
             elector_weights: vec![],
@@ -1391,7 +1412,7 @@ fn electors_delegators_dao_voting() -> StdResult<()> {
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time,
         elector_votes: vec![],
-        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 0),
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 1_000),
         total_votes: vec![],
         vote_results: vec![VoteResults {
             epoch_id: 1,
@@ -1457,7 +1478,7 @@ fn slackers_dao_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            elector_essence: Uint128::new(0),
+            elector_essence: Uint128::new(4_800),
             // 0.2 * 6_000 = 1_200
             dao_essence: Uint128::new(1_200),
             elector_weights: vec![],
@@ -1519,7 +1540,7 @@ fn electors_dao_voting() -> StdResult<()> {
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time,
         elector_votes: vec![],
-        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 0),
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 6_000),
         total_votes: vec![],
         vote_results: vec![VoteResults {
             epoch_id: 1,
@@ -1638,7 +1659,7 @@ fn electors_voting() -> StdResult<()> {
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time,
         elector_votes: vec![],
-        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 0),
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 6_000),
         total_votes: vec![],
         vote_results: vec![VoteResults {
             epoch_id: 1,
@@ -1731,7 +1752,7 @@ fn slackers_voting() -> StdResult<()> {
         vote_results: vec![VoteResults {
             epoch_id: 1,
             end_date: 1717372800,
-            elector_essence: Uint128::new(0),
+            elector_essence: Uint128::new(4_800),
             dao_essence: Uint128::new(1_200),
             elector_weights: vec![],
             dao_weights: vec![],
@@ -1796,7 +1817,7 @@ fn change_vote_after_dao_voting() -> StdResult<()> {
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time,
         elector_votes: vec![],
-        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 3_000),
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 4_000),
         total_votes: vec![],
         vote_results: vec![VoteResults {
             epoch_id: 1,
@@ -1872,6 +1893,70 @@ fn user_actions_after_final_voting() -> StdResult<()> {
 }
 
 #[test]
+fn user_roles_default() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // check roles
+    let res = h.voter_query_user(alice, None).unwrap_err();
+    assert_error(&res, ContractError::UserIsNotFound);
+
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // check roles
+    let alice_info = h.voter_query_user(alice, None)?;
+    let bob_info = h.voter_query_user(bob, None)?;
+    let john_info = h.voter_query_user(john, None)?;
+
+    assert_that(&alice_info.user_type).is_equal_to(UserType::Elector);
+    assert_that(&bob_info.user_type).is_equal_to(UserType::Delegator);
+    assert_that(&john_info.user_type).is_equal_to(UserType::Slacker);
+
+    // final voting
+    h.wait(h.voter_query_date_config()?.vote_delay);
+    h.voter_try_vote()?;
+
+    // check roles
+    let alice_info = h.voter_query_user(alice, None)?;
+    let bob_info = h.voter_query_user(bob, None)?;
+    let john_info = h.voter_query_user(john, None)?;
+
+    assert_that(&alice_info.user_type).is_equal_to(UserType::Slacker);
+    assert_that(&bob_info.user_type).is_equal_to(UserType::Delegator);
+    assert_that(&john_info.user_type).is_equal_to(UserType::Slacker);
+
+    Ok(())
+}
+
+#[test]
 fn electors_and_slackers_can_delegate() -> StdResult<()> {
     let mut h = prepare_helper();
 
@@ -1909,14 +1994,17 @@ fn electors_and_slackers_can_delegate() -> StdResult<()> {
     let essence_info_alice = h.voter_query_user(alice, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
+    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+        user_type: UserType::Elector,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
-        weights: weights_alice.to_vec(),
+        weights: weights_alice.to_owned(),
     });
-    assert_that(&essence_info_john).is_equal_to(UserResponse::Slacker {
+    assert_that(&essence_info_john).is_equal_to(UserResponse {
+        user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(0, 0, 3_000),
         essence_value: Uint128::new(3_000),
+        weights: vec![],
     });
 
     // delegate
@@ -1927,13 +2015,17 @@ fn electors_and_slackers_can_delegate() -> StdResult<()> {
     let essence_info_alice = h.voter_query_user(alice, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse::Delegator {
+    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+        user_type: UserType::Delegator,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
+        weights: vec![],
     });
-    assert_that(&essence_info_john).is_equal_to(UserResponse::Delegator {
+    assert_that(&essence_info_john).is_equal_to(UserResponse {
+        user_type: UserType::Delegator,
         essence_info: EssenceInfo::new::<u128>(0, 0, 3_000),
         essence_value: Uint128::new(3_000),
+        weights: vec![],
     });
 
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
@@ -2003,7 +2095,7 @@ fn delegators_and_dao_can_not_delegate() -> StdResult<()> {
     let res = h.voter_try_delegate(bob).unwrap_err();
     assert_error(&res, ContractError::DelegateTwice);
     let res = h.voter_try_delegate(dao).unwrap_err();
-    assert_error(&res, ContractError::DelegateTwice);
+    assert_error(&res, ContractError::UserIsNotFound);
 
     Ok(())
 }
@@ -2082,10 +2174,12 @@ fn undelegate_default() -> StdResult<()> {
 
     // undelegate
     h.voter_try_undelegate(bob)?;
-    for user in [alice, john, dao] {
+    for user in [alice, john] {
         let res = h.voter_try_undelegate(user).unwrap_err();
         assert_error(&res, ContractError::DelegatorIsNotFound);
     }
+    let res = h.voter_try_undelegate(dao).unwrap_err();
+    assert_error(&res, ContractError::UserIsNotFound);
 
     // final voting
     h.wait(h.voter_query_date_config()?.vote_delay);
@@ -2097,7 +2191,7 @@ fn undelegate_default() -> StdResult<()> {
     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
         block_time,
         elector_votes: vec![],
-        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 5_000),
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 6_000),
         total_votes: vec![],
         vote_results: vec![VoteResults {
             epoch_id: 1,
@@ -2165,12 +2259,12 @@ fn undelegate_default() -> StdResult<()> {
 //     assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
 //         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
 //         essence_value: Uint128::new(1_000),
-//         weights: weights_alice.to_vec(),
+//         weights: weights_alice.to_owned(),
 //     });
 //     assert_that(&essence_info_dao).is_equal_to(DaoResponse {
 //         essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
 //         essence_value: Uint128::new(2_000),
-//         weights: weights_dao.to_vec(),
+//         weights: weights_dao.to_owned(),
 //     });
 //     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
 //         block_time: h.get_block_time(),

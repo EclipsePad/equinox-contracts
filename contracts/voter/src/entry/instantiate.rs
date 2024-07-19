@@ -4,9 +4,9 @@ use cw2::set_contract_version;
 use equinox_msg::voter::{
     msg::InstantiateMsg,
     state::{
-        ADDRESS_CONFIG, CONTRACT_NAME, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, ELECTOR_VOTES,
-        EPOCH_COUNTER, IS_LOCKED, REWARDS_CLAIM_STAGE, SLACKER_ESSENCE_ACC,
-        SWAP_REWARDS_REPLY_ID_CNT, TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_VOTES,
+        ADDRESS_CONFIG, CONTRACT_NAME, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG,
+        ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_LOCKED, REWARDS_CLAIM_STAGE,
+        SLACKER_ESSENCE_ACC, SWAP_REWARDS_REPLY_ID_CNT, TEMPORARY_REWARDS, TOKEN_CONFIG,
         TRANSFER_ADMIN_STATE, VOTE_RESULTS,
     },
     types::{
@@ -30,20 +30,13 @@ pub fn try_instantiate(
     let sender = info.sender;
     let block_time = env.block.time.seconds();
 
-    TRANSFER_ADMIN_STATE.save(
-        deps.storage,
-        &TransferAdminState {
-            new_admin: sender.clone(),
-            deadline: block_time,
-        },
-    )?;
-
-    REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::default())?;
+    SWAP_REWARDS_REPLY_ID_CNT.save(deps.storage, &0)?;
+    IS_LOCKED.save(deps.storage, &false)?;
 
     ADDRESS_CONFIG.save(
         deps.storage,
         &AddressConfig {
-            admin: sender,
+            admin: sender.clone(),
             worker_list: msg
                 .worker_list
                 .map(|x| {
@@ -97,6 +90,28 @@ pub fn try_instantiate(
         },
     )?;
 
+    REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::default())?;
+
+    TRANSFER_ADMIN_STATE.save(
+        deps.storage,
+        &TransferAdminState {
+            new_admin: sender,
+            deadline: block_time,
+        },
+    )?;
+
+    ELECTOR_WEIGHTS_ACC.save(deps.storage, &vec![])?;
+    ELECTOR_ESSENCE_ACC.save(deps.storage, &EssenceInfo::default())?;
+
+    DAO_WEIGHTS_ACC.save(deps.storage, &vec![])?;
+    DAO_ESSENCE_ACC.save(deps.storage, &EssenceInfo::default())?;
+
+    SLACKER_ESSENCE_ACC.save(deps.storage, &EssenceInfo::default())?;
+
+    VOTE_RESULTS.save(deps.storage, &vec![])?;
+
+    TEMPORARY_REWARDS.save(deps.storage, &Uint128::zero())?;
+
     EPOCH_COUNTER.save(
         deps.storage,
         &EpochInfo {
@@ -104,17 +119,6 @@ pub fn try_instantiate(
             id: 1,
         },
     )?;
-
-    SLACKER_ESSENCE_ACC.save(deps.storage, &EssenceInfo::default())?;
-    DAO_WEIGHTS.save(deps.storage, &vec![])?;
-    DAO_ESSENCE.save(deps.storage, &EssenceInfo::default())?;
-    ELECTOR_VOTES.save(deps.storage, &vec![])?;
-    TOTAL_VOTES.save(deps.storage, &vec![])?;
-    VOTE_RESULTS.save(deps.storage, &vec![])?;
-    IS_LOCKED.save(deps.storage, &false)?;
-
-    SWAP_REWARDS_REPLY_ID_CNT.save(deps.storage, &0)?;
-    TEMPORARY_REWARDS.save(deps.storage, &Uint128::zero())?;
 
     Ok(Response::new().add_attribute("action", "instantiate"))
 }

@@ -242,24 +242,20 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-pub enum UserResponse {
-    Elector {
-        /// essence by elector address, slakers are excluded
-        essence_info: EssenceInfo,
-        essence_value: Uint128,
-        /// list of pools with weight allocations by elector address
-        weights: Vec<WeightAllocationItem>,
-    },
-    Delegator {
-        /// essence by delegator address
-        essence_info: EssenceInfo,
-        essence_value: Uint128,
-    },
-    Slacker {
-        /// essence by slacker address
-        essence_info: EssenceInfo,
-        essence_value: Uint128,
-    },
+pub struct UserResponse {
+    pub user_type: UserType,
+    /// essence by user address
+    pub essence_info: EssenceInfo,
+    pub essence_value: Uint128,
+    /// list of pools with weight allocations by user address
+    pub weights: Vec<WeightAllocationItem>,
+}
+
+#[cw_serde]
+pub enum UserType {
+    Elector,
+    Delegator,
+    Slacker,
 }
 
 #[cw_serde]

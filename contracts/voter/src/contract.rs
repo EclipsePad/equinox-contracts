@@ -145,15 +145,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_json_binary(&q::query_user(deps, env, address, block_time)?),
 
         QueryMsg::ElectorList { amount, start_from } => {
-            to_json_binary(&q::query_elector_list(deps, env, amount, start_from)?)
+            unimplemented!()
         }
 
         QueryMsg::DelegatorList { amount, start_from } => {
-            to_json_binary(&q::query_delegator_list(deps, env, amount, start_from)?)
+            unimplemented!()
         }
 
         QueryMsg::SlackerList { amount, start_from } => {
-            to_json_binary(&q::query_slacker_list(deps, env, amount, start_from)?)
+            unimplemented!()
         }
 
         QueryMsg::DaoInfo { block_time } => {

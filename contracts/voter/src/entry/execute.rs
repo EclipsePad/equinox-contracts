@@ -3,7 +3,7 @@ use std::str::FromStr;
 use astroport_governance::emissions_controller::hub::{UserInfoResponse, VotedPoolInfo};
 use cosmwasm_std::{
     coins, to_json_binary, Addr, CosmosMsg, Decimal, DepsMut, Empty, Env, MessageInfo, ReplyOn,
-    Response, StdResult, Storage, SubMsg, SubMsgResult, Uint128, WasmMsg,
+    Response, StdResult, SubMsg, SubMsgResult, Uint128, WasmMsg,
 };
 
 use eclipse_base::{
@@ -12,24 +12,28 @@ use eclipse_base::{
     utils::{check_funds, unwrap_field, FundsType},
 };
 use equinox_msg::voter::{
+    msg::UserType,
     state::{
-        ADDRESS_CONFIG, DAO_ESSENCE, DAO_WEIGHTS, DATE_CONFIG, DELEGATOR_ESSENCE,
-        ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE, ELECTOR_VOTES, ELECTOR_WEIGHTS,
-        EPOCH_COUNTER, IS_LOCKED, MAX_EPOCH_AMOUNT, RECIPIENT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG,
-        SLACKER_ESSENCE, SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT,
-        SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_VOTES,
-        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, VOTE_RESULTS,
+        ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ADDRESSES,
+        ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS,
+        ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_LOCKED, MAX_EPOCH_AMOUNT,
+        RECIPIENT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID,
+        SWAP_REWARDS_REPLY_ID_CNT, SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG,
+        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, VOTE_RESULTS,
     },
     types::{
-        AddressConfig, BribesAllocationItem, DateConfig, EssenceAllocationItem, EssenceInfo,
-        PoolInfoItem, RewardsClaimStage, RouteListItem, TokenConfig, TransferAdminState,
-        VoteResults, WeightAllocationItem,
+        AddressConfig, BribesAllocationItem, DateConfig, EssenceInfo, PoolInfoItem,
+        RewardsClaimStage, RouteListItem, TokenConfig, TransferAdminState, VoteResults,
+        WeightAllocationItem,
     },
 };
 
 use crate::{
     error::ContractError,
-    helpers::{get_route, try_unlock, try_unlock_and_check, verify_weight_allocation},
+    helpers::{
+        get_route, get_total_votes, get_user_type, get_user_weights, try_unlock,
+        try_unlock_and_check, verify_weight_allocation,
+    },
     math::{
         calc_essence_allocation, calc_pool_info_list_with_rewards, calc_scaled_essence_allocation,
         calc_updated_essence_allocation, calc_weights_from_essence_allocation, split_rewards,
@@ -252,90 +256,57 @@ pub fn try_update_essence_allocation(
         Err(ContractError::Unauthorized)?;
     }
 
-    for (user_address, essence_after) in user_and_essence_list {
+    for (user_address, user_essence_after) in user_and_essence_list {
         let user = &Addr::unchecked(user_address);
+        let user_type = get_user_type(deps.storage, user).unwrap_or(UserType::Slacker);
+        let user_essence_before = USER_ESSENCE.load(deps.storage, user).unwrap_or_default();
 
-        // check if user is elector and update
-        if let Ok(essence_before) = ELECTOR_ESSENCE.load(deps.storage, &user) {
-            // update own essence
-            if essence_after.is_zero() {
-                ELECTOR_ESSENCE.remove(deps.storage, user);
-            } else {
-                ELECTOR_ESSENCE.save(deps.storage, user, &essence_after)?;
+        // update user essence
+        if user_essence_after.is_zero() {
+            USER_ESSENCE.remove(deps.storage, user);
+        } else {
+            USER_ESSENCE.save(deps.storage, user, &user_essence_after)?;
+        }
+
+        match user_type {
+            UserType::Elector => {
+                let user_weights = get_user_weights(deps.storage, user)?;
+                let user_essence_allocation_before =
+                    calc_essence_allocation(&user_essence_before, &user_weights);
+                let user_essence_allocation_after =
+                    calc_essence_allocation(&user_essence_after, &user_weights);
+
+                let elector_essence_acc_before = ELECTOR_ESSENCE_ACC.load(deps.storage)?;
+                let elector_weights_acc_before = ELECTOR_WEIGHTS_ACC.load(deps.storage)?;
+                let elector_essence_allocation_acc_before = calc_essence_allocation(
+                    &elector_essence_acc_before,
+                    &elector_weights_acc_before,
+                );
+                let elector_essence_allocation_acc_after = calc_updated_essence_allocation(
+                    &elector_essence_allocation_acc_before,
+                    &user_essence_allocation_after,
+                    &user_essence_allocation_before,
+                );
+                let (elector_essence_acc_after, elector_weights_acc_after) =
+                    calc_weights_from_essence_allocation(
+                        &elector_essence_allocation_acc_after,
+                        block_time,
+                    );
+
+                ELECTOR_ESSENCE_ACC.save(deps.storage, &elector_essence_acc_after)?;
+                ELECTOR_WEIGHTS_ACC.save(deps.storage, &elector_weights_acc_after)?;
             }
-
-            // if elector updated weights after new epoch start change all electors and total allocations
-            // otherwise it will be updated on vote by elector
-            if let Ok(weights) = ELECTOR_WEIGHTS.load(deps.storage, user) {
-                let essence_allocation_before = calc_essence_allocation(&essence_before, &weights);
-                let essence_allocation_after = calc_essence_allocation(&essence_after, &weights);
-
-                ELECTOR_VOTES.update(
-                    deps.storage,
-                    |x| -> StdResult<Vec<EssenceAllocationItem>> {
-                        Ok(calc_updated_essence_allocation(
-                            &x,
-                            &essence_allocation_after,
-                            &essence_allocation_before,
-                        ))
-                    },
-                )?;
-
-                TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
-                    Ok(calc_updated_essence_allocation(
-                        &x,
-                        &essence_allocation_after,
-                        &essence_allocation_before,
-                    ))
+            UserType::Delegator => {
+                DAO_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                    Ok(x.add(&user_essence_after).sub(&user_essence_before))
                 })?;
             }
-
-            continue;
-        }
-
-        // check if user is delegator and update
-        if let Ok(essence_before) = DELEGATOR_ESSENCE.load(deps.storage, &user) {
-            // update own essence
-            if essence_after.is_zero() {
-                DELEGATOR_ESSENCE.remove(deps.storage, user);
-            } else {
-                DELEGATOR_ESSENCE.save(deps.storage, user, &essence_after)?;
+            UserType::Slacker => {
+                SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                    Ok(x.add(&user_essence_after).sub(&user_essence_before))
+                })?;
             }
-
-            // update DAO and total allocations
-            DAO_ESSENCE.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-                Ok(x.add(&essence_after).sub(&essence_before))
-            })?;
-
-            let weights = DAO_WEIGHTS.load(deps.storage)?;
-            let essence_allocation_before = calc_essence_allocation(&essence_before, &weights);
-            let essence_allocation_after = calc_essence_allocation(&essence_after, &weights);
-
-            TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
-                Ok(calc_updated_essence_allocation(
-                    &x,
-                    &essence_allocation_after,
-                    &essence_allocation_before,
-                ))
-            })?;
-
-            continue;
-        }
-
-        // update/add user as slacker
-        let essence_before = SLACKER_ESSENCE.load(deps.storage, user).unwrap_or_default();
-
-        // update own essence
-        if essence_after.is_zero() {
-            SLACKER_ESSENCE.remove(deps.storage, user);
-        } else {
-            SLACKER_ESSENCE.save(deps.storage, user, &essence_after)?;
-        }
-
-        // update slackers essence accumulator
-        SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-            Ok(x.add(&essence_after).sub(&essence_before))
-        })?;
+        };
     }
 
     Ok(Response::new().add_attribute("action", "try_update_essence_allocation"))
@@ -472,82 +443,57 @@ fn lock_xastro(
 }
 
 pub fn try_delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    let sender = &info.sender;
     let block_time = env.block.time.seconds();
     try_unlock_and_check(deps.storage, block_time)?;
 
-    // slacker -> delegator
-    if let Ok(essence) = SLACKER_ESSENCE.load(deps.storage, sender) {
-        // update own essence
-        SLACKER_ESSENCE.remove(deps.storage, sender);
+    let user = &info.sender;
+    let user_type = get_user_type(deps.storage, user)?;
+    let user_essence_before = USER_ESSENCE.load(deps.storage, user)?;
 
-        // update slackers essence accumulator
-        SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-            Ok(x.sub(&essence))
-        })?;
+    match user_type {
+        UserType::Elector => {
+            let user_weights = get_user_weights(deps.storage, user)?;
+            let user_essence_allocation_before =
+                calc_essence_allocation(&user_essence_before, &user_weights);
+            let user_essence_allocation_after =
+                calc_essence_allocation(&EssenceInfo::default(), &user_weights);
 
-        return add_delegator(deps.storage, sender, &essence);
-    }
+            let elector_essence_acc_before = ELECTOR_ESSENCE_ACC.load(deps.storage)?;
+            let elector_weights_acc_before = ELECTOR_WEIGHTS_ACC.load(deps.storage)?;
+            let elector_essence_allocation_acc_before =
+                calc_essence_allocation(&elector_essence_acc_before, &elector_weights_acc_before);
+            let elector_essence_allocation_acc_after = calc_updated_essence_allocation(
+                &elector_essence_allocation_acc_before,
+                &user_essence_allocation_after,
+                &user_essence_allocation_before,
+            );
+            let (elector_essence_acc_after, elector_weights_acc_after) =
+                calc_weights_from_essence_allocation(
+                    &elector_essence_allocation_acc_after,
+                    block_time,
+                );
 
-    // elector -> delegator
-    if let Ok(essence) = ELECTOR_ESSENCE.load(deps.storage, sender) {
-        // update own essence
-        ELECTOR_ESSENCE.remove(deps.storage, sender);
+            ELECTOR_WEIGHTS.remove(deps.storage, user);
+            ELECTOR_ESSENCE_ACC.save(deps.storage, &elector_essence_acc_after)?;
+            ELECTOR_WEIGHTS_ACC.save(deps.storage, &elector_weights_acc_after)?;
 
-        // if elector updated weights after new epoch start change all electors and total allocations
-        // otherwise it will be updated on vote by elector
-        if let Ok(weights) = ELECTOR_WEIGHTS.load(deps.storage, sender) {
-            let essence_allocation_before = calc_essence_allocation(&essence, &weights);
-            let essence_allocation_after =
-                calc_essence_allocation(&EssenceInfo::default(), &weights);
-
-            ELECTOR_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
-                Ok(calc_updated_essence_allocation(
-                    &x,
-                    &essence_allocation_after,
-                    &essence_allocation_before,
-                ))
-            })?;
-
-            TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
-                Ok(calc_updated_essence_allocation(
-                    &x,
-                    &essence_allocation_after,
-                    &essence_allocation_before,
-                ))
+            DELEGATOR_ADDRESSES.save(deps.storage, user, &true)?;
+            DAO_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                Ok(x.add(&user_essence_before))
             })?;
         }
+        UserType::Delegator => Err(ContractError::DelegateTwice)?,
+        UserType::Slacker => {
+            DELEGATOR_ADDRESSES.save(deps.storage, user, &true)?;
 
-        return add_delegator(deps.storage, sender, &essence);
-    }
-
-    Err(ContractError::DelegateTwice)
-}
-
-fn add_delegator(
-    storage: &mut dyn Storage,
-    sender: &Addr,
-    essence: &EssenceInfo,
-) -> Result<Response, ContractError> {
-    // update own essence
-    DELEGATOR_ESSENCE.save(storage, sender, essence)?;
-
-    // update DAO and total allocations
-    DAO_ESSENCE.update(storage, |x| -> StdResult<EssenceInfo> {
-        Ok(x.add(&essence))
-    })?;
-
-    let weights = DAO_WEIGHTS.load(storage)?;
-    let essence_allocation_before = calc_essence_allocation(&EssenceInfo::default(), &weights);
-    let essence_allocation_after = calc_essence_allocation(&essence, &weights);
-
-    TOTAL_VOTES.update(storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
-        Ok(calc_updated_essence_allocation(
-            &x,
-            &essence_allocation_after,
-            &essence_allocation_before,
-        ))
-    })?;
+            SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                Ok(x.sub(&user_essence_before))
+            })?;
+            DAO_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                Ok(x.add(&user_essence_before))
+            })?;
+        }
+    };
 
     Ok(Response::new().add_attribute("action", "try_delegate"))
 }
@@ -557,43 +503,27 @@ pub fn try_undelegate(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    let sender = &info.sender;
     let block_time = env.block.time.seconds();
     try_unlock_and_check(deps.storage, block_time)?;
 
-    // check if user is delegator and update
-    let essence = DELEGATOR_ESSENCE
-        .load(deps.storage, sender)
-        .map_err(|_| ContractError::DelegatorIsNotFound)?;
+    let user = &info.sender;
+    let user_type = get_user_type(deps.storage, user)?;
+    let user_essence = USER_ESSENCE.load(deps.storage, user)?;
 
-    // update own essence
-    DELEGATOR_ESSENCE.remove(deps.storage, sender);
+    match user_type {
+        UserType::Elector => Err(ContractError::DelegatorIsNotFound)?,
+        UserType::Delegator => {
+            DELEGATOR_ADDRESSES.remove(deps.storage, user);
 
-    // update DAO and total allocations
-    DAO_ESSENCE.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-        Ok(x.sub(&essence))
-    })?;
-
-    let weights = DAO_WEIGHTS.load(deps.storage)?;
-    let essence_allocation_before = calc_essence_allocation(&essence, &weights);
-    let essence_allocation_after = calc_essence_allocation(&EssenceInfo::default(), &weights);
-
-    TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
-        Ok(calc_updated_essence_allocation(
-            &x,
-            &essence_allocation_after,
-            &essence_allocation_before,
-        ))
-    })?;
-
-    // move to slackers
-    // update own essence
-    SLACKER_ESSENCE.save(deps.storage, sender, &essence)?;
-
-    // update slackers essence accumulator
-    SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-        Ok(x.add(&essence))
-    })?;
+            DAO_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                Ok(x.sub(&user_essence))
+            })?;
+            SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                Ok(x.add(&user_essence))
+            })?;
+        }
+        UserType::Slacker => Err(ContractError::DelegatorIsNotFound)?,
+    };
 
     Ok(Response::new().add_attribute("action", "try_undelegate"))
 }
@@ -605,62 +535,47 @@ pub fn try_place_vote(
     info: MessageInfo,
     weight_allocation: Vec<WeightAllocationItem>,
 ) -> Result<Response, ContractError> {
-    let sender = &info.sender;
     let block_time = env.block.time.seconds();
-    let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
     try_unlock_and_check(deps.storage, block_time)?;
     verify_weight_allocation(deps.as_ref(), &weight_allocation)?;
 
-    // delegator can't place vote
-    if DELEGATOR_ESSENCE.has(deps.storage, sender) {
-        Err(ContractError::DelegatorCanNotVote)?;
-    }
+    let user = &info.sender;
+    let user_type = get_user_type(deps.storage, user)?;
+    let user_essence = USER_ESSENCE.load(deps.storage, user)?;
 
-    // dao can't place vote as regular user
-    if sender == eclipse_dao {
-        Err(ContractError::Unauthorized)?;
-    }
+    match user_type {
+        UserType::Elector => {}
+        UserType::Delegator => Err(ContractError::DelegatorCanNotVote)?,
+        UserType::Slacker => {
+            SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                Ok(x.sub(&user_essence))
+            })?;
+        }
+    };
 
-    // if user is slacker move him to electors first
-    if let Ok(essence) = SLACKER_ESSENCE.load(deps.storage, sender) {
-        // update own essence
-        SLACKER_ESSENCE.remove(deps.storage, sender);
+    // update elector
+    let user_weights_before = ELECTOR_WEIGHTS.load(deps.storage, user).unwrap_or_default();
+    let user_essence_allocation_before =
+        calc_essence_allocation(&user_essence, &user_weights_before);
+    let user_essence_allocation_after = calc_essence_allocation(&user_essence, &weight_allocation);
 
-        // update slackers essence accumulator
-        SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-            Ok(x.sub(&essence))
-        })?;
+    let elector_essence_acc_before = ELECTOR_ESSENCE_ACC.load(deps.storage)?;
+    let elector_weights_acc_before = ELECTOR_WEIGHTS_ACC.load(deps.storage)?;
+    let elector_essence_allocation_acc_before =
+        calc_essence_allocation(&elector_essence_acc_before, &elector_weights_acc_before);
+    let elector_essence_allocation_acc_after = calc_updated_essence_allocation(
+        &elector_essence_allocation_acc_before,
+        &user_essence_allocation_after,
+        &user_essence_allocation_before,
+    );
+    let (elector_essence_acc_after, elector_weights_acc_after) =
+        calc_weights_from_essence_allocation(&elector_essence_allocation_acc_after, block_time);
 
-        // update own essence
-        ELECTOR_ESSENCE.save(deps.storage, sender, &essence)?;
-    }
+    ELECTOR_WEIGHTS.save(deps.storage, user, &weight_allocation)?;
+    ELECTOR_WEIGHTS_REF.save(deps.storage, user, &weight_allocation)?;
 
-    // update weights
-    let essence = ELECTOR_ESSENCE.load(deps.storage, sender)?;
-    let weights_before = ELECTOR_WEIGHTS
-        .load(deps.storage, sender)
-        .unwrap_or_default();
-
-    let essence_allocation_before = calc_essence_allocation(&essence, &weights_before);
-    let essence_allocation_after = calc_essence_allocation(&essence, &weight_allocation);
-
-    ELECTOR_WEIGHTS.save(deps.storage, sender, &weight_allocation)?;
-
-    ELECTOR_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
-        Ok(calc_updated_essence_allocation(
-            &x,
-            &essence_allocation_after,
-            &essence_allocation_before,
-        ))
-    })?;
-
-    TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
-        Ok(calc_updated_essence_allocation(
-            &x,
-            &essence_allocation_after,
-            &essence_allocation_before,
-        ))
-    })?;
+    ELECTOR_ESSENCE_ACC.save(deps.storage, &elector_essence_acc_after)?;
+    ELECTOR_WEIGHTS_ACC.save(deps.storage, &elector_weights_acc_after)?;
 
     Ok(Response::new().add_attribute("action", "try_place_vote"))
 }
@@ -685,22 +600,7 @@ pub fn try_place_vote_as_dao(
         Err(ContractError::Unauthorized)?;
     }
 
-    // update weights
-    let essence = DAO_ESSENCE.load(deps.storage)?;
-    let weights_before = DAO_WEIGHTS.load(deps.storage)?;
-
-    let essence_allocation_before = calc_essence_allocation(&essence, &weights_before);
-    let essence_allocation_after = calc_essence_allocation(&essence, &weight_allocation);
-
-    DAO_WEIGHTS.save(deps.storage, &weight_allocation)?;
-
-    TOTAL_VOTES.update(deps.storage, |x| -> StdResult<Vec<EssenceAllocationItem>> {
-        Ok(calc_updated_essence_allocation(
-            &x,
-            &essence_allocation_after,
-            &essence_allocation_before,
-        ))
-    })?;
+    DAO_WEIGHTS_ACC.save(deps.storage, &weight_allocation)?;
 
     Ok(Response::new().add_attribute("action", "try_place_vote_as_dao"))
 }
@@ -742,69 +642,34 @@ pub fn try_vote(
     // will be unlocked on next epoch
     IS_LOCKED.save(deps.storage, &true)?;
 
-    // it's required to update TOTAL_VOTES using slackers info
-    let mut total_votes = TOTAL_VOTES.load(deps.storage)?;
+    let elector_essence_acc_before = ELECTOR_ESSENCE_ACC.load(deps.storage)?;
+    let elector_weights_acc_before = ELECTOR_WEIGHTS_ACC.load(deps.storage)?;
+    let dao_essence_acc_before = DAO_ESSENCE_ACC.load(deps.storage)?;
+    let dao_weights_acc_before = DAO_WEIGHTS_ACC.load(deps.storage)?;
     let slacker_essence = SLACKER_ESSENCE_ACC.load(deps.storage)?;
     let elector_additional_essence_fraction = str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION);
-    // 80 % goes to electors
-    let elector_votes_before = ELECTOR_VOTES.load(deps.storage)?;
-    let (base_essence, elector_weights) =
-        calc_weights_from_essence_allocation(&elector_votes_before, block_time);
-    let elector_votes_after = calc_scaled_essence_allocation(
-        &base_essence,
-        &elector_weights,
-        &slacker_essence,
-        elector_additional_essence_fraction,
-    );
-    total_votes =
-        calc_updated_essence_allocation(&total_votes, &elector_votes_after, &elector_votes_before);
-    // 20 % goes to dao
-    let dao_essence = DAO_ESSENCE.load(deps.storage)?;
-    let full_dao_essence = dao_essence
-        .add(&slacker_essence.scale(Decimal::one() - elector_additional_essence_fraction))
-        .capture(block_time);
-    let dao_weights = DAO_WEIGHTS.load(deps.storage)?;
-    let dao_votes_before = calc_essence_allocation(&dao_essence, &dao_weights);
-    let dao_votes_after = calc_scaled_essence_allocation(
-        &dao_essence,
-        &dao_weights,
-        &slacker_essence,
-        Decimal::one() - elector_additional_essence_fraction,
-    );
-    total_votes =
-        calc_updated_essence_allocation(&total_votes, &dao_votes_after, &dao_votes_before);
+
+    let (_total_essence_allocation, total_weights_allocation) =
+        get_total_votes(deps.storage, block_time)?;
 
     // update vote results
-    let full_elector_essence = elector_votes_after
-        .iter()
-        .fold(Uint128::zero(), |acc, cur| {
-            acc + cur.essence_info.capture(block_time)
-        });
-
-    let total_essence_decimal = u128_to_dec(full_elector_essence + full_dao_essence);
-    let votes: Vec<(String, Decimal)> = total_votes
-        .iter()
-        .map(|x| {
-            (
-                x.lp_token.to_string(),
-                u128_to_dec(x.essence_info.capture(block_time)) / total_essence_decimal,
-            )
-        })
-        .collect();
-
     VOTE_RESULTS.update(deps.storage, |mut x| -> StdResult<Vec<VoteResults>> {
         x.push(VoteResults {
             epoch_id: current_epoch.id,
             end_date: current_epoch.start_date + epoch_length,
 
-            elector_essence: full_elector_essence,
-            dao_essence: full_dao_essence,
+            elector_essence: elector_essence_acc_before
+                .add(&slacker_essence.scale(elector_additional_essence_fraction))
+                .capture(block_time),
+            dao_essence: dao_essence_acc_before
+                .add(&slacker_essence.scale(Decimal::one() - elector_additional_essence_fraction))
+                .capture(block_time),
 
-            elector_weights,
-            dao_weights,
+            elector_weights: elector_weights_acc_before,
+            dao_weights: dao_weights_acc_before,
 
             dao_eclip_rewards: Uint128::zero(), // will be updated on claim and swap
-            pool_info_list: votes
+            pool_info_list: total_weights_allocation
                 .iter()
                 .cloned()
                 .map(|(lp_token, weight)| PoolInfoItem {
@@ -818,16 +683,15 @@ pub fn try_vote(
         Ok(x)
     })?;
 
-    // TODO: save essence info and move elector -> slacker
     // reset elector votes to motivate them vote again in next epoch
     ELECTOR_WEIGHTS.clear(deps.storage);
-    ELECTOR_VOTES.save(deps.storage, &vec![])?;
+    ELECTOR_WEIGHTS_ACC.save(deps.storage, &vec![])?;
+    ELECTOR_ESSENCE_ACC.save(deps.storage, &EssenceInfo::default())?;
+    SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+        Ok(x.add(&elector_essence_acc_before))
+    })?;
     // reset dao votes as well
-    DAO_WEIGHTS.save(deps.storage, &vec![])?;
-    let mut total_votes = TOTAL_VOTES.load(deps.storage)?;
-    total_votes = calc_updated_essence_allocation(&total_votes, &vec![], &elector_votes_before);
-    total_votes = calc_updated_essence_allocation(&total_votes, &vec![], &dao_votes_before);
-    TOTAL_VOTES.save(deps.storage, &total_votes)?;
+    DAO_WEIGHTS_ACC.save(deps.storage, &vec![])?;
 
     // update epoch counter
     current_epoch.id += 1;
@@ -838,7 +702,9 @@ pub fn try_vote(
     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: astroport_emission_controller.to_string(),
         msg: to_json_binary(
-            &astroport_governance::emissions_controller::msg::ExecuteMsg::<Empty>::Vote { votes },
+            &astroport_governance::emissions_controller::msg::ExecuteMsg::<Empty>::Vote {
+                votes: total_weights_allocation,
+            },
         )?,
         funds: vec![],
     });

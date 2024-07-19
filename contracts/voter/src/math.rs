@@ -33,6 +33,14 @@ pub fn calc_weights_from_essence_allocation(
         .fold(EssenceInfo::default(), |acc, cur| {
             acc.add(&cur.essence_info)
         });
+
+    // 1s offset is required when we have stake + lock msgs in single tx to avoid
+    // essence_info.capture(block_time) == 0 and then div by zero and subtract with overflow errors
+    let block_time = if essence_info.capture(block_time).is_zero() {
+        block_time + 1_000_000_000
+    } else {
+        block_time
+    };
     let essence_info_decimal = u128_to_dec(essence_info.capture(block_time));
 
     let weights: Vec<WeightAllocationItem> = essence_allocation
