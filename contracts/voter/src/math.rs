@@ -226,4 +226,24 @@ pub fn split_rewards(
     (pool_info_list_new, dao_rewards)
 }
 
-// TODO: calc_elector_rewards, calc_delegator_rewards
+pub fn calc_personal_elector_rewards(
+    elector_rewards: &[(Uint128, String)],
+    elector_weight_list: &[WeightAllocationItem],
+    personal_elector_weight_list: &[WeightAllocationItem],
+    elector_essence: Uint128,
+    personal_elector_essence: Uint128,
+) -> Vec<(Uint128, String)> {
+    unimplemented!()
+}
+
+/// dao_eclip_rewards -> (dao_eclip_rewards_self, delegated_rewards)                \
+/// delegated_rewards = (1 - dao_self_essence_fraction) * dao_eclip_rewards         \
+/// dao_eclip_rewards_self = dao_eclip_rewards - delegated_rewards
+pub fn slpit_dao_eclip_rewards(
+    dao_eclip_rewards: Uint128,
+    dao_self_essence_fraction: Decimal,
+) -> (Uint128, Uint128) {
+    unimplemented!()
+}
+
+// TODO: calc_delegator_rewards
