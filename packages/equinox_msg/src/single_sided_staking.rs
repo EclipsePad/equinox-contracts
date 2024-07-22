@@ -121,7 +121,6 @@ pub enum Cw20HookMsg {
 
 #[cw_serde]
 pub struct UpdateConfigMsg {
-    pub token: Option<String>,
     pub timelock_config: Option<Vec<TimeLockConfig>>,
     pub token_converter: Option<Addr>,
     pub rewards: Option<RewardConfig>,
@@ -207,6 +206,15 @@ pub struct UserStaked {
     pub reward_weights: RewardWeights,
 }
 
+impl Default for UserStaked {
+    fn default() -> Self {
+        UserStaked {
+            staked: Uint128::zero(),
+            reward_weights: RewardWeights::default(),
+        }
+    }
+}
+
 #[cw_serde]
 #[derive(Default)]
 pub struct UserReward {
@@ -236,7 +244,7 @@ pub struct UserStaking {
 #[cw_serde]
 pub struct UserStakingByDuration {
     pub amount: Uint128,
-    pub locked_at: Option<u64>,
+    pub locked_at: u64,
 }
 
 #[cw_serde]

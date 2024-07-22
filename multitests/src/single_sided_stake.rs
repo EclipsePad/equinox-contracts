@@ -38,7 +38,6 @@ fn update_config() {
         .unwrap();
 
     let test_config = UpdateConfigMsg {
-        token: Some(Addr::unchecked("wasm1_test").to_string()),
         timelock_config: Some(vec![TimeLockConfig {
             duration: ONE_MONTH,
             early_unlock_penalty_bps: 200,
@@ -77,7 +76,7 @@ fn update_config() {
     assert_eq!(
         suite.query_single_sided_stake_config().unwrap(),
         Config {
-            token: Addr::unchecked("wasm1_test"),
+            token: Addr::unchecked(suite.eclipastro()),
             timelock_config: vec![TimeLockConfig {
                 duration: ONE_MONTH,
                 early_unlock_penalty_bps: 200,
@@ -145,7 +144,7 @@ fn stake() {
             duration: ONE_MONTH,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(1_000u128),
-                locked_at: Some(suite.get_time())
+                locked_at: suite.get_time()
             }]
         }]
     );
@@ -161,7 +160,7 @@ fn stake() {
             duration: ONE_MONTH,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(2_000u128),
-                locked_at: Some(suite.get_time())
+                locked_at: suite.get_time()
             }]
         }]
     );
@@ -176,14 +175,14 @@ fn stake() {
             duration: ONE_MONTH,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(2_000u128),
-                locked_at: Some(suite.get_time()),
+                locked_at: suite.get_time(),
             }],
         },
         UserStaking {
             duration: THREE_MONTH,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(1_000u128),
-                locked_at: Some(suite.get_time()),
+                locked_at: suite.get_time(),
             }],
         },
     ];
@@ -199,21 +198,21 @@ fn stake() {
                 duration: 0,
                 staking: vec![UserStakingByDuration {
                     amount: Uint128::from(1_000u128),
-                    locked_at: None,
+                    locked_at: 0u64,
                 }],
             },
             UserStaking {
                 duration: ONE_MONTH,
                 staking: vec![UserStakingByDuration {
                     amount: Uint128::from(2_000u128),
-                    locked_at: Some(suite.get_time()),
+                    locked_at: suite.get_time(),
                 }],
             },
             UserStaking {
                 duration: THREE_MONTH,
                 staking: vec![UserStakingByDuration {
                     amount: Uint128::from(1_000u128),
-                    locked_at: Some(suite.get_time()),
+                    locked_at: suite.get_time(),
                 }],
             },
         ]
@@ -231,14 +230,14 @@ fn stake() {
             duration: 0,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(1_000u128),
-                locked_at: None,
+                locked_at: 0u64,
             }],
         },
         UserStaking {
             duration: ONE_MONTH,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(2_000u128),
-                locked_at: Some(suite.get_time() - THREE_MONTH),
+                locked_at: suite.get_time() - THREE_MONTH,
             }],
         },
         UserStaking {
@@ -246,11 +245,11 @@ fn stake() {
             staking: vec![
                 UserStakingByDuration {
                     amount: Uint128::from(1_000u128),
-                    locked_at: Some(suite.get_time() - THREE_MONTH),
+                    locked_at: suite.get_time() - THREE_MONTH,
                 },
                 UserStakingByDuration {
                     amount: Uint128::from(1_000u128),
-                    locked_at: Some(suite.get_time()),
+                    locked_at: suite.get_time(),
                 },
             ],
         },
@@ -266,21 +265,21 @@ fn stake() {
             duration: 0,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(1_000u128),
-                locked_at: None,
+                locked_at: 0u64,
             }],
         },
         UserStaking {
             duration: ONE_MONTH,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(2_000u128),
-                locked_at: Some(suite.get_time() - THREE_MONTH),
+                locked_at: suite.get_time() - THREE_MONTH,
             }],
         },
         UserStaking {
             duration: THREE_MONTH,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(1_000u128),
-                locked_at: Some(suite.get_time()),
+                locked_at: suite.get_time(),
             }],
         },
     ];
@@ -295,21 +294,21 @@ fn stake() {
             duration: 0,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(1_000u128),
-                locked_at: None,
+                locked_at: 0u64,
             }],
         },
         UserStaking {
             duration: THREE_MONTH,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(1_000u128),
-                locked_at: Some(suite.get_time()),
+                locked_at: suite.get_time(),
             }],
         },
         UserStaking {
             duration: SIX_MONTH,
             staking: vec![UserStakingByDuration {
                 amount: Uint128::from(2_000u128),
-                locked_at: Some(suite.get_time()),
+                locked_at: suite.get_time(),
             }],
         },
     ];
