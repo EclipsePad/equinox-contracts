@@ -1,8 +1,15 @@
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
-use eclipse_base::converters::u128_to_dec;
-use equinox_msg::voter::types::{
-    BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem, WeightAllocationItem,
+use eclipse_base::{
+    converters::{str_to_dec, u128_to_dec},
+    staking::state::SECONDS_PER_ESSENCE,
+};
+use equinox_msg::voter::{
+    state::{DAO_TREASURY_REWARDS_FRACTION, ELECTOR_ADDITIONAL_ESSENCE_FRACTION},
+    types::{
+        BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem,
+        WeightAllocationItem,
+    },
 };
 
 /// essence_allocation = essence * weights
@@ -10,14 +17,11 @@ pub fn calc_essence_allocation(
     essence: &EssenceInfo,
     weights: &Vec<WeightAllocationItem>,
 ) -> Vec<EssenceAllocationItem> {
-    let (a, b) = essence.staking_components;
-    let le = essence.locking_amount;
-
     weights
         .into_iter()
         .map(|x| EssenceAllocationItem {
             lp_token: x.lp_token.to_string(),
-            essence_info: EssenceInfo::new(a, b, le).scale(x.weight),
+            essence_info: essence.scale(x.weight),
         })
         .collect()
 }
@@ -34,10 +38,10 @@ pub fn calc_weights_from_essence_allocation(
             acc.add(&cur.essence_info)
         });
 
-    // 1s offset is required when we have stake + lock msgs in single tx to avoid
+    // offset is required when we have stake + lock msgs in single tx to avoid
     // essence_info.capture(block_time) == 0 and then div by zero and subtract with overflow errors
     let block_time = if essence_info.capture(block_time).is_zero() {
-        block_time + 1_000_000_000
+        block_time + SECONDS_PER_ESSENCE as u64
     } else {
         block_time
     };
@@ -234,24 +238,103 @@ pub fn split_rewards(
     (pool_info_list_new, dao_rewards)
 }
 
+/// personal_rewards = elector_rewards * (personal_elector_essence * personal_weight) / (elector_self_essence * elector_weight)     \
+/// elector_self_essence = elector_essence - ELECTOR_ADDITIONAL_ESSENCE_FRACTION * slacker_essence
 pub fn calc_personal_elector_rewards(
-    elector_rewards: &[(Uint128, String)],
+    pool_info_list: &[PoolInfoItem],
     elector_weight_list: &[WeightAllocationItem],
     personal_elector_weight_list: &[WeightAllocationItem],
+    slacker_essence: Uint128,
     elector_essence: Uint128,
     personal_elector_essence: Uint128,
 ) -> Vec<(Uint128, String)> {
-    unimplemented!()
+    let essence_ratio = u128_to_dec(personal_elector_essence)
+        / (u128_to_dec(elector_essence)
+            - str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION) * u128_to_dec(slacker_essence));
+
+    let personal_elector_rewards_raw: Vec<(Uint128, String)> = personal_elector_weight_list
+        .into_iter()
+        .map(|personal_weight| {
+            // it's safe to unwrap find results as personal elector votes are included in elector votes
+            let elector_weight = elector_weight_list
+                .iter()
+                .find(|x| x.lp_token == personal_weight.lp_token)
+                .unwrap()
+                .weight;
+
+            let elector_rewards_per_pool = &pool_info_list
+                .iter()
+                .find(|x| x.lp_token == personal_weight.lp_token)
+                .unwrap()
+                .rewards;
+
+            let amount_ratio = essence_ratio * personal_weight.weight / elector_weight;
+            let personal_elector_rewards_per_pool: Vec<(Uint128, String)> =
+                elector_rewards_per_pool
+                    .iter()
+                    .cloned()
+                    .map(|(amount, denom)| {
+                        ((u128_to_dec(amount) * amount_ratio).to_uint_floor(), denom)
+                    })
+                    .collect();
+
+            personal_elector_rewards_per_pool
+        })
+        .flatten()
+        .collect();
+
+    let mut denom_list: Vec<String> = pool_info_list
+        .iter()
+        .map(|x| x.lp_token.to_string())
+        .collect();
+    denom_list.sort_unstable();
+    denom_list.dedup();
+
+    let personal_elector_rewards: Vec<(Uint128, String)> = denom_list
+        .iter()
+        .map(|denom| {
+            let amount = personal_elector_rewards_raw.iter().fold(
+                Uint128::zero(),
+                |acc, (cur_amount, cur_denom)| {
+                    if cur_denom != denom {
+                        acc
+                    } else {
+                        acc + cur_amount
+                    }
+                },
+            );
+
+            (amount, denom.to_owned())
+        })
+        .collect();
+
+    personal_elector_rewards
 }
 
-/// dao_eclip_rewards -> (dao_eclip_rewards_self, delegated_rewards)                \
-/// delegated_rewards = (1 - dao_self_essence_fraction) * dao_eclip_rewards         \
-/// dao_eclip_rewards_self = dao_eclip_rewards - delegated_rewards
-pub fn slpit_dao_eclip_rewards(
+/// dao_eclip_rewards -> (dao_treasury_eclip_rewards, delegator_rewards)                \
+/// delegator_rewards = (1 - DAO_TREASURY_REWARDS_FRACTION) * dao_eclip_rewards         \
+/// dao_treasury_eclip_rewards = dao_eclip_rewards - delegator_rewards
+pub fn slpit_dao_eclip_rewards(dao_eclip_rewards: Uint128) -> (Uint128, Uint128) {
+    let delegator_rewards = ((Decimal::one() - str_to_dec(DAO_TREASURY_REWARDS_FRACTION))
+        * u128_to_dec(dao_eclip_rewards))
+    .to_uint_floor();
+    let dao_treasury_eclip_rewards = dao_eclip_rewards - delegator_rewards;
+
+    (dao_treasury_eclip_rewards, delegator_rewards)
+}
+
+/// delegator_rewards = dao_eclip_rewards * delegator_essence / dao_self_essence                    \
+/// dao_self_essence = dao_essence - (1 - ELECTOR_ADDITIONAL_ESSENCE_FRACTION) * slacker_essence
+pub fn calc_delegator_rewards(
     dao_eclip_rewards: Uint128,
-    dao_self_essence_fraction: Decimal,
-) -> (Uint128, Uint128) {
-    unimplemented!()
-}
+    slacker_essence: Uint128,
+    dao_essence: Uint128,
+    delegator_essence: Uint128,
+) -> Uint128 {
+    let dao_self_essence = dao_essence
+        - ((Decimal::one() - str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION))
+            * u128_to_dec(slacker_essence))
+        .to_uint_floor();
 
-// TODO: calc_delegator_rewards
+    dao_eclip_rewards * delegator_essence / dao_self_essence
+}

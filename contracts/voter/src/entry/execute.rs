@@ -664,6 +664,7 @@ pub fn try_vote(
             dao_essence: dao_essence_acc_before
                 .add(&slacker_essence.scale(Decimal::one() - elector_additional_essence_fraction))
                 .capture(block_time),
+            slacker_essence: slacker_essence.capture(block_time),
 
             elector_weights: elector_weights_acc_before,
             dao_weights: dao_weights_acc_before,
@@ -990,6 +991,8 @@ pub fn handle_swap_reply(
 
         Ok(vote_results)
     })?;
+
+    // TODO: send 20 % of eclip rewards to dao treasury
 
     Ok(response)
 }

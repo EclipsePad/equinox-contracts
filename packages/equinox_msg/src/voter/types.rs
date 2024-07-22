@@ -172,11 +172,13 @@ pub struct VoteResults {
     pub elector_essence: Uint128,
     /// full_dao_essence = delegated_essence + 0.2 * slacker_essence
     pub dao_essence: Uint128,
+    /// slacker_essence
+    pub slacker_essence: Uint128,
 
     pub elector_weights: Vec<WeightAllocationItem>,
     pub dao_weights: Vec<WeightAllocationItem>,
 
-    /// 0.2 self + 0.8 delegators
+    /// 0.2 -> treasury, 0.8 -> delegators
     pub dao_eclip_rewards: Uint128,
     pub pool_info_list: Vec<PoolInfoItem>,
 }

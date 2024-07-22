@@ -2,8 +2,8 @@ use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
 
 use super::types::{
-    AddressConfig, DateConfig, EpochInfo, EssenceAllocationItem, EssenceInfo, RewardsClaimStage,
-    RewardsInfo, RouteItem, TokenConfig, TransferAdminState, VoteResults, WeightAllocationItem,
+    AddressConfig, DateConfig, EpochInfo, EssenceInfo, RewardsClaimStage, RewardsInfo, RouteItem,
+    TokenConfig, TransferAdminState, VoteResults, WeightAllocationItem,
 };
 
 /// Contract name that is used for migration
@@ -32,6 +32,8 @@ pub const MAX_EPOCH_AMOUNT: u16 = 26;
 
 /// electors will get 80 % of slacker essence
 pub const ELECTOR_ADDITIONAL_ESSENCE_FRACTION: &str = "0.8";
+// dao treasury will get 20 % of all dao rewards
+pub const DAO_TREASURY_REWARDS_FRACTION: &str = "0.2";
 
 pub const TRANSFER_ADMIN_TIMEOUT: u64 = 3600;
 
