@@ -1,5 +1,8 @@
 use astroport::{asset::Asset, incentives::QueryMsg as IncentivesQueryMsg};
-use cosmwasm_std::{Addr, Decimal256, Deps, Env, StdResult, Uint128};
+use cosmwasm_std::{
+    Addr, BankQuery, Coin, Decimal256, Deps, Env, QuerierWrapper, QueryRequest, StdResult,
+    SupplyResponse, Uint128,
+};
 use equinox_msg::lp_staking::{
     Config, RewardAmount, RewardConfig, RewardWeight, UserStaking, VaultRewards,
 };
@@ -256,4 +259,14 @@ pub fn calculate_updated_reward_weights(
         }
     }
     Ok(reward_weights)
+}
+
+pub fn check_native_token_denom(querier: &QuerierWrapper, denom: String) -> StdResult<bool> {
+    let total_supply = query_native_token_supply(querier, denom)?;
+    Ok(!total_supply.amount.is_zero())
+}
+
+pub fn query_native_token_supply(querier: &QuerierWrapper, denom: String) -> StdResult<Coin> {
+    let supply: SupplyResponse = querier.query(&QueryRequest::Bank(BankQuery::Supply { denom }))?;
+    Ok(supply.amount)
 }

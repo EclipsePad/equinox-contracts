@@ -29,6 +29,9 @@ pub enum ContractError {
     #[error("Callbacks cannot be invoked externally")]
     InvalidCallbackInvoke {},
 
+    #[error("Invalid denom {0}")]
+    InvalidDenom(String),
+
     #[error("Staking amount is zero")]
     InvalidStakingAmount {},
 

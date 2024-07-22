@@ -15,6 +15,7 @@ use equinox_msg::{
 };
 
 use crate::{
+    config::BPS_DENOMINATOR,
     entry::query::{
         calculate_incentive_pending_rewards, calculate_pending_eclipse_rewards,
         calculate_updated_reward_weights, calculate_user_staking_rewards, calculate_vault_rewards,
@@ -35,11 +36,12 @@ pub fn update_config(
     let mut config = CONFIG.load(deps.storage)?;
     let mut res: Response = Response::new().add_attribute("action", "update config");
     if let Some(lp_token) = new_config.lp_token {
+        lp_token.check(deps.api)?;
         config.lp_token = lp_token.clone();
         res = res.add_attribute("lp_token", lp_token.to_string());
     }
     if let Some(lp_contract) = new_config.lp_contract {
-        config.lp_contract = lp_contract.clone();
+        config.lp_contract = deps.api.addr_validate(lp_contract.as_str())?;
         res = res.add_attribute("lp_contract", lp_contract.to_string());
     }
     if let Some(rewards) = new_config.rewards {
@@ -47,11 +49,11 @@ pub fn update_config(
         res = res.add_attribute("rewards", "update rewards");
     }
     if let Some(converter) = new_config.converter {
-        config.converter = converter.clone();
+        config.converter = deps.api.addr_validate(converter.as_str())?;
         res = res.add_attribute("converter", converter);
     }
     if let Some(astroport_incentives) = new_config.astroport_incentives {
-        config.astroport_incentives = astroport_incentives.clone();
+        config.astroport_incentives = deps.api.addr_validate(astroport_incentives.as_str())?;
         res = res.add_attribute("astroport_incentives", astroport_incentives.to_string());
     }
     if let Some(treasury) = new_config.treasury {
@@ -59,11 +61,11 @@ pub fn update_config(
         res = res.add_attribute("treasury", treasury);
     }
     if let Some(stability_pool) = new_config.stability_pool {
-        config.stability_pool = Some(stability_pool.clone());
+        config.stability_pool = deps.api.addr_validate(stability_pool.as_str())?;
         res = res.add_attribute("stability_pool", stability_pool.to_string());
     }
     if let Some(ce_reward_distributor) = new_config.ce_reward_distributor {
-        config.ce_reward_distributor = Some(ce_reward_distributor.clone());
+        config.ce_reward_distributor = deps.api.addr_validate(ce_reward_distributor.as_str())?;
         res = res.add_attribute("ce_reward_distributor", ce_reward_distributor.to_string());
     }
     CONFIG.save(deps.storage, &config)?;
@@ -98,7 +100,7 @@ pub fn update_reward_config(
     // the sum bps should be 10000
     ensure_eq!(
         config.users + config.treasury + config.ce_holders + config.stability_pool,
-        10000,
+        BPS_DENOMINATOR,
         ContractError::RewardDistributionErr {}
     );
     REWARD_CONFIG.save(deps.storage, &config)?;
@@ -460,7 +462,7 @@ pub fn distribute_eclipse_rewards(
                 msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: cfg.astro_staking.to_string(),
                     msg: to_json_binary(&StakingExecuteMsg::Enter {
-                        receiver: Some(cfg.ce_reward_distributor.clone().unwrap().to_string()),
+                        receiver: Some(cfg.ce_reward_distributor.to_string()),
                     })?,
                     funds: vec![coin(ce_holders_rewards.u128(), cfg.astro.clone())],
                 }));
@@ -469,7 +471,7 @@ pub fn distribute_eclipse_rewards(
                 msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: cfg.astro_staking.to_string(),
                     msg: to_json_binary(&StakingExecuteMsg::Enter {
-                        receiver: Some(cfg.stability_pool.clone().unwrap().to_string()),
+                        receiver: Some(cfg.stability_pool.to_string()),
                     })?,
                     funds: vec![coin(stability_pool_rewards.u128(), cfg.astro.clone())],
                 }));

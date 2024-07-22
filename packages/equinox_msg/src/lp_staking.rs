@@ -25,9 +25,9 @@ pub struct InstantiateMsg {
     /// Eclipse treasury. send 67.5% of 20% of incentives rewards
     pub treasury: Addr,
     /// eclipASTRO / xASTRO stability pool. send xastro converted from 12.5% of 20% of incentives rewards
-    pub stability_pool: Option<Addr>,
+    pub stability_pool: Addr,
     /// cosmic essence reward distributor. send 20% of 20% of incentives rewards
-    pub ce_reward_distributor: Option<Addr>,
+    pub ce_reward_distributor: Addr,
 }
 
 #[cw_serde]
@@ -154,8 +154,8 @@ pub struct Config {
     /// Astroport incentives
     pub astroport_incentives: Addr,
     pub treasury: Addr,
-    pub stability_pool: Option<Addr>,
-    pub ce_reward_distributor: Option<Addr>,
+    pub stability_pool: Addr,
+    pub ce_reward_distributor: Addr,
 }
 
 #[cw_serde]

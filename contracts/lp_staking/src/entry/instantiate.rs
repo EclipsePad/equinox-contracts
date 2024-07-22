@@ -1,8 +1,10 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
-use equinox_msg::lp_staking::{Config, InstantiateMsg, RewardConfig};
+use equinox_msg::lp_staking::{Config, InstantiateMsg};
 
 use crate::{
+    config::DEFAULT_REWARD_CONFIG,
+    entry::query::check_native_token_denom,
     error::ContractError,
     state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER, REWARD_CONFIG},
 };
@@ -15,35 +17,38 @@ pub fn try_instantiate(
 ) -> Result<Response, ContractError> {
     // set contract version
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    msg.lp_token.check(deps.api)?;
+    ensure!(
+        check_native_token_denom(&deps.querier, msg.astro.clone()).unwrap_or_default(),
+        ContractError::InvalidDenom(msg.astro.clone())
+    );
+    ensure!(
+        check_native_token_denom(&deps.querier, msg.xastro.clone()).unwrap_or_default(),
+        ContractError::InvalidDenom(msg.xastro.clone())
+    );
     // update config
     CONFIG.save(
         deps.storage,
         &Config {
             lp_token: msg.lp_token,
-            lp_contract: msg.lp_contract,
+            lp_contract: deps.api.addr_validate(msg.lp_contract.as_str())?,
             rewards: msg.rewards,
             astro: msg.astro,
             xastro: msg.xastro,
-            astro_staking: msg.astro_staking,
-            converter: msg.converter,
-            astroport_incentives: msg.astroport_incentives,
-            treasury: msg.treasury,
-            stability_pool: msg.stability_pool,
-            ce_reward_distributor: msg.ce_reward_distributor,
+            astro_staking: deps.api.addr_validate(msg.astro_staking.as_str())?,
+            converter: deps.api.addr_validate(msg.converter.as_str())?,
+            astroport_incentives: deps.api.addr_validate(msg.astroport_incentives.as_str())?,
+            treasury: deps.api.addr_validate(msg.treasury.as_str())?,
+            stability_pool: deps.api.addr_validate(msg.stability_pool.as_str())?,
+            ce_reward_distributor: deps.api.addr_validate(msg.ce_reward_distributor.as_str())?,
         },
     )?;
     // update reward config
-    REWARD_CONFIG.save(
-        deps.storage,
-        &RewardConfig {
-            users: 8000,
-            treasury: 1350,
-            ce_holders: 400,
-            stability_pool: 250,
-        },
-    )?;
+    REWARD_CONFIG.save(deps.storage, &DEFAULT_REWARD_CONFIG)?;
     // update owner
-    let owner = msg.owner.unwrap_or(info.sender);
+    let owner = deps
+        .api
+        .addr_validate(msg.owner.unwrap_or(info.sender).as_str())?;
     OWNER.set(deps.branch(), Some(owner))?;
     Ok(Response::new())
 }
