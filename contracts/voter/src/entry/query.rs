@@ -16,7 +16,7 @@ use equinox_msg::voter::{
 };
 
 use crate::{
-    helpers::{get_total_votes, get_user_type, get_user_weights},
+    helpers::{get_accumulated_rewards, get_total_votes, get_user_type, get_user_weights},
     math::calc_essence_allocation,
 };
 
@@ -141,12 +141,14 @@ pub fn query_user(
     let user = &deps.api.addr_validate(&address)?;
     let essence_info = USER_ESSENCE.load(deps.storage, user).unwrap_or_default();
     let essence_value = essence_info.capture(block_time);
+    let (_, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
 
     Ok(UserResponse {
         user_type: get_user_type(deps.storage, user)?,
         essence_info,
         essence_value,
         weights: get_user_weights(deps.storage, user)?,
+        rewards: user_rewards,
     })
 }
 

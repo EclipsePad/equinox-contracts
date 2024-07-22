@@ -2,8 +2,8 @@ use std::str::FromStr;
 
 use astroport_governance::emissions_controller::hub::{UserInfoResponse, VotedPoolInfo};
 use cosmwasm_std::{
-    coins, to_json_binary, Addr, CosmosMsg, Decimal, DepsMut, Empty, Env, MessageInfo, ReplyOn,
-    Response, StdResult, SubMsg, SubMsgResult, Uint128, WasmMsg,
+    coin, coins, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, DepsMut, Empty, Env,
+    MessageInfo, ReplyOn, Response, StdResult, SubMsg, SubMsgResult, Uint128, WasmMsg,
 };
 
 use eclipse_base::{
@@ -19,7 +19,7 @@ use equinox_msg::voter::{
         ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_LOCKED, MAX_EPOCH_AMOUNT,
         RECIPIENT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID,
         SWAP_REWARDS_REPLY_ID_CNT, SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG,
-        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, VOTE_RESULTS,
+        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
     types::{
         AddressConfig, BribesAllocationItem, DateConfig, EssenceInfo, PoolInfoItem,
@@ -31,12 +31,12 @@ use equinox_msg::voter::{
 use crate::{
     error::ContractError,
     helpers::{
-        get_route, get_total_votes, get_user_type, get_user_weights, try_unlock,
-        try_unlock_and_check, verify_weight_allocation,
+        get_accumulated_rewards, get_route, get_total_votes, get_user_type, get_user_weights,
+        try_unlock, try_unlock_and_check, verify_weight_allocation,
     },
     math::{
-        calc_essence_allocation, calc_pool_info_list_with_rewards, calc_scaled_essence_allocation,
-        calc_updated_essence_allocation, calc_weights_from_essence_allocation, split_rewards,
+        calc_essence_allocation, calc_pool_info_list_with_rewards, calc_updated_essence_allocation,
+        calc_weights_from_essence_allocation, split_dao_eclip_rewards, split_rewards,
     },
 };
 
@@ -261,6 +261,13 @@ pub fn try_update_essence_allocation(
         let user_type = get_user_type(deps.storage, user).unwrap_or(UserType::Slacker);
         let user_essence_before = USER_ESSENCE.load(deps.storage, user).unwrap_or_default();
 
+        // collect rewards
+        let (is_updated, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
+        if is_updated {
+            USER_REWARDS.save(deps.storage, user, &user_rewards)?;
+            ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
+        }
+
         // update user essence
         if user_essence_after.is_zero() {
             USER_ESSENCE.remove(deps.storage, user);
@@ -450,6 +457,13 @@ pub fn try_delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
     let user_type = get_user_type(deps.storage, user)?;
     let user_essence_before = USER_ESSENCE.load(deps.storage, user)?;
 
+    // collect rewards
+    let (is_updated, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
+    if is_updated {
+        USER_REWARDS.save(deps.storage, user, &user_rewards)?;
+        ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
+    }
+
     match user_type {
         UserType::Elector => {
             let user_weights = get_user_weights(deps.storage, user)?;
@@ -510,6 +524,13 @@ pub fn try_undelegate(
     let user_type = get_user_type(deps.storage, user)?;
     let user_essence = USER_ESSENCE.load(deps.storage, user)?;
 
+    // collect rewards
+    let (is_updated, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
+    if is_updated {
+        USER_REWARDS.save(deps.storage, user, &user_rewards)?;
+        ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
+    }
+
     match user_type {
         UserType::Elector => Err(ContractError::DelegatorIsNotFound)?,
         UserType::Delegator => {
@@ -528,7 +549,6 @@ pub fn try_undelegate(
     Ok(Response::new().add_attribute("action", "try_undelegate"))
 }
 
-// TODO: compare current epoch with historical data to try update BRIBE_REWARDS
 pub fn try_place_vote(
     deps: DepsMut,
     env: Env,
@@ -542,6 +562,13 @@ pub fn try_place_vote(
     let user = &info.sender;
     let user_type = get_user_type(deps.storage, user)?;
     let user_essence = USER_ESSENCE.load(deps.storage, user)?;
+
+    // collect rewards
+    let (is_updated, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
+    if is_updated {
+        USER_REWARDS.save(deps.storage, user, &user_rewards)?;
+        ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
+    }
 
     match user_type {
         UserType::Elector => {}
@@ -589,6 +616,7 @@ pub fn try_place_vote_as_dao(
     let sender = &info.sender;
     let block_time = env.block.time.seconds();
     let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
+    // TODO: replace with RewardsClaimStage checker
     try_unlock_and_check(deps.storage, block_time)?;
     verify_weight_allocation(deps.as_ref(), &weight_allocation)?;
 
@@ -623,7 +651,6 @@ pub fn try_vote(
     } = DATE_CONFIG.load(deps.storage)?;
     let mut current_epoch = EPOCH_COUNTER.load(deps.storage)?;
 
-    // TODO: use it as well on user rewards claim
     // only swapped -> unclaimed transition is allowed
     if !matches!(rewards_claim_stage, RewardsClaimStage::Swapped) {
         Err(ContractError::WrongRewardsClaimStage)?;
@@ -669,7 +696,8 @@ pub fn try_vote(
             elector_weights: elector_weights_acc_before,
             dao_weights: dao_weights_acc_before,
 
-            dao_eclip_rewards: Uint128::zero(), // will be updated on claim and swap
+            dao_treasury_eclip_rewards: Uint128::zero(), // will be updated on claim and swap
+            dao_delegators_eclip_rewards: Uint128::zero(), // will be updated on claim and swap
             pool_info_list: total_weights_allocation
                 .iter()
                 .cloned()
@@ -976,13 +1004,18 @@ pub fn handle_swap_reply(
     let temporary_rewards = eclip_amount + TEMPORARY_REWARDS.load(deps.storage)?;
     TEMPORARY_REWARDS.save(deps.storage, &Uint128::zero())?;
 
+    // split rewards
+    let (dao_treasury_eclip_rewards, delegator_rewards) =
+        split_dao_eclip_rewards(temporary_rewards);
+
     let epoch = EPOCH_COUNTER.load(deps.storage)?;
     VOTE_RESULTS.update(deps.storage, |x| -> StdResult<Vec<VoteResults>> {
         let vote_results = x
             .into_iter()
             .map(|mut y| {
                 if y.epoch_id + 1 == epoch.id {
-                    y.dao_eclip_rewards = temporary_rewards;
+                    y.dao_treasury_eclip_rewards = dao_treasury_eclip_rewards;
+                    y.dao_delegators_eclip_rewards = delegator_rewards;
                 }
 
                 y
@@ -992,9 +1025,51 @@ pub fn handle_swap_reply(
         Ok(vote_results)
     })?;
 
-    // TODO: send 20 % of eclip rewards to dao treasury
+    // send eclip rewards to dao treasury
+    let msg = CosmosMsg::Bank(BankMsg::Send {
+        to_address: ADDRESS_CONFIG.load(deps.storage)?.eclipse_dao.to_string(),
+        amount: coins(
+            dao_treasury_eclip_rewards.u128(),
+            TOKEN_CONFIG.load(deps.storage)?.eclip,
+        ),
+    });
+    response = response.add_message(msg);
 
     Ok(response)
+}
+
+pub fn try_claim_rewards(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let user = &info.sender;
+    let block_time = env.block.time.seconds();
+
+    // collect rewards
+    let (_is_updated, mut user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
+    if user_rewards.value.is_empty() {
+        Err(ContractError::RewardsAreNotFound)?;
+    }
+
+    // send rewards to user
+    let msg = CosmosMsg::Bank(BankMsg::Send {
+        to_address: user.to_string(),
+        amount: user_rewards
+            .value
+            .into_iter()
+            .map(|(amount, denom)| coin(amount.u128(), denom))
+            .collect(),
+    });
+
+    // update storages
+    user_rewards.value = vec![];
+    USER_REWARDS.save(deps.storage, user, &user_rewards)?;
+    ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
+
+    Ok(Response::new()
+        .add_message(msg)
+        .add_attribute("action", "try_claim_rewards"))
 }
 
 pub fn try_update_route_list(

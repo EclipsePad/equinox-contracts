@@ -314,7 +314,7 @@ pub fn calc_personal_elector_rewards(
 /// dao_eclip_rewards -> (dao_treasury_eclip_rewards, delegator_rewards)                \
 /// delegator_rewards = (1 - DAO_TREASURY_REWARDS_FRACTION) * dao_eclip_rewards         \
 /// dao_treasury_eclip_rewards = dao_eclip_rewards - delegator_rewards
-pub fn slpit_dao_eclip_rewards(dao_eclip_rewards: Uint128) -> (Uint128, Uint128) {
+pub fn split_dao_eclip_rewards(dao_eclip_rewards: Uint128) -> (Uint128, Uint128) {
     let delegator_rewards = ((Decimal::one() - str_to_dec(DAO_TREASURY_REWARDS_FRACTION))
         * u128_to_dec(dao_eclip_rewards))
     .to_uint_floor();
@@ -323,10 +323,10 @@ pub fn slpit_dao_eclip_rewards(dao_eclip_rewards: Uint128) -> (Uint128, Uint128)
     (dao_treasury_eclip_rewards, delegator_rewards)
 }
 
-/// delegator_rewards = dao_eclip_rewards * delegator_essence / dao_self_essence                    \
+/// delegator_rewards = dao_delegator_eclip_rewards * delegator_essence / dao_self_essence                    \
 /// dao_self_essence = dao_essence - (1 - ELECTOR_ADDITIONAL_ESSENCE_FRACTION) * slacker_essence
 pub fn calc_delegator_rewards(
-    dao_eclip_rewards: Uint128,
+    dao_delegators_eclip_rewards: Uint128,
     slacker_essence: Uint128,
     dao_essence: Uint128,
     delegator_essence: Uint128,
@@ -336,5 +336,5 @@ pub fn calc_delegator_rewards(
             * u128_to_dec(slacker_essence))
         .to_uint_floor();
 
-    dao_eclip_rewards * delegator_essence / dao_self_essence
+    dao_delegators_eclip_rewards * delegator_essence / dao_self_essence
 }

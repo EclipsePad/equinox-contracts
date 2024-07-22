@@ -111,7 +111,7 @@ pub fn execute(
             e::try_place_vote_as_dao(deps, env, info, weight_allocation)
         }
 
-        ExecuteMsg::ClaimRewards {} => unimplemented!(),
+        ExecuteMsg::ClaimRewards {} => e::try_claim_rewards(deps, env, info),
 
         ExecuteMsg::UpdateRouteList { route_list } => {
             e::try_update_route_list(deps, env, info, route_list)
@@ -131,6 +131,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         QueryMsg::Rewards {} => to_json_binary(&q::query_rewards(deps, env)?),
 
+        // TODO: query from both tribute markets
         QueryMsg::BribesAllocation {} => unimplemented!(),
 
         QueryMsg::VotingPower { address } => {

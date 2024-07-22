@@ -19,8 +19,8 @@ use equinox_msg::voter::{
     msg::{DaoResponse, UserResponse, UserType, VoterInfoResponse},
     state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
     types::{
-        BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem, RouteItem,
-        RouteListItem, VoteResults, WeightAllocationItem,
+        BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem, RewardsInfo,
+        RouteItem, RouteListItem, VoteResults, WeightAllocationItem,
     },
 };
 
@@ -479,7 +479,8 @@ fn bribes_allocation_default() -> StdResult<()> {
             slacker_essence: Uint128::new(3_000),
             elector_weights: weights_alice.to_owned(),
             dao_weights: weights_dao.to_owned(),
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             pool_info_list: vec![
                 PoolInfoItem::new(
                     eclip_atom,
@@ -529,8 +530,11 @@ fn bribes_allocation_default() -> StdResult<()> {
             // dao_eclip_rewards = sum_over_denoms(dao_rewards_per_denom)
             // dao_rewards_per_denom = sum_over_pools(voter_rewards * (dao_essence * dao_weight) / (voter_essence * voter_weight))
             //
-            // 16_351_589 + 16_351_589 + 86_666_666 + 52_000_000 + 6_348_976 = 177_718_820
-            dao_eclip_rewards: Uint128::new(177_718_814),
+            // dao_eclip_rewards = 16_351_589 + 16_351_589 + 86_666_666 + 52_000_000 + 6_348_976 = 177_718_820
+            // dao_treasury_eclip_rewards = 0.8 * 177_718_820 = 35_543_763
+            // dao_delegators_eclip_rewards = 177_718_820 - 35_543_763 = 142_175_051
+            dao_treasury_eclip_rewards: Uint128::new(35_543_763),
+            dao_delegators_eclip_rewards: Uint128::new(142_175_051),
             // dao_rewards_per_denom = sum_over_pools(voter_rewards * (dao_essence * dao_weight) / (voter_essence * voter_weight))
             // elector_rewards_per_denom = rewards_per_denom - dao_rewards_per_denom
             //
@@ -912,18 +916,21 @@ fn auto_updating_essence() -> StdResult<()> {
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
         weights: vec![],
+        rewards: RewardsInfo::default(),
     });
     assert_that(&essence_info_bob).is_equal_to(UserResponse {
         user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
         weights: vec![],
+        rewards: RewardsInfo::default(),
     });
     assert_that(&essence_info_john).is_equal_to(UserResponse {
         user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
         weights: vec![],
+        rewards: RewardsInfo::default(),
     });
 
     // take roles: alice - elector, bob - delegator, john - slacker
@@ -939,18 +946,21 @@ fn auto_updating_essence() -> StdResult<()> {
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
         weights: weights.to_owned(),
+        rewards: RewardsInfo::default(),
     });
     assert_that(&essence_info_bob).is_equal_to(UserResponse {
         user_type: UserType::Delegator,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
         weights: vec![],
+        rewards: RewardsInfo::default(),
     });
     assert_that(&essence_info_john).is_equal_to(UserResponse {
         user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
         weights: vec![],
+        rewards: RewardsInfo::default(),
     });
 
     // change essence for slacker, elector, delegator
@@ -968,18 +978,21 @@ fn auto_updating_essence() -> StdResult<()> {
         essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
         essence_value: Uint128::new(1000),
         weights: weights.to_owned(),
+        rewards: RewardsInfo::default(),
     });
     assert_that(&essence_info_bob).is_equal_to(UserResponse {
         user_type: UserType::Delegator,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
         essence_value: Uint128::new(1000),
         weights: vec![],
+        rewards: RewardsInfo::default(),
     });
     assert_that(&essence_info_john).is_equal_to(UserResponse {
         user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
         essence_value: Uint128::new(1000),
         weights: vec![],
+        rewards: RewardsInfo::default(),
     });
 
     Ok(())
@@ -1030,6 +1043,7 @@ fn changing_weights_by_essence() -> StdResult<()> {
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
         weights: weights_alice.to_owned(),
+        rewards: RewardsInfo::default(),
     });
     assert_that(&essence_info_dao).is_equal_to(DaoResponse {
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
@@ -1078,6 +1092,7 @@ fn changing_weights_by_essence() -> StdResult<()> {
         essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
         essence_value: Uint128::new(2_000),
         weights: weights_alice.to_owned(),
+        rewards: RewardsInfo::default(),
     });
     assert_that(&essence_info_dao).is_equal_to(DaoResponse {
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
@@ -1194,7 +1209,8 @@ fn electors_delegators_slackers_dao_voting() -> StdResult<()> {
                 WeightAllocationItem::new(astro_atom, "0.3"),
             ],
             dao_weights: weights_dao.to_owned(),
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             // ((0.2, 0.3, 0.5) * 1_000 + (0.1, 0.7, 0.2) * 2_000) * ((3_000 + 0.8 * 11_000) / 3_000) +
             // (0.5, 0.3, 0.2) * (7_000 + 0.2 * 11_000) =
             // ((200, 300, 500) + (200, 1_400, 400)) * (11_800 / 3_000) + (0.5, 0.3, 0.2) * 9_200 =
@@ -1293,7 +1309,8 @@ fn electors_slackers_dao_voting() -> StdResult<()> {
             slacker_essence: Uint128::new(5_000),
             elector_weights: weights_alice.to_owned(),
             dao_weights: weights_dao.to_owned(),
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 5_000) + (0.5, 0.3, 0.2) * (0.2 * 5_000) =
             // (1_000, 1_500, 2_500) + (500, 300, 200) = (1_500, 1_800, 2_700) = (0.25, 0.3, 0.45)
             pool_info_list: vec![
@@ -1357,7 +1374,8 @@ fn delegators_slackers_dao_voting() -> StdResult<()> {
             slacker_essence: Uint128::new(4_000),
             elector_weights: vec![],
             dao_weights: weights_dao.to_owned(),
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             // (0.5, 0.3, 0.2) * (2_000 + 0.2 * 4_000) =
             // (1_400, 740, 560) = (0.5, 0.3, 0.2)
             pool_info_list: vec![
@@ -1427,7 +1445,8 @@ fn electors_delegators_dao_voting() -> StdResult<()> {
             slacker_essence: Uint128::new(0),
             elector_weights: weights_alice.to_owned(),
             dao_weights: weights_dao.to_owned(),
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * 1_000 + (0.5, 0.3, 0.2) * 5_000 =
             // (200, 300, 500) + (2_500, 1_500, 1_000) = (2_700, 1_800, 1_500) = (0.45, 0.3, 0.25)
             pool_info_list: vec![
@@ -1490,7 +1509,8 @@ fn slackers_dao_voting() -> StdResult<()> {
             slacker_essence: Uint128::new(6_000),
             elector_weights: vec![],
             dao_weights: weights_dao.to_owned(),
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             // (0.5, 0.3, 0.2) * 1_200 = (600, 360, 240) = (0.5, 0.3, 0.2)
             pool_info_list: vec![
                 PoolInfoItem::new(eclip_atom, "0.5", &[]),
@@ -1557,7 +1577,8 @@ fn electors_dao_voting() -> StdResult<()> {
             slacker_essence: Uint128::new(0),
             elector_weights: weights_alice.to_owned(),
             dao_weights: weights_dao.to_owned(),
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * 6_000 = (0.2, 0.3, 0.5)
             pool_info_list: vec![
                 PoolInfoItem::new(eclip_atom, "0.2", &[]),
@@ -1619,7 +1640,8 @@ fn delegators_dao_voting() -> StdResult<()> {
             slacker_essence: Uint128::new(0),
             elector_weights: vec![],
             dao_weights: weights_dao.to_owned(),
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             // (0.5, 0.3, 0.2) * 6_000 = (0.5, 0.3, 0.2)
             pool_info_list: vec![
                 PoolInfoItem::new(eclip_atom, "0.5", &[]),
@@ -1678,7 +1700,8 @@ fn electors_voting() -> StdResult<()> {
             slacker_essence: Uint128::new(0),
             elector_weights: weights_alice.to_owned(),
             dao_weights: vec![],
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * 6_000 = (0.2, 0.3, 0.5)
             pool_info_list: vec![
                 PoolInfoItem::new(eclip_atom, "0.2", &[]),
@@ -1726,7 +1749,8 @@ fn delegators_voting() -> StdResult<()> {
             slacker_essence: Uint128::new(0),
             elector_weights: vec![],
             dao_weights: vec![],
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             pool_info_list: vec![],
         }],
     });
@@ -1768,7 +1792,8 @@ fn slackers_voting() -> StdResult<()> {
             slacker_essence: Uint128::new(6_000),
             elector_weights: vec![],
             dao_weights: vec![],
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             pool_info_list: vec![],
         }],
     });
@@ -1841,7 +1866,8 @@ fn change_vote_after_dao_voting() -> StdResult<()> {
             slacker_essence: Uint128::new(3_000),
             elector_weights: weights_alice_after.to_owned(),
             dao_weights: weights_dao.to_owned(),
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 3_000) + (0.5, 0.3, 0.2) * (2_000 + 0.2 * 3_000) =
             // (680, 1_020, 1_700) + (1_300, 780, 520) = (1_980, 1_800, 2_220) = (0.33, 0.3, 0.37)
             pool_info_list: vec![
@@ -2012,12 +2038,14 @@ fn electors_and_slackers_can_delegate() -> StdResult<()> {
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
         weights: weights_alice.to_owned(),
+        rewards: RewardsInfo::default(),
     });
     assert_that(&essence_info_john).is_equal_to(UserResponse {
         user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(0, 0, 3_000),
         essence_value: Uint128::new(3_000),
         weights: vec![],
+        rewards: RewardsInfo::default(),
     });
 
     // delegate
@@ -2033,12 +2061,14 @@ fn electors_and_slackers_can_delegate() -> StdResult<()> {
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
         weights: vec![],
+        rewards: RewardsInfo::default(),
     });
     assert_that(&essence_info_john).is_equal_to(UserResponse {
         user_type: UserType::Delegator,
         essence_info: EssenceInfo::new::<u128>(0, 0, 3_000),
         essence_value: Uint128::new(3_000),
         weights: vec![],
+        rewards: RewardsInfo::default(),
     });
 
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
@@ -2063,7 +2093,8 @@ fn electors_and_slackers_can_delegate() -> StdResult<()> {
             slacker_essence: Uint128::new(0),
             elector_weights: vec![],
             dao_weights: weights_dao.to_owned(),
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             pool_info_list: vec![
                 PoolInfoItem::new(eclip_atom, "0.5", &[]),
                 PoolInfoItem::new(ntrn_atom, "0.3", &[]),
@@ -2217,7 +2248,8 @@ fn undelegate_default() -> StdResult<()> {
             slacker_essence: Uint128::new(5_000),
             elector_weights: weights_alice.to_owned(),
             dao_weights: weights_dao.to_owned(),
-            dao_eclip_rewards: Uint128::new(0),
+            dao_treasury_eclip_rewards: Uint128::new(0),
+            dao_delegators_eclip_rewards: Uint128::new(0),
             // (0.2, 0.3, 0.5) * (1_000 + 0.8 * 5_000) + (0.5, 0.3, 0.2) * 0.2 * 5_000 =
             // (1_000, 1_500, 2_500) + (500, 300, 200) = (1_500, 1_800, 2_700) = (0.25, 0.3, 0.45)
             pool_info_list: vec![

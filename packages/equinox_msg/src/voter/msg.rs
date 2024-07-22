@@ -2,7 +2,8 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
 use super::types::{
-    EssenceAllocationItem, EssenceInfo, RouteListItem, VoteResults, WeightAllocationItem,
+    EssenceAllocationItem, EssenceInfo, RewardsInfo, RouteListItem, VoteResults,
+    WeightAllocationItem,
 };
 
 #[cw_serde]
@@ -249,6 +250,8 @@ pub struct UserResponse {
     pub essence_value: Uint128,
     /// list of pools with weight allocations by user address
     pub weights: Vec<WeightAllocationItem>,
+    /// rewards available to claim
+    pub rewards: RewardsInfo,
 }
 
 #[cw_serde]

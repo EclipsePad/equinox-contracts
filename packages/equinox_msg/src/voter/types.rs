@@ -178,8 +178,10 @@ pub struct VoteResults {
     pub elector_weights: Vec<WeightAllocationItem>,
     pub dao_weights: Vec<WeightAllocationItem>,
 
-    /// 0.2 -> treasury, 0.8 -> delegators
-    pub dao_eclip_rewards: Uint128,
+    /// 0.2 * dao_eclip_rewards
+    pub dao_treasury_eclip_rewards: Uint128,
+    /// 0.8 * dao_eclip_rewards
+    pub dao_delegators_eclip_rewards: Uint128,
     pub pool_info_list: Vec<PoolInfoItem>,
 }
 
