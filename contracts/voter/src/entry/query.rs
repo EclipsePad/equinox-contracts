@@ -3,21 +3,20 @@ use cw_storage_plus::Bound;
 
 use eclipse_base::{converters::u128_to_dec, utils::unwrap_field};
 use equinox_msg::voter::{
-    msg::{
-        DaoResponse, UserListResponse, UserListResponseItem, UserResponse, UserType,
-        VoterInfoResponse,
-    },
+    msg::{DaoResponse, UserListResponse, UserListResponseItem, UserResponse, VoterInfoResponse},
     state::{
         ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, ELECTOR_ESSENCE_ACC,
-        ELECTOR_WEIGHTS, ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, ROUTE_CONFIG,
-        SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, VOTE_RESULTS,
+        ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG,
+        USER_ESSENCE, VOTE_RESULTS,
     },
-    types::{AddressConfig, DateConfig, EpochInfo, RouteListItem, TokenConfig},
+    types::{
+        AddressConfig, BribesAllocationItem, DateConfig, EpochInfo, RouteListItem, TokenConfig,
+    },
 };
 
 use crate::{
     helpers::{get_accumulated_rewards, get_total_votes, get_user_type, get_user_weights},
-    math::calc_essence_allocation,
+    math::{calc_essence_allocation, calc_voting_power},
 };
 
 pub fn query_address_config(deps: Deps, _env: Env) -> StdResult<AddressConfig> {
@@ -65,13 +64,27 @@ pub fn query_xastro_price(deps: Deps, _env: Env) -> StdResult<Decimal> {
     Ok(u128_to_dec(astro_amount) / u128_to_dec(xastro_amount))
 }
 
+// TODO: query from both tribute markets
+pub fn query_bribes_allocation(deps: Deps, _env: Env) -> StdResult<Vec<BribesAllocationItem>> {
+    let address_config = ADDRESS_CONFIG.load(deps.storage)?;
+    let astroport_tribute_market = &unwrap_field(
+        address_config.astroport_tribute_market,
+        "astroport_tribute_market",
+    )?;
+
+    deps.querier.query_wasm_smart::<Vec<BribesAllocationItem>>(
+        astroport_tribute_market,
+        &tribute_market_mocks::msg::QueryMsg::BribesAllocation {},
+    )
+}
+
 /// query voting power
 pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
+    let block_time = env.block.time.seconds();
     let voter_address = &env.contract.address;
     let address = &deps.api.addr_validate(&address)?;
     let AddressConfig {
         astroport_voting_escrow,
-        eclipsepad_staking,
         ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
 
@@ -89,47 +102,31 @@ pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Ui
         return Ok(vxastro_amount);
     }
 
-    // TODO: calculate essence at the epoch start
-    // query essence from eclipsepad-staking v3
-    let eclipse_base::staking::msg::QueryEssenceResponse { essence, .. } =
-        deps.querier.query_wasm_smart(
-            eclipsepad_staking.clone(),
-            &eclipse_base::staking::msg::QueryMsg::QueryEssence {
-                user: address.to_string(),
-            },
-        )?;
+    let user_essence = USER_ESSENCE
+        .load(deps.storage, address)
+        .unwrap_or_default()
+        .capture(block_time);
+    let elector_essence_acc = ELECTOR_ESSENCE_ACC
+        .load(deps.storage)
+        .unwrap_or_default()
+        .capture(block_time);
+    let dao_essence_acc = DAO_ESSENCE_ACC
+        .load(deps.storage)
+        .unwrap_or_default()
+        .capture(block_time);
+    let slacker_essence_acc = SLACKER_ESSENCE_ACC
+        .load(deps.storage)
+        .unwrap_or_default()
+        .capture(block_time);
 
-    let eclipse_base::staking::msg::QueryEssenceResponse {
-        essence: total_essence,
-        ..
-    } = deps.querier.query_wasm_smart(
-        eclipsepad_staking,
-        &eclipse_base::staking::msg::QueryMsg::QueryTotalEssence {},
-    )?;
-
-    let voting_power = vxastro_amount * essence / total_essence;
-
-    Ok(voting_power)
+    Ok(calc_voting_power(
+        vxastro_amount,
+        user_essence,
+        elector_essence_acc,
+        dao_essence_acc,
+        slacker_essence_acc,
+    ))
 }
-
-// pub fn query_voter_info(
-//     deps: Deps,
-//     _env: Env,
-//     address: String,
-// ) -> StdResult<astroport_governance::generator_controller::UserInfoResponse> {
-//     let address = &deps.api.addr_validate(&address)?;
-//     let Config {
-//         astroport_generator_controller,
-//         ..
-//     } = CONFIG.load(deps.storage)?;
-
-//     deps.querier.query_wasm_smart(
-//         astroport_generator_controller,
-//         &astroport_governance::generator_controller::QueryMsg::UserInfo {
-//             user: address.to_string(),
-//         },
-//     )
-// }
 
 pub fn query_user(
     deps: Deps,
@@ -152,107 +149,44 @@ pub fn query_user(
     })
 }
 
-// pub fn query_elector_list(
-//     deps: Deps,
-//     env: Env,
-//     amount: u32,
-//     start_from: Option<String>,
-// ) -> StdResult<UserListResponse> {
-//     let block_time = env.block.time.seconds();
-//     let address;
-//     let start_bound = match start_from {
-//         None => None,
-//         Some(x) => {
-//             address = deps.api.addr_validate(&x)?;
-//             Some(Bound::exclusive(&address))
-//         }
-//     };
+pub fn query_user_list(
+    deps: Deps,
+    env: Env,
+    block_time: Option<u64>,
+    amount: u32,
+    start_from: Option<String>,
+) -> StdResult<UserListResponse> {
+    let block_time = block_time.unwrap_or(env.block.time.seconds());
+    let address;
+    let start_bound = match start_from {
+        None => None,
+        Some(x) => {
+            address = deps.api.addr_validate(&x)?;
+            Some(Bound::exclusive(&address))
+        }
+    };
 
-//     let list = ELECTOR_ESSENCE
-//         .range(deps.storage, start_bound.clone(), None, Order::Ascending)
-//         .take(amount as usize)
-//         .map(|x| {
-//             let (address, essence_info) = x.unwrap();
-//             let weights = ELECTOR_WEIGHTS
-//                 .load(deps.storage, &address)
-//                 .unwrap_or_default();
+    let list = USER_ESSENCE
+        .range(deps.storage, start_bound.clone(), None, Order::Ascending)
+        .take(amount as usize)
+        .map(|x| {
+            let (address, essence_info) = x.unwrap();
+            let essence_value = essence_info.capture(block_time);
+            let (_, user_rewards) = get_accumulated_rewards(deps.storage, &address, block_time)?;
+            let user_info = UserResponse {
+                user_type: get_user_type(deps.storage, &address)?,
+                essence_info,
+                essence_value,
+                weights: get_user_weights(deps.storage, &address)?,
+                rewards: user_rewards,
+            };
 
-//             Ok(UserListResponseItem {
-//                 address,
-//                 essence_info,
-//                 weights: Some(weights),
-//             })
-//         })
-//         .collect::<StdResult<Vec<UserListResponseItem>>>()?;
+            Ok(UserListResponseItem { address, user_info })
+        })
+        .collect::<StdResult<Vec<UserListResponseItem>>>()?;
 
-//     Ok(UserListResponse { block_time, list })
-// }
-
-// pub fn query_delegator_list(
-//     deps: Deps,
-//     env: Env,
-//     amount: u32,
-//     start_from: Option<String>,
-// ) -> StdResult<UserListResponse> {
-//     let block_time = env.block.time.seconds();
-//     let address;
-//     let start_bound = match start_from {
-//         None => None,
-//         Some(x) => {
-//             address = deps.api.addr_validate(&x)?;
-//             Some(Bound::exclusive(&address))
-//         }
-//     };
-
-//     let list = DELEGATOR_ESSENCE
-//         .range(deps.storage, start_bound.clone(), None, Order::Ascending)
-//         .take(amount as usize)
-//         .map(|x| {
-//             let (address, essence_info) = x.unwrap();
-
-//             UserListResponseItem {
-//                 address,
-//                 essence_info,
-//                 weights: None,
-//             }
-//         })
-//         .collect::<Vec<UserListResponseItem>>();
-
-//     Ok(UserListResponse { block_time, list })
-// }
-
-// pub fn query_slacker_list(
-//     deps: Deps,
-//     env: Env,
-//     amount: u32,
-//     start_from: Option<String>,
-// ) -> StdResult<UserListResponse> {
-//     let block_time = env.block.time.seconds();
-//     let address;
-//     let start_bound = match start_from {
-//         None => None,
-//         Some(x) => {
-//             address = deps.api.addr_validate(&x)?;
-//             Some(Bound::exclusive(&address))
-//         }
-//     };
-
-//     let list = SLACKER_ESSENCE
-//         .range(deps.storage, start_bound.clone(), None, Order::Ascending)
-//         .take(amount as usize)
-//         .map(|x| {
-//             let (address, essence_info) = x.unwrap();
-
-//             UserListResponseItem {
-//                 address,
-//                 essence_info,
-//                 weights: None,
-//             }
-//         })
-//         .collect::<Vec<UserListResponseItem>>();
-
-//     Ok(UserListResponse { block_time, list })
-// }
+    Ok(UserListResponse { block_time, list })
+}
 
 pub fn query_dao_info(deps: Deps, env: Env, block_time: Option<u64>) -> StdResult<DaoResponse> {
     let block_time = block_time.unwrap_or(env.block.time.seconds());

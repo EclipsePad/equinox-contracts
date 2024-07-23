@@ -89,17 +89,9 @@ pub trait VoterExtension {
         &mut self,
         sender: impl ToString,
         user_and_essence_list: &[(impl ToString, EssenceInfo)],
-        total_essence: EssenceInfo,
     ) -> StdResult<AppResponse>;
 
     fn voter_try_swap_to_eclip_astro(
-        &mut self,
-        sender: impl ToString,
-        amount: u128,
-        denom: &str,
-    ) -> StdResult<AppResponse>;
-
-    fn voter_try_swap_xastro_to_astro(
         &mut self,
         sender: impl ToString,
         amount: u128,
@@ -128,11 +120,7 @@ pub trait VoterExtension {
         route_list: &[RouteListItem],
     ) -> StdResult<AppResponse>;
 
-    fn voter_try_vote(&mut self) -> StdResult<AppResponse>;
-
-    fn voter_try_claim(&mut self) -> StdResult<AppResponse>;
-
-    fn voter_try_swap(&mut self) -> StdResult<AppResponse>;
+    fn voter_try_push(&mut self) -> StdResult<AppResponse>;
 
     fn voter_try_claim_rewards(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
 
@@ -156,20 +144,9 @@ pub trait VoterExtension {
         block_time: Option<u64>,
     ) -> StdResult<UserResponse>;
 
-    fn voter_query_elector_list(
+    fn voter_query_user_list(
         &self,
-        amount: u32,
-        start_from: Option<String>,
-    ) -> StdResult<Vec<UserListResponse>>;
-
-    fn voter_query_delegator_list(
-        &self,
-        amount: u32,
-        start_from: Option<String>,
-    ) -> StdResult<Vec<UserListResponse>>;
-
-    fn voter_query_slacker_list(
-        &self,
+        block_time: Option<u64>,
         amount: u32,
         start_from: Option<String>,
     ) -> StdResult<Vec<UserListResponse>>;
@@ -387,7 +364,6 @@ impl VoterExtension for ControllerHelper {
         &mut self,
         sender: impl ToString,
         user_and_essence_list: &[(impl ToString, EssenceInfo)],
-        total_essence: EssenceInfo,
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
@@ -398,7 +374,6 @@ impl VoterExtension for ControllerHelper {
                         .iter()
                         .map(|(user, essence)| (user.to_string(), essence.to_owned()))
                         .collect(),
-                    total_essence,
                 },
                 &[],
             )
@@ -416,22 +391,6 @@ impl VoterExtension for ControllerHelper {
                 Addr::unchecked(&sender.to_string()),
                 self.voter_contract_address(),
                 &ExecuteMsg::SwapToEclipAstro {},
-                &coins(amount, denom),
-            )
-            .map_err(parse_err)
-    }
-
-    fn voter_try_swap_xastro_to_astro(
-        &mut self,
-        sender: impl ToString,
-        amount: u128,
-        denom: &str,
-    ) -> StdResult<AppResponse> {
-        self.app
-            .execute_contract(
-                Addr::unchecked(&sender.to_string()),
-                self.voter_contract_address(),
-                &ExecuteMsg::SwapXastroToAstro {},
                 &coins(amount, denom),
             )
             .map_err(parse_err)
@@ -510,21 +469,9 @@ impl VoterExtension for ControllerHelper {
             .map_err(parse_err)
     }
 
-    fn voter_try_vote(&mut self) -> StdResult<AppResponse> {
+    fn voter_try_push(&mut self) -> StdResult<AppResponse> {
         self.app
-            .wasm_sudo(self.voter_contract_address(), &SudoMsg::Vote {})
-            .map_err(parse_err)
-    }
-
-    fn voter_try_claim(&mut self) -> StdResult<AppResponse> {
-        self.app
-            .wasm_sudo(self.voter_contract_address(), &SudoMsg::Claim {})
-            .map_err(parse_err)
-    }
-
-    fn voter_try_swap(&mut self) -> StdResult<AppResponse> {
-        self.app
-            .wasm_sudo(self.voter_contract_address(), &SudoMsg::Swap {})
+            .wasm_sudo(self.voter_contract_address(), &SudoMsg::Push {})
             .map_err(parse_err)
     }
 
@@ -599,36 +546,19 @@ impl VoterExtension for ControllerHelper {
         )
     }
 
-    fn voter_query_elector_list(
+    fn voter_query_user_list(
         &self,
+        block_time: Option<u64>,
         amount: u32,
         start_from: Option<String>,
     ) -> StdResult<Vec<UserListResponse>> {
         self.app.wrap().query_wasm_smart(
             self.voter_contract_address(),
-            &QueryMsg::ElectorList { amount, start_from },
-        )
-    }
-
-    fn voter_query_delegator_list(
-        &self,
-        amount: u32,
-        start_from: Option<String>,
-    ) -> StdResult<Vec<UserListResponse>> {
-        self.app.wrap().query_wasm_smart(
-            self.voter_contract_address(),
-            &QueryMsg::ElectorList { amount, start_from },
-        )
-    }
-
-    fn voter_query_slacker_list(
-        &self,
-        amount: u32,
-        start_from: Option<String>,
-    ) -> StdResult<Vec<UserListResponse>> {
-        self.app.wrap().query_wasm_smart(
-            self.voter_contract_address(),
-            &QueryMsg::ElectorList { amount, start_from },
+            &QueryMsg::UserList {
+                block_time,
+                amount,
+                start_from,
+            },
         )
     }
 

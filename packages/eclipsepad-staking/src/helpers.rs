@@ -14,7 +14,7 @@ use eclipse_base::{
         types::{Config, LockerInfo, PaginationConfig, StakerInfo, State},
     },
 };
-use equinox_msg::voter::{msg::QueryEssenceListResponse, types::EssenceInfo};
+use equinox_msg::voter::types::EssenceInfo;
 
 use crate::math;
 
@@ -26,34 +26,17 @@ pub fn check_pause_state(deps: Deps) -> StdResult<()> {
     Ok(())
 }
 
-pub fn get_essence_snapshot(storage: &dyn Storage, user: &Addr) -> QueryEssenceListResponse {
-    let (a1, b1) = STAKING_ESSENCE_COMPONENTS
-        .load(storage, user)
-        .unwrap_or_default();
-    // let staking_essence =
-    //     math::v3::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
-    let locking_essence = LOCKING_ESSENCE.load(storage, &user).unwrap_or_default();
-
-    let (a2, b2) = TOTAL_STAKING_ESSENCE_COMPONENTS
-        .load(storage)
-        .unwrap_or_default();
-    // let total_staking_essence =
-    //     math::v3::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
-    let total_locking_essence = TOTAL_LOCKING_ESSENCE.load(storage).unwrap_or_default();
-
-    QueryEssenceListResponse {
-        user_and_essence_list: vec![(
-            user.to_string(),
-            EssenceInfo {
-                staking_components: (a1, b1),
-                locking_amount: locking_essence,
-            },
-        )],
-        total_essence: EssenceInfo {
-            staking_components: (a2, b2),
-            locking_amount: total_locking_essence,
+/// returns list of (user, essence_info)
+pub fn get_essence_snapshot(storage: &dyn Storage, user: &Addr) -> Vec<(String, EssenceInfo)> {
+    vec![(
+        user.to_string(),
+        EssenceInfo {
+            staking_components: STAKING_ESSENCE_COMPONENTS
+                .load(storage, user)
+                .unwrap_or_default(),
+            locking_amount: LOCKING_ESSENCE.load(storage, user).unwrap_or_default(),
         },
-    }
+    )]
 }
 
 pub mod v2 {

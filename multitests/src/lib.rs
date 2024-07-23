@@ -10,10 +10,8 @@
 // pub mod timelock_stake;
 // #[cfg(test)]
 // pub mod token_converter;
-// #[cfg(test)]
-// pub mod voter;
 #[cfg(test)]
-pub mod voter_new;
+pub mod voter;
 
 // https://github.com/astroport-fi/hidden_astroport_governance/tree/feat/revamped_vxastro/contracts/emissions_controller/tests/common
 pub mod suite_astro {

@@ -5,7 +5,11 @@ use cosmwasm_std::{
 
 use equinox_msg::voter::{
     msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SudoMsg},
-    state::{STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_MAX, SWAP_REWARDS_REPLY_ID_MIN},
+    state::{
+        REWARDS_CLAIM_STAGE, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_MAX,
+        SWAP_REWARDS_REPLY_ID_MIN,
+    },
+    types::RewardsClaimStage,
 };
 
 use crate::{
@@ -90,14 +94,9 @@ pub fn execute(
 
         ExecuteMsg::UpdateEssenceAllocation {
             user_and_essence_list,
-            total_essence,
-        } => {
-            e::try_update_essence_allocation(deps, env, info, user_and_essence_list, total_essence)
-        }
+        } => e::try_update_essence_allocation(deps, env, info, user_and_essence_list),
 
         ExecuteMsg::SwapToEclipAstro {} => e::try_swap_to_eclip_astro(deps, env, info),
-
-        ExecuteMsg::SwapXastroToAstro {} => unimplemented!(),
 
         ExecuteMsg::Delegate {} => e::try_delegate(deps, env, info),
 
@@ -131,8 +130,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         QueryMsg::Rewards {} => to_json_binary(&q::query_rewards(deps, env)?),
 
-        // TODO: query from both tribute markets
-        QueryMsg::BribesAllocation {} => unimplemented!(),
+        QueryMsg::BribesAllocation {} => to_json_binary(&q::query_bribes_allocation(deps, env)?),
 
         QueryMsg::VotingPower { address } => {
             to_json_binary(&q::query_voting_power(deps, env, address)?)
@@ -145,17 +143,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             block_time,
         } => to_json_binary(&q::query_user(deps, env, address, block_time)?),
 
-        QueryMsg::ElectorList { amount, start_from } => {
-            unimplemented!()
-        }
-
-        QueryMsg::DelegatorList { amount, start_from } => {
-            unimplemented!()
-        }
-
-        QueryMsg::SlackerList { amount, start_from } => {
-            unimplemented!()
-        }
+        QueryMsg::UserList {
+            block_time,
+            amount,
+            start_from,
+        } => to_json_binary(&q::query_user_list(
+            deps, env, block_time, amount, start_from,
+        )?),
 
         QueryMsg::DaoInfo { block_time } => {
             to_json_binary(&q::query_dao_info(deps, env, block_time)?)
@@ -196,11 +190,10 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, Contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
     match msg {
-        // TODO: use Process
-        SudoMsg::Vote {} => e::try_vote(deps, env),
-
-        SudoMsg::Claim {} => e::try_claim(deps, env),
-
-        SudoMsg::Swap {} => e::try_swap(deps, env),
+        SudoMsg::Push {} => match REWARDS_CLAIM_STAGE.load(deps.storage)? {
+            RewardsClaimStage::Swapped => e::try_vote(deps, env),
+            RewardsClaimStage::Unclaimed => e::try_claim(deps, env),
+            RewardsClaimStage::Claimed => e::try_swap(deps, env),
+        },
     }
 }

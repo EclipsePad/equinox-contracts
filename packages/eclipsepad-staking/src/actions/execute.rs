@@ -20,7 +20,7 @@ use eclipse_base::{
     },
     utils::{add_funds_to_exec_msg, check_funds, unwrap_field, FundsType},
 };
-use equinox_msg::voter::{msg::QueryEssenceListResponse, types::EssenceInfo};
+use equinox_msg::voter::types::EssenceInfo;
 
 use crate::{helpers, math};
 
@@ -142,17 +142,14 @@ pub fn try_stake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     ]);
 
     if let Some(x) = equinox_voter {
-        let QueryEssenceListResponse {
-            user_and_essence_list,
-            total_essence,
-        } = helpers::get_essence_snapshot(deps.storage, &sender_address);
-
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
                 &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list,
-                    total_essence,
+                    user_and_essence_list: helpers::get_essence_snapshot(
+                        deps.storage,
+                        &sender_address,
+                    ),
                 },
             )?,
             funds: vec![],
@@ -380,17 +377,11 @@ pub fn try_lock(
     ]);
 
     if let Some(x) = equinox_voter {
-        let QueryEssenceListResponse {
-            user_and_essence_list,
-            total_essence,
-        } = helpers::get_essence_snapshot(deps.storage, sender);
-
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
                 &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list,
-                    total_essence,
+                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
                 },
             )?,
             funds: vec![],
@@ -496,17 +487,11 @@ pub fn try_unstake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respons
     ]);
 
     if let Some(x) = equinox_voter {
-        let QueryEssenceListResponse {
-            user_and_essence_list,
-            total_essence,
-        } = helpers::get_essence_snapshot(deps.storage, sender);
-
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
                 &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list,
-                    total_essence,
+                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
                 },
             )?,
             funds: vec![],
@@ -682,17 +667,11 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
     ]);
 
     if let Some(x) = equinox_voter {
-        let QueryEssenceListResponse {
-            user_and_essence_list,
-            total_essence,
-        } = helpers::get_essence_snapshot(deps.storage, sender);
-
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
                 &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list,
-                    total_essence,
+                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
                 },
             )?,
             funds: vec![],
@@ -857,17 +836,11 @@ pub fn try_relock(
     let mut response = Response::new().add_attributes(vec![("action", "try_relock")]);
 
     if let Some(x) = equinox_voter {
-        let QueryEssenceListResponse {
-            user_and_essence_list,
-            total_essence,
-        } = helpers::get_essence_snapshot(deps.storage, sender);
-
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
                 &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list,
-                    total_essence,
+                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
                 },
             )?,
             funds: vec![],
@@ -1064,17 +1037,11 @@ pub fn try_withdraw(
     ]);
 
     if let Some(x) = equinox_voter {
-        let QueryEssenceListResponse {
-            user_and_essence_list,
-            total_essence,
-        } = helpers::get_essence_snapshot(deps.storage, sender);
-
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
                 &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list,
-                    total_essence,
+                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
                 },
             )?,
             funds: vec![],
@@ -1225,17 +1192,11 @@ pub fn try_bond(
     ]);
 
     if let Some(x) = equinox_voter {
-        let QueryEssenceListResponse {
-            user_and_essence_list,
-            total_essence,
-        } = helpers::get_essence_snapshot(deps.storage, sender);
-
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
                 &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list,
-                    total_essence,
+                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
                 },
             )?,
             funds: vec![],
@@ -1445,13 +1406,13 @@ pub fn try_bond_for(
 
     if let Some(x) = equinox_voter {
         let mut user_and_essence_list: Vec<(String, EssenceInfo)> = vec![];
-        let mut total_essence: EssenceInfo = EssenceInfo::default();
 
         for (sender, _) in address_and_amount_list {
-            let res = helpers::get_essence_snapshot(deps.storage, &Addr::unchecked(sender));
-
-            user_and_essence_list = [user_and_essence_list, res.user_and_essence_list].concat();
-            total_essence = res.total_essence;
+            user_and_essence_list = [
+                user_and_essence_list,
+                helpers::get_essence_snapshot(deps.storage, &Addr::unchecked(sender)),
+            ]
+            .concat();
         }
 
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -1459,7 +1420,6 @@ pub fn try_bond_for(
             msg: to_json_binary(
                 &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
                     user_and_essence_list,
-                    total_essence,
                 },
             )?,
             funds: vec![],
@@ -1636,17 +1596,14 @@ pub fn try_unbond(
     ]);
 
     if let Some(x) = equinox_voter {
-        let QueryEssenceListResponse {
-            user_and_essence_list,
-            total_essence,
-        } = helpers::get_essence_snapshot(deps.storage, &sender_address);
-
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
                 &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list,
-                    total_essence,
+                    user_and_essence_list: helpers::get_essence_snapshot(
+                        deps.storage,
+                        &sender_address,
+                    ),
                 },
             )?,
             funds: vec![],
@@ -1973,17 +1930,11 @@ pub fn try_aggregate_vaults(
     let mut response = Response::new().add_attributes(vec![("action", "try_aggregate_vaults")]);
 
     if let Some(x) = equinox_voter {
-        let QueryEssenceListResponse {
-            user_and_essence_list,
-            total_essence,
-        } = helpers::get_essence_snapshot(deps.storage, sender);
-
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
                 &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list,
-                    total_essence,
+                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
                 },
             )?,
             funds: vec![],

@@ -33,7 +33,7 @@ pub struct InstantiateMsg {
     pub astroport_assembly: String,
     /// to lock xASTRO and get voting power
     pub astroport_voting_escrow: String,
-    /// TODO
+    /// to apply votes
     pub astroport_emission_controller: String,
     /// to sell rewards
     pub astroport_router: String,
@@ -60,11 +60,7 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub enum SudoMsg {
     // x/cron
-    Vote {},
-
-    Claim {},
-
-    Swap {},
+    Push {},
 }
 
 #[cw_serde]
@@ -96,7 +92,7 @@ pub enum ExecuteMsg {
         astroport_assembly: Option<String>,
         /// to lock xASTRO and get voting power
         astroport_voting_escrow: Option<String>,
-        /// TODO
+        /// to apply votes
         astroport_emission_controller: Option<String>,
         /// to sell rewards
         astroport_router: Option<String>,
@@ -128,14 +124,11 @@ pub enum ExecuteMsg {
 
     UpdateEssenceAllocation {
         user_and_essence_list: Vec<(String, EssenceInfo)>,
-        total_essence: EssenceInfo,
     },
 
     /// a user can lock xASTRO to get eclipASTRO and boost voting power for essence holders
     /// swap ASTRO -> xASTRO will be provided first if it's required
     SwapToEclipAstro {},
-
-    SwapXastroToAstro {},
 
     Delegate {},
 
@@ -187,21 +180,6 @@ pub enum QueryMsg {
     #[returns(Decimal)]
     XastroPrice {},
 
-    // #[returns(astroport_governance::emissions_controller::hub::UserInfoResponse)]
-    // VoterInfo {
-    //     address: String,
-    // },
-
-    // /// get user essence or total essence
-    // #[returns(EssenceInfo)]
-    // Essence { address: String },
-
-    // #[returns(QueryEssenceListResponse)]
-    // EssenceList {
-    //     amount: u32,
-    //     start_from: Option<String>,
-    // },
-    //
     #[returns(UserResponse)]
     User {
         address: String,
@@ -209,19 +187,8 @@ pub enum QueryMsg {
     },
 
     #[returns(UserListResponse)]
-    ElectorList {
-        amount: u32,
-        start_from: Option<String>,
-    },
-
-    #[returns(UserListResponse)]
-    DelegatorList {
-        amount: u32,
-        start_from: Option<String>,
-    },
-
-    #[returns(UserListResponse)]
-    SlackerList {
+    UserList {
+        block_time: Option<u64>,
         amount: u32,
         start_from: Option<String>,
     },
@@ -270,10 +237,7 @@ pub struct UserListResponse {
 #[cw_serde]
 pub struct UserListResponseItem {
     pub address: Addr,
-    /// essence info by user address
-    pub essence_info: EssenceInfo,
-    /// list of pools with weight allocations by user address, Some for Elector
-    pub weights: Option<Vec<WeightAllocationItem>>,
+    pub user_info: UserResponse,
 }
 
 #[cw_serde]
@@ -296,10 +260,4 @@ pub struct VoterInfoResponse {
     pub total_votes: Vec<EssenceAllocationItem>,
     /// historical data, 26 epochs max
     pub vote_results: Vec<VoteResults>,
-}
-
-#[cw_serde]
-pub struct QueryEssenceListResponse {
-    pub user_and_essence_list: Vec<(String, EssenceInfo)>,
-    pub total_essence: EssenceInfo,
 }

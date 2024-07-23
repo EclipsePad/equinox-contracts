@@ -12,6 +12,24 @@ use equinox_msg::voter::{
     },
 };
 
+/// voting_power = vxastro_amount * user_essence / total_essence
+/// total_essence = elector_essence_acc + dao_essence_acc + slacker_essence_acc
+pub fn calc_voting_power(
+    vxastro_amount: Uint128,
+    user_essence: Uint128,
+    elector_essence_acc: Uint128,
+    dao_essence_acc: Uint128,
+    slacker_essence_acc: Uint128,
+) -> Uint128 {
+    let total_essence = elector_essence_acc + dao_essence_acc + slacker_essence_acc;
+
+    if user_essence.is_zero() || total_essence.is_zero() {
+        return Uint128::zero();
+    }
+
+    vxastro_amount * user_essence / total_essence
+}
+
 /// essence_allocation = essence * weights
 pub fn calc_essence_allocation(
     essence: &EssenceInfo,

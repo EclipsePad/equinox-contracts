@@ -247,7 +247,7 @@ pub struct AddressConfig {
     pub astroport_assembly: Addr,
     /// to lock xASTRO and get voting power
     pub astroport_voting_escrow: Addr,
-    /// TODO
+    /// to apply votes
     pub astroport_emission_controller: Addr,
     /// to sell rewards
     pub astroport_router: Addr,

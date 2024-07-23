@@ -241,7 +241,6 @@ pub fn try_update_essence_allocation(
     env: Env,
     info: MessageInfo,
     user_and_essence_list: Vec<(String, EssenceInfo)>,
-    _total_essence: EssenceInfo,
 ) -> Result<Response, ContractError> {
     let sender = &info.sender;
     let block_time = env.block.time.seconds();
@@ -633,11 +632,7 @@ pub fn try_place_vote_as_dao(
     Ok(Response::new().add_attribute("action", "try_place_vote_as_dao"))
 }
 
-pub fn try_vote(
-    deps: DepsMut,
-    env: Env,
-    // info: MessageInfo
-) -> Result<Response, ContractError> {
+pub fn try_vote(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let block_time = env.block.time.seconds();
     let rewards_claim_stage = REWARDS_CLAIM_STAGE.load(deps.storage)?;
     let AddressConfig {
@@ -743,7 +738,6 @@ pub fn try_vote(
         .add_attribute("action", "try_vote"))
 }
 
-// TODO: split claim and swap as tx is still heavy, add state machine
 pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let block_time = env.block.time.seconds();
     let epoch = EPOCH_COUNTER.load(deps.storage)?;
