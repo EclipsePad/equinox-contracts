@@ -1,16 +1,15 @@
 use astroport::{
     asset::{Asset, AssetInfo, AssetInfoExt},
-    incentives::{Cw20Msg as IncentivesCw20Msg, ExecuteMsg as IncentivesExecuteMsg},
+    incentives::ExecuteMsg as IncentivesExecuteMsg,
     staking::ExecuteMsg as StakingExecuteMsg,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, from_json, to_json_binary, BankMsg, CosmosMsg, Decimal256, DepsMut,
+    coin, ensure, ensure_eq, to_json_binary, BankMsg, CosmosMsg, Decimal256, DepsMut,
     Env, MessageInfo, Response, Uint128, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
 use equinox_msg::{
-    lp_staking::{CallbackMsg, Cw20HookMsg, RewardConfig, RewardWeight, UpdateConfigMsg},
+    lp_staking::{CallbackMsg, RewardConfig, RewardWeight, UpdateConfigMsg, UserStaking},
     utils::has_unique_elements,
 };
 
@@ -126,82 +125,6 @@ pub fn _handle_callback(
     }
 }
 
-/// Cw20 Receive hook msg handler.
-pub fn receive_cw20(
-    mut deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: Cw20ReceiveMsg,
-) -> Result<Response, ContractError> {
-    match from_json(&msg.msg)? {
-        // stake lp token
-        // non zero amount
-        // update rewards
-        // update user staking, total staking amount
-        Cw20HookMsg::Stake { recipient } => {
-            let cfg = CONFIG.load(deps.storage)?;
-
-            ensure!(
-                !cfg.lp_token.is_native_token() && (cfg.lp_token.to_string() == info.sender),
-                ContractError::Cw20AddressesNotMatch {
-                    got: info.sender.to_string(),
-                    expected: cfg.lp_token.to_string(),
-                }
-            );
-            ensure!(
-                msg.amount.gt(&Uint128::zero()),
-                ContractError::ZeroAmount {}
-            );
-
-            // stake LP token to Astroport generator contract
-            let msgs = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.lp_token.to_string(),
-                msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                    contract: cfg.astroport_incentives.to_string(),
-                    amount: msg.amount,
-                    msg: to_json_binary(&IncentivesCw20Msg::Deposit { recipient: None })?,
-                })?,
-                funds: vec![],
-            })];
-
-            let response = _stake(deps.branch(), env, msg.sender, msg.amount, recipient)?;
-            Ok(response.add_messages(msgs))
-        }
-    }
-}
-
-pub fn _stake(
-    mut deps: DepsMut,
-    env: Env,
-    sender: String,
-    amount: Uint128,
-    recipient: Option<String>,
-) -> Result<Response, ContractError> {
-    let recipient = recipient.unwrap_or(sender.clone());
-    let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
-    let mut recipient_staking = STAKING.load(deps.storage, &recipient).unwrap_or_default();
-    let mut response = Response::new();
-
-    if total_staking.gt(&Uint128::zero()) {
-        response = _claim(deps.branch(), env, recipient.clone(), None)?;
-    } else {
-        LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
-    }
-    let reward_weights = REWARD_WEIGHTS.load(deps.storage).unwrap_or_default();
-    recipient_staking.reward_weights = reward_weights;
-    total_staking += amount;
-    recipient_staking.staked = recipient_staking.staked.checked_add(amount).unwrap();
-
-    TOTAL_STAKING.save(deps.storage, &total_staking)?;
-    STAKING.save(deps.storage, &recipient, &recipient_staking)?;
-
-    Ok(response
-        .add_attribute("action", "stake")
-        .add_attribute("sender", sender)
-        .add_attribute("amount", amount.to_string())
-        .add_attribute("recipient", recipient))
-}
-
 // stake lp token when it is native token
 pub fn stake(
     mut deps: DepsMut,
@@ -212,6 +135,10 @@ pub fn stake(
     let asset = one_coin(&info)?;
     let cfg = CONFIG.load(deps.storage)?;
     let sender = info.sender.clone();
+    let recipient = recipient.unwrap_or(info.sender.to_string());
+    let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
+    let (mut user_staking, _, response) = _claim(deps.branch(), env, recipient.clone(), None)?;
+
 
     ensure!(
         cfg.lp_token.is_native_token() && cfg.lp_token.to_string() == asset.denom,
@@ -232,14 +159,16 @@ pub fn stake(
         funds: vec![asset.clone()],
     })];
 
-    let response = _stake(
-        deps.branch(),
-        env,
-        sender.to_string(),
-        asset.amount,
-        recipient,
-    )?;
-    Ok(response.add_messages(msgs))
+    total_staking += asset.amount;
+    user_staking.staked += asset.amount;
+
+    TOTAL_STAKING.save(deps.storage, &total_staking)?;
+    STAKING.save(deps.storage, &recipient, &user_staking)?;
+    Ok(response.add_messages(msgs)
+        .add_attribute("action", "stake")
+        .add_attribute("sender", sender)
+        .add_attribute("amount", asset.amount.to_string())
+        .add_attribute("recipient", recipient))
 }
 
 pub fn _claim(
@@ -247,16 +176,11 @@ pub fn _claim(
     env: Env,
     sender: String,
     assets: Option<Vec<AssetInfo>>,
-) -> Result<Response, ContractError> {
+) -> Result<(UserStaking, Vec<RewardWeight>, Response), ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
     let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
     let mut user_staking = STAKING.load(deps.storage, &sender).unwrap_or_default();
     let mut msgs = vec![];
-
-    ensure!(
-        !total_staking.is_zero(),
-        ContractError::InvalidStakingAmount {}
-    );
 
     let assets_list = assets
         .clone()
@@ -269,13 +193,15 @@ pub fn _claim(
     );
 
     // claim astro reward
-    msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: cfg.astroport_incentives.to_string(),
-        msg: to_json_binary(&IncentivesExecuteMsg::ClaimRewards {
-            lp_tokens: vec![cfg.lp_token.to_string()],
-        })?,
-        funds: vec![],
-    }));
+    if !total_staking.is_zero() {
+        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.astroport_incentives.to_string(),
+            msg: to_json_binary(&IncentivesExecuteMsg::ClaimRewards {
+                lp_tokens: vec![cfg.lp_token.to_string()],
+            })?,
+            funds: vec![],
+        }));
+    }
 
     let mut response = Response::new()
         .add_attribute("action", "claim rewards")
@@ -308,14 +234,9 @@ pub fn _claim(
                         .add_attribute("denom", r.info.to_string())
                         .add_attribute("amount", r.amount);
                 } else {
-                    msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                        contract_addr: r.info.to_string(),
-                        msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                            recipient: sender.clone(),
-                            amount: r.amount,
-                        })?,
-                        funds: vec![],
-                    }));
+                    msgs.push(
+                    r.info.with_balance(r.amount).into_msg(sender.clone())?
+                );
                     response = response
                         .add_attribute("action", "claim")
                         .add_attribute("address", r.info.to_string())
@@ -368,7 +289,7 @@ pub fn _claim(
     STAKING.save(deps.storage, &sender, &user_staking)?;
     LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
 
-    Ok(response.add_messages(msgs))
+    Ok((user_staking, updated_reward_weights,response.add_messages(msgs)))
 }
 
 /// Claim user rewards
@@ -379,7 +300,8 @@ pub fn claim(
     sender: String,
     assets: Option<Vec<AssetInfo>>,
 ) -> Result<Response, ContractError> {
-    _claim(deps, env, sender, assets)
+    let (_, _, response) = _claim(deps, env, sender, assets)?;
+    Ok(response)
 }
 
 /// Unstake amount and claim rewards of user
@@ -392,12 +314,12 @@ pub fn unstake(
     recipient: Option<String>,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
-    let mut user_staking = STAKING.load(deps.storage, &info.sender.to_string())?;
     let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
 
     let receiver = recipient.unwrap_or(info.sender.to_string());
     let mut msgs = vec![];
-    let mut response = Response::new();
+
+    let (mut user_staking, _, response)= _claim(deps.branch(), env, receiver.clone(), None)?;
 
     ensure!(
         amount.le(&user_staking.staked),
@@ -406,12 +328,7 @@ pub fn unstake(
             expected: user_staking.staked.u128()
         }
     );
-
-    if total_staking.gt(&Uint128::zero()) {
-        response = _claim(deps.branch(), env, receiver.clone(), None)?;
-    }
-    let reward_weights = REWARD_WEIGHTS.load(deps.storage)?;
-    user_staking.reward_weights = reward_weights;
+    
     total_staking = total_staking.checked_sub(amount).unwrap();
     user_staking.staked = user_staking.staked.checked_sub(amount).unwrap();
 

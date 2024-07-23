@@ -1,7 +1,6 @@
 use astroport::asset::{Asset, AssetInfo};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, Uint128, WasmMsg};
-use cw20::Cw20ReceiveMsg;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -44,8 +43,6 @@ pub enum ExecuteMsg {
     UpdateRewardConfig {
         config: RewardConfig,
     },
-    /// This accepts a properly-encoded ReceiveMsg from a cw20 contract
-    Receive(Cw20ReceiveMsg),
     /// Claim rewards of user.
     Claim {
         assets: Option<Vec<AssetInfo>>,
