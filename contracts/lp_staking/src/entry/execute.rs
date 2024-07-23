@@ -4,8 +4,8 @@ use astroport::{
     staking::ExecuteMsg as StakingExecuteMsg,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, to_json_binary, BankMsg, CosmosMsg, Decimal256, DepsMut,
-    Env, MessageInfo, Response, Uint128, WasmMsg,
+    coin, ensure, ensure_eq, to_json_binary, BankMsg, CosmosMsg, Decimal256, DepsMut, Env,
+    MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw_utils::one_coin;
 use equinox_msg::{
@@ -139,7 +139,6 @@ pub fn stake(
     let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
     let (mut user_staking, _, response) = _claim(deps.branch(), env, recipient.clone(), None)?;
 
-
     ensure!(
         cfg.lp_token.is_native_token() && cfg.lp_token.to_string() == asset.denom,
         ContractError::AssetsNotMatch {
@@ -164,7 +163,8 @@ pub fn stake(
 
     TOTAL_STAKING.save(deps.storage, &total_staking)?;
     STAKING.save(deps.storage, &recipient, &user_staking)?;
-    Ok(response.add_messages(msgs)
+    Ok(response
+        .add_messages(msgs)
         .add_attribute("action", "stake")
         .add_attribute("sender", sender)
         .add_attribute("amount", asset.amount.to_string())
@@ -234,9 +234,7 @@ pub fn _claim(
                         .add_attribute("denom", r.info.to_string())
                         .add_attribute("amount", r.amount);
                 } else {
-                    msgs.push(
-                    r.info.with_balance(r.amount).into_msg(sender.clone())?
-                );
+                    msgs.push(r.info.with_balance(r.amount).into_msg(sender.clone())?);
                     response = response
                         .add_attribute("action", "claim")
                         .add_attribute("address", r.info.to_string())
@@ -289,7 +287,11 @@ pub fn _claim(
     STAKING.save(deps.storage, &sender, &user_staking)?;
     LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
 
-    Ok((user_staking, updated_reward_weights,response.add_messages(msgs)))
+    Ok((
+        user_staking,
+        updated_reward_weights,
+        response.add_messages(msgs),
+    ))
 }
 
 /// Claim user rewards
@@ -319,7 +321,7 @@ pub fn unstake(
     let receiver = recipient.unwrap_or(info.sender.to_string());
     let mut msgs = vec![];
 
-    let (mut user_staking, _, response)= _claim(deps.branch(), env, receiver.clone(), None)?;
+    let (mut user_staking, _, response) = _claim(deps.branch(), env, receiver.clone(), None)?;
 
     ensure!(
         amount.le(&user_staking.staked),
@@ -328,7 +330,7 @@ pub fn unstake(
             expected: user_staking.staked.u128()
         }
     );
-    
+
     total_staking = total_staking.checked_sub(amount).unwrap();
     user_staking.staked = user_staking.staked.checked_sub(amount).unwrap();
 
