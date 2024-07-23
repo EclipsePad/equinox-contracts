@@ -283,13 +283,15 @@ pub fn calc_personal_elector_rewards(
         .flatten()
         .collect();
 
-    let mut denom_list: Vec<String> = pool_info_list
+    // get unique denom list
+    let mut denom_list: Vec<String> = personal_elector_rewards_raw
         .iter()
-        .map(|x| x.lp_token.to_string())
+        .map(|(_, denom)| denom.to_string())
         .collect();
     denom_list.sort_unstable();
     denom_list.dedup();
 
+    // aggregate rewards by denom
     let personal_elector_rewards: Vec<(Uint128, String)> = denom_list
         .iter()
         .map(|denom| {

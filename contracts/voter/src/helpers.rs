@@ -266,7 +266,15 @@ pub fn get_accumulated_rewards(
                     }
                 });
 
-            user_rewards.last_update_epoch = epoch.id;
+            if user_rewards
+                .value
+                .iter()
+                .all(|(_rewards_amount, rewards_denom)| rewards_denom != &eclip)
+            {
+                user_rewards.value.push((Uint128::zero(), eclip.clone()));
+            }
+
+            user_rewards.last_update_epoch = epoch.id - 1;
             user_rewards.value = user_rewards
                 .value
                 .into_iter()
@@ -310,7 +318,7 @@ pub fn get_accumulated_rewards(
                     }
                 }
 
-                user_rewards.last_update_epoch = epoch.id;
+                user_rewards.last_update_epoch = epoch.id - 1;
                 user_rewards.value = user_rewards
                     .value
                     .into_iter()

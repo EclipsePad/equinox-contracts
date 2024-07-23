@@ -272,7 +272,7 @@ fn calc_voter_bribe_allocation_math() -> StdResult<()> {
 }
 
 #[test]
-fn bribes_allocation_default() -> StdResult<()> {
+fn full_cycle() -> StdResult<()> {
     let mut h = prepare_helper();
     let ControllerHelper { xastro, .. } = &ControllerHelper::new();
 
@@ -282,15 +282,29 @@ fn bribes_allocation_default() -> StdResult<()> {
 
     let owner = &h.acc(Acc::Owner);
     let dao = &h.acc(Acc::Dao);
+    // electors
     let alice = &h.acc(Acc::Alice);
+    let ruby = &h.acc(Acc::Ruby);
+    // delegators
     let bob = &h.acc(Acc::Bob);
+    let vlad = &h.acc(Acc::Vlad);
+    // slackers
     let john = &h.acc(Acc::John);
+    // individual voters
     let kate = &h.acc(Acc::Kate);
 
     let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.4"),
+        WeightAllocationItem::new(astro_atom, "0.6"),
+    ];
+    let weights_ruby = &vec![
+        WeightAllocationItem::new(ntrn_atom, "0.6"),
+        WeightAllocationItem::new(astro_atom, "0.4"),
+    ];
+    let weights_electors_expected = &vec![
         WeightAllocationItem::new(eclip_atom, "0.2"),
-        WeightAllocationItem::new(ntrn_atom, "0.3"),
         WeightAllocationItem::new(astro_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
     ];
     let weights_dao = &vec![
         WeightAllocationItem::new(eclip_atom, "0.5"),
@@ -299,14 +313,22 @@ fn bribes_allocation_default() -> StdResult<()> {
     ];
 
     // stake and lock
-    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+    for (user, amount) in [
+        (alice, 500),
+        (ruby, 500),
+        (bob, 500),
+        (vlad, 1_500),
+        (john, 3_000),
+    ] {
         h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
     }
 
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_place_vote(ruby, weights_ruby)?;
     h.voter_try_delegate(bob)?;
+    h.voter_try_delegate(vlad)?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // final voting
@@ -445,6 +467,7 @@ fn bribes_allocation_default() -> StdResult<()> {
     assert_that(&voter_rewards).is_equal_to(voter_rewards_from_voter);
 
     // claim rewards
+    let treasury_balance_before = h.query_balance(dao, Denom::Eclip);
     let voter_astro_before = h.query_balance(&h.voter_contract_address(), Denom::Astro);
     let voter_atom_before = h.query_balance(&h.voter_contract_address(), Denom::Atom);
     let voter_eclip_before = h.query_balance(&h.voter_contract_address(), Denom::Eclip);
@@ -477,7 +500,7 @@ fn bribes_allocation_default() -> StdResult<()> {
             elector_essence: Uint128::new(3_400),
             dao_essence: Uint128::new(2_600),
             slacker_essence: Uint128::new(3_000),
-            elector_weights: weights_alice.to_owned(),
+            elector_weights: weights_electors_expected.to_owned(),
             dao_weights: weights_dao.to_owned(),
             dao_treasury_eclip_rewards: Uint128::new(0),
             dao_delegators_eclip_rewards: Uint128::new(0),
@@ -491,17 +514,17 @@ fn bribes_allocation_default() -> StdResult<()> {
                     ],
                 ),
                 PoolInfoItem::new(
+                    astro_atom,
+                    "0.37",
+                    &[(27_105_244, &Denom::Astro.to_string())],
+                ),
+                PoolInfoItem::new(
                     ntrn_atom,
                     "0.3",
                     &[
                         (200_000_000, &Denom::Ntrn.to_string()),
                         (120_000_000, &Denom::Atom.to_string()),
                     ],
-                ),
-                PoolInfoItem::new(
-                    astro_atom,
-                    "0.37",
-                    &[(27_105_244, &Denom::Astro.to_string())],
                 ),
             ],
         }],
@@ -525,7 +548,7 @@ fn bribes_allocation_default() -> StdResult<()> {
             elector_essence: Uint128::new(3_400),
             dao_essence: Uint128::new(2_600),
             slacker_essence: Uint128::new(3_000),
-            elector_weights: weights_alice.to_owned(),
+            elector_weights: weights_electors_expected.to_owned(),
             dao_weights: weights_dao.to_owned(),
             // dao_eclip_rewards = sum_over_denoms(dao_rewards_per_denom)
             // dao_rewards_per_denom = sum_over_pools(voter_rewards * (dao_essence * dao_weight) / (voter_essence * voter_weight))
@@ -555,6 +578,11 @@ fn bribes_allocation_default() -> StdResult<()> {
                     ],
                 ),
                 PoolInfoItem::new(
+                    astro_atom,
+                    "0.37",
+                    &[(20_756_268, &Denom::Astro.to_string())],
+                ),
+                PoolInfoItem::new(
                     ntrn_atom,
                     "0.3",
                     &[
@@ -562,14 +590,83 @@ fn bribes_allocation_default() -> StdResult<()> {
                         (68_000_001, &Denom::Atom.to_string()),
                     ],
                 ),
-                PoolInfoItem::new(
-                    astro_atom,
-                    "0.37",
-                    &[(20_756_268, &Denom::Astro.to_string())],
-                ),
             ],
         }],
     });
+
+    // check dao treasury balance
+    let treasury_balance_after = h.query_balance(dao, Denom::Eclip);
+    assert_that(&(treasury_balance_after - treasury_balance_before)).is_equal_to(35_543_763);
+
+    // query user rewards
+    let alice_rewards = h.voter_query_user(alice, None)?.rewards.value;
+    let ruby_rewards = h.voter_query_user(ruby, None)?.rewards.value;
+    let bob_rewards = h.voter_query_user(bob, None)?.rewards.value;
+    let vlad_rewards = h.voter_query_user(vlad, None)?.rewards.value;
+    let john_rewards = h.voter_query_user(john, None)?.rewards.value;
+
+    // elector_personal_rewards = sum_over_pools(elector_personal_rewards_per_pool)
+    // elector_personal_rewards_per_pool = elector_rewards * (personal_elector_essence * personal_weight) /
+    //     ((elector_essence - 0.8 * slacker_essence) * elector_weight)
+    //
+    // alice_astro_in_astro_atom = 20_756_268 * (500 * 0.6) / ((3_400 - 0.8 * 3_000) * 0.5) = 12_453_760
+    // alice_atom_in_eclip_atom = 8_553_140 * (500 * 0.4) / ((3_400 - 0.8 * 3_000) * 0.2) = 8_553_140
+    // alice_eclip_in_eclip_atom = 8_553_140 * (500 * 0.4) / ((3_400 - 0.8 * 3_000) * 0.2) = 8_553_140
+    assert_that(&alice_rewards).is_equal_to(vec![
+        (Uint128::new(12_453_760), Denom::Astro.to_string()),
+        (Uint128::new(8_553_140), Denom::Atom.to_string()),
+        (Uint128::new(8_553_140), Denom::Eclip.to_string()),
+    ]);
+    // ruby_astro_in_astro_atom = 20_756_268 * (500 * 0.4) / ((3_400 - 0.8 * 3_000) * 0.5) = 8_302_507
+    // ruby_atom_in_ntrn_atom = 68_000_001 * (500 * 0.6) / ((3_400 - 0.8 * 3_000) * 0.3) = 68_000_001
+    // ruby_ntrn_in_ntrn_atom = 113_333_334 * (500 * 0.6) / ((3_400 - 0.8 * 3_000) * 0.3) = 113_333_334
+    assert_that(&ruby_rewards).is_equal_to(vec![
+        (Uint128::new(8_302_507), Denom::Astro.to_string()),
+        (Uint128::new(68_000_001), Denom::Atom.to_string()),
+        (Uint128::new(113_333_334), Denom::Ntrn.to_string()),
+    ]);
+    // delegator_rewards = dao_delegators_eclip_rewards * delegator_essence / (dao_essence - 0.2 * slacker_essence)
+    //
+    // bob_rewards = 142_175_051 * 500 / (2_600 - 0.2 * 3_000) = 35_543_762
+    assert_that(&bob_rewards)
+        .is_equal_to(vec![(Uint128::new(35_543_762), Denom::Eclip.to_string())]);
+    // vlad_rewards = 142_175_051 * 1_500 / (2_600 - 0.2 * 3_000) = 106_631_288
+    assert_that(&vlad_rewards)
+        .is_equal_to(vec![(Uint128::new(106_631_288), Denom::Eclip.to_string())]);
+    // slacker_rewards = 0
+    assert_that(&john_rewards).is_equal_to(vec![]);
+
+    // claim user rewards
+    let alice_astro_balance_before = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_before = h.query_balance(alice, Denom::Eclip);
+    let ruby_astro_balance_before = h.query_balance(ruby, Denom::Astro);
+    let ruby_atom_balance_before = h.query_balance(ruby, Denom::Atom);
+    let ruby_ntrn_balance_before = h.query_balance(ruby, Denom::Ntrn);
+    let bob_eclip_balance_before = h.query_balance(bob, Denom::Eclip);
+    let vlad_eclip_balance_before = h.query_balance(vlad, Denom::Eclip);
+
+    for user in [alice, ruby, bob, vlad] {
+        h.voter_try_claim_rewards(user)?;
+    }
+
+    let alice_astro_balance_after = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_after = h.query_balance(alice, Denom::Eclip);
+    let ruby_astro_balance_after = h.query_balance(ruby, Denom::Astro);
+    let ruby_atom_balance_after = h.query_balance(ruby, Denom::Atom);
+    let ruby_ntrn_balance_after = h.query_balance(ruby, Denom::Ntrn);
+    let bob_eclip_balance_after = h.query_balance(bob, Denom::Eclip);
+    let vlad_eclip_balance_after = h.query_balance(vlad, Denom::Eclip);
+
+    assert_that(&(alice_astro_balance_after - alice_astro_balance_before)).is_equal_to(12_453_760);
+    assert_that(&(alice_atom_balance_after - alice_atom_balance_before)).is_equal_to(8_553_140);
+    assert_that(&(alice_eclip_balance_after - alice_eclip_balance_before)).is_equal_to(8_553_140);
+    assert_that(&(ruby_astro_balance_after - ruby_astro_balance_before)).is_equal_to(8_302_507);
+    assert_that(&(ruby_atom_balance_after - ruby_atom_balance_before)).is_equal_to(68_000_001);
+    assert_that(&(ruby_ntrn_balance_after - ruby_ntrn_balance_before)).is_equal_to(113_333_334);
+    assert_that(&(bob_eclip_balance_after - bob_eclip_balance_before)).is_equal_to(35_543_762);
+    assert_that(&(vlad_eclip_balance_after - vlad_eclip_balance_before)).is_equal_to(106_631_288);
 
     Ok(())
 }
@@ -2407,3 +2504,5 @@ fn undelegate_default() -> StdResult<()> {
 // changing settings before next epoch
 // rotating claim stage
 // user claim on wrong stage
+// rewards w/o tribute market
+// query rewards, claim, claim again, query again
