@@ -35,8 +35,8 @@ fn instantiate() -> Suite {
             Addr::unchecked(suite.eclipastro_xastro_lp_contract()),
             vec![
                 Asset {
-                    info: AssetInfo::Token {
-                        contract_addr: Addr::unchecked(suite.eclipastro()),
+                    info: AssetInfo::NativeToken {
+                        denom: suite.eclipastro(),
                     },
                     amount: Uint128::from(1_100_000u128),
                 },
@@ -115,8 +115,8 @@ fn lp_staking() {
             Addr::unchecked(suite.eclipastro_xastro_lp_contract()),
             vec![
                 Asset {
-                    info: AssetInfo::Token {
-                        contract_addr: Addr::unchecked(suite.eclipastro()),
+                    info: AssetInfo::NativeToken {
+                        denom: suite.eclipastro(),
                     },
                     amount: Uint128::from(bob_eclipastro_amount),
                 },

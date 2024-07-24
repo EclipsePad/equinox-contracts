@@ -101,22 +101,6 @@ pub struct MigrateMsg {
 }
 
 #[cw_serde]
-pub enum Cw20HookMsg {
-    /// timelock eclipASTRO token
-    Stake {
-        lock_duration: u64,
-        recipient: Option<String>,
-    },
-    Restake {
-        from_duration: u64,
-        locked_at: Option<u64>,
-        amount: Option<Uint128>,
-        to_duration: u64,
-        recipient: Option<String>,
-    },
-}
-
-#[cw_serde]
 pub struct UpdateConfigMsg {
     pub timelock_config: Option<Vec<TimeLockConfig>>,
     pub token_converter: Option<String>,

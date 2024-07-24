@@ -57,8 +57,8 @@ fn update_config() {
                 daily_reward: Uint128::from(2_000_000u128),
             },
         }),
-        token_converter: Some(Addr::unchecked("wasm1_token_converter")),
-        treasury: Some(Addr::unchecked("wasm1_treasury")),
+        token_converter: Some("wasm1_token_converter".to_string()),
+        treasury: Some("wasm1_treasury".to_string()),
     };
 
     // attacker
@@ -76,7 +76,7 @@ fn update_config() {
     assert_eq!(
         suite.query_single_sided_stake_config().unwrap(),
         Config {
-            token: Addr::unchecked(suite.eclipastro()),
+            token: suite.eclipastro(),
             timelock_config: vec![TimeLockConfig {
                 duration: ONE_MONTH,
                 early_unlock_penalty_bps: 200,

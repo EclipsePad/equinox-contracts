@@ -122,7 +122,7 @@ pub struct Config {
     /// ASTRO staking contract
     pub staking_contract: Addr,
     /// eclipASTRO token
-    pub eclipastro: Addr,
+    pub eclipastro: String,
     /// Eclipse vxASTRO holder contract
     pub vxastro_holder: Option<Addr>,
     /// Eclipse treasury

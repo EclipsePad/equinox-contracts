@@ -40,8 +40,7 @@ use equinox_msg::{
         UpdateConfigMsg as LpStakingUpdateConfigMsg, UserStaking as LpStakingUserStaking,
     },
     single_sided_staking::{
-        Config as SingleStakingConfig, Cw20HookMsg as SingleStakingCw20HookMsg,
-        ExecuteMsg as SingleSidedStakingExecuteMsg,
+        Config as SingleStakingConfig, ExecuteMsg as SingleSidedStakingExecuteMsg,
         InstantiateMsg as SingleSidedStakingInstantiateMsg, QueryMsg as SingleStakingQueryMsg,
         RewardConfig as SingleStakingRewardConfig, RewardDetail as SingleStakingRewardDetail,
         TimeLockConfig, UpdateConfigMsg as SingleStakingUpdateConfigMsg,
@@ -157,14 +156,11 @@ fn store_eclipastro(app: &mut TestApp) -> u64 {
 }
 
 fn store_converter(app: &mut TestApp) -> u64 {
-    let contract = Box::new(
-        ContractWrapper::new_with_empty(
-            token_converter::contract::execute,
-            token_converter::contract::instantiate,
-            token_converter::contract::query,
-        )
-        .with_reply_empty(token_converter::contract::reply),
-    );
+    let contract = Box::new(ContractWrapper::new_with_empty(
+        token_converter::contract::execute,
+        token_converter::contract::instantiate,
+        token_converter::contract::query,
+    ));
 
     app.store_code(contract)
 }
@@ -620,8 +616,8 @@ impl SuiteBuilder {
             .unwrap();
 
         let asset_infos = vec![
-            AssetInfo::Token {
-                contract_addr: eclipastro.clone(),
+            AssetInfo::NativeToken {
+                denom: eclipastro.clone(),
             },
             AssetInfo::NativeToken {
                 denom: xastro.clone(),
@@ -643,8 +639,8 @@ impl SuiteBuilder {
                 astroport_factory.clone(),
                 &FactoryQueryMsg::Pair {
                     asset_infos: vec![
-                        AssetInfo::Token {
-                            contract_addr: eclipastro.clone(),
+                        AssetInfo::NativeToken {
+                            denom: eclipastro.clone(),
                         },
                         AssetInfo::NativeToken {
                             denom: xastro.clone(),
@@ -709,14 +705,10 @@ impl SuiteBuilder {
                     lock_configs: None,
                     astro_token: ASTRO_DENOM.to_string(),
                     xastro_token: xastro.clone(),
-                    astro_staking: astro_staking_contract.clone(),
+                    astro_staking: astro_staking_contract.to_string(),
                     owner: None,
-                    beclip: AssetInfo::Token {
-                        contract_addr: beclip.clone(),
-                    },
-                    eclip: AssetInfo::NativeToken {
-                        denom: ECLIP_DENOM.to_string(),
-                    },
+                    beclip: beclip.to_string(),
+                    eclip: ECLIP_DENOM.to_string(),
                 },
                 &[],
                 "Eclipsefi lockdrop",
@@ -759,7 +751,7 @@ pub struct Suite {
     astro: String,
     astro_staking_contract: Addr,
     xastro: String,
-    eclipastro: Addr,
+    eclipastro: String,
     converter_contract: Addr,
     beclip: Addr,
     eclip: String,
@@ -950,13 +942,11 @@ impl Suite {
     }
 
     pub fn query_eclipastro_balance(&self, address: &str) -> StdResult<u128> {
-        let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
-            self.eclipastro.clone(),
-            &Cw20QueryMsg::Balance {
-                address: address.to_owned(),
-            },
-        )?;
-        Ok(balance.balance.u128())
+        let balance = self
+            .app
+            .wrap()
+            .query_balance(address.to_owned(), self.eclipastro.clone())?;
+        Ok(balance.amount.u128())
     }
 
     pub fn query_converter_withdrawable_balance(&self) -> StdResult<u128> {
@@ -1186,16 +1176,12 @@ impl Suite {
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
-            self.eclipastro.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.single_staking_contract(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&SingleStakingCw20HookMsg::Stake {
-                    lock_duration: duration,
-                    recipient,
-                })?,
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::Stake {
+                duration,
+                recipient,
             },
-            &[],
+            &[coin(amount, self.eclipastro())],
         )
     }
     pub fn single_sided_unstake(
@@ -1665,33 +1651,16 @@ impl Suite {
         asset: String,
         amount: u128,
     ) -> AnyResult<AppResponse> {
-        if asset == self.eclipastro.to_string() {
-            self.app.execute_contract(
-                Addr::unchecked(sender),
-                self.eclipastro.clone(),
-                &Cw20ExecuteMsg::Send {
-                    contract: self.lockdrop_contract.to_string(),
-                    amount: Uint128::from(amount),
-                    msg: to_json_binary(&LockdropCw20HookMsg::ExtendLockup {
-                        stake_type: StakeType::SingleStaking,
-                        from,
-                        to,
-                    })?,
-                },
-                &[],
-            )
-        } else {
-            self.app.execute_contract(
-                Addr::unchecked(sender),
-                self.lockdrop_contract.clone(),
-                &LockdropCw20HookMsg::ExtendLockup {
-                    stake_type: StakeType::SingleStaking,
-                    from,
-                    to,
-                },
-                &[coin(amount, asset)],
-            )
-        }
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &LockdropExecuteMsg::ExtendLock {
+                stake_type: StakeType::SingleStaking,
+                from,
+                to,
+            },
+            &[coin(amount, asset)],
+        )
     }
 
     pub fn single_lockup_unlock(

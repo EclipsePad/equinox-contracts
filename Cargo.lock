@@ -1585,6 +1585,7 @@ dependencies = [
  "cw2 1.1.2",
  "cw20 1.1.2",
  "equinox-msg",
+ "osmosis-std",
  "semver",
  "thiserror",
 ]

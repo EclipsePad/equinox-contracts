@@ -46,8 +46,8 @@ fn instantiate() -> Suite {
             Addr::unchecked(suite.eclipastro_xastro_lp_contract()),
             vec![
                 Asset {
-                    info: AssetInfo::Token {
-                        contract_addr: Addr::unchecked(suite.eclipastro()),
+                    info: AssetInfo::NativeToken {
+                        denom: suite.eclipastro(),
                     },
                     amount: Uint128::from(1_100_000u128),
                 },
@@ -948,12 +948,12 @@ fn stake_assets_to_vaults() {
         .update_lockdrop_config(
             &suite.admin(),
             LockdropUpdateConfigMsg {
-                single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
-                lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
-                liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
-                eclipastro_token: Some(Addr::unchecked(suite.eclipastro())),
-                converter: Some(Addr::unchecked(suite.converter_contract())),
-                dao_treasury_address: Some(Addr::unchecked(suite.treasury())),
+                single_sided_staking: Some(suite.single_staking_contract()),
+                lp_staking: Some(suite.lp_staking_contract()),
+                liquidity_pool: Some(suite.eclipastro_xastro_lp_contract()),
+                eclipastro_token: Some(suite.eclipastro()),
+                converter: Some(suite.converter_contract()),
+                dao_treasury_address: Some(suite.treasury()),
             },
         )
         .unwrap();
@@ -1296,12 +1296,12 @@ fn single_sided_incentives_distribution() {
         .update_lockdrop_config(
             &suite.admin(),
             LockdropUpdateConfigMsg {
-                single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
-                lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
-                liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
-                eclipastro_token: Some(Addr::unchecked(suite.eclipastro())),
-                converter: Some(Addr::unchecked(suite.converter_contract())),
-                dao_treasury_address: Some(Addr::unchecked(suite.treasury())),
+                single_sided_staking: Some(suite.single_staking_contract()),
+                lp_staking: Some(suite.lp_staking_contract()),
+                liquidity_pool: Some(suite.eclipastro_xastro_lp_contract()),
+                eclipastro_token: Some(suite.eclipastro()),
+                converter: Some(suite.converter_contract()),
+                dao_treasury_address: Some(suite.treasury()),
             },
         )
         .unwrap();
@@ -1512,12 +1512,12 @@ fn lp_incentives_distribution() {
         .update_lockdrop_config(
             &suite.admin(),
             LockdropUpdateConfigMsg {
-                single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
-                lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
-                liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
-                eclipastro_token: Some(Addr::unchecked(suite.eclipastro())),
-                converter: Some(Addr::unchecked(suite.converter_contract())),
-                dao_treasury_address: Some(Addr::unchecked(suite.treasury())),
+                single_sided_staking: Some(suite.single_staking_contract()),
+                lp_staking: Some(suite.lp_staking_contract()),
+                liquidity_pool: Some(suite.eclipastro_xastro_lp_contract()),
+                eclipastro_token: Some(suite.eclipastro()),
+                converter: Some(suite.converter_contract()),
+                dao_treasury_address: Some(suite.treasury()),
             },
         )
         .unwrap();
@@ -1808,12 +1808,12 @@ fn restake_and_unlock() {
         .update_lockdrop_config(
             &suite.admin(),
             LockdropUpdateConfigMsg {
-                single_sided_staking: Some(Addr::unchecked(suite.single_staking_contract())),
-                lp_staking: Some(Addr::unchecked(suite.lp_staking_contract())),
-                liquidity_pool: Some(Addr::unchecked(suite.eclipastro_xastro_lp_contract())),
-                eclipastro_token: Some(Addr::unchecked(suite.eclipastro())),
-                converter: Some(Addr::unchecked(suite.converter_contract())),
-                dao_treasury_address: Some(Addr::unchecked(suite.treasury())),
+                single_sided_staking: Some(suite.single_staking_contract()),
+                lp_staking: Some(suite.lp_staking_contract()),
+                liquidity_pool: Some(suite.eclipastro_xastro_lp_contract()),
+                eclipastro_token: Some(suite.eclipastro()),
+                converter: Some(suite.converter_contract()),
+                dao_treasury_address: Some(suite.treasury()),
             },
         )
         .unwrap();

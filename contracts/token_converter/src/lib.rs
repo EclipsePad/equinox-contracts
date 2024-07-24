@@ -11,3 +11,4 @@ pub mod external_queriers;
 /// state on the blockchain
 pub mod state;
 pub use crate::error::ContractError;
+pub mod utils;

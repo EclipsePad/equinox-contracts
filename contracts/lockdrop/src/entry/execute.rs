@@ -610,7 +610,7 @@ pub fn _extend_single_lockup_after_lockdrop(
             to_duration,
             recipient: Some(sender.clone()),
         })?,
-        funds,
+        funds: vec![],
     }));
 
     Ok(response
@@ -1149,9 +1149,9 @@ fn handle_stake_to_single_vault(
         state.weighted_total_eclipastro_lockup +=
             calculate_weight(eclipastro_amount_to_stake, c.duration, &cfg).unwrap();
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.single_sided_staking.unwrap().to_string(),
+            contract_addr: cfg.single_sided_staking.clone().unwrap().to_string(),
             msg: to_json_binary(&SingleSidedExecuteMsg::Stake {
-                lock_duration: c.duration,
+                duration: c.duration,
                 recipient: None,
             })?,
             funds: vec![coin(
@@ -1678,7 +1678,7 @@ pub fn _claim_all_single_sided_rewards(
     }
 
     // add message to claim rewards and incentives
-    if eclipastro_rewards.is_zero() {
+    if !eclipastro_rewards.is_zero() {
         msgs.push(
             eclipastro_token
                 .with_balance(eclipastro_rewards)

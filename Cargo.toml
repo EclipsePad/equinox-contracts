@@ -28,6 +28,7 @@ schemars                = "0.8.1"
 semver                  = "1.0.20"
 serde                   = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror               = "1.0.23"
+osmosis-std             = "0.21.0"
 
 equinox-msg             = { path = "./packages/equinox_msg" }
 eclipastro-token        = { path = "./contracts/token" }

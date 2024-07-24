@@ -263,7 +263,7 @@ pub fn restake(
     let current_time = env.block.time.seconds();
     let mut add_amount = Uint128::zero();
 
-    if funds.len() > 0 {
+    if !funds.is_empty() {
         ensure!(
             funds.len() == 1 && funds[0].denom == config.token,
             ContractError::InvalidAsset {}
