@@ -1909,7 +1909,10 @@ pub fn _unlock_single_lockup(
         SINGLE_LOCKUP_INFO.save(deps.storage, duration, &lockup_info)?;
         SINGLE_USER_LOCKUP_INFO.save(deps.storage, (&sender, duration), &user_lockup_info)?;
 
-        Ok(Response::new().add_message(msg))
+        Ok(Response::new()
+            .add_message(msg)
+            .add_attribute("action", "withdraw")
+            .add_attribute("withdraw_amount", withdraw_amount.to_string()))
     } else {
         ensure!(cfg.claims_allowed, ContractError::ClaimRewardNotAllowed {});
         let response =
@@ -2015,7 +2018,10 @@ pub fn _unlock_lp_lockup(
         LP_LOCKUP_INFO.save(deps.storage, duration, &lockup_info)?;
         LP_USER_LOCKUP_INFO.save(deps.storage, (&sender, duration), &user_lockup_info)?;
 
-        Ok(Response::new().add_message(msg))
+        Ok(Response::new()
+            .add_message(msg)
+            .add_attribute("action", "withdraw")
+            .add_attribute("withdraw_amount", withdraw_amount.to_string()))
     } else {
         ensure!(cfg.claims_allowed, ContractError::ClaimRewardNotAllowed {});
         let response = _claim_lp_rewards(deps.branch(), env, sender.clone(), duration, None)?;
