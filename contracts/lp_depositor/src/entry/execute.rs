@@ -1,16 +1,15 @@
 use astroport::{
     asset::{Asset, AssetInfo},
-    pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg},
+    pair::ExecuteMsg as PairExecuteMsg,
     staking::ExecuteMsg as AstroportStakingExecuteMsg,
 };
 use cosmwasm_std::{
-    coin, coins, ensure, ensure_eq, from_json, to_json_binary, CosmosMsg, DepsMut, Env,
+    coin, coins, ensure, ensure_eq, to_json_binary, CosmosMsg, DepsMut, Env,
     MessageInfo, Response, Uint128, WasmMsg,
 };
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
 use equinox_msg::{
-    lp_depositor::{CallbackMsg, Cw20HookMsg},
+    lp_depositor::CallbackMsg,
     token_converter::ExecuteMsg as ConverterExecuteMsg,
 };
 
@@ -27,41 +26,45 @@ pub fn try_convert(
     let recipient = recipient.unwrap_or(info.sender.to_string());
 
     ensure!(
-        asset.denom == config.astro || asset.denom == config.xastro,
-        ContractError::InvalidCoinAsset(config.astro, config.xastro, asset.denom)
+        asset.denom == config.astro || asset.denom == config.xastro || asset.denom == config.eclipastro,
+        ContractError::InvalidCoinAsset(asset.denom)
     );
-
-    let amount_to_eclipastro = get_asset_amount_to_convert_eclipastro(
-        deps.as_ref(),
-        &Asset {
-            info: AssetInfo::NativeToken {
-                denom: asset.denom.clone(),
-            },
-            amount: asset.amount,
-        },
-    )?;
-    let amount_to_xastro = asset.amount - amount_to_eclipastro;
-
+    
     let mut msgs = vec![];
 
-    if asset.denom == config.astro {
-        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.staking_contract.to_string(),
-            msg: to_json_binary(&AstroportStakingExecuteMsg::Enter { receiver: None })?,
-            funds: vec![coin(amount_to_xastro.u128(), config.astro.clone())],
-        }));
-        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.converter_contract.to_string(),
-            msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
-            funds: coins(amount_to_eclipastro.u128(), config.astro),
-        }));
-    }
-    if asset.denom == config.xastro {
-        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.converter_contract.to_string(),
-            msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
-            funds: coins(amount_to_eclipastro.u128(), config.xastro),
-        }));
+    if asset.denom != config.eclipastro {
+        let amount_to_eclipastro = get_asset_amount_to_convert_eclipastro(
+            deps.as_ref(),
+            &Asset {
+                info: AssetInfo::NativeToken {
+                    denom: asset.denom.clone(),
+                },
+                amount: asset.amount,
+            },
+        )?;
+        let amount_to_xastro = asset.amount - amount_to_eclipastro;
+    
+        if asset.denom == config.astro {
+            msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.staking_contract.to_string(),
+                msg: to_json_binary(&AstroportStakingExecuteMsg::Enter { receiver: None })?,
+                funds: vec![coin(amount_to_xastro.u128(), config.astro.clone())],
+            }));
+            msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.converter_contract.to_string(),
+                msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
+                funds: coins(amount_to_eclipastro.u128(), config.astro),
+            }));
+        }
+        if asset.denom == config.xastro {
+            msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.converter_contract.to_string(),
+                msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
+                funds: coins(amount_to_eclipastro.u128(), config.xastro),
+            }));
+        }
+    } else {
+        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute { contract_addr: config.staking_contract.to_string(), msg: to_json_binary(&PairExecuteMsg::Swap { offer_asset: Asset { info: AssetInfo::NativeToken { denom: config.eclipastro.clone() }, amount: asset.amount.multiply_ratio(1u128, 2u128) }, ask_asset_info: None, belief_price: None, max_spread: None, to: None })?, funds: coins(asset.amount.u128(), config.eclipastro.clone()) }));
     }
     msgs.push(CallbackMsg::DepositIntoPool { recipient }.to_cosmos_msg(&env)?);
     Ok(Response::new().add_messages(msgs))
@@ -90,39 +93,28 @@ fn try_deposit_into_pool(
     recipient: String,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
-    let eclipastro_balance: BalanceResponse = deps.querier.query_wasm_smart(
-        &cfg.eclipastro,
-        &Cw20QueryMsg::Balance {
-            address: env.contract.address.to_string(),
-        },
+    let eclipastro_balance = deps.querier.query_balance(
+        env.contract.address.to_string(),
+        cfg.eclipastro.clone(),
     )?;
     let xastro_balance = deps
         .querier
         .query_balance(env.contract.address, cfg.xastro.clone())?;
     ensure!(
-        eclipastro_balance.balance.gt(&Uint128::zero())
+        eclipastro_balance.amount.gt(&Uint128::zero())
             && xastro_balance.amount.gt(&Uint128::zero()),
         ContractError::InvalidTokenBalance {}
     );
     let msgs = vec![
         CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.eclipastro.to_string(),
-            msg: to_json_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                spender: cfg.lp_contract.clone().to_string(),
-                amount: eclipastro_balance.balance,
-                expires: None,
-            })?,
-            funds: vec![],
-        }),
-        CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.lp_contract.to_string(),
             msg: to_json_binary(&PairExecuteMsg::ProvideLiquidity {
                 assets: vec![
                     Asset {
-                        info: AssetInfo::Token {
-                            contract_addr: cfg.eclipastro.clone(),
+                        info: AssetInfo::NativeToken {
+                            denom: cfg.eclipastro.clone(),
                         },
-                        amount: eclipastro_balance.balance,
+                        amount: eclipastro_balance.amount,
                     },
                     Asset {
                         info: AssetInfo::NativeToken {
@@ -136,51 +128,8 @@ fn try_deposit_into_pool(
                 receiver: Some(recipient),
                 min_lp_to_receive: None,
             })?,
-            funds: vec![coin(xastro_balance.amount.u128(), cfg.xastro.clone())],
+            funds: vec![coin(xastro_balance.amount.u128(), cfg.xastro.clone()), coin(eclipastro_balance.amount.u128(), cfg.eclipastro.clone())],
         }),
     ];
     Ok(Response::new().add_messages(msgs))
-}
-
-pub fn receive_cw20(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    cw20_msg: Cw20ReceiveMsg,
-) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-    let sender = deps.api.addr_validate(&cw20_msg.sender)?;
-    let amount = cw20_msg.amount;
-
-    // CHECK :: Tokens sent > 0
-    ensure!(amount.gt(&Uint128::zero()), ContractError::ZeroAmount {});
-
-    ensure!(
-        info.sender == cfg.eclipastro,
-        ContractError::InvalidAsset {}
-    );
-
-    match from_json(&cw20_msg.msg)? {
-        Cw20HookMsg::Convert { recipient } => {
-            let recipient = recipient.unwrap_or(sender.to_string());
-            let msgs = vec![
-                CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: cfg.eclipastro.to_string(),
-                    msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                        contract: cfg.lp_contract.to_string(),
-                        amount: amount.multiply_ratio(1u128, 2u128),
-                        msg: to_json_binary(&PairCw20HookMsg::Swap {
-                            ask_asset_info: None,
-                            belief_price: None,
-                            max_spread: None,
-                            to: None,
-                        })?,
-                    })?,
-                    funds: vec![],
-                }),
-                CallbackMsg::DepositIntoPool { recipient }.to_cosmos_msg(&env)?,
-            ];
-            Ok(Response::new().add_messages(msgs))
-        }
-    }
 }

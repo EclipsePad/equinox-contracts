@@ -1,7 +1,6 @@
 use astroport::asset::Asset;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Env, StdResult, WasmMsg};
-use cw20::Cw20ReceiveMsg;
 
 #[cw_serde]
 pub struct Config {
@@ -10,7 +9,7 @@ pub struct Config {
     /// xASTRO token
     pub xastro: String,
     /// eclipASTRO token
-    pub eclipastro: Addr,
+    pub eclipastro: String,
     /// ASTRO staking contract
     pub staking_contract: Addr,
     /// eclipASTRO converter contract
@@ -28,13 +27,13 @@ pub struct InstantiateMsg {
     /// xASTRO token
     pub xastro: String,
     /// eclipASTRO token
-    pub eclipastro: Addr,
+    pub eclipastro: String,
     /// ASTRO staking contract
-    pub staking_contract: Addr,
+    pub staking_contract: String,
     /// eclipASTRO converter contract
-    pub converter_contract: Addr,
+    pub converter_contract: String,
     /// liquidity_pool
-    pub lp_contract: Addr,
+    pub lp_contract: String,
     /// lp_token
     pub lp_token: String,
 }
@@ -45,8 +44,6 @@ pub enum ExecuteMsg {
     Convert {
         recipient: Option<String>,
     },
-    /// convert and deposit eclipASTRO to lp by users
-    Receive(Cw20ReceiveMsg),
     Callback(CallbackMsg),
 }
 

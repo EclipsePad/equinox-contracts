@@ -12,8 +12,8 @@ pub enum ContractError {
     #[error("Asset is not allowed")]
     InvalidAsset {},
 
-    #[error("Expected {0} or {1}, got {2}")]
-    InvalidCoinAsset(String, String, String),
+    #[error("Invalid asset {0}")]
+    InvalidCoinAsset(String),
 
     #[error("Invalid token balance")]
     InvalidTokenBalance {},

@@ -5,7 +5,7 @@ use equinox_msg::lp_depositor::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use crate::{
     entry::{
-        execute::{_try_callback, receive_cw20, try_convert},
+        execute::{_try_callback, try_convert},
         instantiate::try_instantiate,
         query::{query_config, query_simulate},
     },
@@ -33,7 +33,6 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Convert { recipient } => try_convert(deps, env, info, recipient),
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Callback(msg) => _try_callback(deps, env, info, msg),
     }
 }

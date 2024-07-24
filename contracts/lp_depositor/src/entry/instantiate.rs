@@ -21,10 +21,10 @@ pub fn try_instantiate(
         &Config {
             astro: msg.astro,
             xastro: msg.xastro,
-            staking_contract: msg.staking_contract,
-            eclipastro: deps.api.addr_validate(msg.eclipastro.as_str())?,
-            converter_contract: deps.api.addr_validate(msg.converter_contract.as_str())?,
-            lp_contract: deps.api.addr_validate(msg.lp_contract.as_str())?,
+            staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
+            eclipastro: msg.eclipastro,
+            converter_contract: deps.api.addr_validate(&msg.converter_contract)?,
+            lp_contract: deps.api.addr_validate(&msg.lp_contract)?,
             lp_token: msg.lp_token,
         },
     )?;
