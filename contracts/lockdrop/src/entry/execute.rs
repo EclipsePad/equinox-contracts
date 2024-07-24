@@ -1151,10 +1151,13 @@ fn handle_stake_to_single_vault(
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.single_sided_staking.unwrap().to_string(),
             msg: to_json_binary(&SingleSidedExecuteMsg::Stake {
-                    lock_duration: c.duration,
-                    recipient: None,
-                })?,
-            funds: vec![coin(eclipastro_amount_to_stake.u128(), eclipastro_token.to_string())],
+                lock_duration: c.duration,
+                recipient: None,
+            })?,
+            funds: vec![coin(
+                eclipastro_amount_to_stake.u128(),
+                eclipastro_token.to_string(),
+            )],
         }));
         response = response
             .add_attribute("action", "lock to single sided staking vault")
@@ -1195,36 +1198,34 @@ fn handle_deposit_into_pool(
     state.total_xastro = total_xastro_amount;
     state.weighted_total_xastro = weighted_amount;
     LP_LOCKUP_STATE.save(deps.storage, &state)?;
-    let msgs = vec![
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.liquidity_pool.unwrap().to_string(),
-            msg: to_json_binary(&PairExecuteMsg::ProvideLiquidity {
-                assets: vec![
-                    Asset {
-                        info: eclipastro_token.clone(),
-                        amount: eclipastro_amount_to_deposit,
+    let msgs = vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: cfg.liquidity_pool.unwrap().to_string(),
+        msg: to_json_binary(&PairExecuteMsg::ProvideLiquidity {
+            assets: vec![
+                Asset {
+                    info: eclipastro_token.clone(),
+                    amount: eclipastro_amount_to_deposit,
+                },
+                Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: cfg.xastro_token.clone(),
                     },
-                    Asset {
-                        info: AssetInfo::NativeToken {
-                            denom: cfg.xastro_token.clone(),
-                        },
-                        amount: xastro_amount_to_deposit,
-                    },
-                ],
-                slippage_tolerance: None,
-                auto_stake: Some(false),
-                receiver: None,
-                min_lp_to_receive: None,
-            })?,
-            funds: vec![coin(
-                xastro_amount_to_deposit.u128(),
-                cfg.xastro_token.clone(),
-            ),coin(
+                    amount: xastro_amount_to_deposit,
+                },
+            ],
+            slippage_tolerance: None,
+            auto_stake: Some(false),
+            receiver: None,
+            min_lp_to_receive: None,
+        })?,
+        funds: vec![
+            coin(xastro_amount_to_deposit.u128(), cfg.xastro_token.clone()),
+            coin(
                 eclipastro_amount_to_deposit.u128(),
                 eclipastro_token.to_string(),
-            )],
-        }),
-    ];
+            ),
+        ],
+    })];
     Ok(Response::new()
         .add_attribute("action", "convert xASTRO to eclipASTRO")
         .add_attribute("from", cfg.xastro_token.to_string())
@@ -1408,15 +1409,26 @@ pub fn _claim_single_sided_rewards(
 
     if !eclipastro_rewards.is_zero() {
         msgs.push(
-            eclipastro_token.with_balance(eclipastro_rewards).into_msg(sender.clone())?);
+            eclipastro_token
+                .with_balance(eclipastro_rewards)
+                .into_msg(sender.clone())?,
+        );
     }
 
     if !beclip_rewards.is_zero() {
-        msgs.push(cfg.beclip.with_balance(beclip_rewards).into_msg(sender.clone())?);
+        msgs.push(
+            cfg.beclip
+                .with_balance(beclip_rewards)
+                .into_msg(sender.clone())?,
+        );
     }
 
     if !eclip_rewards.is_zero() {
-        msgs.push(cfg.eclip.with_balance(eclip_rewards).into_msg(sender.clone())?);
+        msgs.push(
+            cfg.eclip
+                .with_balance(eclip_rewards)
+                .into_msg(sender.clone())?,
+        );
     }
 
     SINGLE_USER_LOCKUP_INFO.save(deps.storage, (&sender, duration), &user_lockup_info)?;
@@ -1525,11 +1537,19 @@ pub fn _claim_lp_rewards(
         }));
     }
     if !beclip_rewards.is_zero() {
-        msgs.push(cfg.beclip.with_balance(beclip_rewards).into_msg(sender.clone())?);
+        msgs.push(
+            cfg.beclip
+                .with_balance(beclip_rewards)
+                .into_msg(sender.clone())?,
+        );
     }
 
     if !eclip_rewards.is_zero() {
-        msgs.push(cfg.eclip.with_balance(eclip_rewards).into_msg(sender.clone())?);
+        msgs.push(
+            cfg.eclip
+                .with_balance(eclip_rewards)
+                .into_msg(sender.clone())?,
+        );
     }
 
     LP_USER_LOCKUP_INFO.save(deps.storage, (&sender, duration), &user_lockup_info)?;
@@ -1640,9 +1660,7 @@ pub fn _claim_all_single_sided_rewards(
                     &pending_lockdrop_incentives.eclip;
                 user_lockup_info.reward_weights.eclip = updated_reward_weights.eclip;
             }
-            if assets.iter().any(|a| {
-                a.equal(&eclipastro_token)
-            }) {
+            if assets.iter().any(|a| a.equal(&eclipastro_token)) {
                 eclipastro_rewards += user_rewards.eclipastro;
                 user_lockup_info.reward_weights.eclipastro = updated_reward_weights.eclipastro;
             }
@@ -1661,13 +1679,25 @@ pub fn _claim_all_single_sided_rewards(
 
     // add message to claim rewards and incentives
     if eclipastro_rewards.is_zero() {
-        msgs.push(eclipastro_token.with_balance(eclipastro_rewards).into_msg(sender.clone())?);
+        msgs.push(
+            eclipastro_token
+                .with_balance(eclipastro_rewards)
+                .into_msg(sender.clone())?,
+        );
     }
     if !beclip_rewards.is_zero() {
-        msgs.push(cfg.beclip.with_balance(beclip_rewards).into_msg(sender.clone())?);
+        msgs.push(
+            cfg.beclip
+                .with_balance(beclip_rewards)
+                .into_msg(sender.clone())?,
+        );
     }
     if !eclip_rewards.is_zero() {
-        msgs.push(cfg.eclip.with_balance(eclip_rewards).into_msg(sender.clone())?);
+        msgs.push(
+            cfg.eclip
+                .with_balance(eclip_rewards)
+                .into_msg(sender.clone())?,
+        );
     }
 
     Ok(Response::new().add_messages(msgs))
@@ -1796,10 +1826,18 @@ pub fn _claim_all_lp_rewards(
         }));
     }
     if !beclip_rewards.is_zero() {
-        msgs.push(cfg.beclip.with_balance(beclip_rewards).into_msg(sender.clone())?);
+        msgs.push(
+            cfg.beclip
+                .with_balance(beclip_rewards)
+                .into_msg(sender.clone())?,
+        );
     }
     if !eclip_rewards.is_zero() {
-        msgs.push(cfg.eclip.with_balance(eclip_rewards).into_msg(sender.clone())?);
+        msgs.push(
+            cfg.eclip
+                .with_balance(eclip_rewards)
+                .into_msg(sender.clone())?,
+        );
     }
     Ok(Response::new().add_messages(msgs))
 }

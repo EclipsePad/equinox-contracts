@@ -1,13 +1,12 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, Uint128, WasmMsg};
-use cw20::Cw20ReceiveMsg;
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
     pub owner: Addr,
     /// eclipASTRO token
-    pub token: Addr,
+    pub token: String,
     pub rewards: RewardConfig,
     /// timelock config
     pub timelock_config: Option<Vec<TimeLockConfig>>,
@@ -26,8 +25,6 @@ pub enum ExecuteMsg {
     UpdateConfig {
         config: UpdateConfigMsg,
     },
-    /// This accepts a properly-encoded ReceiveMsg from a cw20 contract
-    Receive(Cw20ReceiveMsg),
     /// Claim rewards of user.
     Claim {
         duration: u64,
@@ -122,9 +119,9 @@ pub enum Cw20HookMsg {
 #[cw_serde]
 pub struct UpdateConfigMsg {
     pub timelock_config: Option<Vec<TimeLockConfig>>,
-    pub token_converter: Option<Addr>,
+    pub token_converter: Option<String>,
     pub rewards: Option<RewardConfig>,
-    pub treasury: Option<Addr>,
+    pub treasury: Option<String>,
 }
 
 #[cw_serde]
@@ -150,7 +147,7 @@ impl CallbackMsg {
 #[cw_serde]
 pub struct Config {
     /// eclipASTRO token
-    pub token: Addr,
+    pub token: String,
     pub rewards: RewardConfig,
     /// lock config
     pub timelock_config: Vec<TimeLockConfig>,
@@ -253,7 +250,6 @@ pub struct RestakeData {
     pub locked_at: u64,
     pub amount: Option<Uint128>,
     pub to_duration: u64,
-    pub add_amount: Option<Uint128>,
     pub sender: String,
     pub recipient: String,
 }

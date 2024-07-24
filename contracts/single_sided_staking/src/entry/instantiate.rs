@@ -21,7 +21,7 @@ pub fn try_instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            token: deps.api.addr_validate(msg.token.as_str())?,
+            token: msg.token,
             rewards: msg.rewards,
             timelock_config: msg
                 .timelock_config

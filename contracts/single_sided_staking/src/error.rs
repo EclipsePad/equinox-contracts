@@ -32,6 +32,9 @@ pub enum ContractError {
     #[error("Exceed locked amount")]
     ExceedAmount {},
 
+    #[error("Invalid asset")]
+    InvalidAsset {},
+
     #[error("Callbacks cannot be invoked externally")]
     InvalidCallbackInvoke {},
 

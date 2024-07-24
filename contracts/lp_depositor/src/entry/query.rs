@@ -40,7 +40,9 @@ pub fn query_simulate(deps: Deps, asset: Asset) -> StdResult<Uint128> {
         &PoolQueryMsg::SimulateProvide {
             assets: vec![
                 Asset {
-                    info: AssetInfo::NativeToken { denom: config.eclipastro },
+                    info: AssetInfo::NativeToken {
+                        denom: config.eclipastro,
+                    },
                     amount: eclipastro_amount,
                 },
                 Asset {

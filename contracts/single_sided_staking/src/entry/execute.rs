@@ -1,9 +1,9 @@
 use astroport::asset::{AssetInfo, AssetInfoExt};
 use cosmwasm_std::{
-    ensure, ensure_eq, from_json, to_json_binary, CosmosMsg, DepsMut, Env, MessageInfo, Response,
-    StdResult, Uint128, WasmMsg,
+    coins, ensure, ensure_eq, to_json_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo,
+    Response, StdResult, Uint128, WasmMsg,
 };
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
+use cw20::{BalanceResponse, Cw20QueryMsg};
 use cw_utils::one_coin;
 
 use crate::{
@@ -17,8 +17,7 @@ use crate::{
 
 use equinox_msg::{
     single_sided_staking::{
-        CallbackMsg, Cw20HookMsg, RestakeData, RewardWeights, UpdateConfigMsg, UserReward,
-        UserStaked,
+        CallbackMsg, RestakeData, RewardWeights, UpdateConfigMsg, UserReward, UserStaked,
     },
     token_converter::ExecuteMsg as ConverterExecuteMsg,
     utils::has_unique_elements,
@@ -41,11 +40,11 @@ pub fn update_config(
     let mut config = CONFIG.load(deps.storage)?;
     let mut res: Response = Response::new().add_attribute("action", "update config");
     if let Some(token_converter) = new_config.token_converter {
-        config.token_converter = deps.api.addr_validate(token_converter.as_str())?;
+        config.token_converter = deps.api.addr_validate(&token_converter)?;
         res = res.add_attribute("token_converter", token_converter.to_string());
     }
     if let Some(treasury) = new_config.treasury {
-        config.treasury = deps.api.addr_validate(treasury.as_str())?;
+        config.treasury = deps.api.addr_validate(&treasury)?;
         res = res.add_attribute("treasury", treasury.to_string());
     }
     if let Some(rewards) = new_config.rewards {
@@ -153,7 +152,7 @@ pub fn _handle_callback(
 
 // convert astro/xastro to eclipastro and stake them
 pub fn stake(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     duration: u64,
@@ -163,27 +162,33 @@ pub fn stake(
     let recipient = recipient.unwrap_or(sender.clone());
     let received_asset = one_coin(&info)?;
     let config = CONFIG.load(deps.storage)?;
-    let eclipastro_balance: BalanceResponse = deps.querier.query_wasm_smart(
-        &config.token,
-        &Cw20QueryMsg::Balance {
-            address: env.contract.address.to_string(),
-        },
-    )?;
-    Ok(Response::new()
-        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.token_converter.to_string(),
-            msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
-            funds: vec![received_asset],
-        }))
-        .add_message(
+    if received_asset.denom != config.token {
+        let eclipastro_balance = deps
+            .querier
+            .query_balance(env.contract.address.to_string(), config.token)?;
+        return Ok(Response::new().add_messages(vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: config.token_converter.to_string(),
+                msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
+                funds: vec![received_asset],
+            }),
             CallbackMsg::Convert {
-                prev_eclipastro_balance: eclipastro_balance.balance,
+                prev_eclipastro_balance: eclipastro_balance.amount,
                 duration,
                 sender,
                 recipient,
             }
             .to_cosmos_msg(&env)?,
-        ))
+        ]));
+    }
+    _stake(
+        deps.branch(),
+        env,
+        duration,
+        sender,
+        recipient,
+        received_asset.amount,
+    )
 }
 
 pub fn _stake(
@@ -239,84 +244,32 @@ pub fn _stake(
         .add_attribute("amount", amount.to_string()))
 }
 
-/// Cw20 Receive hook msg handler.
-pub fn receive_cw20(
+pub fn restake(
     mut deps: DepsMut,
     env: Env,
-    info: MessageInfo,
-    msg: Cw20ReceiveMsg,
+    funds: Vec<Coin>,
+    data: RestakeData,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    ensure_eq!(
-        config.token,
-        info.sender,
-        ContractError::Cw20AddressesNotMatch {
-            got: info.sender.to_string(),
-            expected: config.token.to_string(),
-        }
-    );
-    ensure!(
-        msg.amount.gt(&Uint128::zero()),
-        ContractError::ZeroAmount {}
-    );
-    match from_json(&msg.msg)? {
-        // lock eclipASTRO token with duration
-        // check amount, duration
-        Cw20HookMsg::Stake {
-            lock_duration,
-            recipient,
-        } => {
-            let sender = msg.sender;
-            let recipient = recipient.unwrap_or(sender.clone());
-            _stake(
-                deps.branch(),
-                env,
-                lock_duration,
-                sender,
-                recipient,
-                msg.amount,
-            )
-        }
-        Cw20HookMsg::Restake {
-            from_duration,
-            locked_at,
-            amount,
-            to_duration,
-            recipient,
-        } => {
-            let sender = msg.sender;
-            let recipient = recipient.unwrap_or(sender.to_string());
-            let locked_at = locked_at.unwrap_or_default();
-            restake(
-                deps,
-                env,
-                RestakeData {
-                    from_duration,
-                    locked_at,
-                    amount,
-                    to_duration,
-                    add_amount: Some(msg.amount),
-                    sender,
-                    recipient,
-                },
-            )
-        }
-    }
-}
-
-pub fn restake(mut deps: DepsMut, env: Env, data: RestakeData) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let from_duration = data.from_duration;
     let locked_at = data.locked_at;
     let to_duration = data.to_duration;
     let sender = data.sender;
     let amount = data.amount;
-    let add_amount = data.add_amount;
     let recipient = data.recipient;
     let is_allowed_user = ALLOWED_USERS
         .load(deps.storage, &sender.to_string())
         .unwrap_or_default();
     let current_time = env.block.time.seconds();
+    let mut add_amount = Uint128::zero();
+
+    if funds.len() > 0 {
+        ensure!(
+            funds.len() == 1 && funds[0].denom == config.token,
+            ContractError::InvalidAsset {}
+        );
+        add_amount = funds[0].amount;
+    }
 
     let user_staking_from = USER_STAKED.load(deps.storage, (&sender, from_duration, locked_at))?;
     let mut user_staking_to = USER_STAKED
@@ -367,14 +320,14 @@ pub fn restake(mut deps: DepsMut, env: Env, data: RestakeData) -> Result<Respons
         locked_at,
         None,
     )?;
-    if add_amount.is_some() {
-        total_staking += add_amount.unwrap();
+    if !add_amount.is_zero() {
+        total_staking += add_amount;
         TOTAL_STAKING.save(deps.storage, &total_staking)?;
     }
     let restake_amount = amount.unwrap_or(user_staking_from.staked);
     total_staking_by_duration_from -= restake_amount;
-    total_staking_by_duration_to += restake_amount + add_amount.unwrap_or_default();
-    user_staking_to.staked += restake_amount + add_amount.unwrap_or_default();
+    total_staking_by_duration_to += restake_amount + add_amount;
+    user_staking_to.staked += restake_amount + add_amount;
     user_staking_to.reward_weights = updated_reward_weights.clone();
     USER_STAKED.save(
         deps.storage,
@@ -403,7 +356,7 @@ pub fn restake(mut deps: DepsMut, env: Env, data: RestakeData) -> Result<Respons
     Ok(response
         .add_attribute("action", "add lock")
         .add_attribute("user", sender.to_string())
-        .add_attribute("amount", add_amount.unwrap_or_default().to_string())
+        .add_attribute("amount", add_amount.to_string())
         .add_attribute("action", "extend duration")
         .add_attribute("from", from_duration.to_string())
         .add_attribute("user", sender.to_string())
@@ -449,8 +402,8 @@ pub fn _claim_single(
     let mut user_reward_to_claim = UserReward::default();
     if let Some(assets) = assets {
         for asset in assets {
-            if asset.equal(&AssetInfo::Token {
-                contract_addr: config.token.clone(),
+            if asset.equal(&AssetInfo::NativeToken {
+                denom: config.token.clone(),
             }) {
                 user_staking
                     .reward_weights
@@ -516,13 +469,9 @@ pub fn _claim(
     }
 
     if !rewards.eclipastro.is_zero() {
-        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.token.to_string(),
-            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: sender.clone(),
-                amount: rewards.eclipastro,
-            })?,
-            funds: vec![],
+        msgs.push(CosmosMsg::Bank(BankMsg::Send {
+            to_address: sender.clone(),
+            amount: coins(rewards.eclipastro.u128(), config.token),
         }));
         response = response
             .add_attribute("action", "claim user eclipastro reward")
@@ -698,22 +647,17 @@ pub fn unstake(
 
     let penalty_amount = calculate_penalty(deps.as_ref(), env, unlock_amount, duration, locked_at)?;
 
-    let mut msgs = vec![WasmMsg::Execute {
-        contract_addr: config.token.to_string(),
-        msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: receiver,
-            amount: unlock_amount.checked_sub(penalty_amount).unwrap(),
-        })?,
-        funds: vec![],
+    let mut msgs = vec![BankMsg::Send {
+        to_address: receiver,
+        amount: coins(
+            unlock_amount.checked_sub(penalty_amount).unwrap().u128(),
+            config.token.clone(),
+        ),
     }];
     if !penalty_amount.is_zero() {
-        msgs.push(WasmMsg::Execute {
-            contract_addr: config.token.to_string(),
-            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: config.treasury.to_string(),
-                amount: penalty_amount,
-            })?,
-            funds: vec![],
+        msgs.push(BankMsg::Send {
+            to_address: config.treasury.to_string(),
+            amount: coins(penalty_amount.u128(), config.token),
         });
     }
     response = response
