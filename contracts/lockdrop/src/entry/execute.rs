@@ -1964,7 +1964,10 @@ pub fn _unlock_single_lockup(
         SINGLE_LOCKUP_INFO.save(deps.storage, duration, &lockup_info)?;
         SINGLE_USER_LOCKUP_INFO.save(deps.storage, (&sender, duration), &user_lockup_info)?;
 
-        Ok(response.add_messages(msgs))
+        Ok(response
+            .add_messages(msgs)
+            .add_attribute("action", "withdraw")
+            .add_attribute("withdraw_amount", withdraw_amount.to_string()))
     }
 }
 
@@ -2073,7 +2076,13 @@ pub fn _unlock_lp_lockup(
         LP_LOCKUP_INFO.save(deps.storage, duration, &lockup_info)?;
         LP_USER_LOCKUP_INFO.save(deps.storage, (&sender, duration), &user_lockup_info)?;
 
-        Ok(response.add_messages(msgs))
+        Ok(response
+            .add_messages(msgs)
+            .add_attribute("action", "withdraw")
+            .add_attribute(
+                "withdraw_amount",
+                (withdraw_amount - penalty_amount).to_string(),
+            ))
     }
 }
 
