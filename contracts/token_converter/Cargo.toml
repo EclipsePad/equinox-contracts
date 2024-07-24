@@ -26,3 +26,5 @@ cw20                    = { workspace = true }
 semver                  = { workspace = true }
 thiserror               = { workspace = true }
 equinox-msg             = { workspace = true }
+astroport               = { workspace = true }
+osmosis-std             = { workspace = true }

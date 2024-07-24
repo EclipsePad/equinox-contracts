@@ -1,21 +1,21 @@
-use std::str::FromStr;
-
+use astroport::staking::ExecuteMsg;
 use cosmwasm_std::{
-    ensure, ensure_eq, ensure_ne, from_json, to_json_binary, DepsMut, Env, MessageInfo, Reply,
-    ReplyOn, Response, SubMsg, Uint128, WasmMsg,
+    coin, ensure, ensure_eq, ensure_ne, to_json_binary, Addr, Coin, CosmosMsg, DepsMut, Env,
+    MessageInfo, Response, Uint128, WasmMsg,
 };
+use osmosis_std::types::osmosis::tokenfactory::v1beta1 as OsmosisFactory;
 
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use equinox_msg::token_converter::{Cw20HookMsg, RewardConfig, UpdateConfig};
-use equinox_msg::voter::msg::{ExecuteMsg as VoterExecuteMsg, QueryMsg as VoterQueryMsg};
+use cw_utils::one_coin;
+use equinox_msg::token_converter::{CallbackMsg, RewardConfig, RewardResponse, UpdateConfig};
+use equinox_msg::voter::msg::ExecuteMsg as VoterExecuteMsg;
 
+use crate::entry::query::_query_rewards;
+use crate::external_queriers::query_rates_astro_staking;
+use crate::math::calculate_eclipastro_amount;
 use crate::{
-    contract::STAKE_TOKEN_REPLY_ID,
     error::ContractError,
-    math::{calculate_claimable, convert_token},
     state::{
-        UserStake, CONFIG, OWNER, REWARD_CONFIG, TOTAL_STAKE_INFO, TREASURY_REWARD, USER_STAKING,
-        WITHDRAWABLE_BALANCE,
+        CONFIG, OWNER, REWARD_CONFIG, TOTAL_STAKE_INFO, TREASURY_REWARD, WITHDRAWABLE_BALANCE,
     },
 };
 
@@ -30,36 +30,24 @@ pub fn update_config(
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let mut config = CONFIG.load(deps.storage)?;
     let mut res: Response = Response::new().add_attribute("action", "update config");
-    if let Some(token_in) = new_config.token_in {
-        config.token_in = deps.api.addr_validate(&token_in)?;
-        res = res.add_attribute("token_in", token_in);
-    }
-    if let Some(token_out) = new_config.token_out {
-        config.token_out = deps.api.addr_validate(&token_out)?;
-        res = res.add_attribute("token_out", token_out);
-    }
-    if let Some(xtoken) = new_config.xtoken {
-        config.xtoken = deps.api.addr_validate(&xtoken)?;
-        res = res.add_attribute("xtoken", xtoken);
-    }
-    if let Some(vxtoken_holder) = new_config.vxtoken_holder {
-        config.vxtoken_holder = deps.api.addr_validate(&vxtoken_holder)?;
-        res = res.add_attribute("vxtoken_holder", vxtoken_holder);
+    if let Some(vxastro_holder) = new_config.vxastro_holder {
+        config.vxastro_holder = Some(vxastro_holder.clone());
+        res = res.add_attribute("vxastro_holder", vxastro_holder.to_string());
     }
     if let Some(treasury) = new_config.treasury {
-        config.treasury = deps.api.addr_validate(&treasury)?;
+        config.treasury = treasury.clone();
         res = res.add_attribute("treasury", treasury);
     }
     if let Some(stability_pool) = new_config.stability_pool {
-        config.stability_pool = deps.api.addr_validate(&stability_pool)?;
-        res = res.add_attribute("stability_pool", stability_pool);
+        config.stability_pool = Some(stability_pool.clone());
+        res = res.add_attribute("stability_pool", stability_pool.to_string());
     }
-    if let Some(staking_reward_distributor) = new_config.staking_reward_distributor {
-        config.staking_reward_distributor = deps.api.addr_validate(&staking_reward_distributor)?;
-        res = res.add_attribute("staking_reward_distributor", staking_reward_distributor);
+    if let Some(single_staking_contract) = new_config.single_staking_contract {
+        config.single_staking_contract = Some(single_staking_contract.clone());
+        res = res.add_attribute("single_staking_contract", single_staking_contract);
     }
     if let Some(ce_reward_distributor) = new_config.ce_reward_distributor {
-        config.ce_reward_distributor = deps.api.addr_validate(&ce_reward_distributor)?;
+        config.ce_reward_distributor = Some(ce_reward_distributor.clone());
         res = res.add_attribute("ce_reward_distributor", ce_reward_distributor);
     }
     CONFIG.save(deps.storage, &config)?;
@@ -101,209 +89,117 @@ pub fn update_owner(
         .add_attribute("to", new_owner))
 }
 
+pub fn _claim(
+    deps: DepsMut,
+    env: Env,
+    treasury_claim_amount: Uint128,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let reward_config = REWARD_CONFIG.load(deps.storage)?;
+    let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
+    let mut withdrawable = WITHDRAWABLE_BALANCE.load(deps.storage).unwrap_or_default();
+    let mut treasury_reward = TREASURY_REWARD.load(deps.storage).unwrap_or_default();
+    let res: (RewardResponse, Uint128) = _query_rewards(deps.as_ref())?;
+    let claimable_xastro = res.1;
+    let users_reward = claimable_xastro.multiply_ratio(reward_config.users, 10000u32);
+    let reward_ce_holders = res.0.ce_holders_reward.amount;
+    let reward_stability_pool = res.0.stability_pool_reward.amount;
+    let reward_treasury = res.0.treasury_reward.amount;
+    // must exist users reward
+    ensure_ne!(
+        users_reward,
+        Uint128::zero(),
+        ContractError::NoRewardClaimable {}
+    );
+    // add message to mint eclipASTRO to single_staking_contract
+    let mut msgs = vec![mint_eclipastro_msg(
+        env.contract.address,
+        config.single_staking_contract.clone().unwrap().to_string(),
+        res.0.users_reward.amount,
+        config.eclipastro.to_string(),
+    )?];
+    // withdrawable is withdrawable xASTRO amount that DAO withdraws. equal to staking eclipASTRO rewards part
+    withdrawable = withdrawable.checked_add(users_reward).unwrap();
+    // add messsage to withdraw xASTRO DAO rewards - treasury rewards
+    if reward_ce_holders.gt(&Uint128::zero()) {
+        msgs.push(withdraw_xastro_msg(
+            config.vxastro_holder.clone().unwrap().to_string(),
+            config.ce_reward_distributor.clone().unwrap().to_string(),
+            reward_ce_holders,
+        )?);
+    }
+    if reward_stability_pool.gt(&Uint128::zero()) {
+        msgs.push(withdraw_xastro_msg(
+            config.vxastro_holder.clone().unwrap().to_string(),
+            config.stability_pool.clone().unwrap().to_string(),
+            reward_stability_pool,
+        )?);
+    }
+    // deduct claimable
+    total_stake_info.claimed_xastro += claimable_xastro;
+    treasury_reward = treasury_reward.checked_add(reward_treasury).unwrap();
+
+    let mut response = Response::new()
+        .add_attribute("action", "claim reward")
+        .add_attribute("token", "eclipASTRO")
+        .add_attribute(
+            "recipient",
+            config.single_staking_contract.unwrap().to_string(),
+        )
+        .add_attribute("amount", users_reward.to_string())
+        .add_attribute("token", "xASTRO")
+        .add_attribute(
+            "recipient",
+            config.ce_reward_distributor.unwrap().to_string(),
+        )
+        .add_attribute("amount", reward_ce_holders.to_string())
+        .add_attribute("token", "xASTRO")
+        .add_attribute("recipient", config.stability_pool.unwrap().to_string())
+        .add_attribute("amount", reward_stability_pool.to_string());
+
+    if !treasury_claim_amount.is_zero() {
+        ensure!(
+            treasury_claim_amount.le(&treasury_reward),
+            ContractError::NotEnoughBalance {}
+        );
+        msgs.push(withdraw_xastro_msg(
+            config.vxastro_holder.unwrap().to_string(),
+            config.treasury.to_string(),
+            treasury_claim_amount,
+        )?);
+        treasury_reward -= treasury_claim_amount;
+        response = response
+            .add_attribute("action", "claim treasury reward")
+            .add_attribute("amount", treasury_claim_amount.to_string());
+    }
+
+    WITHDRAWABLE_BALANCE.save(deps.storage, &withdrawable)?;
+    TOTAL_STAKE_INFO.save(deps.storage, &total_stake_info)?;
+    TREASURY_REWARD.save(deps.storage, &treasury_reward)?;
+    Ok(response.add_messages(msgs))
+}
+
 /// claim user rewards
-pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    unimplemented!()
-
-    // let config = CONFIG.load(deps.storage)?;
-    // let reward_config = REWARD_CONFIG.load(deps.storage)?;
-    // // only staking reward distributor contract can execute this function
-    // ensure_eq!(
-    //     info.sender,
-    //     config.staking_reward_distributor,
-    //     ContractError::Unauthorized {}
-    // );
-    // // ASTRO / xASTRO rate from voter contract
-    // let (total_deposit, total_shares): (Uint128, Uint128) = deps.querier.query_wasm_smart(
-    //     config.vxtoken_holder.to_string(),
-    //     &VoterQueryMsg::ConvertRatio {},
-    // )?;
-    // let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
-    // let mut withdrawable = WITHDRAWABLE_BALANCE.load(deps.storage).unwrap_or_default();
-    // let mut treasury_reward = TREASURY_REWARD.load(deps.storage).unwrap_or_default();
-
-    // // calculate user rewards as xASTRO
-    // let claimable = calculate_claimable(
-    //     total_stake_info.xtoken,
-    //     total_stake_info.stake,
-    //     total_shares,
-    //     total_deposit,
-    //     total_stake_info.claimed,
-    // );
-    // // calculate users reward as xASTRO
-    // let users_reward = claimable.multiply_ratio(reward_config.users, 10000u32);
-    // // must exist users reward
-    // ensure_ne!(
-    //     users_reward,
-    //     Uint128::zero(),
-    //     ContractError::NoRewardClaimable {}
-    // );
-    // // add message to mint eclipASTRO to staking_reward_distributor
-    // let mut msgs = vec![WasmMsg::Execute {
-    //     contract_addr: config.token_out.to_string(),
-    //     msg: to_json_binary(&Cw20ExecuteMsg::Mint {
-    //         recipient: config.staking_reward_distributor.to_string(),
-    //         amount: convert_token(users_reward, total_shares, total_deposit),
-    //     })?,
-    //     funds: vec![],
-    // }];
-    // // withdrawable is withdrawable xASTRO amount that DAO withdraws. equal to staking eclipASTRO rewards part
-    // withdrawable = withdrawable.checked_add(users_reward).unwrap();
-    // WITHDRAWABLE_BALANCE.save(deps.storage, &withdrawable)?;
-
-    // // check dao claimable
-    // let dao_reward_point =
-    //     reward_config.treasury + reward_config.ce_holders + reward_config.stability_pool;
-    // let dao_claimable = claimable.checked_sub(users_reward).unwrap();
-    // // amount to withdraw for staking pools
-    // let reward_ce_holders =
-    //     dao_claimable.multiply_ratio(reward_config.ce_holders, dao_reward_point);
-    // let reward_stability_pool =
-    //     dao_claimable.multiply_ratio(reward_config.stability_pool, dao_reward_point);
-    // // add messsage to withdraw xASTRO DAO rewards - treasury rewards
-    // if reward_ce_holders.gt(&Uint128::zero()) {
-    //     msgs.push(WasmMsg::Execute {
-    //         contract_addr: config.vxtoken_holder.to_string(),
-    //         msg: to_json_binary(&VoterExecuteMsg::Withdraw {
-    //             amount: reward_ce_holders,
-    //             recipient: config.ce_reward_distributor.to_string(),
-    //         })?,
-    //         funds: vec![],
-    //     });
-    // }
-    // if reward_stability_pool.gt(&Uint128::zero()) {
-    //     msgs.push(WasmMsg::Execute {
-    //         contract_addr: config.vxtoken_holder.to_string(),
-    //         msg: to_json_binary(&VoterExecuteMsg::Withdraw {
-    //             amount: reward_stability_pool,
-    //             recipient: config.stability_pool.to_string(),
-    //         })?,
-    //         funds: vec![],
-    //     });
-    // }
-    // // deduct claimable
-    // total_stake_info.claimed = total_stake_info.claimed.checked_add(claimable).unwrap();
-    // treasury_reward = treasury_reward
-    //     .checked_add(
-    //         dao_claimable
-    //             .checked_sub(reward_ce_holders)
-    //             .unwrap()
-    //             .checked_sub(reward_stability_pool)
-    //             .unwrap(),
-    //     )
-    //     .unwrap();
-    // TOTAL_STAKE_INFO.save(deps.storage, &total_stake_info)?;
-    // TREASURY_REWARD.save(deps.storage, &treasury_reward)?;
-
-    // Ok(Response::new()
-    //     .add_attribute("action", "claim reward")
-    //     .add_attribute("token", "eclipASTRO")
-    //     .add_attribute("recipient", config.staking_reward_distributor.to_string())
-    //     .add_attribute("amount", users_reward.to_string())
-    //     .add_attribute("token", "xASTRO")
-    //     .add_attribute("recipient", config.ce_reward_distributor.to_string())
-    //     .add_attribute("amount", reward_ce_holders.to_string())
-    //     .add_attribute("token", "xASTRO")
-    //     .add_attribute("recipient", config.stability_pool)
-    //     .add_attribute("amount", reward_stability_pool.to_string())
-    //     .add_messages(msgs))
+pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    // only staking reward distributor contract can execute this function
+    ensure_eq!(
+        info.sender,
+        config.single_staking_contract.unwrap(),
+        ContractError::Unauthorized {}
+    );
+    _claim(deps, env, Uint128::zero())
 }
 
 /// claim treasury rewards
 pub fn claim_treasury_reward(
     deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
+    env: Env,
+    info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    unimplemented!()
-
-    // let config = CONFIG.load(deps.storage)?;
-    // let reward_config = REWARD_CONFIG.load(deps.storage)?;
-    // let treasury_reward = TREASURY_REWARD.load(deps.storage).unwrap_or_default();
-    // let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
-    // // ASTRO / xASTRO
-    // let (total_deposit, total_shares): (Uint128, Uint128) = deps.querier.query_wasm_smart(
-    //     config.vxtoken_holder.to_string(),
-    //     &VoterQueryMsg::ConvertRatio {},
-    // )?;
-    // let dao_reward_point =
-    //     reward_config.treasury + reward_config.ce_holders + reward_config.stability_pool;
-    // let claimable = calculate_claimable(
-    //     total_stake_info.xtoken,
-    //     total_stake_info.stake,
-    //     total_shares,
-    //     total_deposit,
-    //     total_stake_info.claimed,
-    // );
-    // let users_reward = claimable.multiply_ratio(reward_config.users, 10000u32);
-    // let mut msgs = vec![];
-    // if users_reward.gt(&Uint128::zero()) {
-    //     msgs.push(WasmMsg::Execute {
-    //         contract_addr: config.token_out.to_string(),
-    //         msg: to_json_binary(&Cw20ExecuteMsg::Mint {
-    //             recipient: config.staking_reward_distributor.to_string(),
-    //             amount: convert_token(users_reward, total_shares, total_deposit),
-    //         })?,
-    //         funds: vec![],
-    //     });
-    // }
-    // let dao_claimable = claimable.checked_sub(users_reward).unwrap();
-    // // amount to withdraw for staking pools
-    // let reward_ce_holders =
-    //     dao_claimable.multiply_ratio(reward_config.ce_holders, dao_reward_point);
-    // let reward_stability_pool =
-    //     dao_claimable.multiply_ratio(reward_config.stability_pool, dao_reward_point);
-    // // add messsage to withdraw xASTRO DAO rewards - treasury rewards
-    // if reward_ce_holders.gt(&Uint128::zero()) {
-    //     msgs.push(WasmMsg::Execute {
-    //         contract_addr: config.vxtoken_holder.to_string(),
-    //         msg: to_json_binary(&VoterExecuteMsg::Withdraw {
-    //             amount: reward_ce_holders,
-    //             recipient: config.ce_reward_distributor.to_string(),
-    //         })?,
-    //         funds: vec![],
-    //     });
-    // }
-    // if reward_stability_pool.gt(&Uint128::zero()) {
-    //     msgs.push(WasmMsg::Execute {
-    //         contract_addr: config.vxtoken_holder.to_string(),
-    //         msg: to_json_binary(&VoterExecuteMsg::Withdraw {
-    //             amount: reward_stability_pool,
-    //             recipient: config.stability_pool.to_string(),
-    //         })?,
-    //         funds: vec![],
-    //     });
-    // }
-    // let mut treasury_reward_withdrawable = treasury_reward
-    //     .checked_add(
-    //         dao_claimable
-    //             .checked_sub(reward_ce_holders)
-    //             .unwrap()
-    //             .checked_sub(reward_stability_pool)
-    //             .unwrap(),
-    //     )
-    //     .unwrap();
-    // ensure!(
-    //     amount.le(&treasury_reward_withdrawable),
-    //     ContractError::NotEnoughBalance {}
-    // );
-    // treasury_reward_withdrawable -= amount;
-    // total_stake_info.claimed = total_stake_info.claimed.checked_add(claimable).unwrap();
-    // TOTAL_STAKE_INFO.save(deps.storage, &total_stake_info)?;
-    // TREASURY_REWARD.save(deps.storage, &treasury_reward_withdrawable)?;
-    // msgs.push(WasmMsg::Execute {
-    //     contract_addr: config.vxtoken_holder.to_string(),
-    //     msg: to_json_binary(&VoterExecuteMsg::Withdraw {
-    //         amount,
-    //         recipient: config.treasury.to_string(),
-    //     })?,
-    //     funds: vec![],
-    // });
-    // Ok(Response::new()
-    //     .add_messages(msgs)
-    //     .add_attribute("action", "claim treasury reward")
-    //     .add_attribute("amount", amount.to_string()))
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    _claim(deps, env, amount)
 }
 
 /// withdraw xtoken
@@ -314,162 +210,196 @@ pub fn withdraw_xtoken(
     amount: Uint128,
     recipient: String,
 ) -> Result<Response, ContractError> {
-    unimplemented!()
-
-    // OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-    // let config = CONFIG.load(deps.storage)?;
-    // let mut withdrawable_balance = WITHDRAWABLE_BALANCE.load(deps.storage)?;
-    // ensure!(
-    //     amount.le(&withdrawable_balance),
-    //     ContractError::NotEnoughBalance {}
-    // );
-    // withdrawable_balance -= amount;
-    // WITHDRAWABLE_BALANCE.save(deps.storage, &withdrawable_balance)?;
-    // Ok(Response::new()
-    //     .add_message(WasmMsg::Execute {
-    //         contract_addr: config.vxtoken_holder.to_string(),
-    //         msg: to_json_binary(&VoterExecuteMsg::Withdraw { amount, recipient })?,
-    //         funds: vec![],
-    //     })
-    //     .add_attribute("action", "withdraw xtoken")
-    //     .add_attribute("amount", amount.to_string()))
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    let config = CONFIG.load(deps.storage)?;
+    let mut withdrawable_balance = WITHDRAWABLE_BALANCE.load(deps.storage)?;
+    ensure!(
+        amount.le(&withdrawable_balance),
+        ContractError::NotEnoughBalance {}
+    );
+    withdrawable_balance -= amount;
+    WITHDRAWABLE_BALANCE.save(deps.storage, &withdrawable_balance)?;
+    Ok(Response::new()
+        .add_message(withdraw_xastro_msg(
+            config.vxastro_holder.unwrap().to_string(),
+            recipient,
+            amount,
+        )?)
+        .add_attribute("action", "withdraw xtoken")
+        .add_attribute("amount", amount.to_string()))
 }
 
-pub fn try_mint_eclip_astro(
+pub fn _handle_callback(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
-    amount: Uint128,
+    msg: CallbackMsg,
+) -> Result<Response, ContractError> {
+    // Only the contract itself can call callbacks
+    ensure_eq!(
+        info.sender,
+        env.contract.address,
+        ContractError::InvalidCallbackInvoke {}
+    );
+    match msg {
+        CallbackMsg::ConvertAstro {
+            prev_xastro_balance,
+            astro_amount_to_convert,
+            receiver,
+        } => handle_convert_astro(
+            deps,
+            env,
+            prev_xastro_balance,
+            astro_amount_to_convert,
+            receiver,
+        ),
+    }
+}
+
+fn handle_convert_astro(
+    deps: DepsMut,
+    env: Env,
+    prev_xastro_balance: Uint128,
+    astro_amount_to_convert: Uint128,
+    receiver: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let mut total_staking = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
+
+    let xastro_balance = deps
+        .querier
+        .query_balance(env.contract.address.clone(), config.xastro.clone())?;
+    let converted_xastro = xastro_balance.amount - prev_xastro_balance;
+    let xastro_token = Coin {
+        denom: config.xastro,
+        amount: converted_xastro,
+    };
+    let msgs = vec![
+        send_xastro_msg(
+            config.vxastro_holder.unwrap().to_string(),
+            xastro_token.clone(),
+        )?,
+        mint_eclipastro_msg(
+            env.contract.address,
+            receiver,
+            astro_amount_to_convert,
+            config.eclipastro.to_string(),
+        )?,
+    ];
+
+    total_staking.xastro += converted_xastro;
+    total_staking.astro += astro_amount_to_convert;
+
+    TOTAL_STAKE_INFO.save(deps.storage, &total_staking)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "lock xASTRO")
+        .add_attribute("xASTRO", xastro_token.amount.to_string())
+        .add_attribute("action", "mint eclipastro")
+        .add_attribute("eclipASTRO", astro_amount_to_convert.to_string())
+        .add_messages(msgs))
+}
+
+/// Stake ASTRO/xASTRO
+pub fn try_convert(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    recipient: Option<String>,
+) -> Result<Response, ContractError> {
+    let received_token = one_coin(&info)?;
+    let config = CONFIG.load(deps.storage)?;
+    let mut total_staking = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
+    let receiver = recipient.unwrap_or(info.sender.into_string());
+
+    // only ASTRO token or xASTRO token can execute this message
+    ensure!(
+        received_token.denom == config.astro || received_token.denom == config.xastro,
+        ContractError::UnknownToken(received_token.denom.clone())
+    );
+    if received_token.denom == config.astro {
+        let xastro_balance = deps
+            .querier
+            .query_balance(&env.contract.address, config.xastro)?;
+        return Ok(Response::new()
+            .add_messages(vec![
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: config.staking_contract.to_string(),
+                    msg: to_json_binary(&ExecuteMsg::Enter { receiver: None })?,
+                    funds: vec![received_token.clone()],
+                }),
+                CallbackMsg::ConvertAstro {
+                    prev_xastro_balance: xastro_balance.amount,
+                    astro_amount_to_convert: received_token.amount,
+                    receiver,
+                }
+                .to_cosmos_msg(&env)?,
+            ])
+            .add_attribute("action", "stake ASTRO")
+            .add_attribute("ASTRO", received_token.amount.to_string()));
+    }
+    let rate = query_rates_astro_staking(deps.as_ref(), config.staking_contract.to_string())?;
+    let eclipastro_amount = calculate_eclipastro_amount(rate, received_token.amount);
+    let msgs = vec![
+        send_xastro_msg(
+            config.vxastro_holder.unwrap().to_string(),
+            received_token.clone(),
+        )?,
+        mint_eclipastro_msg(
+            env.contract.address,
+            receiver.clone(),
+            eclipastro_amount,
+            config.eclipastro.to_string(),
+        )?,
+    ];
+
+    total_staking.xastro += received_token.amount;
+    total_staking.astro += eclipastro_amount;
+
+    TOTAL_STAKE_INFO.save(deps.storage, &total_staking)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "lock xASTRO")
+        .add_attribute("xASTRO", received_token.amount.to_string())
+        .add_attribute("action", "mint eclipastro")
+        .add_attribute("eclipASTRO", eclipastro_amount.to_string())
+        .add_messages(msgs))
+}
+
+pub fn send_xastro_msg(voter: String, coin: Coin) -> Result<CosmosMsg, ContractError> {
+    // Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+    //     contract_addr: voter,
+    //     msg: to_json_binary(&VoterExecuteMsg::Stake {})?,
+    //     funds: vec![coin],
+    // }))
+
+    unimplemented!()
+}
+
+pub fn withdraw_xastro_msg(
+    voter: String,
     recipient: String,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    amount: Uint128,
+) -> Result<CosmosMsg, ContractError> {
+    // Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+    //     contract_addr: voter,
+    //     msg: to_json_binary(&VoterExecuteMsg::Withdraw { amount, recipient })?,
+    //     funds: vec![],
+    // }))
 
-    // only voter contract can mint eclipAstro
-    if info.sender != config.vxtoken_holder {
-        Err(ContractError::Unauthorized {})?;
-    }
-
-    let msg = WasmMsg::Execute {
-        contract_addr: config.token_out.to_string(),
-        msg: to_json_binary(&Cw20ExecuteMsg::Mint { recipient, amount })?,
-        funds: vec![],
-    };
-
-    Ok(Response::new()
-        .add_message(msg)
-        .add_attribute("action", "try_mint_eclip_astro"))
-}
-
-/// Cw20 Receive hook msg handler.
-pub fn receive_cw20(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    msg: Cw20ReceiveMsg,
-) -> Result<Response, ContractError> {
     unimplemented!()
-
-    // match from_json(&msg.msg) {
-    //     Ok(Cw20HookMsg::Convert {}) => {
-    //         let config = CONFIG.load(deps.storage)?;
-    //         let mut amount = msg.amount;
-    //         // only ASTRO token or xASTRO token can execute this message
-    //         ensure!(
-    //             info.sender == config.token_in || info.sender == config.xtoken,
-    //             ContractError::UnknownToken(info.sender.to_string())
-    //         );
-    //         // send stake message to vxtoken holder contract and handle response
-    //         let mut stake_msg = SubMsg {
-    //             id: STAKE_TOKEN_REPLY_ID,
-    //             msg: WasmMsg::Execute {
-    //                 contract_addr: config.token_in.to_string(),
-    //                 msg: to_json_binary(&Cw20ExecuteMsg::Send {
-    //                     contract: config.vxtoken_holder.to_string(),
-    //                     amount,
-    //                     msg: to_json_binary(&VoterCw20HookMsg::Stake {})?,
-    //                 })?,
-    //                 funds: vec![],
-    //             }
-    //             .into(),
-    //             gas_limit: None,
-    //             reply_on: ReplyOn::Success,
-    //         };
-    //         if info.sender == config.xtoken {
-    //             let (total_deposit, total_shares): (Uint128, Uint128) =
-    //                 deps.querier.query_wasm_smart(
-    //                     config.vxtoken_holder.to_string(),
-    //                     &VoterQueryMsg::ConvertRatio {},
-    //                 )?;
-    //             stake_msg = SubMsg {
-    //                 id: STAKE_TOKEN_REPLY_ID,
-    //                 msg: WasmMsg::Execute {
-    //                     contract_addr: config.xtoken.to_string(),
-    //                     msg: to_json_binary(&Cw20ExecuteMsg::Send {
-    //                         contract: config.vxtoken_holder.to_string(),
-    //                         amount,
-    //                         msg: to_json_binary(&VoterCw20HookMsg::Stake {})?,
-    //                     })?,
-    //                     funds: vec![],
-    //                 }
-    //                 .into(),
-    //                 gas_limit: None,
-    //                 reply_on: ReplyOn::Success,
-    //             };
-    //             // calculate related ASTRO amount from xASTRO amount
-    //             amount = amount.multiply_ratio(total_deposit, total_shares);
-    //         }
-
-    //         let cw20_sender = deps.api.addr_validate(&msg.sender)?;
-    //         // save user staking data temporarily
-    //         USER_STAKING.save(
-    //             deps.storage,
-    //             &UserStake {
-    //                 user: cw20_sender.to_string(),
-    //                 stake: amount,
-    //             },
-    //         )?;
-    //         Ok(Response::new().add_submessage(stake_msg))
-    //     }
-    //     Err(_) => Err(ContractError::UnknownMessage {}),
-    // }
 }
 
-pub fn handle_stake_reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    if msg.result.is_err() {
-        return Err(ContractError::StakeError {});
+pub fn mint_eclipastro_msg(
+    sender: Addr,
+    receiver: String,
+    amount: Uint128,
+    eclipastro: String,
+) -> Result<CosmosMsg, ContractError> {
+    Ok(OsmosisFactory::MsgMint {
+        sender: sender.to_string(),
+        amount: Some(coin(amount.u128(), eclipastro).into()),
+        mint_to_address: receiver,
     }
-    let mut xtoken_amount = Uint128::zero();
-    for event in msg.result.unwrap().events.iter() {
-        for attr in event.attributes.iter() {
-            if attr.key == "xASTRO" {
-                xtoken_amount = Uint128::from_str(&attr.value).unwrap();
-            }
-        }
-    }
-    // update user staking info, total staking info
-    let config = CONFIG.load(deps.storage)?;
-    let user_staking = USER_STAKING.load(deps.storage)?;
-    let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
-    total_stake_info.stake = total_stake_info
-        .stake
-        .checked_add(user_staking.stake)
-        .unwrap();
-    total_stake_info.xtoken = total_stake_info.xtoken.checked_add(xtoken_amount).unwrap();
-    TOTAL_STAKE_INFO.save(deps.storage, &total_stake_info)?;
-    // mint eclipASTRO to user
-    let msg = WasmMsg::Execute {
-        contract_addr: config.token_out.to_string(),
-        msg: to_json_binary(&Cw20ExecuteMsg::Mint {
-            recipient: user_staking.user.clone(),
-            amount: user_staking.stake,
-        })?,
-        funds: vec![],
-    };
-    Ok(Response::new()
-        .add_message(msg)
-        .add_attribute("action", "convert token")
-        .add_attribute("from", "ASTRO")
-        .add_attribute("to", "eclipASTRO")
-        .add_attribute("user", user_staking.user)
-        .add_attribute("amount", user_staking.stake.to_string()))
+    .into())
 }

@@ -1,5 +1,6 @@
 use cosmwasm_std::StdError;
 use cw_controllers::AdminError;
+use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
 /// ## Description
@@ -15,11 +16,20 @@ pub enum ContractError {
     #[error("Failed to parse or process reply message")]
     FailedToParseReply {},
 
+    #[error("Callbacks cannot be invoked externally")]
+    InvalidCallbackInvoke {},
+
     #[error("Balance is not enough")]
     NotEnoughBalance {},
 
     #[error("No reward claimable for user")]
     NoRewardClaimable {},
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
+
+    #[error("{0}")]
+    ParseReplyError(#[from] ParseReplyError),
 
     #[error("Semver parsing error: {0}")]
     SemVer(String),

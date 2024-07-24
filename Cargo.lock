@@ -1409,22 +1409,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "flexible-staking"
-version = "0.1.1"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-controllers",
- "cw-storage-plus 1.2.0",
- "cw2 1.1.2",
- "cw20 1.1.2",
- "cw20-base 1.1.2",
- "equinox-msg",
- "semver",
- "thiserror",
-]
-
-[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1911,7 +1895,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
-name = "lp-staking"
+name = "lp-depositor"
 version = "0.1.1"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
@@ -1919,6 +1903,25 @@ dependencies = [
  "cosmwasm-std",
  "cw-controllers",
  "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "cw20 1.1.2",
+ "equinox-msg",
+ "semver",
+ "thiserror",
+]
+
+[[package]]
+name = "lp-staking"
+version = "0.1.1"
+dependencies = [
+ "astroport 5.1.0-vxastro-rc.1",
+ "astroport-incentives",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-controllers",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
  "cw20-base 1.1.2",
@@ -2010,18 +2013,16 @@ dependencies = [
  "eclipse-base",
  "eclipsepad-staking",
  "equinox-msg",
- "flexible-staking",
  "itertools 0.11.0",
  "lockdrop",
  "lp-staking",
  "minter-mocks",
  "neutron-sdk 0.10.0",
  "osmosis-std",
- "reward-distributor",
+ "single-sided-staking",
  "speculoos",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "timelock-staking",
  "token-converter",
  "tribute-market-mocks",
  "voter",
@@ -2619,22 +2620,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reward-distributor"
-version = "0.1.1"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-controllers",
- "cw-storage-plus 1.2.0",
- "cw2 1.1.2",
- "cw20 1.1.2",
- "cw20-base 1.1.2",
- "equinox-msg",
- "semver",
- "thiserror",
-]
-
-[[package]]
 name = "rfc6979"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2997,6 +2982,23 @@ checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "digest 0.10.7",
  "rand_core 0.6.4",
+]
+
+[[package]]
+name = "single-sided-staking"
+version = "0.1.1"
+dependencies = [
+ "astroport 5.1.0-vxastro-rc.1",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-controllers",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "cw20 1.1.2",
+ "equinox-msg",
+ "semver",
+ "thiserror",
 ]
 
 [[package]]
@@ -3409,22 +3411,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "timelock-staking"
-version = "0.1.1"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-controllers",
- "cw-storage-plus 1.2.0",
- "cw2 1.1.2",
- "cw20 1.1.2",
- "cw20-base 1.1.2",
- "equinox-msg",
- "semver",
- "thiserror",
-]
-
-[[package]]
 name = "tiny-keccak"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3452,6 +3438,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 name = "token-converter"
 version = "0.1.1"
 dependencies = [
+ "astroport 5.1.0-vxastro-rc.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-controllers",
@@ -3460,6 +3447,7 @@ dependencies = [
  "cw2 1.1.2",
  "cw20 1.1.2",
  "equinox-msg",
+ "osmosis-std",
  "semver",
  "thiserror",
 ]

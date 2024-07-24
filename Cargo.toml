@@ -11,7 +11,7 @@ resolver = "2"
 version    = "0.1.1"
 edition    = "2021"
 repository = "https://github.com/EclipsePad/equinox-contracts"
-authors    = ["Tadao Fukuda"]
+authors    = ["Tadao Fukuda", "M. Daeva"]
 license    = "Apache-2.0"
 
 [workspace.dependencies]
@@ -46,12 +46,10 @@ cw20-gift               = { path = "./packages/cw20-gift" }
 
 eclipastro-token        = { path = "./contracts/token" }
 token-converter         = { path = "./contracts/token_converter" }
-flexible-staking        = { path = "./contracts/flexible_staking" }
-timelock-staking        = { path = "./contracts/timelock_staking" }
-reward-distributor      = { path = "./contracts/reward_distributor" }
-voter                   = { path = "./contracts/voter" }
+single-sided-staking    = { path = "./contracts/single_sided_staking" }
 lp-staking              = { path = "./contracts/lp_staking" }
 lockdrop                = { path = "./contracts/lockdrop" }
+voter                   = { path = "./contracts/voter" }
 
 # astroport-core
 # https://github.com/astroport-fi/hidden_astroport_core/tree/feat/incentivize_many

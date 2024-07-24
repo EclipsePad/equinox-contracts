@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
-    Response, StdResult,
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use equinox_msg::token_converter::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -9,11 +9,14 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            claim, claim_treasury_reward, handle_stake_reply, receive_cw20, try_mint_eclip_astro,
-            update_config, update_owner, update_reward_config, withdraw_xtoken,
+            _handle_callback, claim, claim_treasury_reward, try_convert, update_config,
+            update_owner, update_reward_config, withdraw_xtoken,
         },
-        instantiate::{handle_instantiate_reply, try_instantiate},
-        query::{query_config, query_owner, query_reward_config, query_withdrawable_balance},
+        instantiate::try_instantiate,
+        query::{
+            query_config, query_owner, query_reward_config, query_rewards, query_stake_info,
+            query_withdrawable_balance,
+        },
     },
     error::ContractError,
     state::{CONTRACT_NAME, CONTRACT_VERSION},
@@ -42,7 +45,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::Convert { recipient } => try_convert(deps, env, info, recipient),
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
         ExecuteMsg::UpdateRewardConfig { config } => update_reward_config(deps, env, info, config),
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
@@ -53,23 +56,20 @@ pub fn execute(
         ExecuteMsg::WithdrawAvailableBalance { amount, recipient } => {
             withdraw_xtoken(deps, env, info, amount, recipient)
         }
-        ExecuteMsg::MintEclipAstro { amount, recipient } => {
-            try_mint_eclip_astro(deps, env, info, amount, recipient)
-        }
+        ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
     }
 }
 
 /// Exposes queries available in the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
-        QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
-        QueryMsg::RewardConfig {} => Ok(to_json_binary(&query_reward_config(deps, env)?)?),
-        QueryMsg::Rewards {} => unimplemented!(),
-        QueryMsg::WithdrawableBalance {} => {
-            Ok(to_json_binary(&query_withdrawable_balance(deps, env)?)?)
-        }
+        QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps)?)?),
+        QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps)?)?),
+        QueryMsg::RewardConfig {} => Ok(to_json_binary(&query_reward_config(deps)?)?),
+        QueryMsg::Rewards {} => Ok(to_json_binary(&query_rewards(deps)?)?),
+        QueryMsg::WithdrawableBalance {} => Ok(to_json_binary(&query_withdrawable_balance(deps)?)?),
+        QueryMsg::StakeInfo {} => Ok(to_json_binary(&query_stake_info(deps)?)?),
     }
 }
 
@@ -104,13 +104,4 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     Ok(Response::new()
         .add_attribute("new_contract_name", CONTRACT_NAME)
         .add_attribute("new_contract_version", CONTRACT_VERSION))
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id {
-        INSTANTIATE_TOKEN_REPLY_ID => handle_instantiate_reply(deps, env, msg),
-        STAKE_TOKEN_REPLY_ID => handle_stake_reply(deps, env, msg),
-        id => Err(ContractError::UnknownReplyId(id)),
-    }
 }

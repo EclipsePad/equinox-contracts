@@ -1,4 +1,5 @@
 use cosmwasm_std::StdError;
+use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
 use cw_controllers::AdminError;
@@ -8,6 +9,9 @@ pub enum ContractError {
     #[error("{0}")]
     Admin(#[from] AdminError),
 
+    #[error("Sender's asset denom {got} does not match one from config {expected}")]
+    AssetsNotMatch { got: String, expected: String },
+
     #[error("Contract name must be same: {0}")]
     ContractNameErr(String),
 
@@ -16,11 +20,26 @@ pub enum ContractError {
     )]
     Cw20AddressesNotMatch { got: String, expected: String },
 
+    #[error("Ensure list contains unique assets")]
+    DuplicatedAssets {},
+
     #[error("Amount {got} exceeds your staking {expected}")]
     ExeedingUnstakeAmount { got: u128, expected: u128 },
 
     #[error("Callbacks cannot be invoked externally")]
     InvalidCallbackInvoke {},
+
+    #[error("Invalid denom {0}")]
+    InvalidDenom(String),
+
+    #[error("Staking amount is zero")]
+    InvalidStakingAmount {},
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
+
+    #[error("{0}")]
+    ParseReplyError(#[from] ParseReplyError),
 
     #[error("Total Reward point must be 10000")]
     RewardDistributionErr {},
