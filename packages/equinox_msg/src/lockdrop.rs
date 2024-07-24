@@ -17,16 +17,16 @@ pub struct InstantiateMsg {
     pub withdrawal_window: Option<u64>,
     /// lockup config(duration, multiplier)
     pub lock_configs: Option<Vec<LockConfig>>,
-    /// ASTRO token address
+    /// ASTRO token denom
     pub astro_token: String,
-    /// xASTRO token address
+    /// xASTRO token denom
     pub xastro_token: String,
-    /// bECLIP
-    pub beclip: AssetInfo,
-    /// ECLIP
-    pub eclip: AssetInfo,
+    /// bECLIP token address
+    pub beclip: String,
+    /// ECLIP denom
+    pub eclip: String,
     /// astro staking pool
-    pub astro_staking: Addr,
+    pub astro_staking: String,
 }
 
 #[cw_serde]
@@ -118,14 +118,7 @@ pub enum QueryMsg {
 
 #[cw_serde]
 pub enum Cw20HookMsg {
-    ExtendLockup {
-        stake_type: StakeType,
-        from: u64,
-        to: u64,
-    },
-    IncreaseIncentives {
-        rewards: Vec<IncentiveRewards>,
-    },
+    IncreaseIncentives { rewards: Vec<IncentiveRewards> },
 }
 
 #[cw_serde]
@@ -185,8 +178,8 @@ pub struct Config {
     pub beclip: AssetInfo,
     /// ECLIP
     pub eclip: AssetInfo,
-    /// eclipASTRO Token address
-    pub eclipastro_token: Option<Addr>,
+    /// eclipASTRO Token
+    pub eclipastro_token: Option<AssetInfo>,
     /// ASTRO/eclipASTRO converter contract address
     pub converter: Option<Addr>,
     /// eclipASTRO single sided staking pool address
@@ -216,12 +209,12 @@ pub struct Config {
 
 #[cw_serde]
 pub struct UpdateConfigMsg {
-    pub single_sided_staking: Option<Addr>,
-    pub lp_staking: Option<Addr>,
-    pub liquidity_pool: Option<Addr>,
-    pub eclipastro_token: Option<Addr>,
-    pub converter: Option<Addr>,
-    pub dao_treasury_address: Option<Addr>,
+    pub single_sided_staking: Option<String>,
+    pub lp_staking: Option<String>,
+    pub liquidity_pool: Option<String>,
+    pub eclipastro_token: Option<String>,
+    pub converter: Option<String>,
+    pub dao_treasury_address: Option<String>,
 }
 
 #[cw_serde]

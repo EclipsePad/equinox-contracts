@@ -1,3 +1,4 @@
+use astroport::asset::AssetInfo;
 use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
 use equinox_msg::lockdrop::{Config, InstantiateMsg, LockConfig, LpLockupState, SingleLockupState};
@@ -36,24 +37,10 @@ pub fn try_instantiate(
         check_native_token_denom(&deps.querier, msg.xastro_token.clone()).unwrap_or_default(),
         ContractError::InvalidDenom(msg.xastro_token.clone())
     );
-    if msg.beclip.is_native_token() {
-        ensure!(
-            check_native_token_denom(&deps.querier, msg.beclip.to_string().clone())
-                .unwrap_or_default(),
-            ContractError::InvalidDenom(msg.beclip.to_string().clone())
-        );
-    } else {
-        let _ = deps.api.addr_validate(&msg.beclip.to_string())?;
-    }
-    if msg.eclip.is_native_token() {
-        ensure!(
-            check_native_token_denom(&deps.querier, msg.eclip.to_string().clone())
-                .unwrap_or_default(),
-            ContractError::InvalidDenom(msg.eclip.to_string().clone())
-        );
-    } else {
-        let _ = deps.api.addr_validate(&msg.eclip.to_string())?;
-    }
+    ensure!(
+        check_native_token_denom(&deps.querier, msg.eclip.to_string().clone()).unwrap_or_default(),
+        ContractError::InvalidDenom(msg.eclip.to_string().clone())
+    );
     if let Some(mut lock_configs) = msg.lock_configs.clone() {
         lock_configs.sort_by(|a, b| a.duration.cmp(&b.duration));
         let mut prev_lock_config: Option<LockConfig> = None;
@@ -100,8 +87,10 @@ pub fn try_instantiate(
     let config = Config {
         astro_token: msg.astro_token,
         xastro_token: msg.xastro_token,
-        beclip: msg.beclip,
-        eclip: msg.eclip,
+        beclip: AssetInfo::Token {
+            contract_addr: deps.api.addr_validate(&msg.beclip)?,
+        },
+        eclip: AssetInfo::NativeToken { denom: msg.eclip },
         eclipastro_token: None,
         converter: None,
         single_sided_staking: None,
@@ -114,7 +103,7 @@ pub fn try_instantiate(
         deposit_window: msg.deposit_window.unwrap_or(DEFAULT_DEPOSIT_WINDOW),
         withdrawal_window: msg.withdrawal_window.unwrap_or(DEFAULT_WITHDRAW_WINDOW),
         lockdrop_incentives: Uint128::zero(),
-        astro_staking: deps.api.addr_validate(msg.astro_staking.as_str())?,
+        astro_staking: deps.api.addr_validate(&msg.astro_staking)?,
         claims_allowed: false,
         countdown_start_at: 0u64,
     };
