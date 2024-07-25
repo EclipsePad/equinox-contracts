@@ -12,18 +12,17 @@ use eclipse_base::{
     utils::{check_funds, unwrap_field, FundsType},
 };
 use equinox_msg::voter::{
-    msg::UserType,
     state::{
         ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ADDRESSES,
         ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS,
-        ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_LOCKED, MAX_EPOCH_AMOUNT,
+        ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED, MAX_EPOCH_AMOUNT,
         RECIPIENT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID,
         SWAP_REWARDS_REPLY_ID_CNT, SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG,
         TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
     types::{
         AddressConfig, BribesAllocationItem, DateConfig, EssenceInfo, PoolInfoItem,
-        RewardsClaimStage, RouteListItem, TokenConfig, TransferAdminState, VoteResults,
+        RewardsClaimStage, RouteListItem, TokenConfig, TransferAdminState, UserType, VoteResults,
         WeightAllocationItem,
     },
 };
@@ -31,14 +30,40 @@ use equinox_msg::voter::{
 use crate::{
     error::ContractError,
     helpers::{
-        get_accumulated_rewards, get_route, get_total_votes, get_user_type, get_user_weights,
-        try_unlock, try_unlock_and_check, verify_weight_allocation,
+        check_pause_state, check_rewards_claim_stage, get_accumulated_rewards, get_route,
+        get_total_votes, get_user_type, get_user_weights, verify_weight_allocation,
     },
     math::{
         calc_essence_allocation, calc_pool_info_list_with_rewards, calc_updated_essence_allocation,
         calc_weights_from_essence_allocation, split_dao_eclip_rewards, split_rewards,
     },
 };
+
+pub fn try_pause(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+    let sender = &info.sender;
+    let AddressConfig { admin, .. } = ADDRESS_CONFIG.load(deps.storage)?;
+
+    if sender != admin {
+        Err(ContractError::Unauthorized)?;
+    }
+
+    IS_PAUSED.save(deps.storage, &true)?;
+
+    Ok(Response::new().add_attribute("action", "try_pause"))
+}
+
+pub fn try_unpause(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+    let sender = &info.sender;
+    let AddressConfig { admin, .. } = ADDRESS_CONFIG.load(deps.storage)?;
+
+    if sender != admin {
+        Err(ContractError::Unauthorized)?;
+    }
+
+    IS_PAUSED.save(deps.storage, &false)?;
+
+    Ok(Response::new().add_attribute("action", "try_unpause"))
+}
 
 pub fn try_accept_admin_role(
     deps: DepsMut,
@@ -242,6 +267,7 @@ pub fn try_update_essence_allocation(
     info: MessageInfo,
     user_and_essence_list: Vec<(String, EssenceInfo)>,
 ) -> Result<Response, ContractError> {
+    check_rewards_claim_stage(deps.storage)?;
     let sender = &info.sender;
     let block_time = env.block.time.seconds();
     let AddressConfig {
@@ -249,7 +275,6 @@ pub fn try_update_essence_allocation(
         eclipsepad_staking,
         ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
-    try_unlock(deps.storage, block_time)?;
 
     if sender != eclipsepad_staking && sender != admin {
         Err(ContractError::Unauthorized)?;
@@ -449,9 +474,9 @@ fn lock_xastro(
 }
 
 pub fn try_delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+    check_pause_state(deps.storage)?;
+    check_rewards_claim_stage(deps.storage)?;
     let block_time = env.block.time.seconds();
-    try_unlock_and_check(deps.storage, block_time)?;
-
     let user = &info.sender;
     let user_type = get_user_type(deps.storage, user)?;
     let user_essence_before = USER_ESSENCE.load(deps.storage, user)?;
@@ -516,9 +541,9 @@ pub fn try_undelegate(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
+    check_pause_state(deps.storage)?;
+    check_rewards_claim_stage(deps.storage)?;
     let block_time = env.block.time.seconds();
-    try_unlock_and_check(deps.storage, block_time)?;
-
     let user = &info.sender;
     let user_type = get_user_type(deps.storage, user)?;
     let user_essence = USER_ESSENCE.load(deps.storage, user)?;
@@ -554,10 +579,10 @@ pub fn try_place_vote(
     info: MessageInfo,
     weight_allocation: Vec<WeightAllocationItem>,
 ) -> Result<Response, ContractError> {
-    let block_time = env.block.time.seconds();
-    try_unlock_and_check(deps.storage, block_time)?;
+    check_pause_state(deps.storage)?;
+    check_rewards_claim_stage(deps.storage)?;
     verify_weight_allocation(deps.as_ref(), &weight_allocation)?;
-
+    let block_time = env.block.time.seconds();
     let user = &info.sender;
     let user_type = get_user_type(deps.storage, user)?;
     let user_essence = USER_ESSENCE.load(deps.storage, user)?;
@@ -608,20 +633,15 @@ pub fn try_place_vote(
 
 pub fn try_place_vote_as_dao(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     weight_allocation: Vec<WeightAllocationItem>,
 ) -> Result<Response, ContractError> {
-    let sender = &info.sender;
-    let block_time = env.block.time.seconds();
-    let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
-    // TODO: replace with RewardsClaimStage checker
-    try_unlock_and_check(deps.storage, block_time)?;
+    check_pause_state(deps.storage)?;
+    check_rewards_claim_stage(deps.storage)?;
     verify_weight_allocation(deps.as_ref(), &weight_allocation)?;
-
-    if IS_LOCKED.load(deps.storage)? {
-        Err(ContractError::EpochEnd)?;
-    }
+    let sender = &info.sender;
+    let AddressConfig { eclipse_dao, .. } = ADDRESS_CONFIG.load(deps.storage)?;
 
     if sender != eclipse_dao {
         Err(ContractError::Unauthorized)?;
@@ -646,23 +666,16 @@ pub fn try_vote(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     } = DATE_CONFIG.load(deps.storage)?;
     let mut current_epoch = EPOCH_COUNTER.load(deps.storage)?;
 
+    // final voting must be executed single time right before epoch end
+    if block_time < current_epoch.start_date + vote_delay {
+        Err(ContractError::VotingDelay)?;
+    }
+
     // only swapped -> unclaimed transition is allowed
     if !matches!(rewards_claim_stage, RewardsClaimStage::Swapped) {
         Err(ContractError::WrongRewardsClaimStage)?;
     }
     REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::Unclaimed)?;
-
-    // final voting must be executed single time right before epoch end
-    if IS_LOCKED.load(deps.storage)? {
-        Err(ContractError::EpochEnd)?;
-    }
-
-    if block_time < current_epoch.start_date + vote_delay {
-        Err(ContractError::VotingDelay)?;
-    }
-
-    // will be unlocked on next epoch
-    IS_LOCKED.save(deps.storage, &true)?;
 
     let elector_essence_acc_before = ELECTOR_ESSENCE_ACC.load(deps.storage)?;
     let elector_weights_acc_before = ELECTOR_WEIGHTS_ACC.load(deps.storage)?;
@@ -739,7 +752,6 @@ pub fn try_vote(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 }
 
 pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
-    let block_time = env.block.time.seconds();
     let epoch = EPOCH_COUNTER.load(deps.storage)?;
     let rewards_claim_stage = REWARDS_CLAIM_STAGE.load(deps.storage)?;
     let AddressConfig {
@@ -756,11 +768,6 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         Err(ContractError::WrongRewardsClaimStage)?;
     }
     REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::Claimed)?;
-
-    // execute only on new epoch
-    if block_time < epoch.start_date {
-        Err(ContractError::EpochIsNotStarted)?;
-    }
 
     // check rewards
     let rewards = deps
@@ -991,7 +998,7 @@ pub fn handle_swap_reply(
         return Ok(response);
     }
 
-    // only claimed -> swapped transition is allowed
+    // allow any essence allocation updates as bribes collection is completed
     REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::Swapped)?;
 
     // distribute to previous epoch according to weights
@@ -1037,6 +1044,7 @@ pub fn try_claim_rewards(
     env: Env,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
+    check_pause_state(deps.storage)?;
     let user = &info.sender;
     let block_time = env.block.time.seconds();
 

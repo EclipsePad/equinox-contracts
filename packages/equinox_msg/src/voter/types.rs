@@ -4,6 +4,13 @@ use cosmwasm_std::{Addr, Decimal, Uint128};
 use eclipse_base::converters::{str_to_dec, u128_to_dec};
 
 #[cw_serde]
+pub enum UserType {
+    Elector,
+    Delegator,
+    Slacker,
+}
+
+#[cw_serde]
 pub enum RewardsClaimStage {
     Unclaimed,
     Claimed,

@@ -16,11 +16,11 @@ use eclipse_base::{
 };
 
 use equinox_msg::voter::{
-    msg::{DaoResponse, UserResponse, UserType, VoterInfoResponse},
+    msg::{DaoResponse, UserResponse, VoterInfoResponse},
     state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
     types::{
         BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem, RewardsInfo,
-        RouteItem, RouteListItem, VoteResults, WeightAllocationItem,
+        RouteItem, RouteListItem, UserType, VoteResults, WeightAllocationItem,
     },
 };
 
@@ -1992,57 +1992,6 @@ fn change_vote_after_dao_voting() -> StdResult<()> {
 }
 
 #[test]
-fn user_actions_after_final_voting() -> StdResult<()> {
-    let mut h = prepare_helper();
-
-    let eclip_atom = &h.pool(Pool::EclipAtom);
-    let ntrn_atom = &h.pool(Pool::NtrnAtom);
-    let astro_atom = &h.pool(Pool::AstroAtom);
-
-    let dao = &h.acc(Acc::Dao);
-    let alice = &h.acc(Acc::Alice);
-    let bob = &h.acc(Acc::Bob);
-    let john = &h.acc(Acc::John);
-
-    let weights_alice = &vec![
-        WeightAllocationItem::new(eclip_atom, "0.2"),
-        WeightAllocationItem::new(ntrn_atom, "0.3"),
-        WeightAllocationItem::new(astro_atom, "0.5"),
-    ];
-    let weights_dao = &vec![
-        WeightAllocationItem::new(eclip_atom, "0.5"),
-        WeightAllocationItem::new(ntrn_atom, "0.3"),
-        WeightAllocationItem::new(astro_atom, "0.2"),
-    ];
-
-    // stake and lock
-    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
-        h.eclipsepad_staking_try_lock(user, amount, 4)?;
-    }
-
-    // place votes
-    h.voter_try_place_vote(alice, weights_alice)?;
-    h.voter_try_delegate(bob)?;
-    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
-
-    // final voting
-    h.wait(h.voter_query_date_config()?.vote_delay);
-    // vote
-    h.voter_try_push()?;
-
-    // try vote, undelegate, delegate
-    let res = h.voter_try_place_vote(alice, weights_dao).unwrap_err();
-    assert_error(&res, ContractError::EpochEnd);
-    let res = h.voter_try_undelegate(bob).unwrap_err();
-    assert_error(&res, ContractError::EpochEnd);
-    let res = h.voter_try_delegate(john).unwrap_err();
-    assert_error(&res, ContractError::EpochEnd);
-
-    Ok(())
-}
-
-#[test]
 fn user_roles_default() -> StdResult<()> {
     let mut h = prepare_helper();
 
@@ -2377,112 +2326,209 @@ fn undelegate_default() -> StdResult<()> {
     Ok(())
 }
 
-// #[test]
-// fn reset_electors_and_dao_on_epoch_start() -> StdResult<()> {
-//     let mut h = prepare_helper();
+#[test]
+fn reset_electors_and_dao_on_epoch_start() -> StdResult<()> {
+    let mut h = prepare_helper();
 
-//     let eclip_atom = &h.pool(Pool::EclipAtom);
-//     let ntrn_atom = &h.pool(Pool::NtrnAtom);
-//     let astro_atom = &h.pool(Pool::AstroAtom);
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
 
-//     let dao = &h.acc(Acc::Dao);
-//     let alice = &h.acc(Acc::Alice);
-//     let bob = &h.acc(Acc::Bob);
-//     let john = &h.acc(Acc::John);
+    let owner = &h.acc(Acc::Owner);
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
 
-//     let weights_alice = &vec![
-//         WeightAllocationItem::new(eclip_atom, "0.2"),
-//         WeightAllocationItem::new(ntrn_atom, "0.3"),
-//         WeightAllocationItem::new(astro_atom, "0.5"),
-//     ];
-//     let weights_dao = &vec![
-//         WeightAllocationItem::new(eclip_atom, "0.5"),
-//         WeightAllocationItem::new(ntrn_atom, "0.3"),
-//         WeightAllocationItem::new(astro_atom, "0.2"),
-//     ];
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
 
-//     // stake and lock
-//     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
-//         h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
-//         h.eclipsepad_staking_try_lock(user, amount, 4)?;
-//     }
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
 
-//     // place votes
-//     h.voter_try_place_vote(alice, weights_alice)?;
-//     h.voter_try_delegate(bob)?;
-//     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
-//     // check votes
-//     let essence_info_alice = h.voter_query_user(alice, None)?;
-//     let essence_info_dao = h.voter_query_dao_info(None)?;
-//     let voter_info = h.voter_query_voter_info(None)?;
+    // check votes
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+    let voter_info = h.voter_query_voter_info(None)?;
 
-//     assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
-//         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
-//         essence_value: Uint128::new(1_000),
-//         weights: weights_alice.to_owned(),
-//     });
-//     assert_that(&essence_info_dao).is_equal_to(DaoResponse {
-//         essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
-//         essence_value: Uint128::new(2_000),
-//         weights: weights_dao.to_owned(),
-//     });
-//     assert_that(&voter_info).is_equal_to(VoterInfoResponse {
-//         block_time: h.get_block_time(),
-//         elector_votes: vec![
-//             EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 200)),
-//             EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 300)),
-//             EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 500)),
-//         ],
-//         slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 3_000),
-//         total_votes: vec![
-//             EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 1_200)),
-//             EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
-//             EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
-//         ],
-//         vote_results: vec![],
-//     });
+    assert_that(&alice_info).is_equal_to(UserResponse {
+        user_type: UserType::Elector,
+        essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
+        essence_value: Uint128::new(1_000),
+        weights: weights_alice.to_owned(),
+        rewards: RewardsInfo::default(),
+    });
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
+        essence_value: Uint128::new(2_000),
+        weights: weights_dao.to_owned(),
+    });
+    assert_that(&voter_info.slacker_essence_acc).is_equal_to(EssenceInfo::new::<u128>(0, 0, 3_000));
 
-//     // final voting
-//     h.wait(h.voter_query_date_config()?.vote_delay);
-//     h.voter_try_vote()?;
+    // final voting
+    let date_config = h.voter_query_date_config()?;
+    let epoch_length = date_config.epoch_length;
+    let vote_delay = date_config.vote_delay;
+    h.wait(h.voter_query_date_config()?.vote_delay);
+    h.voter_try_push()?;
 
-//     // check votes
-//     let essence_info_alice = h.voter_query_user(alice, None)?;
-//     let essence_info_dao = h.voter_query_dao_info(None)?;
-//     let voter_info = h.voter_query_voter_info(None)?;
+    // allocate rewards
+    h.wait(epoch_length - vote_delay + 1);
+    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address()])?;
+    // claim rewards
+    h.voter_try_push()?;
+    // swap rewards
+    h.voter_try_push()?;
 
-//     assert_that(&essence_info_alice).is_equal_to(UserResponse::Elector {
-//         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
-//         essence_value: Uint128::new(1_000),
-//         weights: vec![],
-//     });
-//     assert_that(&essence_info_dao).is_equal_to(DaoResponse {
-//         essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
-//         essence_value: Uint128::new(2_000),
-//         weights: vec![],
-//     });
-//     // assert_that(&voter_info).is_equal_to(VoterInfoResponse {
-//     //     block_time: h.get_block_time(),
-//     //     elector_votes: vec![
-//     //         EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 0)),
-//     //         EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 0)),
-//     //         EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 0)),
-//     //     ],
-//     //     slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 3_000),
-//     //     total_votes: vec![
-//     //         EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(0, 0, 1_200)),
-//     //         EssenceAllocationItem::new(ntrn_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
-//     //         EssenceAllocationItem::new(astro_atom, &EssenceInfo::new::<u128>(0, 0, 900)),
-//     //     ],
-//     //     vote_results: vec![],
-//     // });
+    // check votes
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+    let voter_info = h.voter_query_voter_info(None)?;
 
-//     // // wait new epoch
-//     // h.wait(h.voter_query_epoch_info()?.start_date - h.get_block_time());
+    assert_that(&alice_info.user_type).is_equal_to(UserType::Slacker);
+    assert_that(&dao_info.weights).is_equal_to(vec![]);
+    assert_that(&voter_info.slacker_essence_acc).is_equal_to(EssenceInfo::new::<u128>(0, 0, 4_000));
 
-//     Ok(())
-// }
+    Ok(())
+}
+
+#[test]
+fn rotating_claim_stage() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let owner = &h.acc(Acc::Owner);
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // try vote too early
+    let res = h.voter_try_push().unwrap_err();
+    assert_error(&res, ContractError::VotingDelay);
+
+    // final voting
+    let date_config = h.voter_query_date_config()?;
+    let epoch_length = date_config.epoch_length;
+    let vote_delay = date_config.vote_delay;
+    h.wait(h.voter_query_date_config()?.vote_delay);
+    // vote
+    h.voter_try_push()?;
+
+    // try update essence, place vote, undelegate, delegate, claim user rewards
+    h.eclipsepad_staking_try_stake(alice, 1_000, Denom::Eclip)
+        .unwrap_err();
+    let res = h.voter_try_place_vote(alice, weights_dao).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_place_vote_as_dao(dao, weights_dao).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_undelegate(bob).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_delegate(john).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_claim_rewards(alice).unwrap_err();
+    assert_error(&res, ContractError::RewardsAreNotFound);
+    // try claim rewards until they added
+    let res = h.voter_try_push().unwrap_err();
+    assert_error(&res, ContractError::RewardsAreNotFound);
+
+    h.wait(epoch_length - vote_delay + 1);
+
+    // try claim rewards until they added
+    let res = h.voter_try_push().unwrap_err();
+    assert_error(&res, ContractError::RewardsAreNotFound);
+
+    // allocate rewards
+    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address()])?;
+
+    // try update essence, place vote, undelegate, delegate, claim user rewards
+    h.eclipsepad_staking_try_stake(alice, 1_000, Denom::Eclip)
+        .unwrap_err();
+    let res = h.voter_try_place_vote(alice, weights_dao).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_place_vote_as_dao(dao, weights_dao).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_undelegate(bob).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_delegate(john).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_claim_rewards(alice).unwrap_err();
+    assert_error(&res, ContractError::RewardsAreNotFound);
+
+    // claim rewards
+    h.voter_try_push()?;
+
+    // try update essence, place vote, undelegate, delegate, claim user rewards
+    h.eclipsepad_staking_try_stake(alice, 1_000, Denom::Eclip)
+        .unwrap_err();
+    let res = h.voter_try_place_vote(alice, weights_dao).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_place_vote_as_dao(dao, weights_dao).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_undelegate(bob).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_delegate(john).unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+    let res = h.voter_try_claim_rewards(alice).unwrap_err();
+    assert_error(&res, ContractError::RewardsAreNotFound);
+
+    // swap rewards
+    h.voter_try_push()?;
+
+    // try vote too early
+    let res = h.voter_try_push().unwrap_err();
+    assert_error(&res, ContractError::VotingDelay);
+
+    // claim user rewards
+    h.voter_try_claim_rewards(alice)?;
+
+    // try claim user rewards twice
+    let res = h.voter_try_claim_rewards(alice).unwrap_err();
+    assert_error(&res, ContractError::RewardsAreNotFound);
+
+    Ok(())
+}
 
 // TODO
 // +EssenceInfo math, captured essence
@@ -2502,12 +2548,12 @@ fn undelegate_default() -> StdResult<()> {
 // +delegators
 // +slackers
 // +changing vote after dao
-// +users can't act after final voting
 // +elector, slacker can delegate
 // +delegator, dao can't delegate
 // +delegator can't vote
 // +delegator can undelegate; elector, slacker, dao can't undelegate
-// reset electors and dao on epoch start
+// +reset electors and dao on epoch start
+// +rotating claim stage, users can act only during swapped stage
 // clearing storages
 // wrong weights
 // whitelisted pools
@@ -2519,7 +2565,5 @@ fn undelegate_default() -> StdResult<()> {
 // delegate-undelegate loop - rewards, weights, essence
 // vote-delegate-undelegate loop - rewards, weights, essence
 // changing settings before next epoch
-// rotating claim stage
-// user claim on wrong stage
 // rewards w/o tribute market
 // query rewards, claim, claim again, query again

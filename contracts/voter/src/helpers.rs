@@ -3,15 +3,14 @@ use cosmwasm_std::{Addr, Decimal, Deps, StdError, StdResult, Storage, Uint128};
 
 use eclipse_base::converters::{str_to_dec, u128_to_dec};
 use equinox_msg::voter::{
-    msg::UserType,
     state::{
         ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DELEGATOR_ADDRESSES,
         ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS,
-        ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_LOCKED, REWARDS_CLAIM_STAGE,
+        ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
         ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
     types::{
-        EssenceAllocationItem, RewardsClaimStage, RewardsInfo, RouteItem, TokenConfig,
+        EssenceAllocationItem, RewardsClaimStage, RewardsInfo, RouteItem, TokenConfig, UserType,
         WeightAllocationItem,
     },
 };
@@ -81,30 +80,25 @@ pub fn verify_weight_allocation(
     Ok(())
 }
 
-// reset is_locked on user actions on epoch start
-pub fn try_unlock_and_check(
-    storage: &mut dyn Storage,
-    block_time: u64,
-) -> Result<(), ContractError> {
-    let is_locked = try_unlock(storage, block_time)?;
-
-    if is_locked {
-        Err(ContractError::EpochEnd)?;
+/// user actions are disabled when the contract is paused
+pub fn check_pause_state(storage: &dyn Storage) -> Result<(), ContractError> {
+    if IS_PAUSED.load(storage)? {
+        Err(ContractError::ContractIsPaused)?;
     }
 
     Ok(())
 }
 
-// reset is_locked on eclipsepad-staking actions on epoch start
-pub fn try_unlock(storage: &mut dyn Storage, block_time: u64) -> Result<bool, ContractError> {
-    let mut is_locked = IS_LOCKED.load(storage)?;
-
-    if is_locked && block_time >= EPOCH_COUNTER.load(storage)?.start_date {
-        is_locked = false;
-        IS_LOCKED.save(storage, &is_locked)?;
+/// user essence allocation updates are disallowed until completing bribes collection
+pub fn check_rewards_claim_stage(storage: &dyn Storage) -> Result<(), ContractError> {
+    if !matches!(
+        REWARDS_CLAIM_STAGE.load(storage)?,
+        RewardsClaimStage::Swapped
+    ) {
+        Err(ContractError::AwaitSwappedStage)?;
     }
 
-    Ok(is_locked)
+    Ok(())
 }
 
 pub fn get_route(storage: &dyn Storage, denom: &str) -> StdResult<Vec<SwapOperation>> {

@@ -3,11 +3,14 @@ use cw_storage_plus::Bound;
 
 use eclipse_base::{converters::u128_to_dec, utils::unwrap_field};
 use equinox_msg::voter::{
-    msg::{DaoResponse, UserListResponse, UserListResponseItem, UserResponse, VoterInfoResponse},
+    msg::{
+        DaoResponse, OperationStatusResponse, UserListResponse, UserListResponseItem, UserResponse,
+        VoterInfoResponse,
+    },
     state::{
         ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, ELECTOR_ESSENCE_ACC,
-        ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG,
-        USER_ESSENCE, VOTE_RESULTS,
+        ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE, ROUTE_CONFIG,
+        SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, VOTE_RESULTS,
     },
     types::{
         AddressConfig, BribesAllocationItem, DateConfig, EpochInfo, RouteListItem, TokenConfig,
@@ -253,4 +256,11 @@ pub fn query_route_list(
             Ok(RouteListItem { denom, route })
         })
         .collect::<StdResult<Vec<RouteListItem>>>()
+}
+
+pub fn query_operation_status(deps: Deps, _env: Env) -> StdResult<OperationStatusResponse> {
+    Ok(OperationStatusResponse {
+        is_paused: IS_PAUSED.load(deps.storage)?,
+        rewards_claim_stage: REWARDS_CLAIM_STAGE.load(deps.storage)?,
+    })
 }
