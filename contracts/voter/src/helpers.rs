@@ -148,14 +148,15 @@ pub fn get_user_type(storage: &dyn Storage, address: &Addr) -> StdResult<UserTyp
 pub fn get_user_weights(
     storage: &dyn Storage,
     address: &Addr,
-) -> StdResult<Vec<WeightAllocationItem>> {
-    Ok(match get_user_type(storage, address)? {
-        UserType::Elector => ELECTOR_WEIGHTS.load(storage, address)?,
+    user_type: &UserType,
+) -> Vec<WeightAllocationItem> {
+    match user_type {
+        UserType::Elector => ELECTOR_WEIGHTS.load(storage, address).unwrap_or_default(),
         UserType::Delegator => DAO_WEIGHTS_ACC.load(storage).unwrap_or_default(),
         UserType::Slacker => ELECTOR_WEIGHTS_REF
             .load(storage, address)
             .unwrap_or_default(),
-    })
+    }
 }
 
 /// returns (total_essence_allocation, total_weights_allocation)

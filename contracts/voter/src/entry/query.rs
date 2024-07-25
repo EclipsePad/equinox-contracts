@@ -139,15 +139,17 @@ pub fn query_user(
 ) -> StdResult<UserResponse> {
     let block_time = block_time.unwrap_or(env.block.time.seconds());
     let user = &deps.api.addr_validate(&address)?;
+    let user_type = get_user_type(deps.storage, user)?;
+    let user_weights = get_user_weights(deps.storage, user, &user_type);
     let essence_info = USER_ESSENCE.load(deps.storage, user).unwrap_or_default();
     let essence_value = essence_info.capture(block_time);
     let (_, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
 
     Ok(UserResponse {
-        user_type: get_user_type(deps.storage, user)?,
+        user_type,
         essence_info,
         essence_value,
-        weights: get_user_weights(deps.storage, user)?,
+        weights: user_weights,
         rewards: user_rewards,
     })
 }
@@ -175,12 +177,14 @@ pub fn query_user_list(
         .map(|x| {
             let (address, essence_info) = x.unwrap();
             let essence_value = essence_info.capture(block_time);
+            let user_type = get_user_type(deps.storage, &address)?;
+            let user_weights = get_user_weights(deps.storage, &address, &user_type);
             let (_, user_rewards) = get_accumulated_rewards(deps.storage, &address, block_time)?;
             let user_info = UserResponse {
-                user_type: get_user_type(deps.storage, &address)?,
+                user_type,
                 essence_info,
                 essence_value,
-                weights: get_user_weights(deps.storage, &address)?,
+                weights: user_weights,
                 rewards: user_rewards,
             };
 

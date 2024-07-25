@@ -2530,6 +2530,66 @@ fn rotating_claim_stage() -> StdResult<()> {
     Ok(())
 }
 
+#[test]
+fn clearing_storages() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    let weights = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, weights)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_place_vote_as_dao(dao, weights)?;
+
+    // unlock
+    for user in [alice, bob, john] {
+        h.eclipsepad_staking_try_unlock(user)?;
+    }
+
+    // check votes
+    for user in [alice, bob, john] {
+        let res = h.voter_query_user(user, None).unwrap_err();
+        assert_error(&res, ContractError::UserIsNotFound);
+    }
+
+    let dao_info = h.voter_query_dao_info(None)?;
+    let voter_info = h.voter_query_voter_info(None)?;
+
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 0),
+        essence_value: Uint128::new(0),
+        weights: weights.to_owned(),
+    });
+    assert_that(&voter_info).is_equal_to(VoterInfoResponse {
+        block_time: h.get_block_time(),
+        elector_votes: vec![],
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 0),
+        total_votes: vec![],
+        vote_results: vec![],
+    });
+
+    Ok(())
+}
+
 // TODO
 // +EssenceInfo math, captured essence
 // +calc_essence_allocation
@@ -2554,7 +2614,7 @@ fn rotating_claim_stage() -> StdResult<()> {
 // +delegator can undelegate; elector, slacker, dao can't undelegate
 // +reset electors and dao on epoch start
 // +rotating claim stage, users can act only during swapped stage
-// clearing storages
+// +clearing storages
 // wrong weights
 // whitelisted pools
 // changing wl pools in each epoch

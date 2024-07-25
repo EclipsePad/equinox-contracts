@@ -292,16 +292,9 @@ pub fn try_update_essence_allocation(
             ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
         }
 
-        // update user essence
-        if user_essence_after.is_zero() {
-            USER_ESSENCE.remove(deps.storage, user);
-        } else {
-            USER_ESSENCE.save(deps.storage, user, &user_essence_after)?;
-        }
-
         match user_type {
             UserType::Elector => {
-                let user_weights = get_user_weights(deps.storage, user)?;
+                let user_weights = get_user_weights(deps.storage, user, &user_type);
                 let user_essence_allocation_before =
                     calc_essence_allocation(&user_essence_before, &user_weights);
                 let user_essence_allocation_after =
@@ -338,6 +331,26 @@ pub fn try_update_essence_allocation(
                 })?;
             }
         };
+
+        // update user essence
+        if user_essence_after.is_zero() {
+            USER_ESSENCE.remove(deps.storage, user);
+            // rewards must be claimed before decreasing essence to zero
+            USER_REWARDS.remove(deps.storage, user);
+
+            match user_type {
+                UserType::Elector => {
+                    ELECTOR_WEIGHTS.remove(deps.storage, user);
+                    ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
+                }
+                UserType::Delegator => {
+                    DELEGATOR_ADDRESSES.remove(deps.storage, user);
+                }
+                UserType::Slacker => {}
+            }
+        } else {
+            USER_ESSENCE.save(deps.storage, user, &user_essence_after)?;
+        }
     }
 
     Ok(Response::new().add_attribute("action", "try_update_essence_allocation"))
@@ -490,7 +503,7 @@ pub fn try_delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
 
     match user_type {
         UserType::Elector => {
-            let user_weights = get_user_weights(deps.storage, user)?;
+            let user_weights = get_user_weights(deps.storage, user, &user_type);
             let user_essence_allocation_before =
                 calc_essence_allocation(&user_essence_before, &user_weights);
             let user_essence_allocation_after =

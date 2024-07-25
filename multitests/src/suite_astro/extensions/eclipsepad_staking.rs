@@ -1,5 +1,5 @@
 use cosmwasm_std::{coins, Addr, StdResult, Uint128};
-use cw_multi_test::{AppResponse, ContractWrapper, Executor};
+use cw_multi_test::{AppResponse, BankSudo, ContractWrapper, Executor};
 
 use eclipse_base::{
     converters::str_to_dec,
@@ -7,7 +7,7 @@ use eclipse_base::{
     staking::msg::{ExecuteMsg, QueryEssenceResponse, QueryMsg},
 };
 
-use crate::suite_astro::helper::{Acc, ControllerHelper, Extension};
+use crate::suite_astro::helper::{Acc, ControllerHelper, Denom, Extension};
 
 const NAME: &str = "eclipsepad_staking";
 
@@ -45,6 +45,8 @@ pub trait EclipsepadStakingExtension {
         amount: u128,
         lock_tier: u64,
     ) -> StdResult<AppResponse>;
+
+    fn eclipsepad_staking_try_unlock(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
 
     fn eclipsepad_staking_try_update_config(
         &mut self,
@@ -140,6 +142,17 @@ impl EclipsepadStakingExtension for ControllerHelper {
             )
             .unwrap();
 
+        // add eclip rewards
+        self.app
+            .sudo(
+                BankSudo::Mint {
+                    to_address: contract_address.to_string(),
+                    amount: coins(1_000_000_000_000, Denom::Eclip.to_string()),
+                }
+                .into(),
+            )
+            .unwrap();
+
         self.extension_list.push(Extension {
             name: NAME.to_string(),
             code_id,
@@ -177,6 +190,17 @@ impl EclipsepadStakingExtension for ControllerHelper {
                     amount: Uint128::new(amount),
                     lock_tier,
                 },
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
+    fn eclipsepad_staking_try_unlock(&mut self, sender: impl ToString) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.eclipsepad_staking_contract_address(),
+                &ExecuteMsg::Unlock {},
                 &[],
             )
             .map_err(parse_err)
