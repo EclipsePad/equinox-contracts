@@ -2520,12 +2520,31 @@ fn rotating_claim_stage() -> StdResult<()> {
     let res = h.voter_try_push().unwrap_err();
     assert_error(&res, ContractError::VotingDelay);
 
+    // check rewards
+    let rewards = h.voter_query_user(alice, None)?.rewards;
+    assert_that(&rewards).is_equal_to(RewardsInfo {
+        last_update_epoch: 1,
+        value: vec![
+            (Uint128::new(76_576_577), Denom::Astro.to_string()),
+            (Uint128::new(102_343_436), Denom::Atom.to_string()),
+            (Uint128::new(34_343_435), Denom::Eclip.to_string()),
+            (Uint128::new(113_333_334), Denom::Ntrn.to_string()),
+        ],
+    });
+
     // claim user rewards
     h.voter_try_claim_rewards(alice)?;
 
     // try claim user rewards twice
     let res = h.voter_try_claim_rewards(alice).unwrap_err();
     assert_error(&res, ContractError::RewardsAreNotFound);
+
+    // check rewards
+    let rewards = h.voter_query_user(alice, None)?.rewards;
+    assert_that(&rewards).is_equal_to(RewardsInfo {
+        last_update_epoch: 1,
+        value: vec![],
+    });
 
     Ok(())
 }
@@ -2590,10 +2609,88 @@ fn clearing_storages() -> StdResult<()> {
     Ok(())
 }
 
+#[test]
+fn wrong_weights() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // try place votes
+    let res = h.voter_try_place_vote(alice, &[]).unwrap_err();
+    assert_error(&res, ContractError::EmptyVotingList);
+
+    let res = h
+        .voter_try_place_vote(
+            alice,
+            &[
+                WeightAllocationItem::new(eclip_atom, "0.5"),
+                WeightAllocationItem::new(eclip_atom, "0.3"),
+                WeightAllocationItem::new(astro_atom, "0.2"),
+            ],
+        )
+        .unwrap_err();
+    assert_error(&res, ContractError::VotingListDuplication);
+
+    let res = h
+        .voter_try_place_vote(
+            alice,
+            &[
+                WeightAllocationItem::new(eclip_atom, "0.7"),
+                WeightAllocationItem::new(ntrn_atom, "0.3"),
+                WeightAllocationItem::new(astro_atom, "0"),
+            ],
+        )
+        .unwrap_err();
+    assert_error(&res, ContractError::WeightIsOutOfRange);
+
+    let res = h
+        .voter_try_place_vote(alice, &[WeightAllocationItem::new(eclip_atom, "1.1")])
+        .unwrap_err();
+    assert_error(&res, ContractError::WeightIsOutOfRange);
+
+    let res = h
+        .voter_try_place_vote(
+            alice,
+            &[
+                WeightAllocationItem::new(eclip_atom, "0.6"),
+                WeightAllocationItem::new(ntrn_atom, "0.3"),
+                WeightAllocationItem::new(astro_atom, "0.2"),
+            ],
+        )
+        .unwrap_err();
+    assert_error(&res, ContractError::WeightsAreUnbalanced);
+
+    let res = h
+        .voter_try_place_vote(
+            alice,
+            &[
+                WeightAllocationItem::new(&Addr::unchecked(Pool::UsdcAtom.to_string()), "0.5"),
+                WeightAllocationItem::new(ntrn_atom, "0.3"),
+                WeightAllocationItem::new(astro_atom, "0.2"),
+            ],
+        )
+        .unwrap_err();
+    assert_error(&res, ContractError::PoolIsNotWhitelisted);
+
+    Ok(())
+}
+
 // TODO
 // +EssenceInfo math, captured essence
 // +calc_essence_allocation
-// +calc_updated_essence_allocation
+// +calc_updated_essence_allocation, proper weights merging
 // +calc_scaled_essence_allocation
 // +auto-updating essence in voter
 // +essence update will change weights
@@ -2613,17 +2710,12 @@ fn clearing_storages() -> StdResult<()> {
 // +delegator can't vote
 // +delegator can undelegate; elector, slacker, dao can't undelegate
 // +reset electors and dao on epoch start
-// +rotating claim stage, users can act only during swapped stage
+// +rotating claim stage, users can act only during swapped stage, vote early, vote twice
+// +query rewards, claim, claim again, query again
 // +clearing storages
-// wrong weights
-// whitelisted pools
-// changing wl pools in each epoch
-// proper weights merging
-// historical data, vote early, vote twice
+// +wrong weights, whitelisted pools
+// historical data
 // user voted in e1, delegated in e2, undelegated in e3 - rewards, weights, essence
 // user delegated in e1, undelegated and voted in e2 - rewards, weights, essence
 // delegate-undelegate loop - rewards, weights, essence
 // vote-delegate-undelegate loop - rewards, weights, essence
-// changing settings before next epoch
-// rewards w/o tribute market
-// query rewards, claim, claim again, query again
