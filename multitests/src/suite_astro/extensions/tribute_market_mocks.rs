@@ -125,7 +125,7 @@ impl TributeMarketExtension for ControllerHelper {
                         if cur_denom != &x.denom {
                             acc
                         } else {
-                            acc + cur_amount
+                            acc + Uint128::new(10) * cur_amount // mul by 10 to have enough for multiple epochs
                         }
                     });
                 x

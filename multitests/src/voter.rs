@@ -242,6 +242,94 @@ fn prepare_helper() -> ControllerHelper {
 }
 
 #[test]
+fn astroport_router_default() -> StdResult<()> {
+    let mut h = prepare_helper();
+    let alice = &h.acc(Acc::Alice);
+
+    let res =
+        h.astroport_router_query_simulate_swap_operations(1_000, Denom::Eclip, Denom::Atom)?;
+
+    let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
+    h.astroport_router_try_execute_swap_operations(
+        alice,
+        Denom::Eclip,
+        1_000,
+        &vec![SwapOperation::AstroSwap {
+            offer_asset_info: AssetInfo::NativeToken {
+                denom: Denom::Eclip.to_string(),
+            },
+            ask_asset_info: AssetInfo::NativeToken {
+                denom: Denom::Atom.to_string(),
+            },
+        }],
+    )?;
+
+    let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
+    assert_that(&(alice_atom_balance_after - alice_atom_balance_before))
+        .is_equal_to(res.amount.u128());
+
+    Ok(())
+}
+
+#[test]
+fn astroport_router_batch_swap() -> StdResult<()> {
+    let mut h = prepare_helper();
+    let alice = &h.acc(Acc::Alice);
+
+    // mint tokens
+    for denom in [Denom::Ntrn, Denom::Atom] {
+        h.mint_tokens(alice, &coins(1_000, denom.to_string()))
+            .unwrap();
+    }
+
+    // check balances
+    let alice_ntrn_balance_before = h.query_balance(alice, Denom::Ntrn);
+    let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_before = h.query_balance(alice, Denom::Eclip);
+
+    assert_that(&alice_ntrn_balance_before).is_equal_to(1_000);
+    assert_that(&alice_atom_balance_before).is_equal_to(1_000);
+    assert_that(&alice_eclip_balance_before).is_equal_to(100_000);
+
+    // try to swap [600 NTRN, 400 ATOM] -> 1_000 ECLIP using [NTRN-ATOM, ATOM-ECLIP] route
+    // 600 NTRN -> 600 ATOM
+    // (400 + 600) ATOM -> 1_000 ECLIP
+    h.astroport_router_try_execute_batch_swap(
+        alice,
+        &vec![
+            SwapOperation::AstroSwap {
+                offer_asset_info: AssetInfo::NativeToken {
+                    denom: Denom::Ntrn.to_string(),
+                },
+                ask_asset_info: AssetInfo::NativeToken {
+                    denom: Denom::Atom.to_string(),
+                },
+            },
+            SwapOperation::AstroSwap {
+                offer_asset_info: AssetInfo::NativeToken {
+                    denom: Denom::Atom.to_string(),
+                },
+                ask_asset_info: AssetInfo::NativeToken {
+                    denom: Denom::Eclip.to_string(),
+                },
+            },
+        ],
+        &vec![(600, Denom::Ntrn), (400, Denom::Atom)],
+    )?;
+
+    // check balances
+    let alice_ntrn_balance_after = h.query_balance(alice, Denom::Ntrn);
+    let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_after = h.query_balance(alice, Denom::Eclip);
+
+    assert_that(&alice_ntrn_balance_after).is_equal_to(400);
+    assert_that(&alice_atom_balance_after).is_equal_to(600);
+    assert_that(&alice_eclip_balance_after).is_equal_to(100_998);
+
+    Ok(())
+}
+
+#[test]
 fn calc_voter_bribe_allocation_math() -> StdResult<()> {
     let tribute_market_bribe_allocation = &[
         BribesAllocationItem::new(Pool::EclipAtom, &[(100, Denom::Atom), (100, Denom::Eclip)]),
@@ -669,94 +757,6 @@ fn full_cycle() -> StdResult<()> {
     assert_that(&(ruby_ntrn_balance_after - ruby_ntrn_balance_before)).is_equal_to(113_333_334);
     assert_that(&(bob_eclip_balance_after - bob_eclip_balance_before)).is_equal_to(35_543_762);
     assert_that(&(vlad_eclip_balance_after - vlad_eclip_balance_before)).is_equal_to(106_631_288);
-
-    Ok(())
-}
-
-#[test]
-fn router_default() -> StdResult<()> {
-    let mut h = prepare_helper();
-    let alice = &h.acc(Acc::Alice);
-
-    let res =
-        h.astroport_router_query_simulate_swap_operations(1_000, Denom::Eclip, Denom::Atom)?;
-
-    let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
-    h.astroport_router_try_execute_swap_operations(
-        alice,
-        Denom::Eclip,
-        1_000,
-        &vec![SwapOperation::AstroSwap {
-            offer_asset_info: AssetInfo::NativeToken {
-                denom: Denom::Eclip.to_string(),
-            },
-            ask_asset_info: AssetInfo::NativeToken {
-                denom: Denom::Atom.to_string(),
-            },
-        }],
-    )?;
-
-    let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
-    assert_that(&(alice_atom_balance_after - alice_atom_balance_before))
-        .is_equal_to(res.amount.u128());
-
-    Ok(())
-}
-
-#[test]
-fn router_batch_swap() -> StdResult<()> {
-    let mut h = prepare_helper();
-    let alice = &h.acc(Acc::Alice);
-
-    // mint tokens
-    for denom in [Denom::Ntrn, Denom::Atom] {
-        h.mint_tokens(alice, &coins(1_000, denom.to_string()))
-            .unwrap();
-    }
-
-    // check balances
-    let alice_ntrn_balance_before = h.query_balance(alice, Denom::Ntrn);
-    let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
-    let alice_eclip_balance_before = h.query_balance(alice, Denom::Eclip);
-
-    assert_that(&alice_ntrn_balance_before).is_equal_to(1_000);
-    assert_that(&alice_atom_balance_before).is_equal_to(1_000);
-    assert_that(&alice_eclip_balance_before).is_equal_to(100_000);
-
-    // try to swap [600 NTRN, 400 ATOM] -> 1_000 ECLIP using [NTRN-ATOM, ATOM-ECLIP] route
-    // 600 NTRN -> 600 ATOM
-    // (400 + 600) ATOM -> 1_000 ECLIP
-    h.astroport_router_try_execute_batch_swap(
-        alice,
-        &vec![
-            SwapOperation::AstroSwap {
-                offer_asset_info: AssetInfo::NativeToken {
-                    denom: Denom::Ntrn.to_string(),
-                },
-                ask_asset_info: AssetInfo::NativeToken {
-                    denom: Denom::Atom.to_string(),
-                },
-            },
-            SwapOperation::AstroSwap {
-                offer_asset_info: AssetInfo::NativeToken {
-                    denom: Denom::Atom.to_string(),
-                },
-                ask_asset_info: AssetInfo::NativeToken {
-                    denom: Denom::Eclip.to_string(),
-                },
-            },
-        ],
-        &vec![(600, Denom::Ntrn), (400, Denom::Atom)],
-    )?;
-
-    // check balances
-    let alice_ntrn_balance_after = h.query_balance(alice, Denom::Ntrn);
-    let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
-    let alice_eclip_balance_after = h.query_balance(alice, Denom::Eclip);
-
-    assert_that(&alice_ntrn_balance_after).is_equal_to(400);
-    assert_that(&alice_atom_balance_after).is_equal_to(600);
-    assert_that(&alice_eclip_balance_after).is_equal_to(100_998);
 
     Ok(())
 }
@@ -2687,35 +2687,587 @@ fn wrong_weights() -> StdResult<()> {
     Ok(())
 }
 
-// TODO
-// +EssenceInfo math, captured essence
-// +calc_essence_allocation
-// +calc_updated_essence_allocation, proper weights merging
-// +calc_scaled_essence_allocation
-// +auto-updating essence in voter
-// +essence update will change weights
-// +2 slackers + 2 electors + 2 delegators + dao (default voting)
-// +slackers + electors + dao
-// +slackers + delegators + dao
-// +electors + delegators + dao
-// +slackers + dao
-// +electors + dao
-// +delegators + dao
-// +electors
-// +delegators
-// +slackers
-// +changing vote after dao
-// +elector, slacker can delegate
-// +delegator, dao can't delegate
-// +delegator can't vote
-// +delegator can undelegate; elector, slacker, dao can't undelegate
-// +reset electors and dao on epoch start
-// +rotating claim stage, users can act only during swapped stage, vote early, vote twice
-// +query rewards, claim, claim again, query again
-// +clearing storages
-// +wrong weights, whitelisted pools
-// historical data
-// user voted in e1, delegated in e2, undelegated in e3 - rewards, weights, essence
-// user delegated in e1, undelegated and voted in e2 - rewards, weights, essence
-// delegate-undelegate loop - rewards, weights, essence
-// vote-delegate-undelegate loop - rewards, weights, essence
+#[test]
+fn multiple_epochs_and_claim_rewards_single_time() -> StdResult<()> {
+    let mut h = prepare_helper();
+    let ControllerHelper { xastro, .. } = &ControllerHelper::new();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let owner = &h.acc(Acc::Owner);
+    let dao = &h.acc(Acc::Dao);
+    // electors
+    let alice = &h.acc(Acc::Alice);
+    let ruby = &h.acc(Acc::Ruby);
+    // delegators
+    let bob = &h.acc(Acc::Bob);
+    let vlad = &h.acc(Acc::Vlad);
+    // slackers
+    let john = &h.acc(Acc::John);
+    // individual voters
+    let kate = &h.acc(Acc::Kate);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.4"),
+        WeightAllocationItem::new(astro_atom, "0.6"),
+    ];
+    let weights_ruby = &vec![
+        WeightAllocationItem::new(ntrn_atom, "0.6"),
+        WeightAllocationItem::new(astro_atom, "0.4"),
+    ];
+    let weights_electors_expected = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [
+        (alice, 500),
+        (ruby, 500),
+        (bob, 500),
+        (vlad, 1_500),
+        (john, 3_000),
+    ] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    let alice_astro_balance_before = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_before = h.query_balance(alice, Denom::Eclip);
+    let ruby_astro_balance_before = h.query_balance(ruby, Denom::Astro);
+    let ruby_atom_balance_before = h.query_balance(ruby, Denom::Atom);
+    let ruby_ntrn_balance_before = h.query_balance(ruby, Denom::Ntrn);
+    let bob_eclip_balance_before = h.query_balance(bob, Denom::Eclip);
+    let vlad_eclip_balance_before = h.query_balance(vlad, Denom::Eclip);
+
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_place_vote(ruby, weights_ruby)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_delegate(vlad)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // vote interacting with emissions_controller directly
+    h.mint_tokens(kate, &coins(100 * INITIAL_LIQUIDITY, xastro))
+        .map_err(parse_err)?;
+    h.lock(kate, 100 * INITIAL_LIQUIDITY).map_err(parse_err)?;
+    h.vote(
+        kate,
+        &[
+            (h.pool(Pool::EclipAtom).to_string(), str_to_dec("0.5")),
+            (h.pool(Pool::AstroAtom).to_string(), str_to_dec("0.5")),
+        ],
+    )
+    .map_err(parse_err)?;
+
+    // final voting
+    let date_config = h.voter_query_date_config()?;
+    let epoch_length = date_config.epoch_length;
+    let vote_delay = date_config.vote_delay;
+    h.wait(vote_delay);
+    // vote
+    h.voter_try_push()?;
+
+    // allocate rewards
+    h.wait(epoch_length - vote_delay + 1);
+    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+
+    // claim rewards
+    h.voter_try_push()?;
+    // swap dao rewards to eclip
+    h.voter_try_push()?;
+
+    // repeat 2 times
+    for _i in 0..2 {
+        // place votes
+        h.voter_try_place_vote(alice, weights_alice)?;
+        h.voter_try_place_vote(ruby, weights_ruby)?;
+        h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+        // vote interacting with emissions_controller directly
+        h.vote(
+            kate,
+            &[
+                (h.pool(Pool::EclipAtom).to_string(), str_to_dec("0.5")),
+                (h.pool(Pool::AstroAtom).to_string(), str_to_dec("0.5")),
+            ],
+        )
+        .map_err(parse_err)?;
+
+        // final voting
+        let date_config = h.voter_query_date_config()?;
+        let epoch_length = date_config.epoch_length;
+        let vote_delay = date_config.vote_delay;
+        h.wait(vote_delay);
+        // vote
+        h.voter_try_push()?;
+
+        // allocate rewards
+        h.wait(epoch_length - vote_delay + 1);
+        h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+
+        // claim rewards
+        h.voter_try_push()?;
+        // swap dao rewards to eclip
+        h.voter_try_push()?;
+    }
+
+    // it's enough to claim rewards only single time
+    for user in [alice, ruby, bob, vlad] {
+        h.voter_try_claim_rewards(user)?;
+    }
+
+    // check historical data
+    let vote_results = h.voter_query_voter_info(None)?.vote_results;
+    let expected_vote_results: Vec<VoteResults> = (1..4)
+        .map(|x| VoteResults {
+            epoch_id: x,
+            end_date: 1717372800 + (x as u64 - 1) * epoch_length,
+            elector_essence: Uint128::new(3_400),
+            dao_essence: Uint128::new(2_600),
+            slacker_essence: Uint128::new(3_000),
+            elector_weights: weights_electors_expected.to_owned(),
+            dao_weights: weights_dao.to_owned(),
+            dao_treasury_eclip_rewards: Uint128::new(35_543_763),
+            dao_delegators_eclip_rewards: Uint128::new(142_175_051),
+            pool_info_list: vec![
+                PoolInfoItem::new(
+                    eclip_atom,
+                    "0.33",
+                    &[
+                        (8_553_140, &Denom::Eclip.to_string()),
+                        (8_553_140, &Denom::Atom.to_string()),
+                    ],
+                ),
+                PoolInfoItem::new(
+                    astro_atom,
+                    "0.37",
+                    &[(20_756_268, &Denom::Astro.to_string())],
+                ),
+                PoolInfoItem::new(
+                    ntrn_atom,
+                    "0.3",
+                    &[
+                        (113_333_334, &Denom::Ntrn.to_string()),
+                        (68_000_001, &Denom::Atom.to_string()),
+                    ],
+                ),
+            ],
+        })
+        .collect();
+
+    assert_that(&vote_results).is_equal_to(expected_vote_results);
+
+    // check user rewards
+    let alice_astro_balance_after = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_after = h.query_balance(alice, Denom::Eclip);
+    let ruby_astro_balance_after = h.query_balance(ruby, Denom::Astro);
+    let ruby_atom_balance_after = h.query_balance(ruby, Denom::Atom);
+    let ruby_ntrn_balance_after = h.query_balance(ruby, Denom::Ntrn);
+    let bob_eclip_balance_after = h.query_balance(bob, Denom::Eclip);
+    let vlad_eclip_balance_after = h.query_balance(vlad, Denom::Eclip);
+
+    assert_that(&(alice_astro_balance_after - alice_astro_balance_before))
+        .is_equal_to(3 * 12_453_760);
+    assert_that(&(alice_atom_balance_after - alice_atom_balance_before)).is_equal_to(3 * 8_553_140);
+    assert_that(&(alice_eclip_balance_after - alice_eclip_balance_before))
+        .is_equal_to(3 * 8_553_140);
+    assert_that(&(ruby_astro_balance_after - ruby_astro_balance_before)).is_equal_to(3 * 8_302_507);
+    assert_that(&(ruby_atom_balance_after - ruby_atom_balance_before)).is_equal_to(3 * 68_000_001);
+    assert_that(&(ruby_ntrn_balance_after - ruby_ntrn_balance_before)).is_equal_to(3 * 113_333_334);
+    assert_that(&(bob_eclip_balance_after - bob_eclip_balance_before)).is_equal_to(3 * 35_543_762);
+    assert_that(&(vlad_eclip_balance_after - vlad_eclip_balance_before))
+        .is_equal_to(3 * 106_631_288);
+
+    Ok(())
+}
+
+#[test]
+fn vote_e1_delegate_e2_undelegate_e3() -> StdResult<()> {
+    let mut h = prepare_helper();
+    let ControllerHelper { xastro, .. } = &ControllerHelper::new();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let owner = &h.acc(Acc::Owner);
+    let dao = &h.acc(Acc::Dao);
+    // electors
+    let alice = &h.acc(Acc::Alice);
+    let ruby = &h.acc(Acc::Ruby);
+    // delegators
+    let bob = &h.acc(Acc::Bob);
+    let vlad = &h.acc(Acc::Vlad);
+    // slackers
+    let john = &h.acc(Acc::John);
+    // individual voters
+    let kate = &h.acc(Acc::Kate);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.4"),
+        WeightAllocationItem::new(astro_atom, "0.6"),
+    ];
+    let weights_ruby = &vec![
+        WeightAllocationItem::new(ntrn_atom, "0.6"),
+        WeightAllocationItem::new(astro_atom, "0.4"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [
+        (alice, 500),
+        (ruby, 500),
+        (bob, 500),
+        (vlad, 1_500),
+        (john, 3_000),
+    ] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    let alice_astro_balance_before = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_before = h.query_balance(alice, Denom::Eclip);
+
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_place_vote(ruby, weights_ruby)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_delegate(vlad)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // vote interacting with emissions_controller directly
+    h.mint_tokens(kate, &coins(100 * INITIAL_LIQUIDITY, xastro))
+        .map_err(parse_err)?;
+    h.lock(kate, 100 * INITIAL_LIQUIDITY).map_err(parse_err)?;
+    h.vote(
+        kate,
+        &[
+            (h.pool(Pool::EclipAtom).to_string(), str_to_dec("0.5")),
+            (h.pool(Pool::AstroAtom).to_string(), str_to_dec("0.5")),
+        ],
+    )
+    .map_err(parse_err)?;
+
+    // final voting
+    let date_config = h.voter_query_date_config()?;
+    let epoch_length = date_config.epoch_length;
+    let vote_delay = date_config.vote_delay;
+    h.wait(vote_delay);
+    // vote
+    h.voter_try_push()?;
+
+    // allocate rewards
+    h.wait(epoch_length - vote_delay + 1);
+    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+
+    // claim rewards
+    h.voter_try_push()?;
+    // swap dao rewards to eclip
+    h.voter_try_push()?;
+
+    // claim user rewards
+    for user in [alice, ruby, bob, vlad] {
+        h.voter_try_claim_rewards(user)?;
+    }
+
+    // epoch 2, alice is delegator
+    //
+    // place votes
+    h.voter_try_delegate(alice)?;
+    h.voter_try_place_vote(ruby, weights_ruby)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // vote interacting with emissions_controller directly
+    h.vote(
+        kate,
+        &[
+            (h.pool(Pool::EclipAtom).to_string(), str_to_dec("0.5")),
+            (h.pool(Pool::AstroAtom).to_string(), str_to_dec("0.5")),
+        ],
+    )
+    .map_err(parse_err)?;
+
+    // final voting
+    let date_config = h.voter_query_date_config()?;
+    let epoch_length = date_config.epoch_length;
+    let vote_delay = date_config.vote_delay;
+    h.wait(vote_delay);
+    // vote
+    h.voter_try_push()?;
+
+    // allocate rewards
+    h.wait(epoch_length - vote_delay + 1);
+    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+
+    // claim rewards
+    h.voter_try_push()?;
+    // swap dao rewards to eclip
+    h.voter_try_push()?;
+
+    // claim user rewards
+    for user in [alice, ruby, bob, vlad] {
+        h.voter_try_claim_rewards(user)?;
+    }
+
+    // epoch 3, alice is slacker
+    //
+    // place votes
+    h.voter_try_undelegate(alice)?;
+    h.voter_try_place_vote(ruby, weights_ruby)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // vote interacting with emissions_controller directly
+    h.vote(
+        kate,
+        &[
+            (h.pool(Pool::EclipAtom).to_string(), str_to_dec("0.5")),
+            (h.pool(Pool::AstroAtom).to_string(), str_to_dec("0.5")),
+        ],
+    )
+    .map_err(parse_err)?;
+
+    // final voting
+    let date_config = h.voter_query_date_config()?;
+    let epoch_length = date_config.epoch_length;
+    let vote_delay = date_config.vote_delay;
+    h.wait(vote_delay);
+    // vote
+    h.voter_try_push()?;
+
+    // allocate rewards
+    h.wait(epoch_length - vote_delay + 1);
+    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+
+    // claim rewards
+    h.voter_try_push()?;
+    // swap dao rewards to eclip
+    h.voter_try_push()?;
+
+    // claim user rewards
+    for user in [ruby, bob, vlad] {
+        h.voter_try_claim_rewards(user)?;
+    }
+
+    // check user rewards
+    let alice_astro_balance_after = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_after = h.query_balance(alice, Denom::Eclip);
+
+    // elector_personal_rewards_per_pool = elector_rewards * (personal_elector_essence * personal_weight) /
+    //     ((elector_essence - 0.8 * slacker_essence) * elector_weight)
+    // alice_eclip_in_eclip_atom = 8_553_140 * (500 * 0.4) / ((3_400 - 0.8 * 3_000) * 0.2) = 8_553_140
+    // delegator_rewards = dao_delegators_eclip_rewards * delegator_essence / (dao_essence - 0.2 * slacker_essence)
+    // alice_delegator_eclip_rewards = 128545709 * 500 / (3_100 - 0.2 * 3_000) = 25_709_141
+    // alice_eclip_rewards = 8_553_140 + 25_709_141 = 34_262_281
+    assert_that(&(alice_astro_balance_after - alice_astro_balance_before)).is_equal_to(12_453_760);
+    assert_that(&(alice_atom_balance_after - alice_atom_balance_before)).is_equal_to(8_553_140);
+    assert_that(&(alice_eclip_balance_after - alice_eclip_balance_before)).is_equal_to(34_262_281);
+
+    Ok(())
+}
+
+#[test]
+fn delegate_e1_undelegate_e2_vote_e3() -> StdResult<()> {
+    let mut h = prepare_helper();
+    let ControllerHelper { xastro, .. } = &ControllerHelper::new();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let owner = &h.acc(Acc::Owner);
+    let dao = &h.acc(Acc::Dao);
+    // electors
+    let alice = &h.acc(Acc::Alice);
+    let ruby = &h.acc(Acc::Ruby);
+    // delegators
+    let bob = &h.acc(Acc::Bob);
+    let vlad = &h.acc(Acc::Vlad);
+    // slackers
+    let john = &h.acc(Acc::John);
+    // individual voters
+    let kate = &h.acc(Acc::Kate);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.4"),
+        WeightAllocationItem::new(astro_atom, "0.6"),
+    ];
+    let weights_ruby = &vec![
+        WeightAllocationItem::new(ntrn_atom, "0.6"),
+        WeightAllocationItem::new(astro_atom, "0.4"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [
+        (alice, 500),
+        (ruby, 500),
+        (bob, 500),
+        (vlad, 1_500),
+        (john, 3_000),
+    ] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    let alice_astro_balance_before = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_before = h.query_balance(alice, Denom::Eclip);
+
+    // place votes
+    h.voter_try_place_vote(ruby, weights_ruby)?;
+    h.voter_try_delegate(alice)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_delegate(vlad)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // vote interacting with emissions_controller directly
+    h.mint_tokens(kate, &coins(100 * INITIAL_LIQUIDITY, xastro))
+        .map_err(parse_err)?;
+    h.lock(kate, 100 * INITIAL_LIQUIDITY).map_err(parse_err)?;
+    h.vote(
+        kate,
+        &[
+            (h.pool(Pool::EclipAtom).to_string(), str_to_dec("0.5")),
+            (h.pool(Pool::AstroAtom).to_string(), str_to_dec("0.5")),
+        ],
+    )
+    .map_err(parse_err)?;
+
+    // final voting
+    let date_config = h.voter_query_date_config()?;
+    let epoch_length = date_config.epoch_length;
+    let vote_delay = date_config.vote_delay;
+    h.wait(vote_delay);
+    // vote
+    h.voter_try_push()?;
+
+    // allocate rewards
+    h.wait(epoch_length - vote_delay + 1);
+    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+
+    // claim rewards
+    h.voter_try_push()?;
+    // swap dao rewards to eclip
+    h.voter_try_push()?;
+
+    // claim user rewards
+    for user in [alice, ruby, bob, vlad] {
+        h.voter_try_claim_rewards(user)?;
+    }
+
+    // epoch 2, alice is delegator
+    //
+    // place votes
+    h.voter_try_undelegate(alice)?;
+    h.voter_try_place_vote(ruby, weights_ruby)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // vote interacting with emissions_controller directly
+    h.vote(
+        kate,
+        &[
+            (h.pool(Pool::EclipAtom).to_string(), str_to_dec("0.5")),
+            (h.pool(Pool::AstroAtom).to_string(), str_to_dec("0.5")),
+        ],
+    )
+    .map_err(parse_err)?;
+
+    // final voting
+    let date_config = h.voter_query_date_config()?;
+    let epoch_length = date_config.epoch_length;
+    let vote_delay = date_config.vote_delay;
+    h.wait(vote_delay);
+    // vote
+    h.voter_try_push()?;
+
+    // allocate rewards
+    h.wait(epoch_length - vote_delay + 1);
+    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+
+    // claim rewards
+    h.voter_try_push()?;
+    // swap dao rewards to eclip
+    h.voter_try_push()?;
+
+    // claim user rewards
+    for user in [ruby, bob, vlad] {
+        h.voter_try_claim_rewards(user)?;
+    }
+
+    // epoch 3, alice is slacker
+    //
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_place_vote(ruby, weights_ruby)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // vote interacting with emissions_controller directly
+    h.vote(
+        kate,
+        &[
+            (h.pool(Pool::EclipAtom).to_string(), str_to_dec("0.5")),
+            (h.pool(Pool::AstroAtom).to_string(), str_to_dec("0.5")),
+        ],
+    )
+    .map_err(parse_err)?;
+
+    // final voting
+    let date_config = h.voter_query_date_config()?;
+    let epoch_length = date_config.epoch_length;
+    let vote_delay = date_config.vote_delay;
+    h.wait(vote_delay);
+    // vote
+    h.voter_try_push()?;
+
+    // allocate rewards
+    h.wait(epoch_length - vote_delay + 1);
+    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+
+    // claim rewards
+    h.voter_try_push()?;
+    // swap dao rewards to eclip
+    h.voter_try_push()?;
+
+    // claim user rewards
+    for user in [alice, ruby, bob, vlad] {
+        h.voter_try_claim_rewards(user)?;
+    }
+
+    // check user rewards
+    let alice_astro_balance_after = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_after = h.query_balance(alice, Denom::Eclip);
+
+    // delegator_rewards = dao_delegators_eclip_rewards * delegator_essence / (dao_essence - 0.2 * slacker_essence)
+    // alice_delegator_eclip_rewards = 128545709 * 500 / (3_100 - 0.2 * 3_000) = 25_709_141
+    // elector_personal_rewards_per_pool = elector_rewards * (personal_elector_essence * personal_weight) /
+    //     ((elector_essence - 0.8 * slacker_essence) * elector_weight)
+    // alice_eclip_in_eclip_atom = 8_553_140 * (500 * 0.4) / ((3_400 - 0.8 * 3_000) * 0.2) = 8_553_140
+    // alice_eclip_rewards = 25_709_141 + 8_553_140 = 34_262_281
+    assert_that(&(alice_astro_balance_after - alice_astro_balance_before)).is_equal_to(12_453_760);
+    assert_that(&(alice_atom_balance_after - alice_atom_balance_before)).is_equal_to(8_553_140);
+    assert_that(&(alice_eclip_balance_after - alice_eclip_balance_before)).is_equal_to(34_262_281);
+
+    Ok(())
+}
