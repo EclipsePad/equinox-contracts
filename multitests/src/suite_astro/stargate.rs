@@ -60,8 +60,8 @@ impl Module for StargateModule {
                     .expect("Empty amount in tokenfactory MsgMint!");
                 let cw_coin = coin(mint_coins.amount.parse()?, mint_coins.denom);
                 let bank_sudo = BankSudo::Mint {
-                    to_address: tf_msg.mint_to_address.clone(),
-                    amount: vec![cw_coin.clone()],
+                    to_address: tf_msg.mint_to_address,
+                    amount: vec![cw_coin],
                 };
 
                 router.sudo(api, storage, block, bank_sudo.into())
@@ -73,7 +73,7 @@ impl Module for StargateModule {
                     .expect("Empty amount in tokenfactory MsgBurn!");
                 let cw_coin = coin(burn_coins.amount.parse()?, burn_coins.denom);
                 let burn_msg = BankMsg::Burn {
-                    amount: vec![cw_coin.clone()],
+                    amount: vec![cw_coin],
                 };
 
                 router.execute(

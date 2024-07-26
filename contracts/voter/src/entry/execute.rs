@@ -34,7 +34,8 @@ use crate::{
         get_total_votes, get_user_type, get_user_weights, verify_weight_allocation,
     },
     math::{
-        calc_essence_allocation, calc_pool_info_list_with_rewards, calc_updated_essence_allocation,
+        calc_eclip_astro_for_xastro, calc_essence_allocation, calc_pool_info_list_with_rewards,
+        calc_updated_essence_allocation, calc_voter_to_tribute_voting_power_ratio,
         calc_weights_from_essence_allocation, split_dao_eclip_rewards, split_rewards,
     },
 };
@@ -449,15 +450,22 @@ fn lock_xastro(
     } = TOKEN_CONFIG.load(deps.storage)?;
 
     // calculate eclipASTRO amount
-    let total_xastro_amount: Uint128 = deps.querier.query_wasm_smart(
-        astroport_staking.to_string(),
-        &astroport::staking::QueryMsg::TotalShares {},
-    )?;
-    let total_astro_amount: Uint128 = deps.querier.query_wasm_smart(
-        astroport_staking.to_string(),
-        &astroport::staking::QueryMsg::TotalDeposit {},
-    )?;
-    let eclip_astro_amount = total_astro_amount * xastro_amount / total_xastro_amount;
+    let xastro_supply = deps
+        .querier
+        .query_wasm_smart::<Uint128>(
+            astroport_staking.to_string(),
+            &astroport::staking::QueryMsg::TotalShares {},
+        )
+        .unwrap_or_default();
+    let astro_supply = deps
+        .querier
+        .query_wasm_smart::<Uint128>(
+            astroport_staking.to_string(),
+            &astroport::staking::QueryMsg::TotalDeposit {},
+        )
+        .unwrap_or_default();
+    let eclip_astro_amount =
+        calc_eclip_astro_for_xastro(xastro_amount, astro_supply, xastro_supply);
 
     let msg_list = vec![
         // replenish existent lock or create new one
@@ -696,9 +704,7 @@ pub fn try_vote(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let dao_weights_acc_before = DAO_WEIGHTS_ACC.load(deps.storage)?;
     let slacker_essence = SLACKER_ESSENCE_ACC.load(deps.storage)?;
     let elector_additional_essence_fraction = str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION);
-
-    let (_total_essence_allocation, total_weights_allocation) =
-        get_total_votes(deps.storage, block_time)?;
+    let total_weights_allocation = get_total_votes(deps.storage, block_time)?.weight;
 
     // update vote results
     VOTE_RESULTS.update(deps.storage, |mut x| -> StdResult<Vec<VoteResults>> {
@@ -840,11 +846,11 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
                 )?
                 .voting_power;
 
-            let ratio = if tribute_market_voting_power.is_zero() {
-                Decimal::zero()
-            } else {
-                voter_voting_power_decimal * weight / u128_to_dec(tribute_market_voting_power)
-            };
+            let ratio = calc_voter_to_tribute_voting_power_ratio(
+                weight,
+                voter_voting_power_decimal,
+                tribute_market_voting_power,
+            );
 
             Ok((lp_token.to_owned(), ratio))
         })

@@ -10,8 +10,8 @@ use equinox_msg::voter::{
         ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
     types::{
-        EssenceAllocationItem, RewardsClaimStage, RewardsInfo, RouteItem, TokenConfig, UserType,
-        WeightAllocationItem,
+        RewardsClaimStage, RewardsInfo, RouteItem, TokenConfig, TotalEssenceAndWeightAllocation,
+        UserType, WeightAllocationItem,
     },
 };
 
@@ -25,7 +25,7 @@ use crate::{
 
 pub fn verify_weight_allocation(
     deps: Deps,
-    weight_allocation: &Vec<WeightAllocationItem>,
+    weight_allocation: &[WeightAllocationItem],
 ) -> Result<(), ContractError> {
     // check weights:
     // 1) empty
@@ -163,7 +163,7 @@ pub fn get_user_weights(
 pub fn get_total_votes(
     storage: &dyn Storage,
     block_time: u64,
-) -> StdResult<(Vec<EssenceAllocationItem>, Vec<(String, Decimal)>)> {
+) -> StdResult<TotalEssenceAndWeightAllocation> {
     // get slackers essence
     let slacker_essence = SLACKER_ESSENCE_ACC.load(storage)?;
     let elector_additional_essence_fraction = str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION);
@@ -201,7 +201,7 @@ pub fn get_total_votes(
     let total_essence_allocation = calc_updated_essence_allocation(
         &elector_essence_allocation_acc_after,
         &dao_essence_allocation_acc_after,
-        &vec![],
+        &[],
     );
     let total_weights_allocation: Vec<(String, Decimal)> = total_essence_allocation
         .iter()
@@ -213,7 +213,10 @@ pub fn get_total_votes(
         })
         .collect();
 
-    Ok((total_essence_allocation, total_weights_allocation))
+    Ok(TotalEssenceAndWeightAllocation {
+        essence: total_essence_allocation,
+        weight: total_weights_allocation,
+    })
 }
 
 /// returns (is_updated, user_rewards)

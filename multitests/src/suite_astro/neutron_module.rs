@@ -40,21 +40,18 @@ impl Module for MockNeutronModule {
         ExecC: CustomMsg + DeserializeOwned + 'static,
         QueryC: CustomQuery + DeserializeOwned + 'static,
     {
-        match msg {
-            NeutronMsg::IbcTransfer { token, .. } => {
-                router.execute(
-                    api,
-                    storage,
-                    block,
-                    sender,
-                    BankMsg::Send {
-                        to_address: self.ibc_escrow.to_string(),
-                        amount: vec![token],
-                    }
-                    .into(),
-                )?;
-            }
-            _ => {}
+        if let NeutronMsg::IbcTransfer { token, .. } = msg {
+            router.execute(
+                api,
+                storage,
+                block,
+                sender,
+                BankMsg::Send {
+                    to_address: self.ibc_escrow.to_string(),
+                    amount: vec![token],
+                }
+                .into(),
+            )?;
         }
 
         Ok(AppResponse::default())

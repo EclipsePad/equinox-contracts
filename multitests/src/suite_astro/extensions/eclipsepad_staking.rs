@@ -48,6 +48,7 @@ pub trait EclipsepadStakingExtension {
 
     fn eclipsepad_staking_try_unlock(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
 
+    #[allow(clippy::too_many_arguments)]
     fn eclipsepad_staking_try_update_config(
         &mut self,
         sender: impl ToString,
@@ -113,7 +114,7 @@ impl EclipsepadStakingExtension for ControllerHelper {
             .app
             .instantiate_contract(
                 code_id,
-                self.acc(Acc::Owner).clone(),
+                self.acc(Acc::Owner),
                 &eclipse_base::staking::msg::InstantiateMsg {
                     equinox_voter: equinox_voter.as_ref().map(|x| x.to_string()),
                     beclip_minter: beclip_minter.as_ref().map(|x| x.to_string()),
@@ -121,20 +122,18 @@ impl EclipsepadStakingExtension for ControllerHelper {
                     beclip_address: beclip_address.as_ref().map(|x| x.to_string()),
                     beclip_whitelist: beclip_whitelist
                         .as_ref()
-                        .map(|x| x.into_iter().map(|y| y.to_string()).collect()),
-                    lock_schedule: lock_schedule.to_owned(),
+                        .map(|x| x.iter().map(|y| y.to_string()).collect()),
+                    lock_schedule,
                     seconds_per_essence: seconds_per_essence
                         .as_ref()
                         .map(|x| Uint128::new(x.to_owned())),
                     dao_treasury_address: dao_treasury_address.as_ref().map(|x| x.to_string()),
-                    penalty_multiplier: penalty_multiplier
-                        .as_ref()
-                        .map(|x| str_to_dec(&x.to_string())),
-                    pagintaion_config: pagintaion_config.to_owned(),
+                    penalty_multiplier: penalty_multiplier.as_ref().map(|x| str_to_dec(x)),
+                    pagintaion_config,
                     eclip_per_second: eclip_per_second.to_owned(),
                     eclip_per_second_multiplier: eclip_per_second_multiplier
                         .as_ref()
-                        .map(|x| str_to_dec(&x.to_string())),
+                        .map(|x| str_to_dec(x)),
                 },
                 &[],
                 NAME,
@@ -230,15 +229,13 @@ impl EclipsepadStakingExtension for ControllerHelper {
                     beclip_address: beclip_address.as_ref().map(|x| x.to_string()),
                     beclip_whitelist: beclip_whitelist
                         .as_ref()
-                        .map(|x| x.into_iter().map(|y| y.to_string()).collect()),
-                    lock_schedule: lock_schedule.to_owned(),
+                        .map(|x| x.iter().map(|y| y.to_string()).collect()),
+                    lock_schedule,
                     dao_treasury_address: dao_treasury_address.as_ref().map(|x| x.to_string()),
-                    penalty_multiplier: penalty_multiplier
-                        .as_ref()
-                        .map(|x| str_to_dec(&x.to_string())),
+                    penalty_multiplier: penalty_multiplier.as_ref().map(|x| str_to_dec(x)),
                     eclip_per_second_multiplier: eclip_per_second_multiplier
                         .as_ref()
-                        .map(|x| str_to_dec(&x.to_string())),
+                        .map(|x| str_to_dec(x)),
                 },
                 &[],
             )

@@ -1,7 +1,7 @@
 use cosmwasm_std::{Decimal, Deps, Env, Order, StdResult, Uint128};
 use cw_storage_plus::Bound;
 
-use eclipse_base::{converters::u128_to_dec, utils::unwrap_field};
+use eclipse_base::utils::unwrap_field;
 use equinox_msg::voter::{
     msg::{
         DaoResponse, OperationStatusResponse, UserListResponse, UserListResponseItem, UserResponse,
@@ -19,7 +19,7 @@ use equinox_msg::voter::{
 
 use crate::{
     helpers::{get_accumulated_rewards, get_total_votes, get_user_type, get_user_weights},
-    math::{calc_essence_allocation, calc_voting_power},
+    math::{calc_essence_allocation, calc_voting_power, calc_xastro_price},
 };
 
 pub fn query_address_config(deps: Deps, _env: Env) -> StdResult<AddressConfig> {
@@ -51,20 +51,25 @@ pub fn query_rewards(deps: Deps, env: Env) -> StdResult<Vec<(Uint128, String)>> 
 
 pub fn query_xastro_price(deps: Deps, _env: Env) -> StdResult<Decimal> {
     let AddressConfig {
-        eclipsepad_staking, ..
+        astroport_staking, ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
 
-    let xastro_amount: Uint128 = deps.querier.query_wasm_smart(
-        eclipsepad_staking.to_string(),
-        &astroport::staking::QueryMsg::TotalShares {},
-    )?;
+    let xastro_supply = deps
+        .querier
+        .query_wasm_smart::<Uint128>(
+            astroport_staking.to_string(),
+            &astroport::staking::QueryMsg::TotalShares {},
+        )
+        .unwrap_or_default();
+    let astro_supply = deps
+        .querier
+        .query_wasm_smart::<Uint128>(
+            astroport_staking.to_string(),
+            &astroport::staking::QueryMsg::TotalDeposit {},
+        )
+        .unwrap_or_default();
 
-    let astro_amount: Uint128 = deps.querier.query_wasm_smart(
-        eclipsepad_staking.to_string(),
-        &astroport::staking::QueryMsg::TotalDeposit {},
-    )?;
-
-    Ok(u128_to_dec(astro_amount) / u128_to_dec(xastro_amount))
+    Ok(calc_xastro_price(astro_supply, xastro_supply))
 }
 
 // TODO: query from both tribute markets
@@ -219,15 +224,13 @@ pub fn query_voter_info(
     let elector_votes = calc_essence_allocation(&elector_essence_acc, &elector_weights_acc);
     let slacker_essence_acc = SLACKER_ESSENCE_ACC.load(deps.storage)?;
     let vote_results = VOTE_RESULTS.load(deps.storage)?;
-
-    let (total_essence_allocation, _total_weights_allocation) =
-        get_total_votes(deps.storage, block_time)?;
+    let total_votes = get_total_votes(deps.storage, block_time)?.essence;
 
     Ok(VoterInfoResponse {
         block_time,
         elector_votes,
         slacker_essence_acc,
-        total_votes: total_essence_allocation,
+        total_votes,
         vote_results,
     })
 }

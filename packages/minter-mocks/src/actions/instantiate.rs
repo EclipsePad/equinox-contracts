@@ -23,7 +23,7 @@ pub fn try_instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            admin: info.sender.to_owned(),
+            admin: info.sender,
             cw20_code_id: Some(msg.cw20_code_id.unwrap_or(CW20_CODE_ID)),
         },
     )?;

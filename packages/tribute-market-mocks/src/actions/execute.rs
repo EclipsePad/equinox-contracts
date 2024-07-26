@@ -102,8 +102,7 @@ pub fn try_allocate_rewards(
 
         let rewards_raw: Vec<(Uint128, String)> = pool_info_list_with_rewards
             .iter()
-            .map(|x| x.rewards.clone())
-            .flatten()
+            .flat_map(|x| x.rewards.clone())
             .collect();
 
         let mut denom_list: Vec<String> = rewards_raw

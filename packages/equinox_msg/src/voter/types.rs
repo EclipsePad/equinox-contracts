@@ -295,3 +295,9 @@ pub struct TransferAdminState {
     pub new_admin: Addr,
     pub deadline: u64,
 }
+
+#[cw_serde]
+pub struct TotalEssenceAndWeightAllocation {
+    pub essence: Vec<EssenceAllocationItem>,
+    pub weight: Vec<(String, Decimal)>,
+}

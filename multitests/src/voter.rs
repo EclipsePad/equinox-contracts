@@ -66,7 +66,7 @@ fn prepare_helper() -> ControllerHelper {
         None,
     );
     h.voter_prepare_contract(
-        Some(vec![&owner.to_string()]),
+        Some(vec![owner.as_ref()]),
         &h.acc(Acc::Dao),
         None,
         &h.minter_contract_address(),
@@ -217,21 +217,21 @@ fn prepare_helper() -> ControllerHelper {
     let bribes_allocation: Vec<BribesAllocationItem> = vec![
         BribesAllocationItem::new(
             h.pool(Pool::EclipAtom),
-            &vec![
+            &[
                 (100 * INITIAL_LIQUIDITY, Denom::Eclip),
                 (100 * INITIAL_LIQUIDITY, Denom::Atom),
             ],
         ),
         BribesAllocationItem::new(
             h.pool(Pool::NtrnAtom),
-            &vec![
+            &[
                 (200 * INITIAL_LIQUIDITY, Denom::Ntrn),
                 (120 * INITIAL_LIQUIDITY, Denom::Atom),
             ],
         ),
         BribesAllocationItem::new(
             h.pool(Pool::AstroAtom),
-            &vec![(100 * INITIAL_LIQUIDITY, Denom::Astro)],
+            &[(100 * INITIAL_LIQUIDITY, Denom::Astro)],
         ),
     ];
 
@@ -254,7 +254,7 @@ fn astroport_router_default() -> StdResult<()> {
         alice,
         Denom::Eclip,
         1_000,
-        &vec![SwapOperation::AstroSwap {
+        &[SwapOperation::AstroSwap {
             offer_asset_info: AssetInfo::NativeToken {
                 denom: Denom::Eclip.to_string(),
             },
@@ -296,7 +296,7 @@ fn astroport_router_batch_swap() -> StdResult<()> {
     // (400 + 600) ATOM -> 1_000 ECLIP
     h.astroport_router_try_execute_batch_swap(
         alice,
-        &vec![
+        &[
             SwapOperation::AstroSwap {
                 offer_asset_info: AssetInfo::NativeToken {
                     denom: Denom::Ntrn.to_string(),
@@ -314,7 +314,7 @@ fn astroport_router_batch_swap() -> StdResult<()> {
                 },
             },
         ],
-        &vec![(600, Denom::Ntrn), (400, Denom::Atom)],
+        &[(600, Denom::Ntrn), (400, Denom::Atom)],
     )?;
 
     // check balances
@@ -889,7 +889,7 @@ fn updated_essence_allocation_math() -> StdResult<()> {
     let essence_allocation = calc_updated_essence_allocation(
         essence_allocation_alice,
         essence_allocation_bob_initial,
-        &vec![],
+        &[],
     );
     assert_that(&essence_allocation).is_equal_to(vec![
         EssenceAllocationItem::new(eclip_atom, &EssenceInfo::new::<u128>(8, 200_000_000, 16)),
@@ -1946,12 +1946,12 @@ fn change_vote_after_dao_voting() -> StdResult<()> {
     }
 
     // place votes
-    h.voter_try_place_vote(alice, &weights_alice_before)?;
+    h.voter_try_place_vote(alice, weights_alice_before)?;
     h.voter_try_delegate(bob)?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // revote
-    h.voter_try_place_vote(alice, &weights_alice_after)?;
+    h.voter_try_place_vote(alice, weights_alice_after)?;
 
     // final voting
     h.wait(h.voter_query_date_config()?.vote_delay);
@@ -2676,7 +2676,7 @@ fn wrong_weights() -> StdResult<()> {
         .voter_try_place_vote(
             alice,
             &[
-                WeightAllocationItem::new(&Addr::unchecked(Pool::UsdcAtom.to_string()), "0.5"),
+                WeightAllocationItem::new(Addr::unchecked(Pool::UsdcAtom.to_string()), "0.5"),
                 WeightAllocationItem::new(ntrn_atom, "0.3"),
                 WeightAllocationItem::new(astro_atom, "0.2"),
             ],

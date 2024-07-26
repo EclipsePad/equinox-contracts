@@ -172,7 +172,7 @@ pub fn try_change_admin_native(
         deps.as_ref(),
         &sender_address,
         AuthType::AdminOrSpecified {
-            allowlist: vec![Some(token_owner.clone())],
+            allowlist: vec![Some(token_owner)],
         },
     )?;
 
@@ -274,7 +274,7 @@ pub fn try_update_config(
 
     if let Some(x) = cw20_code_id {
         config.cw20_code_id = Some(x);
-        response = response.add_attribute("cw20_code_id", &x.to_string());
+        response = response.add_attribute("cw20_code_id", x.to_string());
     }
 
     CONFIG.save(deps.storage, &config)?;

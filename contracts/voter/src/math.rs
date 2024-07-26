@@ -12,6 +12,42 @@ use equinox_msg::voter::{
     },
 };
 
+/// xastro_price = astro_supply / xastro_supply
+pub fn calc_xastro_price(astro_supply: Uint128, xastro_supply: Uint128) -> Decimal {
+    if xastro_supply.is_zero() {
+        return Decimal::zero();
+    }
+
+    u128_to_dec(astro_supply) / u128_to_dec(xastro_supply)
+}
+
+/// eclip_astro_for_xastro = xastro_amount * astro_supply / xastro_supply
+pub fn calc_eclip_astro_for_xastro(
+    xastro_amount: Uint128,
+    astro_supply: Uint128,
+    xastro_supply: Uint128,
+) -> Uint128 {
+    if xastro_supply.is_zero() {
+        return Uint128::zero();
+    }
+
+    xastro_amount * astro_supply / xastro_supply
+}
+
+/// voter_to_tribute_voting_power_ratio = voter_voting_power_decimal * applied_votes_weights_item / tribute_market_voting_power
+pub fn calc_voter_to_tribute_voting_power_ratio(
+    applied_votes_weights_item: &Decimal,
+    voter_voting_power_decimal: Decimal,
+    tribute_market_voting_power: Uint128,
+) -> Decimal {
+    if tribute_market_voting_power.is_zero() {
+        return Decimal::zero();
+    }
+
+    voter_voting_power_decimal * applied_votes_weights_item
+        / u128_to_dec(tribute_market_voting_power)
+}
+
 /// voting_power = vxastro_amount * user_essence / total_essence
 /// total_essence = elector_essence_acc + dao_essence_acc + slacker_essence_acc
 pub fn calc_voting_power(
@@ -33,10 +69,10 @@ pub fn calc_voting_power(
 /// essence_allocation = essence * weights
 pub fn calc_essence_allocation(
     essence: &EssenceInfo,
-    weights: &Vec<WeightAllocationItem>,
+    weights: &[WeightAllocationItem],
 ) -> Vec<EssenceAllocationItem> {
     weights
-        .into_iter()
+        .iter()
         .map(|x| EssenceAllocationItem {
             lp_token: x.lp_token.to_string(),
             essence_info: essence.scale(x.weight),
@@ -47,7 +83,7 @@ pub fn calc_essence_allocation(
 /// essence = sum(essence_allocation)                                                       \
 /// weights = essence_allocation / essence
 pub fn calc_weights_from_essence_allocation(
-    essence_allocation: &Vec<EssenceAllocationItem>,
+    essence_allocation: &[EssenceAllocationItem],
     block_time: u64,
 ) -> (EssenceInfo, Vec<WeightAllocationItem>) {
     let essence_info = essence_allocation
@@ -66,7 +102,7 @@ pub fn calc_weights_from_essence_allocation(
     let essence_info_decimal = u128_to_dec(essence_info.capture(block_time));
 
     let weights: Vec<WeightAllocationItem> = essence_allocation
-        .into_iter()
+        .iter()
         .map(|x| WeightAllocationItem {
             lp_token: x.lp_token.clone(),
             weight: u128_to_dec(x.essence_info.capture(block_time)) / essence_info_decimal,
@@ -82,11 +118,11 @@ pub fn calc_weights_from_essence_allocation(
 /// essence_allocation_before - previous allocation for current user                                                \
 /// all vectors can have different lengths
 pub fn calc_updated_essence_allocation(
-    essence_allocation: &Vec<EssenceAllocationItem>,
-    essence_allocation_after: &Vec<EssenceAllocationItem>,
-    essence_allocation_before: &Vec<EssenceAllocationItem>,
+    essence_allocation: &[EssenceAllocationItem],
+    essence_allocation_after: &[EssenceAllocationItem],
+    essence_allocation_before: &[EssenceAllocationItem],
 ) -> Vec<EssenceAllocationItem> {
-    let mut updated_essence_allocation = essence_allocation.clone();
+    let mut updated_essence_allocation = essence_allocation.to_owned();
 
     for essence_allocation_item in essence_allocation_after {
         if essence_allocation
@@ -129,7 +165,7 @@ pub fn calc_updated_essence_allocation(
 /// scaled_essence_allocation = (base_essence + additional_essence_fraction * additional_essence) * base_weights
 pub fn calc_scaled_essence_allocation(
     base_essence: &EssenceInfo,
-    base_weights: &Vec<WeightAllocationItem>,
+    base_weights: &[WeightAllocationItem],
     additional_essence: &EssenceInfo,
     additional_essence_fraction: Decimal,
 ) -> Vec<EssenceAllocationItem> {
@@ -271,8 +307,8 @@ pub fn calc_personal_elector_rewards(
             - str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION) * u128_to_dec(slacker_essence));
 
     let personal_elector_rewards_raw: Vec<(Uint128, String)> = personal_elector_weight_list
-        .into_iter()
-        .map(|personal_weight| {
+        .iter()
+        .flat_map(|personal_weight| {
             // it's safe to unwrap find results as personal elector votes are included in elector votes
             let elector_weight = elector_weight_list
                 .iter()
@@ -298,7 +334,6 @@ pub fn calc_personal_elector_rewards(
 
             personal_elector_rewards_per_pool
         })
-        .flatten()
         .collect();
 
     // get unique denom list
