@@ -218,6 +218,15 @@ pub struct BribesAllocationItem {
     pub rewards: Vec<(Uint128, String)>,
 }
 
+impl Default for BribesAllocationItem {
+    fn default() -> Self {
+        Self {
+            lp_token: Addr::unchecked(String::default()),
+            rewards: vec![],
+        }
+    }
+}
+
 impl BribesAllocationItem {
     pub fn new(lp_token: impl ToString, rewards: &[(u128, impl ToString)]) -> Self {
         Self {

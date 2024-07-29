@@ -1,7 +1,6 @@
 use cosmwasm_std::{Decimal, Deps, Env, Order, StdResult, Uint128};
 use cw_storage_plus::Bound;
 
-use eclipse_base::utils::unwrap_field;
 use equinox_msg::voter::{
     msg::{
         DaoResponse, OperationStatusResponse, UserListResponse, UserListResponseItem, UserResponse,
@@ -18,8 +17,15 @@ use equinox_msg::voter::{
 };
 
 use crate::{
-    helpers::{get_accumulated_rewards, get_total_votes, get_user_type, get_user_weights},
-    math::{calc_essence_allocation, calc_voting_power, calc_xastro_price},
+    helpers::{
+        get_accumulated_rewards, get_astro_and_xastro_supply, get_total_votes, get_user_type,
+        get_user_weights, query_astroport_bribe_allocation, query_astroport_rewards,
+        query_eclipsepad_bribe_allocation, query_eclipsepad_rewards,
+    },
+    math::{
+        calc_essence_allocation, calc_merged_bribe_allocations, calc_merged_rewards,
+        calc_voting_power, calc_xastro_price,
+    },
 };
 
 pub fn query_address_config(deps: Deps, _env: Env) -> StdResult<AddressConfig> {
@@ -34,56 +40,29 @@ pub fn query_date_config(deps: Deps, _env: Env) -> StdResult<DateConfig> {
     DATE_CONFIG.load(deps.storage)
 }
 
+// query from both tribute markets
 pub fn query_rewards(deps: Deps, env: Env) -> StdResult<Vec<(Uint128, String)>> {
-    let address_config = ADDRESS_CONFIG.load(deps.storage)?;
-    let astroport_tribute_market = &unwrap_field(
-        address_config.astroport_tribute_market,
-        "astroport_tribute_market",
-    )?;
+    let sender = &env.contract.address;
+    let astroport_rewards = query_astroport_rewards(deps, sender)?;
+    let eclipsepad_rewards = query_eclipsepad_rewards(deps, sender)?;
 
-    deps.querier.query_wasm_smart::<Vec<(Uint128, String)>>(
-        astroport_tribute_market,
-        &tribute_market_mocks::msg::QueryMsg::Rewards {
-            user: env.contract.address.to_string(),
-        },
-    )
+    Ok(calc_merged_rewards(&astroport_rewards, &eclipsepad_rewards))
 }
 
 pub fn query_xastro_price(deps: Deps, _env: Env) -> StdResult<Decimal> {
-    let AddressConfig {
-        astroport_staking, ..
-    } = ADDRESS_CONFIG.load(deps.storage)?;
-
-    let xastro_supply = deps
-        .querier
-        .query_wasm_smart::<Uint128>(
-            astroport_staking.to_string(),
-            &astroport::staking::QueryMsg::TotalShares {},
-        )
-        .unwrap_or_default();
-    let astro_supply = deps
-        .querier
-        .query_wasm_smart::<Uint128>(
-            astroport_staking.to_string(),
-            &astroport::staking::QueryMsg::TotalDeposit {},
-        )
-        .unwrap_or_default();
-
+    let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps)?;
     Ok(calc_xastro_price(astro_supply, xastro_supply))
 }
 
-// TODO: query from both tribute markets
+// query from both tribute markets
 pub fn query_bribes_allocation(deps: Deps, _env: Env) -> StdResult<Vec<BribesAllocationItem>> {
-    let address_config = ADDRESS_CONFIG.load(deps.storage)?;
-    let astroport_tribute_market = &unwrap_field(
-        address_config.astroport_tribute_market,
-        "astroport_tribute_market",
-    )?;
+    let astroport_bribe_allocation = query_astroport_bribe_allocation(deps)?;
+    let eclipsepad_bribe_allocation = query_eclipsepad_bribe_allocation(deps)?;
 
-    deps.querier.query_wasm_smart::<Vec<BribesAllocationItem>>(
-        astroport_tribute_market,
-        &tribute_market_mocks::msg::QueryMsg::BribesAllocation {},
-    )
+    Ok(calc_merged_bribe_allocations(
+        &astroport_bribe_allocation,
+        &eclipsepad_bribe_allocation,
+    ))
 }
 
 /// query voting power

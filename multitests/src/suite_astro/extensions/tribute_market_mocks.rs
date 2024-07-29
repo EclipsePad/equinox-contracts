@@ -20,27 +20,42 @@ pub trait TributeMarketExtension {
         astroport_emission_controller: &Addr,
     );
 
+    fn tribute_market_instantiate_contract(
+        &mut self,
+        astroport_voting_escrow: &Addr,
+        astroport_emission_controller: &Addr,
+    ) -> Addr;
+
     fn tribute_market_try_set_bribes_allocation(
         &mut self,
+        contract_address: &Addr,
         sender: impl ToString,
         bribes_allocation: &[BribesAllocationItem],
     ) -> StdResult<AppResponse>;
 
     fn tribute_market_try_allocate_rewards(
         &mut self,
+        contract_address: &Addr,
         sender: impl ToString,
         users: &[impl ToString],
     ) -> StdResult<AppResponse>;
 
-    fn tribute_market_try_claim_rewards(&mut self, sender: impl ToString)
-        -> StdResult<AppResponse>;
+    fn tribute_market_try_claim_rewards(
+        &mut self,
+        contract_address: &Addr,
+        sender: impl ToString,
+    ) -> StdResult<AppResponse>;
 
     fn tribute_market_query_rewards(
         &self,
+        contract_address: &Addr,
         user: impl ToString,
     ) -> StdResult<Vec<(Uint128, String)>>;
 
-    fn query_bribes_allocation(&self) -> StdResult<Vec<BribesAllocationItem>>;
+    fn query_bribes_allocation(
+        &self,
+        contract_address: &Addr,
+    ) -> StdResult<Vec<BribesAllocationItem>>;
 }
 
 impl TributeMarketExtension for ControllerHelper {
@@ -97,8 +112,29 @@ impl TributeMarketExtension for ControllerHelper {
         });
     }
 
+    fn tribute_market_instantiate_contract(
+        &mut self,
+        astroport_voting_escrow: &Addr,
+        astroport_emission_controller: &Addr,
+    ) -> Addr {
+        self.app
+            .instantiate_contract(
+                self.tribute_market_code_id(),
+                self.acc(Acc::Owner),
+                &tribute_market_mocks::msg::InstantiateMsg {
+                    astroport_voting_escrow: astroport_voting_escrow.to_owned(),
+                    astroport_emission_controller: astroport_emission_controller.to_owned(),
+                },
+                &[],
+                NAME,
+                Some(self.acc(Acc::Owner).to_string()),
+            )
+            .unwrap()
+    }
+
     fn tribute_market_try_set_bribes_allocation(
         &mut self,
+        contract_address: &Addr,
         sender: impl ToString,
         bribes_allocation: &[BribesAllocationItem],
     ) -> StdResult<AppResponse> {
@@ -146,7 +182,7 @@ impl TributeMarketExtension for ControllerHelper {
         self.app
             .execute_contract(
                 Addr::unchecked(sender.to_string()),
-                self.tribute_market_contract_address(),
+                contract_address.to_owned(),
                 &ExecuteMsg::SetBribesAllocation {
                     bribes_allocation: bribes_allocation.to_owned(),
                 },
@@ -157,13 +193,14 @@ impl TributeMarketExtension for ControllerHelper {
 
     fn tribute_market_try_allocate_rewards(
         &mut self,
+        contract_address: &Addr,
         sender: impl ToString,
         users: &[impl ToString],
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
                 Addr::unchecked(sender.to_string()),
-                self.tribute_market_contract_address(),
+                contract_address.to_owned(),
                 &ExecuteMsg::AllocateRewards {
                     users: users.iter().map(|x| x.to_string()).collect(),
                 },
@@ -174,12 +211,13 @@ impl TributeMarketExtension for ControllerHelper {
 
     fn tribute_market_try_claim_rewards(
         &mut self,
+        contract_address: &Addr,
         sender: impl ToString,
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
                 Addr::unchecked(sender.to_string()),
-                self.tribute_market_contract_address(),
+                contract_address.to_owned(),
                 &ExecuteMsg::ClaimRewards {},
                 &[],
             )
@@ -188,20 +226,23 @@ impl TributeMarketExtension for ControllerHelper {
 
     fn tribute_market_query_rewards(
         &self,
+        contract_address: &Addr,
         user: impl ToString,
     ) -> StdResult<Vec<(Uint128, String)>> {
         self.app.wrap().query_wasm_smart(
-            self.tribute_market_contract_address(),
+            contract_address.to_owned(),
             &QueryMsg::Rewards {
                 user: user.to_string(),
             },
         )
     }
 
-    fn query_bribes_allocation(&self) -> StdResult<Vec<BribesAllocationItem>> {
-        self.app.wrap().query_wasm_smart(
-            self.tribute_market_contract_address(),
-            &QueryMsg::BribesAllocation {},
-        )
+    fn query_bribes_allocation(
+        &self,
+        contract_address: &Addr,
+    ) -> StdResult<Vec<BribesAllocationItem>> {
+        self.app
+            .wrap()
+            .query_wasm_smart(contract_address.to_owned(), &QueryMsg::BribesAllocation {})
     }
 }

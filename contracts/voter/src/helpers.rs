@@ -1,7 +1,10 @@
 use astroport::{asset::AssetInfo, router::SwapOperation};
 use cosmwasm_std::{Addr, Decimal, Deps, StdError, StdResult, Storage, Uint128};
 
-use eclipse_base::converters::{str_to_dec, u128_to_dec};
+use eclipse_base::{
+    converters::{str_to_dec, u128_to_dec},
+    utils::unwrap_field,
+};
 use equinox_msg::voter::{
     state::{
         ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DELEGATOR_ADDRESSES,
@@ -10,16 +13,16 @@ use equinox_msg::voter::{
         ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
     types::{
-        RewardsClaimStage, RewardsInfo, RouteItem, TokenConfig, TotalEssenceAndWeightAllocation,
-        UserType, WeightAllocationItem,
+        AddressConfig, BribesAllocationItem, RewardsClaimStage, RewardsInfo, RouteItem,
+        TokenConfig, TotalEssenceAndWeightAllocation, UserType, WeightAllocationItem,
     },
 };
 
 use crate::{
     error::ContractError,
     math::{
-        calc_delegator_rewards, calc_personal_elector_rewards, calc_scaled_essence_allocation,
-        calc_updated_essence_allocation,
+        calc_delegator_rewards, calc_merged_rewards, calc_personal_elector_rewards,
+        calc_scaled_essence_allocation, calc_updated_essence_allocation,
     },
 };
 
@@ -264,26 +267,9 @@ pub fn get_accumulated_rewards(
                     }
                 });
 
-            if user_rewards
-                .value
-                .iter()
-                .all(|(_rewards_amount, rewards_denom)| rewards_denom != &eclip)
-            {
-                user_rewards.value.push((Uint128::zero(), eclip.clone()));
-            }
-
             user_rewards.last_update_epoch = epoch.id - 1;
-            user_rewards.value = user_rewards
-                .value
-                .into_iter()
-                .map(|(amount, denom)| {
-                    if denom != eclip {
-                        (amount, denom)
-                    } else {
-                        (amount + delegator_unclaimed_rewards, denom)
-                    }
-                })
-                .collect();
+            user_rewards.value =
+                calc_merged_rewards(&user_rewards.value, &[(delegator_unclaimed_rewards, eclip)]);
 
             return Ok((true, user_rewards));
         }
@@ -306,30 +292,8 @@ pub fn get_accumulated_rewards(
                     user_essence.capture(block_time),
                 );
 
-                for (_amount, denom) in &elector_rewards {
-                    if user_rewards
-                        .value
-                        .iter()
-                        .all(|(_rewards_amount, rewards_denom)| rewards_denom != denom)
-                    {
-                        user_rewards.value.push((Uint128::zero(), denom.to_owned()));
-                    }
-                }
-
                 user_rewards.last_update_epoch = epoch.id - 1;
-                user_rewards.value = user_rewards
-                    .value
-                    .into_iter()
-                    .map(|(rewards_amount, rewards_denom)| {
-                        let (additional_amount, _) = elector_rewards
-                            .iter()
-                            .cloned()
-                            .find(|(_amount, denom)| denom == &rewards_denom)
-                            .unwrap_or((Uint128::zero(), String::default()));
-
-                        (rewards_amount + additional_amount, rewards_denom)
-                    })
-                    .collect();
+                user_rewards.value = calc_merged_rewards(&user_rewards.value, &elector_rewards);
 
                 return Ok((true, user_rewards));
             }
@@ -337,4 +301,94 @@ pub fn get_accumulated_rewards(
     };
 
     Ok((false, user_rewards))
+}
+
+/// returns (astro_supply, xastro_supply)
+pub fn get_astro_and_xastro_supply(deps: Deps) -> StdResult<(Uint128, Uint128)> {
+    let AddressConfig {
+        astroport_staking, ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
+
+    let astro_supply = deps
+        .querier
+        .query_wasm_smart::<Uint128>(
+            astroport_staking.to_string(),
+            &astroport::staking::QueryMsg::TotalDeposit {},
+        )
+        .unwrap_or_default();
+    let xastro_supply = deps
+        .querier
+        .query_wasm_smart::<Uint128>(
+            astroport_staking.to_string(),
+            &astroport::staking::QueryMsg::TotalShares {},
+        )
+        .unwrap_or_default();
+
+    Ok((astro_supply, xastro_supply))
+}
+
+pub fn query_astroport_rewards(deps: Deps, sender: &Addr) -> StdResult<Vec<(Uint128, String)>> {
+    let astroport_tribute_market = &unwrap_field(
+        ADDRESS_CONFIG.load(deps.storage)?.astroport_tribute_market,
+        "astroport_tribute_market",
+    )?;
+
+    Ok(deps
+        .querier
+        .query_wasm_smart::<Vec<(Uint128, String)>>(
+            astroport_tribute_market,
+            &tribute_market_mocks::msg::QueryMsg::Rewards {
+                user: sender.to_string(),
+            },
+        )
+        .unwrap_or_default())
+}
+
+pub fn query_eclipsepad_rewards(deps: Deps, sender: &Addr) -> StdResult<Vec<(Uint128, String)>> {
+    if let Some(eclipsepad_tribute_market) =
+        &ADDRESS_CONFIG.load(deps.storage)?.eclipsepad_tribute_market
+    {
+        return Ok(deps
+            .querier
+            .query_wasm_smart::<Vec<(Uint128, String)>>(
+                eclipsepad_tribute_market,
+                &tribute_market_mocks::msg::QueryMsg::Rewards {
+                    user: sender.to_string(),
+                },
+            )
+            .unwrap_or_default());
+    }
+
+    Ok(vec![])
+}
+
+pub fn query_astroport_bribe_allocation(deps: Deps) -> StdResult<Vec<BribesAllocationItem>> {
+    let astroport_tribute_market = &unwrap_field(
+        ADDRESS_CONFIG.load(deps.storage)?.astroport_tribute_market,
+        "astroport_tribute_market",
+    )?;
+
+    Ok(deps
+        .querier
+        .query_wasm_smart::<Vec<BribesAllocationItem>>(
+            astroport_tribute_market,
+            &tribute_market_mocks::msg::QueryMsg::BribesAllocation {},
+        )
+        .unwrap_or_default())
+}
+
+pub fn query_eclipsepad_bribe_allocation(deps: Deps) -> StdResult<Vec<BribesAllocationItem>> {
+    if let Some(eclipsepad_tribute_market) =
+        &ADDRESS_CONFIG.load(deps.storage)?.eclipsepad_tribute_market
+    {
+        return Ok(deps
+            .querier
+            .query_wasm_smart::<Vec<BribesAllocationItem>>(
+                eclipsepad_tribute_market,
+                &tribute_market_mocks::msg::QueryMsg::BribesAllocation {},
+            )
+            .unwrap_or_default());
+    }
+
+    Ok(vec![])
 }
