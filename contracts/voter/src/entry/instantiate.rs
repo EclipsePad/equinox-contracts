@@ -5,7 +5,7 @@ use equinox_msg::voter::{
     msg::InstantiateMsg,
     state::{
         ADDRESS_CONFIG, CONTRACT_NAME, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG,
-        ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_LOCKED, REWARDS_CLAIM_STAGE,
+        ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
         SLACKER_ESSENCE_ACC, SWAP_REWARDS_REPLY_ID_CNT, TEMPORARY_REWARDS, TOKEN_CONFIG,
         TRANSFER_ADMIN_STATE, VOTE_RESULTS,
     },
@@ -31,7 +31,8 @@ pub fn try_instantiate(
     let block_time = env.block.time.seconds();
 
     SWAP_REWARDS_REPLY_ID_CNT.save(deps.storage, &0)?;
-    IS_LOCKED.save(deps.storage, &false)?;
+    IS_PAUSED.save(deps.storage, &false)?;
+    REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::default())?;
 
     ADDRESS_CONFIG.save(
         deps.storage,
@@ -89,8 +90,6 @@ pub fn try_instantiate(
             vote_delay: msg.vote_delay,
         },
     )?;
-
-    REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::default())?;
 
     TRANSFER_ADMIN_STATE.save(
         deps.storage,

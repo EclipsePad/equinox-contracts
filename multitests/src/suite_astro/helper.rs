@@ -256,7 +256,7 @@ impl ControllerHelper {
         .unwrap();
 
         let msg = staking::InstantiateMsg {
-            deposit_token_denom: Denom::Astro.to_string().to_string(),
+            deposit_token_denom: Denom::Astro.to_string(),
             tracking_admin: owner.to_string(),
             tracking_code_id: tracker_code_id,
             token_factory_addr: app.api().addr_make("token_factory").to_string(),
@@ -292,7 +292,7 @@ impl ControllerHelper {
                 owner.clone(),
                 &astroport_governance::builder_unlock::InstantiateMsg {
                     owner: owner.to_string(),
-                    astro_denom: Denom::Astro.to_string().to_string(),
+                    astro_denom: Denom::Astro.to_string(),
                     max_allocations_amount: Default::default(),
                 },
                 &[],
@@ -391,11 +391,12 @@ impl ControllerHelper {
         )
         .unwrap();
 
-        let helper = Self {
+        // dbg!(&helper);
+        Self {
             app,
             owner,
-            xastro: xastro_denom.clone(),
-            astro: Denom::Astro.to_string().to_string(),
+            xastro: xastro_denom,
+            astro: Denom::Astro.to_string(),
             factory,
             staking,
             vxastro,
@@ -406,10 +407,7 @@ impl ControllerHelper {
             pool_list: vec![],
             account_list,
             extension_list: vec![],
-        };
-        // dbg!(&helper);
-
-        helper
+        }
     }
 
     pub fn mint_tokens(&mut self, user: &Addr, coins: &[Coin]) -> AnyResult<AppResponse> {
@@ -543,7 +541,7 @@ impl ControllerHelper {
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender.to_string()),
-            Addr::unchecked(&pair_address.to_string()),
+            Addr::unchecked(pair_address.to_string()),
             &astroport::pair::ExecuteMsg::ProvideLiquidity {
                 assets: vec![
                     Asset::from(coin(amount, denom_a.to_string())),
@@ -845,6 +843,12 @@ impl ControllerHelper {
             block.time = block.time.plus_seconds(delay_s);
             block.height += delay_s / 5;
         });
+    }
+}
+
+impl Default for ControllerHelper {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

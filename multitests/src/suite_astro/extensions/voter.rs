@@ -21,6 +21,7 @@ pub trait VoterExtension {
     fn voter_code_id(&self) -> u64;
     fn voter_contract_address(&self) -> Addr;
 
+    #[allow(clippy::too_many_arguments)]
     fn voter_prepare_contract(
         &mut self,
 
@@ -50,6 +51,7 @@ pub trait VoterExtension {
 
     fn voter_try_accept_admin_role(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
 
+    #[allow(clippy::too_many_arguments)]
     fn voter_try_update_address_config(
         &mut self,
         sender: impl ToString,
@@ -388,7 +390,7 @@ impl VoterExtension for ControllerHelper {
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
-                Addr::unchecked(&sender.to_string()),
+                Addr::unchecked(sender.to_string()),
                 self.voter_contract_address(),
                 &ExecuteMsg::SwapToEclipAstro {},
                 &coins(amount, denom),

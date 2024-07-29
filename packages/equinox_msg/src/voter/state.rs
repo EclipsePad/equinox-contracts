@@ -37,9 +37,8 @@ pub const DAO_TREASURY_REWARDS_FRACTION: &str = "0.2";
 
 pub const TRANSFER_ADMIN_TIMEOUT: u64 = 3600;
 
-/// blocks the contract to prevent placing votes or voting after final voting at the epoch end
-pub const IS_LOCKED: Item<bool> = Item::new("is_locked");
-
+/// Stores user functions pause flag
+pub const IS_PAUSED: Item<bool> = Item::new("is_paused");
 pub const ADDRESS_CONFIG: Item<AddressConfig> = Item::new("address_config");
 pub const TOKEN_CONFIG: Item<TokenConfig> = Item::new("token_config");
 pub const DATE_CONFIG: Item<DateConfig> = Item::new("date_config");

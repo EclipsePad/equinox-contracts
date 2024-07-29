@@ -3,16 +3,15 @@ use cosmwasm_std::{Addr, Decimal, Deps, StdError, StdResult, Storage, Uint128};
 
 use eclipse_base::converters::{str_to_dec, u128_to_dec};
 use equinox_msg::voter::{
-    msg::UserType,
     state::{
         ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DELEGATOR_ADDRESSES,
         ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS,
-        ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_LOCKED, REWARDS_CLAIM_STAGE,
+        ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
         ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
     types::{
-        EssenceAllocationItem, RewardsClaimStage, RewardsInfo, RouteItem, TokenConfig,
-        WeightAllocationItem,
+        RewardsClaimStage, RewardsInfo, RouteItem, TokenConfig, TotalEssenceAndWeightAllocation,
+        UserType, WeightAllocationItem,
     },
 };
 
@@ -26,7 +25,7 @@ use crate::{
 
 pub fn verify_weight_allocation(
     deps: Deps,
-    weight_allocation: &Vec<WeightAllocationItem>,
+    weight_allocation: &[WeightAllocationItem],
 ) -> Result<(), ContractError> {
     // check weights:
     // 1) empty
@@ -81,30 +80,25 @@ pub fn verify_weight_allocation(
     Ok(())
 }
 
-// reset is_locked on user actions on epoch start
-pub fn try_unlock_and_check(
-    storage: &mut dyn Storage,
-    block_time: u64,
-) -> Result<(), ContractError> {
-    let is_locked = try_unlock(storage, block_time)?;
-
-    if is_locked {
-        Err(ContractError::EpochEnd)?;
+/// user actions are disabled when the contract is paused
+pub fn check_pause_state(storage: &dyn Storage) -> Result<(), ContractError> {
+    if IS_PAUSED.load(storage)? {
+        Err(ContractError::ContractIsPaused)?;
     }
 
     Ok(())
 }
 
-// reset is_locked on eclipsepad-staking actions on epoch start
-pub fn try_unlock(storage: &mut dyn Storage, block_time: u64) -> Result<bool, ContractError> {
-    let mut is_locked = IS_LOCKED.load(storage)?;
-
-    if is_locked && block_time >= EPOCH_COUNTER.load(storage)?.start_date {
-        is_locked = false;
-        IS_LOCKED.save(storage, &is_locked)?;
+/// user essence allocation updates are disallowed until completing bribes collection
+pub fn check_rewards_claim_stage(storage: &dyn Storage) -> Result<(), ContractError> {
+    if !matches!(
+        REWARDS_CLAIM_STAGE.load(storage)?,
+        RewardsClaimStage::Swapped
+    ) {
+        Err(ContractError::AwaitSwappedStage)?;
     }
 
-    Ok(is_locked)
+    Ok(())
 }
 
 pub fn get_route(storage: &dyn Storage, denom: &str) -> StdResult<Vec<SwapOperation>> {
@@ -154,21 +148,22 @@ pub fn get_user_type(storage: &dyn Storage, address: &Addr) -> StdResult<UserTyp
 pub fn get_user_weights(
     storage: &dyn Storage,
     address: &Addr,
-) -> StdResult<Vec<WeightAllocationItem>> {
-    Ok(match get_user_type(storage, address)? {
-        UserType::Elector => ELECTOR_WEIGHTS.load(storage, address)?,
+    user_type: &UserType,
+) -> Vec<WeightAllocationItem> {
+    match user_type {
+        UserType::Elector => ELECTOR_WEIGHTS.load(storage, address).unwrap_or_default(),
         UserType::Delegator => DAO_WEIGHTS_ACC.load(storage).unwrap_or_default(),
         UserType::Slacker => ELECTOR_WEIGHTS_REF
             .load(storage, address)
             .unwrap_or_default(),
-    })
+    }
 }
 
 /// returns (total_essence_allocation, total_weights_allocation)
 pub fn get_total_votes(
     storage: &dyn Storage,
     block_time: u64,
-) -> StdResult<(Vec<EssenceAllocationItem>, Vec<(String, Decimal)>)> {
+) -> StdResult<TotalEssenceAndWeightAllocation> {
     // get slackers essence
     let slacker_essence = SLACKER_ESSENCE_ACC.load(storage)?;
     let elector_additional_essence_fraction = str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION);
@@ -206,7 +201,7 @@ pub fn get_total_votes(
     let total_essence_allocation = calc_updated_essence_allocation(
         &elector_essence_allocation_acc_after,
         &dao_essence_allocation_acc_after,
-        &vec![],
+        &[],
     );
     let total_weights_allocation: Vec<(String, Decimal)> = total_essence_allocation
         .iter()
@@ -218,7 +213,10 @@ pub fn get_total_votes(
         })
         .collect();
 
-    Ok((total_essence_allocation, total_weights_allocation))
+    Ok(TotalEssenceAndWeightAllocation {
+        essence: total_essence_allocation,
+        weight: total_weights_allocation,
+    })
 }
 
 /// returns (is_updated, user_rewards)

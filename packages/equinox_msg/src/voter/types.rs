@@ -4,6 +4,13 @@ use cosmwasm_std::{Addr, Decimal, Uint128};
 use eclipse_base::converters::{str_to_dec, u128_to_dec};
 
 #[cw_serde]
+pub enum UserType {
+    Elector,
+    Delegator,
+    Slacker,
+}
+
+#[cw_serde]
 pub enum RewardsClaimStage {
     Unclaimed,
     Claimed,
@@ -287,4 +294,10 @@ pub struct EpochInfo {
 pub struct TransferAdminState {
     pub new_admin: Addr,
     pub deadline: u64,
+}
+
+#[cw_serde]
+pub struct TotalEssenceAndWeightAllocation {
+    pub essence: Vec<EssenceAllocationItem>,
+    pub weight: Vec<(String, Decimal)>,
 }

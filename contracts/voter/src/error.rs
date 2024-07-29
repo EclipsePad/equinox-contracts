@@ -39,11 +39,17 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("The contract is under maintenance")]
+    ContractIsPaused,
+
     #[error("It's too early to claim rewards")]
     ClaimRewardsEarly,
 
     #[error("Wrong rewards claim stage")]
     WrongRewardsClaimStage,
+
+    #[error("Await completing rewards claim stage")]
+    AwaitSwappedStage,
 
     #[error("Unequal pools")]
     UnequalPools,

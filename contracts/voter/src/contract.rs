@@ -37,6 +37,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::Pause {} => e::try_pause(deps, env, info),
+
+        ExecuteMsg::Unpause {} => e::try_unpause(deps, env, info),
+
         ExecuteMsg::AcceptAdminRole {} => e::try_accept_admin_role(deps, env, info),
 
         ExecuteMsg::UpdateAddressConfig {
@@ -164,6 +168,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::RouteList { amount, start_from } => {
             to_json_binary(&q::query_route_list(deps, env, amount, start_from)?)
         }
+
+        QueryMsg::OperationStatus {} => to_json_binary(&q::query_operation_status(deps, env)?),
     }
 }
 

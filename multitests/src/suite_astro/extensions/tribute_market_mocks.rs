@@ -105,9 +105,8 @@ impl TributeMarketExtension for ControllerHelper {
         let mut funds: Vec<Coin> = vec![];
 
         let rewards: Vec<(Uint128, String)> = bribes_allocation
-            .into_iter()
-            .map(|x| x.rewards.clone())
-            .flatten()
+            .iter()
+            .flat_map(|x| x.rewards.clone())
             .collect();
 
         for (_amount, denom) in &rewards {
@@ -125,7 +124,7 @@ impl TributeMarketExtension for ControllerHelper {
                         if cur_denom != &x.denom {
                             acc
                         } else {
-                            acc + cur_amount
+                            acc + Uint128::new(10) * cur_amount // mul by 10 to have enough for multiple epochs
                         }
                     });
                 x
@@ -166,7 +165,7 @@ impl TributeMarketExtension for ControllerHelper {
                 Addr::unchecked(sender.to_string()),
                 self.tribute_market_contract_address(),
                 &ExecuteMsg::AllocateRewards {
-                    users: users.into_iter().map(|x| x.to_string()).collect(),
+                    users: users.iter().map(|x| x.to_string()).collect(),
                 },
                 &[],
             )

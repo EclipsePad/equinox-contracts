@@ -2,8 +2,8 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
 use super::types::{
-    EssenceAllocationItem, EssenceInfo, RewardsInfo, RouteListItem, VoteResults,
-    WeightAllocationItem,
+    EssenceAllocationItem, EssenceInfo, RewardsClaimStage, RewardsInfo, RouteListItem, UserType,
+    VoteResults, WeightAllocationItem,
 };
 
 #[cw_serde]
@@ -65,6 +65,12 @@ pub enum SudoMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
+    /// disable user actions
+    Pause {},
+
+    /// enable user actions
+    Unpause {},
+
     /// accept admin role
     AcceptAdminRole {},
 
@@ -207,6 +213,9 @@ pub enum QueryMsg {
         amount: u32,
         start_from: Option<String>,
     },
+
+    #[returns(OperationStatusResponse)]
+    OperationStatus {},
 }
 
 #[cw_serde]
@@ -219,13 +228,6 @@ pub struct UserResponse {
     pub weights: Vec<WeightAllocationItem>,
     /// rewards available to claim
     pub rewards: RewardsInfo,
-}
-
-#[cw_serde]
-pub enum UserType {
-    Elector,
-    Delegator,
-    Slacker,
 }
 
 #[cw_serde]
@@ -260,4 +262,10 @@ pub struct VoterInfoResponse {
     pub total_votes: Vec<EssenceAllocationItem>,
     /// historical data, 26 epochs max
     pub vote_results: Vec<VoteResults>,
+}
+
+#[cw_serde]
+pub struct OperationStatusResponse {
+    pub is_paused: bool,
+    pub rewards_claim_stage: RewardsClaimStage,
 }

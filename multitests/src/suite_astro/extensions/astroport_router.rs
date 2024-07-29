@@ -23,14 +23,14 @@ pub trait AstroportRouterExtension {
         sender: impl ToString,
         denom: impl ToString,
         amount: u128,
-        operations: &Vec<SwapOperation>,
+        operations: &[SwapOperation],
     ) -> StdResult<AppResponse>;
 
     fn astroport_router_try_execute_batch_swap(
         &mut self,
         sender: impl ToString,
-        operations: &Vec<SwapOperation>,
-        funds_in: &Vec<(u128, impl ToString)>,
+        operations: &[SwapOperation],
+        funds_in: &[(u128, impl ToString)],
     ) -> StdResult<AppResponse>;
 
     fn astroport_router_query_simulate_swap_operations(
@@ -95,7 +95,7 @@ impl AstroportRouterExtension for ControllerHelper {
         sender: impl ToString,
         denom: impl ToString,
         amount: u128,
-        operations: &Vec<SwapOperation>,
+        operations: &[SwapOperation],
     ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
@@ -115,11 +115,11 @@ impl AstroportRouterExtension for ControllerHelper {
     fn astroport_router_try_execute_batch_swap(
         &mut self,
         sender: impl ToString,
-        operations: &Vec<SwapOperation>,
-        funds_in: &Vec<(u128, impl ToString)>,
+        operations: &[SwapOperation],
+        funds_in: &[(u128, impl ToString)],
     ) -> StdResult<AppResponse> {
         let send_funds = &funds_in
-            .into_iter()
+            .iter()
             .map(|(amount, denom)| coin(amount.to_owned(), denom.to_string()))
             .collect::<Vec<Coin>>();
 
