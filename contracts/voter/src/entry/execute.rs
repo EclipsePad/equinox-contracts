@@ -21,20 +21,22 @@ use equinox_msg::voter::{
         TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
     types::{
-        AddressConfig, BribesAllocationItem, DateConfig, EssenceInfo, PoolInfoItem,
-        RewardsClaimStage, RouteListItem, TokenConfig, TransferAdminState, UserType, VoteResults,
-        WeightAllocationItem,
+        AddressConfig, DateConfig, EssenceInfo, PoolInfoItem, RewardsClaimStage, RouteListItem,
+        TokenConfig, TransferAdminState, UserType, VoteResults, WeightAllocationItem,
     },
 };
 
 use crate::{
     error::ContractError,
     helpers::{
-        check_pause_state, check_rewards_claim_stage, get_accumulated_rewards, get_route,
-        get_total_votes, get_user_type, get_user_weights, verify_weight_allocation,
+        check_pause_state, check_rewards_claim_stage, get_accumulated_rewards,
+        get_astro_and_xastro_supply, get_route, get_total_votes, get_user_type, get_user_weights,
+        query_astroport_bribe_allocation, query_astroport_rewards,
+        query_eclipsepad_bribe_allocation, query_eclipsepad_rewards, verify_weight_allocation,
     },
     math::{
-        calc_eclip_astro_for_xastro, calc_essence_allocation, calc_pool_info_list_with_rewards,
+        calc_eclip_astro_for_xastro, calc_essence_allocation,
+        calc_merged_pool_info_list_with_rewards, calc_pool_info_list_with_rewards,
         calc_updated_essence_allocation, calc_voter_to_tribute_voting_power_ratio,
         calc_weights_from_essence_allocation, split_dao_eclip_rewards, split_rewards,
     },
@@ -438,7 +440,6 @@ fn lock_xastro(
     recipient: &Addr,
 ) -> Result<Response, ContractError> {
     let AddressConfig {
-        astroport_staking,
         astroport_voting_escrow,
         eclipsepad_minter,
         ..
@@ -450,20 +451,7 @@ fn lock_xastro(
     } = TOKEN_CONFIG.load(deps.storage)?;
 
     // calculate eclipASTRO amount
-    let xastro_supply = deps
-        .querier
-        .query_wasm_smart::<Uint128>(
-            astroport_staking.to_string(),
-            &astroport::staking::QueryMsg::TotalShares {},
-        )
-        .unwrap_or_default();
-    let astro_supply = deps
-        .querier
-        .query_wasm_smart::<Uint128>(
-            astroport_staking.to_string(),
-            &astroport::staking::QueryMsg::TotalDeposit {},
-        )
-        .unwrap_or_default();
+    let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps.as_ref())?;
     let eclip_astro_amount =
         calc_eclip_astro_for_xastro(xastro_amount, astro_supply, xastro_supply);
 
@@ -771,10 +759,12 @@ pub fn try_vote(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 }
 
 pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let sender = &env.contract.address;
     let epoch = EPOCH_COUNTER.load(deps.storage)?;
     let rewards_claim_stage = REWARDS_CLAIM_STAGE.load(deps.storage)?;
     let AddressConfig {
         astroport_tribute_market,
+        eclipsepad_tribute_market,
         astroport_emission_controller,
         astroport_voting_escrow,
         ..
@@ -789,28 +779,17 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::Claimed)?;
 
     // check rewards
-    let rewards = deps
-        .querier
-        .query_wasm_smart::<Vec<(Uint128, String)>>(
-            astroport_tribute_market,
-            &tribute_market_mocks::msg::QueryMsg::Rewards {
-                user: env.contract.address.to_string(),
-            },
-        )
-        .unwrap_or_default();
+    let astroport_rewards = query_astroport_rewards(deps.as_ref(), sender)?;
+    let eclipsepad_rewards = query_eclipsepad_rewards(deps.as_ref(), sender)?;
 
-    if rewards.is_empty() {
+    if astroport_rewards.is_empty() && eclipsepad_rewards.is_empty() {
         Err(ContractError::RewardsAreNotFound)?;
     }
 
-    // TODO: add equinox tribute market
     // get voter bribes allocation:
     // 1) query tribute market bribes allocation
-    let tribute_market_bribe_allocation =
-        deps.querier.query_wasm_smart::<Vec<BribesAllocationItem>>(
-            astroport_tribute_market,
-            &tribute_market_mocks::msg::QueryMsg::BribesAllocation {},
-        )?;
+    let astroport_bribe_allocation = query_astroport_bribe_allocation(deps.as_ref())?;
+    let eclipsepad_bribe_allocation = query_eclipsepad_bribe_allocation(deps.as_ref())?;
 
     // 2) query voter voting power
     let voter_voting_power = deps.querier.query_wasm_smart::<Uint128>(
@@ -883,10 +862,21 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         .into_iter()
         .map(|mut x| {
             if x.epoch_id + 1 == epoch.id {
-                x.pool_info_list = calc_pool_info_list_with_rewards(
+                let astroport_pool_info_list_with_rewards = calc_pool_info_list_with_rewards(
                     &x.pool_info_list,
-                    &tribute_market_bribe_allocation,
+                    &astroport_bribe_allocation,
                     &voter_to_tribute_voting_power_ratio_allocation,
+                );
+
+                let eclipsepad_pool_info_list_with_rewards = calc_pool_info_list_with_rewards(
+                    &x.pool_info_list,
+                    &eclipsepad_bribe_allocation,
+                    &voter_to_tribute_voting_power_ratio_allocation,
+                );
+
+                x.pool_info_list = calc_merged_pool_info_list_with_rewards(
+                    &astroport_pool_info_list_with_rewards,
+                    &eclipsepad_pool_info_list_with_rewards,
                 );
             }
 
@@ -896,14 +886,22 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     VOTE_RESULTS.save(deps.storage, &vote_results)?;
 
     // claim rewards
-    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+    let mut msg_list: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: astroport_tribute_market.to_string(),
         msg: to_json_binary(&tribute_market_mocks::msg::ExecuteMsg::ClaimRewards {})?,
         funds: vec![],
-    });
+    })];
+
+    if !eclipsepad_rewards.is_empty() {
+        msg_list.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: eclipsepad_tribute_market.unwrap().to_string(),
+            msg: to_json_binary(&tribute_market_mocks::msg::ExecuteMsg::ClaimRewards {})?,
+            funds: vec![],
+        }));
+    }
 
     Ok(Response::new()
-        .add_message(msg)
+        .add_messages(msg_list)
         .add_attribute("action", "try_claim"))
 }
 

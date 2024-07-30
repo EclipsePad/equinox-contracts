@@ -235,10 +235,70 @@ fn prepare_helper() -> ControllerHelper {
         ),
     ];
 
-    h.tribute_market_try_set_bribes_allocation(owner, &bribes_allocation)
-        .unwrap();
+    h.tribute_market_try_set_bribes_allocation(
+        &h.tribute_market_contract_address(),
+        owner,
+        &bribes_allocation,
+    )
+    .unwrap();
 
     h
+}
+
+fn add_eclipsepad_tribute_market(h: &mut ControllerHelper) -> Addr {
+    let owner = &h.acc(Acc::Owner);
+
+    let eclipsepad_tribute_market_contract =
+        h.tribute_market_instantiate_contract(&h.vxastro.clone(), &h.emission_controller.clone());
+
+    h.voter_try_update_address_config(
+        owner,
+        None::<Addr>,
+        None::<Vec<Addr>>,
+        None,
+        None,
+        None,
+        None,
+        Some(eclipsepad_tribute_market_contract.clone()),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
+
+    // add bribes in tribute market
+    let bribes_allocation: Vec<BribesAllocationItem> = vec![
+        BribesAllocationItem::new(
+            h.pool(Pool::EclipAtom),
+            &[
+                (100 * INITIAL_LIQUIDITY, Denom::Eclip),
+                (100 * INITIAL_LIQUIDITY, Denom::Atom),
+            ],
+        ),
+        BribesAllocationItem::new(
+            h.pool(Pool::NtrnAtom),
+            &[
+                (200 * INITIAL_LIQUIDITY, Denom::Ntrn),
+                (120 * INITIAL_LIQUIDITY, Denom::Atom),
+            ],
+        ),
+        BribesAllocationItem::new(
+            h.pool(Pool::AstroAtom),
+            &[(100 * INITIAL_LIQUIDITY, Denom::Astro)],
+        ),
+    ];
+
+    h.tribute_market_try_set_bribes_allocation(
+        &eclipsepad_tribute_market_contract,
+        owner,
+        &bribes_allocation,
+    )
+    .unwrap();
+
+    eclipsepad_tribute_market_contract
 }
 
 #[test]
@@ -391,8 +451,8 @@ fn full_cycle() -> StdResult<()> {
     ];
     let weights_electors_expected = &vec![
         WeightAllocationItem::new(eclip_atom, "0.2"),
-        WeightAllocationItem::new(astro_atom, "0.5"),
         WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
     ];
     let weights_dao = &vec![
         WeightAllocationItem::new(eclip_atom, "0.5"),
@@ -504,11 +564,19 @@ fn full_cycle() -> StdResult<()> {
 
     // allocate rewards
     h.wait(epoch_length - vote_delay + 1);
-    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+    h.tribute_market_try_allocate_rewards(
+        &h.tribute_market_contract_address(),
+        owner,
+        &[&h.voter_contract_address(), kate],
+    )?;
 
     // check rewards allocation
-    let voter_rewards = h.tribute_market_query_rewards(h.voter_contract_address())?;
-    let kate_rewards = h.tribute_market_query_rewards(kate)?;
+    let voter_rewards = h.tribute_market_query_rewards(
+        &h.tribute_market_contract_address(),
+        h.voter_contract_address(),
+    )?;
+    let kate_rewards =
+        h.tribute_market_query_rewards(&h.tribute_market_contract_address(), kate)?;
 
     // tribute bribe allocation
     // eclip-atom: 100 atom, 100 eclip
@@ -599,22 +667,22 @@ fn full_cycle() -> StdResult<()> {
                     eclip_atom,
                     "0.33",
                     &[
-                        (24_904_729, &Denom::Eclip.to_string()),
                         (24_904_729, &Denom::Atom.to_string()),
+                        (24_904_729, &Denom::Eclip.to_string()),
+                    ],
+                ),
+                PoolInfoItem::new(
+                    ntrn_atom,
+                    "0.3",
+                    &[
+                        (120_000_000, &Denom::Atom.to_string()),
+                        (200_000_000, &Denom::Ntrn.to_string()),
                     ],
                 ),
                 PoolInfoItem::new(
                     astro_atom,
                     "0.37",
                     &[(27_105_244, &Denom::Astro.to_string())],
-                ),
-                PoolInfoItem::new(
-                    ntrn_atom,
-                    "0.3",
-                    &[
-                        (200_000_000, &Denom::Ntrn.to_string()),
-                        (120_000_000, &Denom::Atom.to_string()),
-                    ],
                 ),
             ],
         }],
@@ -663,22 +731,22 @@ fn full_cycle() -> StdResult<()> {
                     eclip_atom,
                     "0.33",
                     &[
-                        (8_553_140, &Denom::Eclip.to_string()),
                         (8_553_140, &Denom::Atom.to_string()),
+                        (8_553_140, &Denom::Eclip.to_string()),
+                    ],
+                ),
+                PoolInfoItem::new(
+                    ntrn_atom,
+                    "0.3",
+                    &[
+                        (68_000_001, &Denom::Atom.to_string()),
+                        (113_333_334, &Denom::Ntrn.to_string()),
                     ],
                 ),
                 PoolInfoItem::new(
                     astro_atom,
                     "0.37",
                     &[(20_756_268, &Denom::Astro.to_string())],
-                ),
-                PoolInfoItem::new(
-                    ntrn_atom,
-                    "0.3",
-                    &[
-                        (113_333_334, &Denom::Ntrn.to_string()),
-                        (68_000_001, &Denom::Atom.to_string()),
-                    ],
                 ),
             ],
         }],
@@ -2390,7 +2458,11 @@ fn reset_electors_and_dao_on_epoch_start() -> StdResult<()> {
 
     // allocate rewards
     h.wait(epoch_length - vote_delay + 1);
-    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address()])?;
+    h.tribute_market_try_allocate_rewards(
+        &h.tribute_market_contract_address(),
+        owner,
+        &[&h.voter_contract_address()],
+    )?;
     // claim rewards
     h.voter_try_push()?;
     // swap rewards
@@ -2480,7 +2552,11 @@ fn rotating_claim_stage() -> StdResult<()> {
     assert_error(&res, ContractError::RewardsAreNotFound);
 
     // allocate rewards
-    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address()])?;
+    h.tribute_market_try_allocate_rewards(
+        &h.tribute_market_contract_address(),
+        owner,
+        &[&h.voter_contract_address()],
+    )?;
 
     // try update essence, place vote, undelegate, delegate, claim user rewards
     h.eclipsepad_staking_try_stake(alice, 1_000, Denom::Eclip)
@@ -2719,8 +2795,8 @@ fn multiple_epochs_and_claim_rewards_single_time() -> StdResult<()> {
     ];
     let weights_electors_expected = &vec![
         WeightAllocationItem::new(eclip_atom, "0.2"),
-        WeightAllocationItem::new(astro_atom, "0.5"),
         WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
     ];
     let weights_dao = &vec![
         WeightAllocationItem::new(eclip_atom, "0.5"),
@@ -2779,7 +2855,11 @@ fn multiple_epochs_and_claim_rewards_single_time() -> StdResult<()> {
 
     // allocate rewards
     h.wait(epoch_length - vote_delay + 1);
-    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+    h.tribute_market_try_allocate_rewards(
+        &h.tribute_market_contract_address(),
+        owner,
+        &[&h.voter_contract_address(), kate],
+    )?;
 
     // claim rewards
     h.voter_try_push()?;
@@ -2813,7 +2893,11 @@ fn multiple_epochs_and_claim_rewards_single_time() -> StdResult<()> {
 
         // allocate rewards
         h.wait(epoch_length - vote_delay + 1);
-        h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+        h.tribute_market_try_allocate_rewards(
+            &h.tribute_market_contract_address(),
+            owner,
+            &[&h.voter_contract_address(), kate],
+        )?;
 
         // claim rewards
         h.voter_try_push()?;
@@ -2844,22 +2928,22 @@ fn multiple_epochs_and_claim_rewards_single_time() -> StdResult<()> {
                     eclip_atom,
                     "0.33",
                     &[
-                        (8_553_140, &Denom::Eclip.to_string()),
                         (8_553_140, &Denom::Atom.to_string()),
+                        (8_553_140, &Denom::Eclip.to_string()),
+                    ],
+                ),
+                PoolInfoItem::new(
+                    ntrn_atom,
+                    "0.3",
+                    &[
+                        (68_000_001, &Denom::Atom.to_string()),
+                        (113_333_334, &Denom::Ntrn.to_string()),
                     ],
                 ),
                 PoolInfoItem::new(
                     astro_atom,
                     "0.37",
                     &[(20_756_268, &Denom::Astro.to_string())],
-                ),
-                PoolInfoItem::new(
-                    ntrn_atom,
-                    "0.3",
-                    &[
-                        (113_333_334, &Denom::Ntrn.to_string()),
-                        (68_000_001, &Denom::Atom.to_string()),
-                    ],
                 ),
             ],
         })
@@ -2974,7 +3058,11 @@ fn vote_e1_delegate_e2_undelegate_e3() -> StdResult<()> {
 
     // allocate rewards
     h.wait(epoch_length - vote_delay + 1);
-    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+    h.tribute_market_try_allocate_rewards(
+        &h.tribute_market_contract_address(),
+        owner,
+        &[&h.voter_contract_address(), kate],
+    )?;
 
     // claim rewards
     h.voter_try_push()?;
@@ -3013,7 +3101,11 @@ fn vote_e1_delegate_e2_undelegate_e3() -> StdResult<()> {
 
     // allocate rewards
     h.wait(epoch_length - vote_delay + 1);
-    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+    h.tribute_market_try_allocate_rewards(
+        &h.tribute_market_contract_address(),
+        owner,
+        &[&h.voter_contract_address(), kate],
+    )?;
 
     // claim rewards
     h.voter_try_push()?;
@@ -3052,7 +3144,11 @@ fn vote_e1_delegate_e2_undelegate_e3() -> StdResult<()> {
 
     // allocate rewards
     h.wait(epoch_length - vote_delay + 1);
-    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+    h.tribute_market_try_allocate_rewards(
+        &h.tribute_market_contract_address(),
+        owner,
+        &[&h.voter_contract_address(), kate],
+    )?;
 
     // claim rewards
     h.voter_try_push()?;
@@ -3164,7 +3260,11 @@ fn delegate_e1_undelegate_e2_vote_e3() -> StdResult<()> {
 
     // allocate rewards
     h.wait(epoch_length - vote_delay + 1);
-    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+    h.tribute_market_try_allocate_rewards(
+        &h.tribute_market_contract_address(),
+        owner,
+        &[&h.voter_contract_address(), kate],
+    )?;
 
     // claim rewards
     h.voter_try_push()?;
@@ -3203,7 +3303,11 @@ fn delegate_e1_undelegate_e2_vote_e3() -> StdResult<()> {
 
     // allocate rewards
     h.wait(epoch_length - vote_delay + 1);
-    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+    h.tribute_market_try_allocate_rewards(
+        &h.tribute_market_contract_address(),
+        owner,
+        &[&h.voter_contract_address(), kate],
+    )?;
 
     // claim rewards
     h.voter_try_push()?;
@@ -3242,7 +3346,11 @@ fn delegate_e1_undelegate_e2_vote_e3() -> StdResult<()> {
 
     // allocate rewards
     h.wait(epoch_length - vote_delay + 1);
-    h.tribute_market_try_allocate_rewards(owner, &[&h.voter_contract_address(), kate])?;
+    h.tribute_market_try_allocate_rewards(
+        &h.tribute_market_contract_address(),
+        owner,
+        &[&h.voter_contract_address(), kate],
+    )?;
 
     // claim rewards
     h.voter_try_push()?;
@@ -3268,6 +3376,158 @@ fn delegate_e1_undelegate_e2_vote_e3() -> StdResult<()> {
     assert_that(&(alice_astro_balance_after - alice_astro_balance_before)).is_equal_to(12_453_760);
     assert_that(&(alice_atom_balance_after - alice_atom_balance_before)).is_equal_to(8_553_140);
     assert_that(&(alice_eclip_balance_after - alice_eclip_balance_before)).is_equal_to(34_262_281);
+
+    Ok(())
+}
+
+#[test]
+fn two_tribute_markets() -> StdResult<()> {
+    let mut h = prepare_helper();
+    let eclipsepad_tribute_market = add_eclipsepad_tribute_market(&mut h);
+    let ControllerHelper { xastro, .. } = &ControllerHelper::new();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let owner = &h.acc(Acc::Owner);
+    let dao = &h.acc(Acc::Dao);
+    // electors
+    let alice = &h.acc(Acc::Alice);
+    let ruby = &h.acc(Acc::Ruby);
+    // delegators
+    let bob = &h.acc(Acc::Bob);
+    let vlad = &h.acc(Acc::Vlad);
+    // slackers
+    let john = &h.acc(Acc::John);
+    // individual voters
+    let kate = &h.acc(Acc::Kate);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.4"),
+        WeightAllocationItem::new(astro_atom, "0.6"),
+    ];
+    let weights_ruby = &vec![
+        WeightAllocationItem::new(ntrn_atom, "0.6"),
+        WeightAllocationItem::new(astro_atom, "0.4"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [
+        (alice, 500),
+        (ruby, 500),
+        (bob, 500),
+        (vlad, 1_500),
+        (john, 3_000),
+    ] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    let alice_astro_balance_before = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_before = h.query_balance(alice, Denom::Eclip);
+    let ruby_astro_balance_before = h.query_balance(ruby, Denom::Astro);
+    let ruby_atom_balance_before = h.query_balance(ruby, Denom::Atom);
+    let ruby_ntrn_balance_before = h.query_balance(ruby, Denom::Ntrn);
+    let bob_eclip_balance_before = h.query_balance(bob, Denom::Eclip);
+    let vlad_eclip_balance_before = h.query_balance(vlad, Denom::Eclip);
+
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_place_vote(ruby, weights_ruby)?;
+    h.voter_try_delegate(bob)?;
+    h.voter_try_delegate(vlad)?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // vote interacting with emissions_controller directly
+    h.mint_tokens(kate, &coins(100 * INITIAL_LIQUIDITY, xastro))
+        .map_err(parse_err)?;
+    h.lock(kate, 100 * INITIAL_LIQUIDITY).map_err(parse_err)?;
+    h.vote(
+        kate,
+        &[
+            (h.pool(Pool::EclipAtom).to_string(), str_to_dec("0.5")),
+            (h.pool(Pool::AstroAtom).to_string(), str_to_dec("0.5")),
+        ],
+    )
+    .map_err(parse_err)?;
+
+    // final voting
+    let date_config = h.voter_query_date_config()?;
+    let epoch_length = date_config.epoch_length;
+    let vote_delay = date_config.vote_delay;
+    h.wait(vote_delay);
+    // vote
+    h.voter_try_push()?;
+
+    // allocate rewards
+    h.wait(epoch_length - vote_delay + 1);
+    for tribute_market in [
+        h.tribute_market_contract_address(),
+        eclipsepad_tribute_market,
+    ] {
+        h.tribute_market_try_allocate_rewards(
+            &tribute_market,
+            owner,
+            &[&h.voter_contract_address(), kate],
+        )?;
+    }
+
+    // claim rewards
+    h.voter_try_push()?;
+    // swap dao rewards to eclip
+    h.voter_try_push()?;
+
+    // check rewards
+    let alice_rewards = h.voter_query_user(alice, None)?.rewards.value;
+    let ruby_rewards = h.voter_query_user(ruby, None)?.rewards.value;
+    let bob_rewards = h.voter_query_user(bob, None)?.rewards.value;
+    let vlad_rewards = h.voter_query_user(vlad, None)?.rewards.value;
+
+    // 2x times higher rewards comparing to single tribute market case "full_cycle"
+    assert_that(&alice_rewards).is_equal_to(vec![
+        (Uint128::new(24_907_521), Denom::Astro.to_string()),
+        (Uint128::new(17_106_279), Denom::Atom.to_string()),
+        (Uint128::new(17_106_279), Denom::Eclip.to_string()),
+    ]);
+    assert_that(&ruby_rewards).is_equal_to(vec![
+        (Uint128::new(16_605_014), Denom::Astro.to_string()),
+        (Uint128::new(136_000_001), Denom::Atom.to_string()),
+        (Uint128::new(226_666_667), Denom::Ntrn.to_string()),
+    ]);
+    assert_that(&bob_rewards)
+        .is_equal_to(vec![(Uint128::new(71_087_527), Denom::Eclip.to_string())]);
+    assert_that(&vlad_rewards)
+        .is_equal_to(vec![(Uint128::new(213_262_581), Denom::Eclip.to_string())]);
+
+    // claim user rewards
+    for user in [alice, ruby, bob, vlad] {
+        h.voter_try_claim_rewards(user)?;
+    }
+
+    let alice_astro_balance_after = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_after = h.query_balance(alice, Denom::Eclip);
+    let ruby_astro_balance_after = h.query_balance(ruby, Denom::Astro);
+    let ruby_atom_balance_after = h.query_balance(ruby, Denom::Atom);
+    let ruby_ntrn_balance_after = h.query_balance(ruby, Denom::Ntrn);
+    let bob_eclip_balance_after = h.query_balance(bob, Denom::Eclip);
+    let vlad_eclip_balance_after = h.query_balance(vlad, Denom::Eclip);
+
+    assert_that(&(alice_astro_balance_after - alice_astro_balance_before)).is_equal_to(24_907_521);
+    assert_that(&(alice_atom_balance_after - alice_atom_balance_before)).is_equal_to(17_106_279);
+    assert_that(&(alice_eclip_balance_after - alice_eclip_balance_before)).is_equal_to(17_106_279);
+    assert_that(&(ruby_astro_balance_after - ruby_astro_balance_before)).is_equal_to(16_605_014);
+    assert_that(&(ruby_atom_balance_after - ruby_atom_balance_before)).is_equal_to(136_000_001);
+    assert_that(&(ruby_ntrn_balance_after - ruby_ntrn_balance_before)).is_equal_to(226_666_667);
+    assert_that(&(bob_eclip_balance_after - bob_eclip_balance_before)).is_equal_to(71_087_527);
+    assert_that(&(vlad_eclip_balance_after - vlad_eclip_balance_before)).is_equal_to(213_262_581);
 
     Ok(())
 }

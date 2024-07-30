@@ -160,6 +160,15 @@ pub struct WeightAllocationItem {
     pub weight: Decimal,
 }
 
+impl Default for WeightAllocationItem {
+    fn default() -> Self {
+        Self {
+            lp_token: String::default(),
+            weight: Decimal::zero(),
+        }
+    }
+}
+
 impl WeightAllocationItem {
     pub fn new(lp_token: impl ToString, weight: &str) -> Self {
         Self {
@@ -199,6 +208,16 @@ pub struct PoolInfoItem {
     pub rewards: Vec<(Uint128, String)>,
 }
 
+impl Default for PoolInfoItem {
+    fn default() -> Self {
+        Self {
+            lp_token: String::default(),
+            weight: Decimal::zero(),
+            rewards: vec![],
+        }
+    }
+}
+
 impl PoolInfoItem {
     pub fn new(lp_token: impl ToString, weight: &str, rewards: &[(u128, &str)]) -> Self {
         Self {
@@ -216,6 +235,15 @@ impl PoolInfoItem {
 pub struct BribesAllocationItem {
     pub lp_token: Addr,
     pub rewards: Vec<(Uint128, String)>,
+}
+
+impl Default for BribesAllocationItem {
+    fn default() -> Self {
+        Self {
+            lp_token: Addr::unchecked(String::default()),
+            rewards: vec![],
+        }
+    }
 }
 
 impl BribesAllocationItem {

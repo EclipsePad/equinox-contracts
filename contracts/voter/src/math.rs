@@ -115,47 +115,51 @@ pub fn calc_weights_from_essence_allocation(
 /// updated_essence_allocation = essence_allocation + essence_allocation_after - essence_allocation_before          \
 /// where essence_allocation - allocation for all users,                                                            \
 /// essence_allocation_after - new allocation for current user                                                      \
-/// essence_allocation_before - previous allocation for current user                                                \
-/// all vectors can have different lengths
+/// essence_allocation_before - previous allocation for current user
 pub fn calc_updated_essence_allocation(
     essence_allocation: &[EssenceAllocationItem],
     essence_allocation_after: &[EssenceAllocationItem],
     essence_allocation_before: &[EssenceAllocationItem],
 ) -> Vec<EssenceAllocationItem> {
-    let mut updated_essence_allocation = essence_allocation.to_owned();
+    let mut lp_token_list: Vec<String> = essence_allocation
+        .iter()
+        .map(|x| x.lp_token.to_owned())
+        .chain(
+            essence_allocation_after
+                .iter()
+                .map(|x| x.lp_token.to_owned()),
+        )
+        .collect();
+    lp_token_list.sort_unstable();
+    lp_token_list.dedup();
 
-    for essence_allocation_item in essence_allocation_after {
-        if essence_allocation
-            .iter()
-            .all(|x| x.lp_token != essence_allocation_item.lp_token)
-        {
-            updated_essence_allocation.push(EssenceAllocationItem {
-                lp_token: essence_allocation_item.lp_token.clone(),
-                essence_info: EssenceInfo::default(),
-            });
-        };
-    }
+    lp_token_list
+        .iter()
+        .map(|lp_token| {
+            let essence_info = essence_allocation
+                .iter()
+                .cloned()
+                .find(|x| &x.lp_token == lp_token)
+                .unwrap_or_default()
+                .essence_info;
 
-    updated_essence_allocation
-        .into_iter()
-        .map(|x| {
             let added_item = essence_allocation_after
                 .iter()
                 .cloned()
-                .find(|y| y.lp_token == x.lp_token)
+                .find(|x| &x.lp_token == lp_token)
                 .unwrap_or_default()
                 .essence_info;
 
             let subtracted_item = essence_allocation_before
                 .iter()
                 .cloned()
-                .find(|y| y.lp_token == x.lp_token)
+                .find(|x| &x.lp_token == lp_token)
                 .unwrap_or_default()
                 .essence_info;
 
             EssenceAllocationItem {
-                lp_token: x.lp_token,
-                essence_info: x.essence_info.add(&added_item).sub(&subtracted_item),
+                lp_token: lp_token.to_owned(),
+                essence_info: essence_info.add(&added_item).sub(&subtracted_item),
             }
         })
         .filter(|x| !x.essence_info.is_zero())
@@ -187,10 +191,7 @@ pub fn calc_pool_info_list_with_rewards(
                 .iter()
                 .cloned()
                 .find(|x| x.lp_token == pool_info_item.lp_token)
-                .unwrap_or(BribesAllocationItem {
-                    lp_token: Addr::unchecked(String::default()),
-                    rewards: vec![],
-                })
+                .unwrap_or_default()
                 .rewards;
 
             let (_, voter_to_tribute_voting_power_ratio) =
@@ -198,7 +199,7 @@ pub fn calc_pool_info_list_with_rewards(
                     .iter()
                     .cloned()
                     .find(|(lp_token, _)| lp_token == &pool_info_item.lp_token)
-                    .unwrap_or((String::default(), Decimal::zero()));
+                    .unwrap_or_default();
 
             if voter_to_tribute_voting_power_ratio.is_zero() {
                 pool_info_item.rewards = vec![];
@@ -214,6 +215,7 @@ pub fn calc_pool_info_list_with_rewards(
                     )
                 })
                 .collect();
+
             pool_info_item
         })
         .collect()
@@ -237,11 +239,9 @@ pub fn split_rewards(
         .map(|mut pool_info_item| {
             let dao_weight = dao_weight_list
                 .iter()
+                .cloned()
                 .find(|x| x.lp_token == pool_info_item.lp_token)
-                .unwrap_or(&WeightAllocationItem {
-                    lp_token: String::default(),
-                    weight: Decimal::zero(),
-                })
+                .unwrap_or_default()
                 .weight;
 
             let rewards_ratio = essence_ratio * dao_weight / pool_info_item.weight;
@@ -262,34 +262,10 @@ pub fn split_rewards(
         })
         .collect();
 
-    // get unique denom list
-    let mut denom_list: Vec<String> = dao_rewards_raw
-        .iter()
-        .map(|(_, denom)| denom.to_owned())
-        .collect();
-    denom_list.sort_unstable();
-    denom_list.dedup();
-
-    // aggregate rewards by denom
-    let dao_rewards: Vec<(Uint128, String)> = denom_list
-        .iter()
-        .map(|denom| {
-            let amount =
-                dao_rewards_raw
-                    .iter()
-                    .fold(Uint128::zero(), |acc, (cur_amount, cur_denom)| {
-                        if cur_denom != denom {
-                            acc
-                        } else {
-                            acc + cur_amount
-                        }
-                    });
-
-            (amount, denom.to_owned())
-        })
-        .collect();
-
-    (pool_info_list_new, dao_rewards)
+    (
+        pool_info_list_new,
+        calc_rewards_aggregated_by_denom(&dao_rewards_raw),
+    )
 }
 
 /// personal_rewards = elector_rewards * (personal_elector_essence * personal_weight) / (elector_self_essence * elector_weight)     \
@@ -336,34 +312,7 @@ pub fn calc_personal_elector_rewards(
         })
         .collect();
 
-    // get unique denom list
-    let mut denom_list: Vec<String> = personal_elector_rewards_raw
-        .iter()
-        .map(|(_, denom)| denom.to_string())
-        .collect();
-    denom_list.sort_unstable();
-    denom_list.dedup();
-
-    // aggregate rewards by denom
-    let personal_elector_rewards: Vec<(Uint128, String)> = denom_list
-        .iter()
-        .map(|denom| {
-            let amount = personal_elector_rewards_raw.iter().fold(
-                Uint128::zero(),
-                |acc, (cur_amount, cur_denom)| {
-                    if cur_denom != denom {
-                        acc
-                    } else {
-                        acc + cur_amount
-                    }
-                },
-            );
-
-            (amount, denom.to_owned())
-        })
-        .collect();
-
-    personal_elector_rewards
+    calc_rewards_aggregated_by_denom(&personal_elector_rewards_raw)
 }
 
 /// dao_eclip_rewards -> (dao_treasury_eclip_rewards, delegator_rewards)                \
@@ -392,4 +341,152 @@ pub fn calc_delegator_rewards(
         .to_uint_floor();
 
     dao_delegators_eclip_rewards * delegator_essence / dao_self_essence
+}
+
+pub fn calc_rewards_aggregated_by_denom(
+    raw_rewards: &[(Uint128, String)],
+) -> Vec<(Uint128, String)> {
+    let mut denom_list: Vec<String> = raw_rewards
+        .iter()
+        .map(|(_, denom)| denom.to_owned())
+        .collect();
+    denom_list.sort_unstable();
+    denom_list.dedup();
+
+    denom_list
+        .iter()
+        .map(|denom| {
+            let amount =
+                raw_rewards
+                    .iter()
+                    .fold(Uint128::zero(), |acc, (cur_amount, cur_denom)| {
+                        if cur_denom != denom {
+                            acc
+                        } else {
+                            acc + cur_amount
+                        }
+                    });
+
+            (amount, denom.to_owned())
+        })
+        .collect()
+}
+
+pub fn calc_merged_rewards(
+    rewards_a: &[(Uint128, String)],
+    rewards_b: &[(Uint128, String)],
+) -> Vec<(Uint128, String)> {
+    let mut rewards_denom_list: Vec<String> = rewards_a
+        .iter()
+        .map(|(_, denom)| denom.to_owned())
+        .chain(rewards_b.iter().map(|(_, denom)| denom.to_owned()))
+        .collect();
+    rewards_denom_list.sort_unstable();
+    rewards_denom_list.dedup();
+
+    rewards_denom_list
+        .iter()
+        .map(|rewards_denom| {
+            let (amount_a, _) = rewards_a
+                .iter()
+                .cloned()
+                .find(|(_, denom)| denom == rewards_denom)
+                .unwrap_or_default();
+
+            let (amount_b, _) = rewards_b
+                .iter()
+                .cloned()
+                .find(|(_, denom)| denom == rewards_denom)
+                .unwrap_or_default();
+
+            (amount_a + amount_b, rewards_denom.to_owned())
+        })
+        .collect()
+}
+
+pub fn calc_merged_bribe_allocations(
+    astroport_bribe_allocation: &[BribesAllocationItem],
+    eclipsepad_bribe_allocation: &[BribesAllocationItem],
+) -> Vec<BribesAllocationItem> {
+    let mut lp_token_list: Vec<Addr> = astroport_bribe_allocation
+        .iter()
+        .map(|x| x.lp_token.to_owned())
+        .chain(
+            eclipsepad_bribe_allocation
+                .iter()
+                .map(|x| x.lp_token.to_owned()),
+        )
+        .collect();
+    lp_token_list.sort_unstable();
+    lp_token_list.dedup();
+
+    lp_token_list
+        .iter()
+        .map(|lp_token| {
+            let astroport_rewards = astroport_bribe_allocation
+                .iter()
+                .cloned()
+                .find(|x| x.lp_token == lp_token)
+                .unwrap_or_default()
+                .rewards;
+
+            let eclipsepad_rewards = eclipsepad_bribe_allocation
+                .iter()
+                .cloned()
+                .find(|x| x.lp_token == lp_token)
+                .unwrap_or_default()
+                .rewards;
+
+            BribesAllocationItem {
+                lp_token: lp_token.to_owned(),
+                rewards: calc_merged_rewards(&astroport_rewards, &eclipsepad_rewards),
+            }
+        })
+        .collect()
+}
+
+pub fn calc_merged_pool_info_list_with_rewards(
+    pool_info_list_with_rewards_a: &[PoolInfoItem],
+    pool_info_list_with_rewards_b: &[PoolInfoItem],
+) -> Vec<PoolInfoItem> {
+    let mut lp_token_list: Vec<String> = pool_info_list_with_rewards_a
+        .iter()
+        .map(|x| x.lp_token.to_owned())
+        .chain(
+            pool_info_list_with_rewards_b
+                .iter()
+                .map(|x| x.lp_token.to_owned()),
+        )
+        .collect();
+    lp_token_list.sort_unstable();
+    lp_token_list.dedup();
+
+    lp_token_list
+        .iter()
+        .map(|lp_token| {
+            let pool_info_a = pool_info_list_with_rewards_a
+                .iter()
+                .cloned()
+                .find(|x| &x.lp_token == lp_token)
+                .unwrap_or_default();
+
+            let pool_info_b = pool_info_list_with_rewards_b
+                .iter()
+                .cloned()
+                .find(|x| &x.lp_token == lp_token)
+                .unwrap_or_default();
+
+            let weight = if !pool_info_a.weight.is_zero() {
+                pool_info_a.weight
+            } else {
+                pool_info_b.weight
+            };
+
+            PoolInfoItem {
+                lp_token: lp_token.to_owned(),
+                weight,
+                rewards: calc_merged_rewards(&pool_info_a.rewards, &pool_info_b.rewards),
+            }
+        })
+        .collect()
 }
