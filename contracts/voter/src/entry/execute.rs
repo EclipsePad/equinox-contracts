@@ -31,17 +31,16 @@ use crate::{
     helpers::{
         check_pause_state, check_rewards_claim_stage, get_accumulated_rewards,
         get_astro_and_xastro_supply, get_route, get_total_votes, get_user_type, get_user_weights,
-        query_astroport_rewards, query_eclipsepad_rewards, verify_weight_allocation,
+        query_astroport_bribe_allocation, query_astroport_rewards,
+        query_eclipsepad_bribe_allocation, query_eclipsepad_rewards, verify_weight_allocation,
     },
     math::{
-        calc_eclip_astro_for_xastro, calc_essence_allocation, calc_merged_rewards,
-        calc_pool_info_list_with_rewards, calc_updated_essence_allocation,
-        calc_voter_to_tribute_voting_power_ratio, calc_weights_from_essence_allocation,
-        split_dao_eclip_rewards, split_rewards,
+        calc_eclip_astro_for_xastro, calc_essence_allocation,
+        calc_merged_pool_info_list_with_rewards, calc_pool_info_list_with_rewards,
+        calc_updated_essence_allocation, calc_voter_to_tribute_voting_power_ratio,
+        calc_weights_from_essence_allocation, split_dao_eclip_rewards, split_rewards,
     },
 };
-
-use super::query::query_bribes_allocation;
 
 pub fn try_pause(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = &info.sender;
@@ -782,15 +781,15 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     // check rewards
     let astroport_rewards = query_astroport_rewards(deps.as_ref(), sender)?;
     let eclipsepad_rewards = query_eclipsepad_rewards(deps.as_ref(), sender)?;
-    let rewards = calc_merged_rewards(&astroport_rewards, &eclipsepad_rewards);
 
-    if rewards.is_empty() {
+    if astroport_rewards.is_empty() && eclipsepad_rewards.is_empty() {
         Err(ContractError::RewardsAreNotFound)?;
     }
 
     // get voter bribes allocation:
     // 1) query tribute market bribes allocation
-    let tribute_market_bribe_allocation = query_bribes_allocation(deps.as_ref(), env.clone())?;
+    let astroport_bribe_allocation = query_astroport_bribe_allocation(deps.as_ref())?;
+    let eclipsepad_bribe_allocation = query_eclipsepad_bribe_allocation(deps.as_ref())?;
 
     // 2) query voter voting power
     let voter_voting_power = deps.querier.query_wasm_smart::<Uint128>(
@@ -863,10 +862,21 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         .into_iter()
         .map(|mut x| {
             if x.epoch_id + 1 == epoch.id {
-                x.pool_info_list = calc_pool_info_list_with_rewards(
+                let astroport_pool_info_list_with_rewards = calc_pool_info_list_with_rewards(
                     &x.pool_info_list,
-                    &tribute_market_bribe_allocation,
+                    &astroport_bribe_allocation,
                     &voter_to_tribute_voting_power_ratio_allocation,
+                );
+
+                let eclipsepad_pool_info_list_with_rewards = calc_pool_info_list_with_rewards(
+                    &x.pool_info_list,
+                    &eclipsepad_bribe_allocation,
+                    &voter_to_tribute_voting_power_ratio_allocation,
+                );
+
+                x.pool_info_list = calc_merged_pool_info_list_with_rewards(
+                    &astroport_pool_info_list_with_rewards,
+                    &eclipsepad_pool_info_list_with_rewards,
                 );
             }
 

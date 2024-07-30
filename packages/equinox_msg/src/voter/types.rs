@@ -160,6 +160,15 @@ pub struct WeightAllocationItem {
     pub weight: Decimal,
 }
 
+impl Default for WeightAllocationItem {
+    fn default() -> Self {
+        Self {
+            lp_token: String::default(),
+            weight: Decimal::zero(),
+        }
+    }
+}
+
 impl WeightAllocationItem {
     pub fn new(lp_token: impl ToString, weight: &str) -> Self {
         Self {
@@ -197,6 +206,16 @@ pub struct PoolInfoItem {
     pub lp_token: String,
     pub weight: Decimal,
     pub rewards: Vec<(Uint128, String)>,
+}
+
+impl Default for PoolInfoItem {
+    fn default() -> Self {
+        Self {
+            lp_token: String::default(),
+            weight: Decimal::zero(),
+            rewards: vec![],
+        }
+    }
 }
 
 impl PoolInfoItem {

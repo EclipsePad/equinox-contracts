@@ -199,7 +199,7 @@ pub fn calc_pool_info_list_with_rewards(
                     .iter()
                     .cloned()
                     .find(|(lp_token, _)| lp_token == &pool_info_item.lp_token)
-                    .unwrap_or((String::default(), Decimal::zero()));
+                    .unwrap_or_default();
 
             if voter_to_tribute_voting_power_ratio.is_zero() {
                 pool_info_item.rewards = vec![];
@@ -215,6 +215,7 @@ pub fn calc_pool_info_list_with_rewards(
                     )
                 })
                 .collect();
+
             pool_info_item
         })
         .collect()
@@ -238,11 +239,9 @@ pub fn split_rewards(
         .map(|mut pool_info_item| {
             let dao_weight = dao_weight_list
                 .iter()
+                .cloned()
                 .find(|x| x.lp_token == pool_info_item.lp_token)
-                .unwrap_or(&WeightAllocationItem {
-                    lp_token: String::default(),
-                    weight: Decimal::zero(),
-                })
+                .unwrap_or_default()
                 .weight;
 
             let rewards_ratio = essence_ratio * dao_weight / pool_info_item.weight;
@@ -427,20 +426,66 @@ pub fn calc_merged_bribe_allocations(
             let astroport_rewards = astroport_bribe_allocation
                 .iter()
                 .cloned()
-                .find(|x| &x.lp_token == lp_token)
+                .find(|x| x.lp_token == lp_token)
                 .unwrap_or_default()
                 .rewards;
 
             let eclipsepad_rewards = eclipsepad_bribe_allocation
                 .iter()
                 .cloned()
-                .find(|x| &x.lp_token == lp_token)
+                .find(|x| x.lp_token == lp_token)
                 .unwrap_or_default()
                 .rewards;
 
             BribesAllocationItem {
                 lp_token: lp_token.to_owned(),
                 rewards: calc_merged_rewards(&astroport_rewards, &eclipsepad_rewards),
+            }
+        })
+        .collect()
+}
+
+pub fn calc_merged_pool_info_list_with_rewards(
+    pool_info_list_with_rewards_a: &[PoolInfoItem],
+    pool_info_list_with_rewards_b: &[PoolInfoItem],
+) -> Vec<PoolInfoItem> {
+    let mut lp_token_list: Vec<String> = pool_info_list_with_rewards_a
+        .iter()
+        .map(|x| x.lp_token.to_owned())
+        .chain(
+            pool_info_list_with_rewards_b
+                .iter()
+                .map(|x| x.lp_token.to_owned()),
+        )
+        .collect();
+    lp_token_list.sort_unstable();
+    lp_token_list.dedup();
+
+    lp_token_list
+        .iter()
+        .map(|lp_token| {
+            let pool_info_a = pool_info_list_with_rewards_a
+                .iter()
+                .cloned()
+                .find(|x| &x.lp_token == lp_token)
+                .unwrap_or_default();
+
+            let pool_info_b = pool_info_list_with_rewards_b
+                .iter()
+                .cloned()
+                .find(|x| &x.lp_token == lp_token)
+                .unwrap_or_default();
+
+            let weight = if !pool_info_a.weight.is_zero() {
+                pool_info_a.weight
+            } else {
+                pool_info_b.weight
+            };
+
+            PoolInfoItem {
+                lp_token: lp_token.to_owned(),
+                weight,
+                rewards: calc_merged_rewards(&pool_info_a.rewards, &pool_info_b.rewards),
             }
         })
         .collect()
