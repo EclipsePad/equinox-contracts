@@ -145,16 +145,6 @@ fn store_astroport_vesting(app: &mut TestApp) -> u64 {
     app.store_code(contract)
 }
 
-fn store_eclipastro(app: &mut TestApp) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        eclipastro_token::contract::execute,
-        eclipastro_token::contract::instantiate,
-        eclipastro_token::contract::query,
-    ));
-
-    app.store_code(contract)
-}
-
 fn store_converter(app: &mut TestApp) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
         token_converter::contract::execute,
@@ -483,7 +473,6 @@ impl SuiteBuilder {
                 None,
             )
             .unwrap();
-        let eclipastro_id = store_eclipastro(&mut app);
         let converter_id = store_converter(&mut app);
         let converter_contract = app
             .instantiate_contract(
@@ -495,8 +484,6 @@ impl SuiteBuilder {
                     xastro: xastro.clone(),
                     treasury: Addr::unchecked(TREASURY.to_string()).to_string(),
                     staking_contract: astro_staking_contract.clone(),
-                    token_code_id: eclipastro_id,
-                    marketing: None,
                 },
                 &[],
                 "converter",
