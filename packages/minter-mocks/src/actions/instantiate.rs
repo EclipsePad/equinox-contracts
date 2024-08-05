@@ -1,11 +1,11 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, StdResult};
 use cw2::set_contract_version;
 
 use eclipse_base::{
     error::ContractError,
     minter::{
         msg::InstantiateMsg,
-        state::{CONFIG, CONTRACT_NAME, CW20_CODE_ID},
+        state::{CONFIG, CONTRACT_NAME, IS_PAUSED, MAX_TOKENS_PER_OWNER},
         types::Config,
     },
 };
@@ -20,11 +20,25 @@ pub fn try_instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    let sender = &info.sender;
+
+    IS_PAUSED.save(deps.storage, &false)?;
     CONFIG.save(
         deps.storage,
         &Config {
-            admin: info.sender,
-            cw20_code_id: Some(msg.cw20_code_id.unwrap_or(CW20_CODE_ID)),
+            admin: sender.to_owned(),
+            whitelist: msg
+                .whitelist
+                .unwrap_or(vec![sender.to_string()])
+                .iter()
+                .map(|x| deps.api.addr_validate(x))
+                .collect::<StdResult<Vec<Addr>>>()?,
+            cw20_code_id: msg.cw20_code_id,
+            permissionless_token_creation: msg.permissionless_token_creation.unwrap_or_default(),
+            permissionless_token_registration: msg
+                .permissionless_token_registration
+                .unwrap_or_default(),
+            max_tokens_per_owner: msg.max_tokens_per_owner.unwrap_or(MAX_TOKENS_PER_OWNER),
         },
     )?;
 

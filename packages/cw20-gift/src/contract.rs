@@ -21,6 +21,7 @@ use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{
     MinterData, TokenInfo, Whitelist, BALANCES, LOGO, MARKETING_INFO, TOKEN_INFO, WHITELIST,
+    WHITELIST_ADMIN,
 };
 
 // version info for migration info
@@ -94,7 +95,7 @@ fn verify_logo(logo: &Logo) -> Result<(), ContractError> {
 pub fn instantiate(
     mut deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -153,6 +154,7 @@ pub fn instantiate(
     }
 
     WHITELIST.save(deps.storage, &Whitelist::default())?;
+    WHITELIST_ADMIN.save(deps.storage, &info.sender)?;
 
     Ok(Response::default())
 }
@@ -518,12 +520,7 @@ pub fn execute_update_whitelist(
     senders: Option<Vec<String>>,
     recipients: Option<Vec<String>>,
 ) -> Result<Response, ContractError> {
-    let config = TOKEN_INFO
-        .may_load(deps.storage)?
-        .ok_or(ContractError::Unauthorized {})?;
-
-    let mint = config.mint.as_ref().ok_or(ContractError::Unauthorized {})?;
-    if mint.minter != info.sender {
+    if info.sender != WHITELIST_ADMIN.load(deps.storage)? {
         Err(ContractError::Unauthorized {})?;
     }
 

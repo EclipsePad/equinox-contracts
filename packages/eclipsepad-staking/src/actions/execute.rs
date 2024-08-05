@@ -5,7 +5,6 @@ use cosmwasm_std::{
 use cw_storage_plus::Bound;
 
 use eclipse_base::{
-    assets::TokenUnverified,
     error::ContractError,
     staking::{
         state::{
@@ -1178,9 +1177,9 @@ pub fn try_bond(
     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: beclip_minter.to_string(),
         msg: to_json_binary(&eclipse_base::minter::msg::ExecuteMsg::Mint {
-            token: TokenUnverified::new_cw20(beclip_address.as_str()),
+            denom_or_address: beclip_address.to_string(),
             amount: amount_to_mint,
-            recipient: sender.to_string(),
+            recipient: Some(sender.to_string()),
         })?,
         funds: vec![],
     });
@@ -1389,9 +1388,9 @@ pub fn try_bond_for(
             Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: beclip_minter.to_string(),
                 msg: to_json_binary(&eclipse_base::minter::msg::ExecuteMsg::Mint {
-                    token: TokenUnverified::new_cw20(beclip_address.as_str()),
+                    denom_or_address: beclip_address.to_string(),
                     amount: amount_to_mint,
-                    recipient,
+                    recipient: Some(recipient),
                 })?,
                 funds: vec![],
             }))

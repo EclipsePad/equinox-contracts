@@ -49,6 +49,9 @@ pub enum ContractError {
     #[error("Sender does not have access permissions!")]
     Unauthorized,
 
+    #[error("Parameters are not provided!")]
+    NoParameters,
+
     #[error("Wrong message type!")]
     WrongMessageType,
 
@@ -255,6 +258,10 @@ pub enum ContractError {
 
     #[error("Network duplication!")]
     NetworkDuplication,
+
+    // ------------------------------ minter ----------------------------------------
+    #[error("Exceeded tokens per owner limit!")]
+    TokenLimit,
 
     // ------------------------------  ----------------------------------------
     #[error("Denom already exists!")]
