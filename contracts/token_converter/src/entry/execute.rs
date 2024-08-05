@@ -1,10 +1,10 @@
 use astroport::staking::ExecuteMsg;
 use cosmwasm_std::{
-    ensure, ensure_eq, ensure_ne, to_json_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo,
-    Response, Uint128, WasmMsg,
+    coin, ensure, ensure_eq, ensure_ne, to_json_binary, Addr, Coin, CosmosMsg, DepsMut, Env,
+    MessageInfo, Response, Uint128, WasmMsg,
 };
+use osmosis_std::types::osmosis::tokenfactory::v1beta1 as OsmosisFactory;
 
-use cw20::Cw20ExecuteMsg;
 use cw_utils::one_coin;
 use equinox_msg::token_converter::{CallbackMsg, RewardConfig, RewardResponse, UpdateConfig};
 use equinox_msg::voter::ExecuteMsg as VoterExecuteMsg;
@@ -89,7 +89,11 @@ pub fn update_owner(
         .add_attribute("to", new_owner))
 }
 
-pub fn _claim(deps: DepsMut, treasury_claim_amount: Uint128) -> Result<Response, ContractError> {
+pub fn _claim(
+    deps: DepsMut,
+    env: Env,
+    treasury_claim_amount: Uint128,
+) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let reward_config = REWARD_CONFIG.load(deps.storage)?;
     let mut total_stake_info = TOTAL_STAKE_INFO.load(deps.storage).unwrap_or_default();
@@ -109,6 +113,7 @@ pub fn _claim(deps: DepsMut, treasury_claim_amount: Uint128) -> Result<Response,
     );
     // add message to mint eclipASTRO to single_staking_contract
     let mut msgs = vec![mint_eclipastro_msg(
+        env.contract.address,
         config.single_staking_contract.clone().unwrap().to_string(),
         res.0.users_reward.amount,
         config.eclipastro.to_string(),
@@ -175,7 +180,7 @@ pub fn _claim(deps: DepsMut, treasury_claim_amount: Uint128) -> Result<Response,
 }
 
 /// claim user rewards
-pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     // only staking reward distributor contract can execute this function
     ensure_eq!(
@@ -183,18 +188,18 @@ pub fn claim(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, Co
         config.single_staking_contract.unwrap(),
         ContractError::Unauthorized {}
     );
-    _claim(deps, Uint128::zero())
+    _claim(deps, env, Uint128::zero())
 }
 
 /// claim treasury rewards
 pub fn claim_treasury_reward(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-    _claim(deps, amount)
+    _claim(deps, env, amount)
 }
 
 /// withdraw xtoken
@@ -263,7 +268,7 @@ fn handle_convert_astro(
 
     let xastro_balance = deps
         .querier
-        .query_balance(env.contract.address, config.xastro.clone())?;
+        .query_balance(env.contract.address.clone(), config.xastro.clone())?;
     let converted_xastro = xastro_balance.amount - prev_xastro_balance;
     let xastro_token = Coin {
         denom: config.xastro,
@@ -275,6 +280,7 @@ fn handle_convert_astro(
             xastro_token.clone(),
         )?,
         mint_eclipastro_msg(
+            env.contract.address,
             receiver,
             astro_amount_to_convert,
             config.eclipastro.to_string(),
@@ -340,6 +346,7 @@ pub fn try_convert(
             received_token.clone(),
         )?,
         mint_eclipastro_msg(
+            env.contract.address,
             receiver.clone(),
             eclipastro_amount,
             config.eclipastro.to_string(),
@@ -380,16 +387,15 @@ pub fn withdraw_xastro_msg(
 }
 
 pub fn mint_eclipastro_msg(
+    sender: Addr,
     receiver: String,
     amount: Uint128,
     eclipastro: String,
 ) -> Result<CosmosMsg, ContractError> {
-    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: eclipastro,
-        msg: to_json_binary(&Cw20ExecuteMsg::Mint {
-            recipient: receiver,
-            amount,
-        })?,
-        funds: vec![],
-    }))
+    Ok(OsmosisFactory::MsgMint {
+        sender: sender.to_string(),
+        amount: Some(coin(amount.u128(), eclipastro).into()),
+        mint_to_address: receiver,
+    }
+    .into())
 }

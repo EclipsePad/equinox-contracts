@@ -1,8 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Env, StdResult, Uint128, WasmMsg};
 
-use crate::token::InstantiateMarketingInfo;
-
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
@@ -15,10 +13,6 @@ pub struct InstantiateMsg {
     pub staking_contract: Addr,
     /// Eclipse treasury
     pub treasury: String,
-    /// eclipASTRO token code id
-    pub token_code_id: u64,
-    /// eclipASTRO marketing info
-    pub marketing: Option<InstantiateMarketingInfo>,
 }
 
 #[cw_serde]
@@ -122,7 +116,7 @@ pub struct Config {
     /// ASTRO staking contract
     pub staking_contract: Addr,
     /// eclipASTRO token
-    pub eclipastro: Addr,
+    pub eclipastro: String,
     /// Eclipse vxASTRO holder contract
     pub vxastro_holder: Option<Addr>,
     /// Eclipse treasury

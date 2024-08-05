@@ -1,5 +1,8 @@
 use astroport::{asset::Asset, incentives::QueryMsg as IncentivesQueryMsg};
-use cosmwasm_std::{Addr, Decimal256, Deps, Env, StdResult, Uint128};
+use cosmwasm_std::{
+    Addr, BankQuery, Coin, Decimal256, Deps, Env, QuerierWrapper, QueryRequest, StdResult,
+    SupplyResponse, Uint128,
+};
 use equinox_msg::lp_staking::{
     Config, RewardAmount, RewardConfig, RewardWeight, UserStaking, VaultRewards,
 };
@@ -61,6 +64,19 @@ pub fn query_reward_weights(deps: Deps, env: Env) -> StdResult<Vec<RewardWeight>
     Ok(updated_reward_weights)
 }
 
+pub fn query_user_reward_weights(
+    deps: Deps,
+    _env: Env,
+    user: String,
+) -> StdResult<Vec<RewardWeight>> {
+    let user_staking = STAKING.load(deps.storage, &user).unwrap_or_default();
+    // let astroport_rewards = calculate_incentive_pending_rewards(deps, env.contract.address)?;
+    // let vault_rewards = calculate_vault_rewards(deps, env.block.time.seconds())?;
+    // let updated_reward_weights =
+    //     calculate_updated_reward_weights(deps, astroport_rewards, vault_rewards)?;
+    Ok(user_staking.reward_weights)
+}
+
 pub fn calculate_user_staking_rewards(
     deps: Deps,
     user: String,
@@ -99,7 +115,7 @@ pub fn calculate_incentive_pending_rewards(deps: Deps, contract: Addr) -> StdRes
     Ok(deps
         .querier
         .query_wasm_smart(
-            &cfg.astroport_generator,
+            &cfg.astroport_incentives,
             &IncentivesQueryMsg::PendingRewards {
                 lp_token: cfg.lp_token.to_string(),
                 user: contract.to_string(),
@@ -243,4 +259,14 @@ pub fn calculate_updated_reward_weights(
         }
     }
     Ok(reward_weights)
+}
+
+pub fn check_native_token_denom(querier: &QuerierWrapper, denom: String) -> StdResult<bool> {
+    let total_supply = query_native_token_supply(querier, denom)?;
+    Ok(!total_supply.amount.is_zero())
+}
+
+pub fn query_native_token_supply(querier: &QuerierWrapper, denom: String) -> StdResult<Coin> {
+    let supply: SupplyResponse = querier.query(&QueryRequest::Bank(BankQuery::Supply { denom }))?;
+    Ok(supply.amount)
 }

@@ -1,11 +1,11 @@
 [package]
-name                    = "token-converter"
+name                    = "lp-depositor"
 version.workspace       = true
 edition.workspace       = true
 repository.workspace    = true
 authors.workspace       = true
 license.workspace       = true
-description             = "implementation of Eclipse's ASTRO to eclipASTRO converter and xASTRO staking reward calculator"
+description             = "convert ASTRO/xASTRO to eclipASTRO and xASTRO, deposit them to Astroport eclipASTRO-xASTRO lp"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -27,4 +27,3 @@ semver                  = { workspace = true }
 thiserror               = { workspace = true }
 equinox-msg             = { workspace = true }
 astroport               = { workspace = true }
-osmosis-std             = { workspace = true }

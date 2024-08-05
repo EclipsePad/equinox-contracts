@@ -1,14 +1,13 @@
 use astroport::asset::{Asset, AssetInfo};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, Uint128, WasmMsg};
-use cw20::Cw20ReceiveMsg;
 
 #[cw_serde]
 pub struct InstantiateMsg {
     /// contract owner
     pub owner: Option<Addr>,
     /// lp token
-    pub lp_token: Addr,
+    pub lp_token: AssetInfo,
     /// lp contract
     pub lp_contract: Addr,
     pub rewards: RewardDetails,
@@ -20,34 +19,44 @@ pub struct InstantiateMsg {
     pub astro_staking: Addr,
     /// eclipASTRO converter
     pub converter: Addr,
-    /// Astroport generator
-    pub astroport_generator: Addr,
-    /// Eclipse treasury. send 67.5% of 20% of generator rewards
+    /// Astroport incentives
+    pub astroport_incentives: Addr,
+    /// Eclipse treasury. send 67.5% of 20% of incentives rewards
     pub treasury: Addr,
-    /// eclipASTRO / xASTRO stability pool. send xastro converted from 12.5% of 20% of generator rewards
-    pub stability_pool: Option<Addr>,
-    /// cosmic essence reward distributor. send 20% of 20% of generator rewards
-    pub ce_reward_distributor: Option<Addr>,
+    /// eclipASTRO / xASTRO stability pool. send xastro converted from 12.5% of 20% of incentives rewards
+    pub stability_pool: Addr,
+    /// cosmic essence reward distributor. send 20% of 20% of incentives rewards
+    pub ce_reward_distributor: Addr,
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
     /// Change the owner
-    UpdateOwner { owner: String },
+    UpdateOwner {
+        owner: String,
+    },
     /// Change config
-    UpdateConfig { config: UpdateConfigMsg },
+    UpdateConfig {
+        config: UpdateConfigMsg,
+    },
     /// Change reward config
-    UpdateRewardConfig { config: RewardConfig },
-    /// This accepts a properly-encoded ReceiveMsg from a cw20 contract
-    Receive(Cw20ReceiveMsg),
+    UpdateRewardConfig {
+        config: RewardConfig,
+    },
     /// Claim rewards of user.
-    Claim { assets: Option<Vec<AssetInfo>> },
+    Claim {
+        assets: Option<Vec<AssetInfo>>,
+    },
     /// Callbacks; only callable by the contract itself.
     Callback(CallbackMsg),
     Unstake {
         amount: Uint128,
         recipient: Option<String>,
     },
+    Stake {
+        recipient: Option<String>,
+    },
+    // UpdateUserRewardWeight {},
 }
 
 #[cw_serde]
@@ -74,6 +83,8 @@ pub enum QueryMsg {
 
     #[returns(Vec<RewardWeight>)]
     RewardWeights {},
+    #[returns(Vec<RewardWeight>)]
+    UserRewardWeights { user: String },
 }
 
 #[cw_serde]
@@ -84,7 +95,7 @@ pub struct MigrateMsg {
 #[cw_serde]
 pub enum Cw20HookMsg {
     /// Stake eclipASTRO token
-    Stake {},
+    Stake { recipient: Option<String> },
 }
 
 #[cw_serde]
@@ -104,11 +115,11 @@ impl CallbackMsg {
 
 #[cw_serde]
 pub struct UpdateConfigMsg {
-    pub lp_token: Option<Addr>,
+    pub lp_token: Option<AssetInfo>,
     pub lp_contract: Option<Addr>,
     pub rewards: Option<RewardDetails>,
     pub converter: Option<Addr>,
-    pub astroport_generator: Option<Addr>,
+    pub astroport_incentives: Option<Addr>,
     pub treasury: Option<Addr>,
     pub stability_pool: Option<Addr>,
     pub ce_reward_distributor: Option<Addr>,
@@ -125,7 +136,7 @@ pub struct UpdateRewardConfigMsg {
 #[cw_serde]
 pub struct Config {
     /// lp token
-    pub lp_token: Addr,
+    pub lp_token: AssetInfo,
     /// lp contract
     pub lp_contract: Addr,
     pub rewards: RewardDetails,
@@ -137,11 +148,11 @@ pub struct Config {
     pub astro_staking: Addr,
     /// eclipASTRO converter
     pub converter: Addr,
-    /// Astroport generator
-    pub astroport_generator: Addr,
+    /// Astroport incentives
+    pub astroport_incentives: Addr,
     pub treasury: Addr,
-    pub stability_pool: Option<Addr>,
-    pub ce_reward_distributor: Option<Addr>,
+    pub stability_pool: Addr,
+    pub ce_reward_distributor: Addr,
 }
 
 #[cw_serde]

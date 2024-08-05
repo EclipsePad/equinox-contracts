@@ -6,13 +6,13 @@ use equinox_msg::lp_staking::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::{
     entry::{
         execute::{
-            _handle_callback, claim, receive_cw20, unstake, update_config, update_owner,
+            _handle_callback, claim, stake, unstake, update_config, update_owner,
             update_reward_config,
         },
         instantiate::try_instantiate,
         query::{
             query_config, query_owner, query_reward, query_reward_config, query_reward_weights,
-            query_staking, query_total_staking,
+            query_staking, query_total_staking, query_user_reward_weights,
         },
     },
     error::ContractError,
@@ -40,7 +40,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::Stake { recipient } => stake(deps, env, info, recipient),
         ExecuteMsg::Claim { assets } => {
             claim(deps, env, info.clone(), info.sender.to_string(), assets)
         }
@@ -61,6 +61,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
         QueryMsg::Reward { user } => Ok(to_json_binary(&query_reward(deps, env, user)?)?),
         QueryMsg::RewardWeights {} => Ok(to_json_binary(&query_reward_weights(deps, env)?)?),
+        QueryMsg::UserRewardWeights { user } => Ok(to_json_binary(&query_user_reward_weights(
+            deps, env, user,
+        )?)?),
     }
 }
 

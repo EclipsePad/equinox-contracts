@@ -20,6 +20,9 @@ pub enum ContractError {
     #[error("Duplicated address: {0}")]
     DuplicatedAddress(String),
 
+    #[error("Ensure list contains unique assets")]
+    DuplicatedAssets {},
+
     #[error("Amount {got} exceeds your staking {expected}")]
     ExeedingUnstakeAmount { got: u128, expected: u128 },
 
@@ -28,6 +31,9 @@ pub enum ContractError {
 
     #[error("Exceed locked amount")]
     ExceedAmount {},
+
+    #[error("Invalid asset")]
+    InvalidAsset {},
 
     #[error("Callbacks cannot be invoked externally")]
     InvalidCallbackInvoke {},

@@ -5,8 +5,8 @@ use cosmwasm_std::{
 use crate::{
     entry::{
         execute::{
-            _handle_callback, allow_users, block_users, claim, claim_all, receive_cw20, restake,
-            stake, unstake, update_config, update_owner,
+            _handle_callback, allow_users, block_users, claim, claim_all, restake, stake, unstake,
+            update_config, update_owner,
         },
         instantiate::try_instantiate,
         query::{
@@ -44,7 +44,6 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Claim {
             duration,
             locked_at,
@@ -70,15 +69,16 @@ pub fn execute(
         } => {
             let recipient = recipient.unwrap_or(info.sender.to_string());
             let locked_at = locked_at.unwrap_or_default();
+            let funds = info.funds;
             restake(
                 deps,
                 env,
+                funds,
                 RestakeData {
                     from_duration,
                     locked_at,
                     amount,
                     to_duration,
-                    add_amount: None,
                     sender: info.sender.to_string(),
                     recipient,
                 },

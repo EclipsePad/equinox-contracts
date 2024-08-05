@@ -5,10 +5,7 @@ use astroport::{
 use cosmwasm_std::{Addr, Decimal256, Uint128};
 use equinox_msg::lp_staking::{RewardAmount, RewardWeight};
 
-use crate::suite::{Suite, SuiteBuilder};
-
-const ALICE: &str = "alice";
-const BOB: &str = "bob";
+use crate::suite::{Suite, SuiteBuilder, ALICE, BOB};
 
 fn instantiate() -> Suite {
     let mut suite = SuiteBuilder::new().build();
@@ -38,8 +35,8 @@ fn instantiate() -> Suite {
             Addr::unchecked(suite.eclipastro_xastro_lp_contract()),
             vec![
                 Asset {
-                    info: AssetInfo::Token {
-                        contract_addr: Addr::unchecked(suite.eclipastro()),
+                    info: AssetInfo::NativeToken {
+                        denom: suite.eclipastro(),
                     },
                     amount: Uint128::from(1_100_000u128),
                 },
@@ -59,15 +56,12 @@ fn instantiate() -> Suite {
     suite
         .setup_pools(
             &suite.admin(),
-            vec![(
-                suite.eclipastro_xastro_lp_token_contract(),
-                Uint128::from(100u128),
-            )],
+            vec![(suite.eclipastro_xastro_lp_token(), Uint128::from(100u128))],
         )
         .unwrap();
 
     suite
-        .generator_set_tokens_per_second(&suite.admin(), 10u128)
+        .incentives_set_tokens_per_second(&suite.admin(), 10u128)
         .unwrap();
 
     let start_time = suite.get_time();
@@ -76,7 +70,7 @@ fn instantiate() -> Suite {
         .register_vesting_accounts(
             &suite.admin(),
             vec![VestingAccount {
-                address: suite.astroport_generator(),
+                address: suite.astroport_incentives(),
                 schedules: vec![VestingSchedule {
                     start_point: VestingSchedulePoint {
                         time: start_time,
@@ -121,8 +115,8 @@ fn lp_staking() {
             Addr::unchecked(suite.eclipastro_xastro_lp_contract()),
             vec![
                 Asset {
-                    info: AssetInfo::Token {
-                        contract_addr: Addr::unchecked(suite.eclipastro()),
+                    info: AssetInfo::NativeToken {
+                        denom: suite.eclipastro(),
                     },
                     amount: Uint128::from(bob_eclipastro_amount),
                 },
@@ -197,7 +191,7 @@ fn lp_staking() {
 
     let incentive_deposit = suite
         .query_incentive_deposit(
-            &suite.eclipastro_xastro_lp_token_contract(),
+            &suite.eclipastro_xastro_lp_token(),
             &suite.lp_staking_contract(),
         )
         .unwrap();
@@ -332,6 +326,21 @@ fn lp_staking() {
             },
         ]
     );
+    suite.update_time(86400 * 30);
+    assert_eq!(
+        suite.query_user_reward_weights(ALICE.to_string()).unwrap(),
+        vec![]
+    );
+    // assert_eq!(suite.query_reward_weights().unwrap(), vec![]);
+    suite
+        .send_denom(suite.eclipastro_xastro_lp_token(), BOB, 400u128, ALICE)
+        .unwrap();
+
+    suite.stake_lp_token(ALICE, 100u128).unwrap();
+    // assert_eq!(
+    //     suite.query_user_reward_weights(ALICE.to_string()).unwrap(),
+    //     vec![]
+    // );
 
     // // update time againd
     // suite.update_time(86400);

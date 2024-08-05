@@ -15,6 +15,8 @@ pub fn try_instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    msg.rewards.eclip.info.check(deps.api)?;
+    msg.rewards.beclip.info.check(deps.api)?;
 
     CONFIG.save(
         deps.storage,
@@ -24,8 +26,8 @@ pub fn try_instantiate(
             timelock_config: msg
                 .timelock_config
                 .unwrap_or(DEFAULT_TIMELOCK_CONFIG.to_vec()),
-            token_converter: msg.token_converter,
-            treasury: msg.treasury,
+            token_converter: deps.api.addr_validate(msg.token_converter.as_str())?,
+            treasury: deps.api.addr_validate(msg.treasury.as_str())?,
         },
     )?;
 

@@ -5,6 +5,8 @@ pub mod error;
 /// state on the blockchain
 pub mod state;
 
+pub mod config;
+
 pub mod entry {
     pub mod execute;
     pub mod instantiate;

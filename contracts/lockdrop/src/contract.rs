@@ -15,9 +15,9 @@ use crate::{
         },
         instantiate::try_instantiate,
         query::{
-            query_config, query_lp_lockup_info, query_lp_lockup_state, query_owner,
-            query_reward_config, query_single_lockup_info, query_single_lockup_state,
-            query_total_incentives, query_user_lp_lockup_info, query_user_single_lockup_info,
+            query_config, query_incentives, query_lp_lockup_info, query_lp_lockup_state,
+            query_owner, query_reward_config, query_single_lockup_info, query_single_lockup_state,
+            query_user_lp_lockup_info, query_user_single_lockup_info,
         },
     },
     error::ContractError,
@@ -73,7 +73,9 @@ pub fn execute(
             assets,
         } => try_claim_all_rewards(deps, env, info, stake_type, with_flexible, assets),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
-        ExecuteMsg::IncreaseIncentives {} => try_increase_incentives(deps, env, info),
+        ExecuteMsg::IncreaseIncentives { rewards } => {
+            try_increase_incentives(deps, env, info, rewards)
+        }
         ExecuteMsg::UpdateOwner { new_owner } => try_update_owner(deps, env, info, new_owner),
     }
 }
@@ -97,7 +99,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserLpLockupInfo { user } => Ok(to_json_binary(&query_user_lp_lockup_info(
             deps, env, user,
         )?)?),
-        QueryMsg::TotalIncentives {} => Ok(to_json_binary(&query_total_incentives(deps)?)?),
+        QueryMsg::Incentives { stake_type } => {
+            Ok(to_json_binary(&query_incentives(deps, stake_type)?)?)
+        }
     }
 }
 
@@ -120,7 +124,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     }
 
     ensure_eq!(
-        (version >= storage_version),
+        (version > storage_version),
         true,
         ContractError::VersionErr(storage_version.to_string())
     );
@@ -129,7 +133,5 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     }
 
-    Ok(Response::new()
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+    Ok(Response::new().add_attribute("new_contract_version", CONTRACT_VERSION))
 }

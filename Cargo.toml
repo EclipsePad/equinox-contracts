@@ -2,12 +2,12 @@
 members = [
     "contracts/*",
     "packages/*",
-    # "multitests",
+    "multitests",
 ]
 resolver = "2"
 
 [workspace.package]
-version    = "0.1.1"
+version    = "0.1.5"
 edition    = "2021"
 repository = "https://github.com/EclipsePad/equinox-contracts"
 authors    = ["Tadao Fukuda"]
@@ -21,13 +21,14 @@ cw2                     = "1.1.0"
 cw20                    = "1.1.0"
 cw20-base               = { version = "1.1.0", features = ["library"] }
 cw-controllers          = "1.0.1"
-cw-multi-test           = "1.1.0"
+cw-multi-test           = "1.2.0"
 cw-storage-plus         = "1.0.1"
 cw-utils                = "1.0.1"
 schemars                = "0.8.1"
 semver                  = "1.0.20"
 serde                   = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror               = "1.0.23"
+osmosis-std             = "0.21.0"
 
 equinox-msg             = { path = "./packages/equinox_msg" }
 eclipastro-token        = { path = "./contracts/token" }
@@ -41,18 +42,18 @@ astro-generator         = { path = "./contracts/astro_generator_test_purpose" }
 faucet                  = { path = "./contracts/faucet_test_purpose" }
 
 # gauge-contract          = { path = "./contracts/gauge_contract", features = ["library"] }
-astroport-factory       = { git = "https://github.com/astroport-fi/astroport-core.git", version = "1.7.0" }
-astroport-incentives    = { git = "https://github.com/astroport-fi/astroport-core.git", version = "1.1.0" }
-astroport-pair          = { git = "https://github.com/astroport-fi/astroport-core.git", version = "1.5.1" }
-astroport-pair-stable   = { git = "https://github.com/astroport-fi/astroport-core.git", version = "3.5.0" }
-astroport-router        = { git = "https://github.com/astroport-fi/astroport-core.git", version = "1.2.1" }
-astroport-staking       = { git = "https://github.com/astroport-fi/astroport-core.git", version = "2.1.0" }
-astroport-vesting       = { git = "https://github.com/astroport-fi/astroport-core.git", version = "1.4.0" }
-# astroport-xastro-token  = { git = "https://github.com/astroport-fi/astroport-core.git", version = "1.1.0" }
-astroport               = { git = "https://github.com/astroport-fi/astroport-core.git", version = "4.0.2" }
-# astroport-pair-stable   = { git = "https://github.com/astroport-fi/astroport-core.git", version = "3.4.0" }
-# astroport-governance    = { git = "https://github.com/astroport-fi/astroport-governance.git", version = "1.2.0" }
-astroport-tokenfactory-tracker = { git = "https://github.com/astroport-fi/astroport-core.git", version = "1.0.0" }
+astroport-factory       = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
+astroport-incentives    = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
+astroport-pair          = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
+astroport-pair-stable   = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
+astroport-router        = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
+astroport-staking       = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
+astroport-vesting       = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
+# astroport-xastro-token  = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
+astroport               = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
+# astroport-pair-stable   = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
+# astroport-governance    = { git = "https://github.com/astroport-fi/astroport-governance.git", tag = "v5.1.0" }
+astroport-tokenfactory-tracker = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
 
 [profile.release]
 opt-level = "z"
