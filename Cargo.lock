@@ -1190,7 +1190,6 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw20 1.1.2",
  "cw20-base 1.1.2",
- "cw20-gift",
  "nois",
  "serde",
  "thiserror",
@@ -1959,13 +1958,15 @@ dependencies = [
 
 [[package]]
 name = "minter-mocks"
-version = "1.0.0"
+version = "1.2.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
  "cw-utils 1.0.3",
  "cw2 1.1.2",
+ "cw20 1.1.2",
+ "cw20-base 1.1.2",
  "eclipse-base",
  "semver",
  "serde",

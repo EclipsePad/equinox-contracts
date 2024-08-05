@@ -7,7 +7,6 @@ use cosmwasm_std::{
 };
 
 use eclipse_base::{
-    assets::TokenUnverified,
     converters::{str_to_dec, u128_to_dec},
     utils::{check_funds, unwrap_field, FundsType},
 };
@@ -468,9 +467,9 @@ fn lock_xastro(
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: eclipsepad_minter.to_string(),
             msg: to_json_binary(&eclipse_base::minter::msg::ExecuteMsg::Mint {
-                token: TokenUnverified::new_native(&eclip_astro),
+                denom_or_address: eclip_astro,
                 amount: eclip_astro_amount,
-                recipient: recipient.to_string(),
+                recipient: Some(recipient.to_string()),
             })?,
             funds: vec![],
         }),

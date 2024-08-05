@@ -33,6 +33,7 @@ pub struct Whitelist {
     pub recipients: Vec<Addr>,
 }
 
+pub const WHITELIST_ADMIN: Item<Addr> = Item::new("whitelist_admin");
 pub const WHITELIST: Item<Whitelist> = Item::new("whitelist");
 pub const TOKEN_INFO: Item<TokenInfo> = Item::new("token_info");
 pub const MARKETING_INFO: Item<MarketingInfoResponse> = Item::new("marketing_info");

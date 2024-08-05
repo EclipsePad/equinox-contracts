@@ -9,11 +9,7 @@ use cw_multi_test::Executor;
 use speculoos::assert_that;
 use strum::IntoEnumIterator;
 
-use eclipse_base::{
-    assets::{Currency, Token},
-    converters::str_to_dec,
-    error::parse_err,
-};
+use eclipse_base::{converters::str_to_dec, error::parse_err};
 
 use equinox_msg::voter::{
     msg::{DaoResponse, UserResponse, VoterInfoResponse},
@@ -50,7 +46,7 @@ fn prepare_helper() -> ControllerHelper {
 
     h.astroport_router_prepare_contract();
     h.tribute_market_prepare_contract(&h.vxastro.clone(), &h.emission_controller.clone());
-    h.minter_prepare_contract();
+    h.minter_prepare_contract(&None, &None, &None, &None, &None);
     h.eclipsepad_staking_prepare_contract(
         None,
         None,
@@ -128,10 +124,13 @@ fn prepare_helper() -> ControllerHelper {
     )
     .unwrap();
 
-    h.minter_try_register_currency(
+    h.minter_try_register_native(
         owner,
-        &Currency::new(&Token::new_native(&Denom::EclipAstro.to_string()), 6),
-        &h.voter_contract_address(),
+        &Denom::EclipAstro.to_string(),
+        &None,
+        &Some(vec![h.voter_contract_address()]),
+        &None,
+        &None,
     )
     .unwrap();
 
