@@ -5,13 +5,13 @@ use std::cmp::{max, min};
 use crate::{
     config::{BPS_DENOMINATOR, ONE_DAY, REWARD_DISTRIBUTION_PERIOD},
     state::{
-        CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD_WEIGHTS, TOTAL_STAKING,
-        TOTAL_STAKING_BY_DURATION, USER_STAKED,
+        CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD_CONFIG, REWARD_WEIGHTS,
+        TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED,
     },
 };
 use equinox_msg::{
     single_sided_staking::{
-        Config, RewardWeights, StakingWithDuration, UserReward, UserRewardByDuration,
+        Config, RewardConfig, RewardWeights, StakingWithDuration, UserReward, UserRewardByDuration,
         UserRewardByLockedAt, UserStaking, UserStakingByDuration, VaultRewards,
     },
     token_converter::{QueryMsg as ConverterQueryMsg, RewardResponse},
@@ -26,6 +26,12 @@ pub fn query_owner(deps: Deps, _env: Env) -> StdResult<Addr> {
 /// query config
 pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
     let config = CONFIG.load(deps.storage)?;
+    Ok(config)
+}
+
+/// query reward config
+pub fn query_reward_config(deps: Deps, _env: Env) -> StdResult<RewardConfig> {
+    let config = REWARD_CONFIG.load(deps.storage)?;
     Ok(config)
 }
 
@@ -171,18 +177,22 @@ pub fn calculate_vault_rewards(
     last_claim_time: u64,
     current_time: u64,
 ) -> StdResult<VaultRewards> {
-    let config = CONFIG.load(deps.storage)?;
+    let reward_config = REWARD_CONFIG.load(deps.storage)?;
+    let mut time_passed = current_time - last_claim_time;
+    if reward_config.reward_end_time < current_time {
+        time_passed = reward_config.reward_end_time - last_claim_time;
+    }
     Ok(VaultRewards {
-        eclip: config
-            .rewards
+        eclip: reward_config
+            .details
             .eclip
             .daily_reward
-            .multiply_ratio(current_time - last_claim_time, ONE_DAY),
-        beclip: config
-            .rewards
+            .multiply_ratio(time_passed, ONE_DAY),
+        beclip: reward_config
+            .details
             .beclip
             .daily_reward
-            .multiply_ratio(current_time - last_claim_time, ONE_DAY),
+            .multiply_ratio(time_passed, ONE_DAY),
     })
 }
 

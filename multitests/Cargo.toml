@@ -28,7 +28,6 @@ itertools = "0.11"
 astro-generator         = { workspace = true }
 faucet                  = { workspace = true }
 equinox-msg             = { workspace = true }
-eclipastro-token        = { workspace = true }
 token-converter         = { workspace = true }
 single-sided-staking    = { workspace = true }
 voter                   = { workspace = true }

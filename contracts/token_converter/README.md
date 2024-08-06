@@ -2,7 +2,7 @@
 
 ## InstantiateMsg
 
-`owner` is contract owner for update config, `token_code_id` is eclipASTRO token code id.
+`owner` is contract owner for update config.
 
 ```json
 {
@@ -11,13 +11,6 @@
   "xastro": "native...",
   "staking_contract": "neutron...",
   "treasury": "neutron...",
-  "token_code_id": 123,
-  "marketing": {
-    "project": "...",
-    "description": "...",
-    "marketing": "...",
-    "logo": "..."
-  }
 }
 ```
 

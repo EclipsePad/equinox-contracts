@@ -3,7 +3,7 @@ use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::AdminError;
 use equinox_msg::{
     single_sided_staking::{
-        Config, RewardConfig, RewardDetail, TimeLockConfig, UpdateConfigMsg, UserReward,
+        Config, RewardDetail, RewardDetails, TimeLockConfig, UpdateConfigMsg, UserReward,
         UserRewardByDuration, UserRewardByLockedAt, UserStaking, UserStakingByDuration,
     },
     token_converter::{Reward, RewardResponse as ConverterRewardResponse},
@@ -43,20 +43,6 @@ fn update_config() {
             early_unlock_penalty_bps: 200,
             reward_multiplier: 1,
         }]),
-        rewards: Some(RewardConfig {
-            eclip: RewardDetail {
-                info: AssetInfo::NativeToken {
-                    denom: "eclip".to_string(),
-                },
-                daily_reward: Uint128::from(2_000_000u128),
-            },
-            beclip: RewardDetail {
-                info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("wasm1_beclip"),
-                },
-                daily_reward: Uint128::from(2_000_000u128),
-            },
-        }),
         token_converter: Some("wasm1_token_converter".to_string()),
         treasury: Some("wasm1_treasury".to_string()),
     };
@@ -82,20 +68,6 @@ fn update_config() {
                 early_unlock_penalty_bps: 200,
                 reward_multiplier: 1,
             }],
-            rewards: RewardConfig {
-                eclip: RewardDetail {
-                    info: AssetInfo::NativeToken {
-                        denom: "eclip".to_string(),
-                    },
-                    daily_reward: Uint128::from(2_000_000u128),
-                },
-                beclip: RewardDetail {
-                    info: AssetInfo::Token {
-                        contract_addr: Addr::unchecked("wasm1_beclip"),
-                    },
-                    daily_reward: Uint128::from(2_000_000u128),
-                }
-            },
             token_converter: Addr::unchecked("wasm1_token_converter"),
             treasury: Addr::unchecked("wasm1_treasury"),
         }
@@ -319,6 +291,26 @@ fn stake() {
 fn claim() {
     let mut suite = SuiteBuilder::new().build();
     suite.update_config();
+    suite
+        .update_single_sided_stake_reward_config(
+            &suite.admin(),
+            RewardDetails {
+                eclip: RewardDetail {
+                    info: AssetInfo::NativeToken {
+                        denom: suite.eclip(),
+                    },
+                    daily_reward: Uint128::from(1_000_000u128),
+                },
+                beclip: RewardDetail {
+                    info: AssetInfo::Token {
+                        contract_addr: Addr::unchecked(suite.beclip()),
+                    },
+                    daily_reward: Uint128::from(2_000_000u128),
+                },
+            },
+            None,
+        )
+        .unwrap();
 
     // mint beclip
     suite

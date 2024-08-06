@@ -206,13 +206,15 @@ fn lp_staking() {
     let reward_weights = suite.query_reward_weights().unwrap();
     let astro_reward_weight =
         Decimal256::from_ratio(864000u128 * 8_000 / 10_000, bob_lp_token_stake_amount);
-    let config = suite.query_lp_staking_config().unwrap();
+    let reward_config = suite.query_lp_staking_reward_config().unwrap();
     let beclip_reward_weight = Decimal256::from_ratio(
-        config.rewards.beclip.daily_reward,
+        reward_config.details.beclip.daily_reward,
         bob_lp_token_stake_amount,
     );
-    let eclip_reward_weight =
-        Decimal256::from_ratio(config.rewards.eclip.daily_reward, bob_lp_token_stake_amount);
+    let eclip_reward_weight = Decimal256::from_ratio(
+        reward_config.details.eclip.daily_reward,
+        bob_lp_token_stake_amount,
+    );
     assert_eq!(
         reward_weights,
         [

@@ -4,9 +4,9 @@ use astroport::{
     staking::ExecuteMsg as AstroStakingExecuteMsg,
 };
 use cosmwasm_std::{
-    attr, coin, ensure, ensure_eq, ensure_ne, from_json, to_json_binary, Addr, BankMsg, Coin,
-    CosmosMsg, DepsMut, Env, MessageInfo, Order, QuerierWrapper, Response, StdError, StdResult,
-    Uint128, Uint256, WasmMsg,
+    attr, coin, ensure, ensure_eq, from_json, to_json_binary, Addr, BankMsg, Coin, CosmosMsg,
+    DepsMut, Env, MessageInfo, Order, QuerierWrapper, Response, StdError, StdResult, Uint128,
+    Uint256, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
@@ -153,9 +153,8 @@ pub fn try_increase_lockup(
         check_deposit_window(deps.as_ref(), current_time).unwrap(),
         ContractError::DepositWindowClosed {}
     );
-    ensure_ne!(
-        cfg.lock_configs.iter().find(|c| c.duration == duration),
-        None,
+    ensure!(
+        cfg.lock_configs.iter().any(|c| c.duration == duration),
         ContractError::InvalidDuration(duration)
     );
     ensure!(
@@ -208,17 +207,13 @@ pub fn try_extend_lockup(
     );
     let sender = info.sender.to_string();
 
-    ensure_ne!(
-        cfg.lock_configs
-            .iter()
-            .find(|c| c.duration == from_duration),
-        None,
+    ensure!(
+        cfg.lock_configs.iter().any(|c| c.duration == from_duration),
         ContractError::InvalidDuration(from_duration)
     );
 
-    ensure_ne!(
-        cfg.lock_configs.iter().find(|c| c.duration == to_duration),
-        None,
+    ensure!(
+        cfg.lock_configs.iter().any(|c| c.duration == to_duration),
         ContractError::InvalidDuration(to_duration)
     );
 

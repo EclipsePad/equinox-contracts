@@ -2,7 +2,12 @@
 
 ## InstantiateMsg
 
-`owner` is contract owner for update config, `init_timestamp` is lockdrop start timestamp, `deposit_window` is the first part of lockdrop which allows users to deposit and withdraw assets freely, `withdrawal_window` is the second part of lockdrop which allows users to withdraw only, and withdraw only allows for each position only one time and there is withdraw amount limitation with time.
+`owner` is contract owner to update config, `init_timestamp` is lockdrop start timestamp, `deposit_window` is the first part of lockdrop which allows users to deposit and withdraw assets freely, `withdrawal_window` is the second part of lockdrop which allows users to withdraw only, and withdraw only allows for each position only one time and there is withdraw amount limitation with time.
+Optional parameters:
+`owner` default is instantiator.
+`deposit_window` default is 5 days.
+`withdrawal_window` default is 2 days.
+`lock_configs`
 
 ```json
 {
@@ -42,21 +47,11 @@
       "early_unlock_penalty_bps": 5000
     }
   ],
-  "astro_token": "neutron...",
-  "xastro_token": "neutron...",
-  "eclipastro_token": "neutron...",
-  "eclip": {
-    "denom": "factory/..."
-  },
-  "beclip": {
-    "contract_addr": "neutron..."
-  },
-  "astro_staking": "neutron...",
-  "converter": "neutron...",
-  "single_sided_staking": "neutron...",
-  "lp_staking": "neutron...",
-  "liquidity_pool": "neutron...",
-  "dao_treasury_address": "neutron..."
+  "astro_token": "factory/...",
+  "xastro_token": "factory/...",
+  "eclip": "factory/...",
+  "beclip": "neutron...",
+  "astro_staking": "neutron..."
 }
 ```
 
@@ -64,12 +59,17 @@
 
 ### `update_config`
 
-Updates treasury address which receives early unlock penalty assets
+Updates several equinox contracts' addresses for after Equinox is live.
 
 ```json
 {
   "update_config": {
     "new_config": {
+      "single_sided_staking": "neutron...",
+      "lp_staking": "neutron...",
+      "liquidity_pool": "neutron...",
+      "eclipastro_token": "factory/...",
+      "converter": "neutron...",
       "dao_treasury_address": "neutron..."
     }
   }
@@ -78,7 +78,7 @@ Updates treasury address which receives early unlock penalty assets
 
 ### `update_reward_distribution_config`
 
-Updates reward vesting config. There is no vesting in default config
+Updates reward vesting config. There is no vesting in default config.
 
 ```json
 {
@@ -200,7 +200,18 @@ Increases lockdrop incentives. Incentive apr is same for each lock duration. Onl
 
 ```json
 {
-  "increase_incentives": {}
+  "increase_incentives": {
+    "rewards":[
+      {
+        "stake_type":"single_staking",
+        "amount":"1000..."
+      },
+      {
+        "stake_type":"lp_staking",
+        "amount":"1000..."
+      }
+    ]
+  }
 }
 ```
 
@@ -316,12 +327,14 @@ Returns user's lp token staking lockup info.
 }
 ```
 
-### `total_incentives`
+### `incentives`
 
-Returns ECLIP bECLIP total incentives.
+Returns ECLIP bECLIP incentives.
 
 ```json
 {
-  "total_incentives": {}
+  "incentives": {
+    "stake_type": "single_staking"
+  }
 }
 ```

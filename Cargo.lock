@@ -753,20 +753,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "eclipastro-token"
-version = "0.1.5"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw2 1.1.2",
- "cw20 1.1.2",
- "cw20-base",
- "equinox-msg",
- "semver",
- "thiserror",
-]
-
-[[package]]
 name = "ed25519-zebra"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1074,7 +1060,6 @@ dependencies = [
  "cw-multi-test",
  "cw20 1.1.2",
  "cw20-base",
- "eclipastro-token",
  "equinox-msg",
  "faucet",
  "itertools 0.11.0",

@@ -9,25 +9,13 @@
   "owner": "neutron...",
   "lp_token": "neutron...",
   "lp_contract": "neutron...",
-  "rewards": {
-    "eclip": {
-      "info": {
-        "denom": "factory..."
-      },
-      "daily_reward": "123"
-    },
-    "beclip": {
-      "info": {
-        "contract_addr": "neutron..."
-      },
-      "daily_reward": "123"
-    }
-  },
+  "eclip": "native...",
+  "beclip": "neutron...",
   "astro": "native...",
   "xastro": "native...",
   "astro_staking": "neutron...",
   "converter": "neutron...",
-  "astroport_generator": "neutron...",
+  "astroport_incentives": "neutron...",
   "stability_pool": "neutron...",
   "ce_reward_distributor": "neutron...",
   "treasury": "neutron..."
@@ -46,9 +34,6 @@ Updates contract config
     "config": {
         "lp_token": "neutron...",
         "lp_contract": "neutron...",
-        "rewards": {
-            "..."
-        },
         "converter": "neutron...",
         "astroport_generator": "neutron...",
         "treasury": "neutron...",
@@ -66,11 +51,30 @@ Updates contract reward config
 ```json
 {
   "update_reward_config": {
-    "config": {
+    "distribution": {
       "users": 123,
       "treasury": 123,
       "ce_holders": 123,
       "stability_pool": 123
+    },
+    "reward_end_time": 123,
+    "details": {
+      "eclip": {
+        "info": {
+          "native_token": {
+            "denom": "native..."
+          }
+        },
+        "daily_reward": "123"
+      },
+      "beclip": {
+        "info": {
+          "token": {
+            "contract_addr": "neutron..."
+          }
+        },
+        "daily_reward": "123"
+      }
     }
   }
 }
@@ -88,27 +92,27 @@ Updates contract owner
 }
 ```
 
-### `receive`
-
-Stakes eclipASTRO-xASTRO lp token.
-
-```json
-{
-  "receive": {
-    "sender": "neutron...",
-    "amount": "123",
-    "msg": "<base64_encoded_json_string>"
-  }
-}
-```
-
 ### `claim`
 
 Claims rewards(ASTRO, bECLIP, ECLIP). ASTRO from Astroport lp token staking rewards, bECLIP and ECLIP from its own.
+Optionally, user can set assets to claim
 
 ```json
 {
-  "claim": {}
+  "claim": {
+    "assets": [
+      {
+        "native_token": {
+          "denom": "native..."
+        }
+      },
+      {
+        "token": {
+          "contract_addr": "neutron..."
+        }
+      }
+    ]
+  }
 }
 ```
 
@@ -200,5 +204,17 @@ Returns each asset's reward weights.
 ```json
 {
   "reward_weights": {}
+}
+```
+
+### `user_reward_weights`
+
+Returns user's reward weights.
+
+```json
+{
+  "user_reward_weights": {
+    "user": "neutron..."
+  }
 }
 ```
