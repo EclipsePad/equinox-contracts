@@ -20,8 +20,8 @@ cosmwasm-schema         = { workspace = true }
 cosmwasm-std            = { workspace = true }
 cw-controllers          = { workspace = true }
 cw-storage-plus         = { workspace = true }
+cw-utils                = { workspace = true }
 cw2                     = { workspace = true }
-cw20                    = { workspace = true }
 semver                  = { workspace = true }
 thiserror               = { workspace = true }
 astroport-governance    = { workspace = true }

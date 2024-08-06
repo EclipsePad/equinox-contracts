@@ -59,6 +59,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "astro-generator"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "astroport 5.1.0-vxastro-rc.1",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-controllers",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "equinox-msg",
+ "getrandom",
+ "osmosis-std",
+ "semver",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport"
 version = "2.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1166,6 +1186,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "eclip-faucet"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-controllers",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "getrandom",
+ "osmosis-std",
+ "semver",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "eclipastro-token"
 version = "0.1.1"
 dependencies = [
@@ -1363,12 +1401,17 @@ dependencies = [
 name = "faucet"
 version = "1.0.0"
 dependencies = [
+ "anyhow",
+ "astro-generator",
  "astroport 5.1.0-vxastro-rc.1",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-controllers",
  "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
+ "equinox-msg",
  "semver",
  "serde",
  "thiserror",
@@ -2001,7 +2044,6 @@ dependencies = [
  "astroport-tokenfactory-tracker",
  "astroport-vesting",
  "astroport-voting-escrow",
- "astroport-xastro-token",
  "builder-unlock",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -3650,8 +3692,8 @@ dependencies = [
  "cosmwasm-std",
  "cw-controllers",
  "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
  "cw2 1.1.2",
- "cw20 1.1.2",
  "eclipse-base",
  "equinox-msg",
  "semver",

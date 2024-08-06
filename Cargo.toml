@@ -16,7 +16,7 @@ license    = "Apache-2.0"
 
 [workspace.dependencies]
 anyhow                  = "1"
-cosmwasm-schema         = "1.1.0"
+cosmwasm-schema         = "1.1"
 cosmwasm-std            = "1.1"
 cw2                     = "1.1.0"
 cw20                    = "1.1.0"
@@ -50,6 +50,7 @@ single-sided-staking    = { path = "./contracts/single_sided_staking" }
 lp-staking              = { path = "./contracts/lp_staking" }
 lockdrop                = { path = "./contracts/lockdrop" }
 voter                   = { path = "./contracts/voter" }
+astro-generator         = { path = "./contracts/astro_generator_test_purpose" }
 
 # astroport-core
 # https://github.com/astroport-fi/hidden_astroport_core/tree/feat/incentivize_many

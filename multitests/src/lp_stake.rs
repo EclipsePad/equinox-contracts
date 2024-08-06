@@ -36,14 +36,12 @@ fn instantiate() -> Suite {
             vec![
                 Asset {
                     info: AssetInfo::NativeToken {
-                        denom: suite.eclipastro(),
-                    },
+                        denom: suite.eclipastro()},
                     amount: Uint128::from(1_100_000u128),
                 },
                 Asset {
                     info: AssetInfo::NativeToken {
-                        denom: suite.xastro(),
-                    },
+                        denom: suite.xastro()},
                     amount: Uint128::from(1_000_000u128),
                 },
             ],
