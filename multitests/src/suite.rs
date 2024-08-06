@@ -147,9 +147,9 @@ fn store_astroport_vesting(app: &mut TestApp) -> u64 {
 
 fn store_converter(app: &mut TestApp) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
-        eclipastro_token::contract::execute,
-        eclipastro_token::contract::instantiate,
-        eclipastro_token::contract::query,
+        token_converter::contract::execute,
+        token_converter::contract::instantiate,
+        token_converter::contract::query,
     ));
 
     app.store_code(contract)
