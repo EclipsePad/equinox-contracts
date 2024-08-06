@@ -8,20 +8,8 @@
 {
   "owner": "neutron...",
   "token": "neutron...",
-  "rewards": {
-    "eclip": {
-      "info": {
-        "denom": "factory..."
-      },
-      "daily_reward": "123"
-    },
-    "beclip": {
-      "info": {
-        "contract_addr": "neutron..."
-      },
-      "daily_reward": "123"
-    }
-  },
+  "eclip": "factory...",
+  "beclip": "neutron...",
   "timelock_config": [
     {
       "duration": 0,
@@ -69,16 +57,42 @@ Updates contract config
 {
   "update_config": {
     "config": {
-      "token": "neutron...",
       "timelock_config": [
           "..."
       ],
       "token_converter": "neutron...",
-      "rewards": {
-          "..."
-      },
       "treasury": "neutron..."
     }
+  }
+}
+```
+
+### `update_reward_config`
+
+Updates contract reward config
+
+```json
+{
+  "update_reward_config": {
+    "details": {
+      "eclip": {
+        "info": {
+          "native_token": {
+            "denom": "native..."
+          }
+        },
+        "daily_reward": "123"
+      },
+      "beclip": {
+        "info": {
+          "token": {
+            "contract_addr": "neutron..."
+          }
+        },
+        "daily_reward": "123"
+      }
+    },
+    "reward_end_time": 123
   }
 }
 ```
@@ -95,29 +109,19 @@ Updates contract owner
 }
 ```
 
-### `receive`
-
-Stakes/restakes eclipASTRO.
-
-```json
-{
-  "receive": {
-    "sender": "neutron...",
-    "amount": "123",
-    "msg": "<base64_encoded_json_string>"
-  }
-}
-```
-
 ### `claim`
 
 Claims rewards(eclipASTRO, bECLIP, ECLIP) of each duration deposits, optionally only specific deposit.
+Users can select assets to claim.
 
 ```json
 {
   "claim": {
     "duration": 123,
-    "locked_at": 123
+    "locked_at": 123,
+    "assets": [
+      "..."
+    ]
   }
 }
 ```
@@ -199,6 +203,16 @@ Returns the vault config.
 ```json
 {
   "config": {}
+}
+```
+
+### `reward_config`
+
+Returns the vault reward config.
+
+```json
+{
+  "reward_config": {}
 }
 ```
 

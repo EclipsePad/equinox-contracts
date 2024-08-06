@@ -1,37 +1,56 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use astroport::asset::AssetInfo;
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
 
 use crate::{
-    config::DEFAULT_TIMELOCK_CONFIG,
+    config::{
+        DEFAULT_BECLIP_DAILY_REWARD, DEFAULT_ECLIP_DAILY_REWARD, DEFAULT_REWARD_PERIOD,
+        DEFAULT_TIMELOCK_CONFIG,
+    },
     error::ContractError,
-    state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER},
+    state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER, REWARD_CONFIG},
 };
-use equinox_msg::single_sided_staking::{Config, InstantiateMsg};
+use equinox_msg::single_sided_staking::{
+    Config, InstantiateMsg, RewardConfig, RewardDetail, RewardDetails,
+};
 
 pub fn try_instantiate(
     mut deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    msg.rewards.eclip.info.check(deps.api)?;
-    msg.rewards.beclip.info.check(deps.api)?;
 
     CONFIG.save(
         deps.storage,
         &Config {
             token: msg.token,
-            rewards: msg.rewards,
             timelock_config: msg
                 .timelock_config
                 .unwrap_or(DEFAULT_TIMELOCK_CONFIG.to_vec()),
-            token_converter: deps.api.addr_validate(msg.token_converter.as_str())?,
-            treasury: deps.api.addr_validate(msg.treasury.as_str())?,
+            token_converter: deps.api.addr_validate(&msg.token_converter)?,
+            treasury: deps.api.addr_validate(&msg.treasury)?,
         },
     )?;
 
-    let owner = msg.owner;
+    let reward_config = RewardConfig {
+        details: RewardDetails {
+            eclip: RewardDetail {
+                info: AssetInfo::NativeToken { denom: msg.eclip },
+                daily_reward: Uint128::from(DEFAULT_ECLIP_DAILY_REWARD),
+            },
+            beclip: RewardDetail {
+                info: AssetInfo::Token {
+                    contract_addr: deps.api.addr_validate(&msg.beclip)?,
+                },
+                daily_reward: Uint128::from(DEFAULT_BECLIP_DAILY_REWARD),
+            },
+        },
+        reward_end_time: env.block.time.seconds() + DEFAULT_REWARD_PERIOD,
+    };
+    REWARD_CONFIG.save(deps.storage, &reward_config)?;
+    let owner = deps.api.addr_validate(&msg.owner)?;
     OWNER.set(deps.branch(), Some(owner))?;
     Ok(Response::new().add_attributes([("action", "instantiate token converter")]))
 }

@@ -5,28 +5,31 @@ use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, 
 #[cw_serde]
 pub struct InstantiateMsg {
     /// contract owner
-    pub owner: Option<Addr>,
+    pub owner: Option<String>,
     /// lp token
     pub lp_token: AssetInfo,
     /// lp contract
-    pub lp_contract: Addr,
-    pub rewards: RewardDetails,
+    pub lp_contract: String,
+    /// ECLIP
+    pub eclip: String,
+    /// bECLIP
+    pub beclip: String,
     /// ASTRO token
     pub astro: String,
     /// xASTRO token
     pub xastro: String,
     /// astro staking contract
-    pub astro_staking: Addr,
+    pub astro_staking: String,
     /// eclipASTRO converter
-    pub converter: Addr,
+    pub converter: String,
     /// Astroport incentives
-    pub astroport_incentives: Addr,
+    pub astroport_incentives: String,
     /// Eclipse treasury. send 67.5% of 20% of incentives rewards
-    pub treasury: Addr,
+    pub treasury: String,
     /// eclipASTRO / xASTRO stability pool. send xastro converted from 12.5% of 20% of incentives rewards
-    pub stability_pool: Addr,
+    pub stability_pool: String,
     /// cosmic essence reward distributor. send 20% of 20% of incentives rewards
-    pub ce_reward_distributor: Addr,
+    pub ce_reward_distributor: String,
 }
 
 #[cw_serde]
@@ -41,7 +44,9 @@ pub enum ExecuteMsg {
     },
     /// Change reward config
     UpdateRewardConfig {
-        config: RewardConfig,
+        distribution: Option<RewardDistribution>,
+        reward_end_time: Option<u64>,
+        details: Option<RewardDetails>,
     },
     /// Claim rewards of user.
     Claim {
@@ -117,7 +122,6 @@ impl CallbackMsg {
 pub struct UpdateConfigMsg {
     pub lp_token: Option<AssetInfo>,
     pub lp_contract: Option<Addr>,
-    pub rewards: Option<RewardDetails>,
     pub converter: Option<Addr>,
     pub astroport_incentives: Option<Addr>,
     pub treasury: Option<Addr>,
@@ -126,20 +130,11 @@ pub struct UpdateConfigMsg {
 }
 
 #[cw_serde]
-pub struct UpdateRewardConfigMsg {
-    pub users: Option<u32>,
-    pub treasury: Option<u32>,
-    pub ce_holders: Option<u32>,
-    pub stability_pool: Option<u32>,
-}
-
-#[cw_serde]
 pub struct Config {
     /// lp token
     pub lp_token: AssetInfo,
     /// lp contract
     pub lp_contract: Addr,
-    pub rewards: RewardDetails,
     /// ASTRO token
     pub astro: String,
     /// xASTRO token
@@ -156,7 +151,7 @@ pub struct Config {
 }
 
 #[cw_serde]
-pub struct RewardConfig {
+pub struct RewardDistribution {
     /// users' reward in basis point
     pub users: u32,
     /// treasury reward in basis point
@@ -165,6 +160,13 @@ pub struct RewardConfig {
     pub ce_holders: u32,
     /// stability pool reward in basis point
     pub stability_pool: u32,
+}
+
+#[cw_serde]
+pub struct RewardConfig {
+    pub distribution: RewardDistribution,
+    pub reward_end_time: u64,
+    pub details: RewardDetails,
 }
 
 #[cw_serde]

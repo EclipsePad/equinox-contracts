@@ -35,15 +35,14 @@ use equinox_msg::{
     lp_staking::{
         Config as LpStakingConfig, ExecuteMsg as LpStakingExecuteMsg,
         InstantiateMsg as LpStakingInstantiateMsg, QueryMsg as LpStakingQueryMsg,
-        RewardAmount as LpStakingRewardAmount, RewardDetail as LpStakingRewardDetail,
-        RewardDetails as LpStakingRewardDetails, RewardWeight as LpStakingRewardWeight,
-        UpdateConfigMsg as LpStakingUpdateConfigMsg, UserStaking as LpStakingUserStaking,
+        RewardAmount as LpStakingRewardAmount, RewardConfig as LpStakingRewardConfig,
+        RewardWeight as LpStakingRewardWeight, UpdateConfigMsg as LpStakingUpdateConfigMsg,
+        UserStaking as LpStakingUserStaking,
     },
     single_sided_staking::{
         Config as SingleStakingConfig, ExecuteMsg as SingleSidedStakingExecuteMsg,
         InstantiateMsg as SingleSidedStakingInstantiateMsg, QueryMsg as SingleStakingQueryMsg,
-        RewardConfig as SingleStakingRewardConfig, RewardDetail as SingleStakingRewardDetail,
-        TimeLockConfig, UpdateConfigMsg as SingleStakingUpdateConfigMsg,
+        RewardDetails, TimeLockConfig, UpdateConfigMsg as SingleStakingUpdateConfigMsg,
         UserRewardByDuration as SingleStakingUserRewardByDuration,
         UserStaking as SingleSidedUserStaking,
     },
@@ -526,21 +525,9 @@ impl SuiteBuilder {
                 single_staking_id,
                 admin.clone(),
                 &SingleSidedStakingInstantiateMsg {
-                    owner: admin.clone(),
-                    rewards: SingleStakingRewardConfig {
-                        eclip: SingleStakingRewardDetail {
-                            info: AssetInfo::NativeToken {
-                                denom: ECLIP_DENOM.to_string(),
-                            },
-                            daily_reward: Uint128::from(1_000_000u128),
-                        },
-                        beclip: SingleStakingRewardDetail {
-                            info: AssetInfo::Token {
-                                contract_addr: beclip.clone(),
-                            },
-                            daily_reward: Uint128::from(2_000_000u128),
-                        },
-                    },
+                    owner: admin.to_string(),
+                    eclip: ECLIP_DENOM.to_string(),
+                    beclip: beclip.to_string(),
                     token: eclipastro.clone(),
                     timelock_config: Some(vec![
                         TimeLockConfig {
@@ -574,8 +561,8 @@ impl SuiteBuilder {
                             reward_multiplier: 240000,
                         },
                     ]),
-                    token_converter: converter_contract.clone(),
-                    treasury: Addr::unchecked(TREASURY.to_string()),
+                    token_converter: converter_contract.to_string(),
+                    treasury: TREASURY.to_string(),
                 },
                 &[],
                 "Single Sided Staking",
@@ -650,29 +637,17 @@ impl SuiteBuilder {
                     lp_token: AssetInfo::NativeToken {
                         denom: eclipastro_xastro_lp_token.clone(),
                     },
-                    lp_contract: eclipastro_xastro_lp_contract.clone(),
-                    rewards: LpStakingRewardDetails {
-                        eclip: LpStakingRewardDetail {
-                            info: AssetInfo::NativeToken {
-                                denom: ECLIP_DENOM.to_string(),
-                            },
-                            daily_reward: Uint128::from(1_000_000u128),
-                        },
-                        beclip: LpStakingRewardDetail {
-                            info: AssetInfo::Token {
-                                contract_addr: beclip.clone(),
-                            },
-                            daily_reward: Uint128::from(2_000_000u128),
-                        },
-                    },
+                    lp_contract: eclipastro_xastro_lp_contract.to_string(),
+                    eclip: ECLIP_DENOM.to_string(),
+                    beclip: beclip.to_string(),
                     astro: ASTRO_DENOM.to_string(),
                     xastro: xastro.clone(),
-                    astro_staking: astro_staking_contract.clone(),
-                    converter: converter_contract.clone(),
-                    astroport_incentives: astroport_incentives.clone(),
-                    treasury: Addr::unchecked(TREASURY.to_string()),
-                    stability_pool: Addr::unchecked(STABILITY_POOL_REWARD_HOLDER.to_string()),
-                    ce_reward_distributor: Addr::unchecked(CE_REWARD_HOLDER.to_string()),
+                    astro_staking: astro_staking_contract.to_string(),
+                    converter: converter_contract.to_string(),
+                    astroport_incentives: astroport_incentives.to_string(),
+                    treasury: TREASURY.to_string(),
+                    stability_pool: STABILITY_POOL_REWARD_HOLDER.to_string(),
+                    ce_reward_distributor: CE_REWARD_HOLDER.to_string(),
                 },
                 &[],
                 "Eclipsefi lp staking",
@@ -1058,6 +1033,13 @@ impl Suite {
         )?;
         Ok(config)
     }
+    pub fn query_lp_staking_reward_config(&self) -> StdResult<LpStakingRewardConfig> {
+        let config: LpStakingRewardConfig = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::RewardConfig {},
+        )?;
+        Ok(config)
+    }
     pub fn lp_staking_update_config(
         &mut self,
         sender: &str,
@@ -1129,6 +1111,22 @@ impl Suite {
             Addr::unchecked(sender),
             self.single_staking_contract.clone(),
             &SingleSidedStakingExecuteMsg::UpdateConfig { config },
+            &[],
+        )
+    }
+    pub fn update_single_sided_stake_reward_config(
+        &mut self,
+        sender: &str,
+        details: RewardDetails,
+        reward_end_time: Option<u64>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::UpdateRewardConfig {
+                details: Some(details),
+                reward_end_time,
+            },
             &[],
         )
     }
