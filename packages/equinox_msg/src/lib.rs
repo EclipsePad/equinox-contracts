@@ -5,4 +5,9 @@ pub mod single_sided_staking;
 pub mod token;
 pub mod token_converter;
 pub mod utils;
-pub mod voter;
+
+pub mod voter {
+    pub mod msg;
+    pub mod state;
+    pub mod types;
+}

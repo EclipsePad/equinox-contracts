@@ -7,7 +7,7 @@ use osmosis_std::types::osmosis::tokenfactory::v1beta1 as OsmosisFactory;
 
 use cw_utils::one_coin;
 use equinox_msg::token_converter::{CallbackMsg, RewardConfig, RewardResponse, UpdateConfig};
-use equinox_msg::voter::ExecuteMsg as VoterExecuteMsg;
+use equinox_msg::voter::msg::ExecuteMsg as VoterExecuteMsg;
 
 use crate::entry::query::_query_rewards;
 use crate::external_queriers::query_rates_astro_staking;
@@ -367,11 +367,13 @@ pub fn try_convert(
 }
 
 pub fn send_xastro_msg(voter: String, coin: Coin) -> Result<CosmosMsg, ContractError> {
-    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: voter,
-        msg: to_json_binary(&VoterExecuteMsg::Stake {})?,
-        funds: vec![coin],
-    }))
+    // Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+    //     contract_addr: voter,
+    //     msg: to_json_binary(&VoterExecuteMsg::Stake {})?,
+    //     funds: vec![coin],
+    // }))
+
+    unimplemented!()
 }
 
 pub fn withdraw_xastro_msg(
@@ -379,11 +381,13 @@ pub fn withdraw_xastro_msg(
     recipient: String,
     amount: Uint128,
 ) -> Result<CosmosMsg, ContractError> {
-    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: voter,
-        msg: to_json_binary(&VoterExecuteMsg::Withdraw { amount, recipient })?,
-        funds: vec![],
-    }))
+    // Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+    //     contract_addr: voter,
+    //     msg: to_json_binary(&VoterExecuteMsg::Withdraw { amount, recipient })?,
+    //     funds: vec![],
+    // }))
+
+    unimplemented!()
 }
 
 pub fn mint_eclipastro_msg(

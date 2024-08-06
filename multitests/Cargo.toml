@@ -15,36 +15,48 @@ backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all init/handle/query exports
 library = []
 
-[dev-dependencies]
+[dependencies]
 anyhow                  = { workspace = true }
 cosmwasm-std            = { workspace = true }
+cosmwasm-schema         = { workspace = true }
 cw-controllers          = { workspace = true }
-# cw-multi-test           = { workspace = true, features = ["cosmwasm_1_4"] }
-cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks_1_0", features = ["cosmwasm_1_1"] }
+cw-multi-test           = { workspace = true }
+speculoos               = { workspace = true }
 cw20                    = { workspace = true }
-cw20-base = "1"
-itertools = "0.11"
+cw20-base               = { workspace = true }
+itertools               = "0.11"
+neutron-sdk             = { workspace = true }
+osmosis-std             = { workspace = true }
+derivative              = { workspace = true }
+strum                   = { workspace = true }
+strum_macros            = { workspace = true }
 
-astro-generator         = { workspace = true }
-faucet                  = { workspace = true }
 equinox-msg             = { workspace = true }
+eclipse-base            = { workspace = true }
+minter-mocks            = { workspace = true }
+tribute-market-mocks    = { workspace = true }
+eclipastro-token        = { workspace = true }
 token-converter         = { workspace = true }
 single-sided-staking    = { workspace = true }
 voter                   = { workspace = true }
 lp-staking              = { workspace = true }
 lockdrop                = { workspace = true }
-# gauge-contract          = { workspace = true }
 astroport-incentives    = { workspace = true }
 astroport-factory       = { workspace = true }
 astroport-pair          = { workspace = true }
 astroport-pair-stable   = { workspace = true }
 astroport-router        = { workspace = true }
+
 astroport-staking       = { workspace = true }
 astroport-vesting       = { workspace = true }
 # astroport-xastro-token  = { workspace = true }
 astroport               = { workspace = true }
-# astroport-governance    = { workspace = true }
-astroport-tokenfactory-tracker = { workspace = true }
+astroport-governance    = { workspace = true }
 
-cosmwasm-schema = { workspace = true }
-osmosis-std = "0.21.0"
+astro-assembly = { workspace = true }
+astroport-voting-escrow = { workspace = true }
+astroport-emissions-controller = { workspace = true }
+eclipsepad-staking = { workspace = true }
+# astroport-escrow-fee-distributor = { workspace = true }
+astroport-tokenfactory-tracker = { workspace = true }
+builder-unlock = { workspace = true }

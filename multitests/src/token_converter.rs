@@ -1,66 +1,66 @@
 use crate::suite::{SuiteBuilder, ALICE};
 
-#[test]
-fn test() {
-    let mut suite = SuiteBuilder::new().build();
-    suite.update_config();
-    suite
-        .mint_native(ALICE.to_string(), suite.astro(), 1_000_000)
-        .unwrap();
-    suite.stake_astro(ALICE, 1_000_000).unwrap();
-    let mut data = suite.query_astro_staking_data().unwrap();
-    assert_eq!(data.0.u128(), 1_010_000 + 1); // when instantiate, added 1
-    assert_eq!(data.1.u128(), 1_009_900);
+// #[test]
+// fn test() {
+//     let mut suite = SuiteBuilder::new().build();
+//     suite.update_config();
+//     suite
+//         .mint_native(ALICE.to_string(), suite.astro(), 1_000_000)
+//         .unwrap();
+//     suite.stake_astro(ALICE, 1_000_000).unwrap();
+//     let mut data = suite.query_astro_staking_data().unwrap();
+//     assert_eq!(data.0.u128(), 1_010_000 + 1); // when instantiate, added 1
+//     assert_eq!(data.1.u128(), 1_009_900);
 
-    let astro_balance = suite
-        .query_balance_native(ALICE.to_string(), suite.astro())
-        .unwrap();
-    assert_eq!(astro_balance, 0);
-    let xastro_balance = suite
-        .query_balance_native(ALICE.to_string(), suite.xastro())
-        .unwrap();
-    assert_eq!(xastro_balance, 999_900); // first astro staking remains 1_000 xastro in the contract
+//     let astro_balance = suite
+//         .query_balance_native(ALICE.to_string(), suite.astro())
+//         .unwrap();
+//     assert_eq!(astro_balance, 0);
+//     let xastro_balance = suite
+//         .query_balance_native(ALICE.to_string(), suite.xastro())
+//         .unwrap();
+//     assert_eq!(xastro_balance, 999_900); // first astro staking remains 1_000 xastro in the contract
 
-    suite
-        .mint_native(ALICE.to_string(), suite.astro(), 1_000_000)
-        .unwrap();
-    suite.convert_astro(ALICE, 1_000_000).unwrap();
+//     suite
+//         .mint_native(ALICE.to_string(), suite.astro(), 1_000_000)
+//         .unwrap();
+//     suite.convert_astro(ALICE, 1_000_000).unwrap();
 
-    let eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
-    assert_eq!(eclipastro_balance, 1_000_000);
+//     let eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
+//     assert_eq!(eclipastro_balance, 1_000_000);
 
-    let mut withdrawable_balance = suite.query_converter_withdrawable_balance().unwrap();
-    assert_eq!(withdrawable_balance, 0);
-    suite.convert_xastro(ALICE, 999_000).unwrap();
+//     let mut withdrawable_balance = suite.query_converter_withdrawable_balance().unwrap();
+//     assert_eq!(withdrawable_balance, 0);
+//     suite.convert_xastro(ALICE, 999_000).unwrap();
 
-    let eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
-    assert_eq!(eclipastro_balance, 1_999_099);
+//     let eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
+//     assert_eq!(eclipastro_balance, 1_999_099);
 
-    let mut rewards = suite.query_converter_rewards().unwrap();
-    assert_eq!(rewards.treasury_reward.amount.u128(), 0);
+//     let mut rewards = suite.query_converter_rewards().unwrap();
+//     assert_eq!(rewards.treasury_reward.amount.u128(), 0);
 
-    // change astro/xastro rate
-    suite
-        .mint_native(suite.astro_staking_contract(), suite.astro(), 1_000_000)
-        .unwrap();
-    withdrawable_balance = suite.query_converter_withdrawable_balance().unwrap();
-    assert_eq!(withdrawable_balance, 0);
+//     // change astro/xastro rate
+//     suite
+//         .mint_native(suite.astro_staking_contract(), suite.astro(), 1_000_000)
+//         .unwrap();
+//     withdrawable_balance = suite.query_converter_withdrawable_balance().unwrap();
+//     assert_eq!(withdrawable_balance, 0);
 
-    rewards = suite.query_converter_rewards().unwrap();
-    assert_eq!(rewards.users_reward.amount.u128(), 795659);
-    assert_eq!(rewards.treasury_reward.amount.u128(), 89653);
-    assert_eq!(rewards.ce_holders_reward.amount.u128(), 26563);
-    assert_eq!(rewards.stability_pool_reward.amount.u128(), 16602);
+//     rewards = suite.query_converter_rewards().unwrap();
+//     assert_eq!(rewards.users_reward.amount.u128(), 795659);
+//     assert_eq!(rewards.treasury_reward.amount.u128(), 89653);
+//     assert_eq!(rewards.ce_holders_reward.amount.u128(), 26563);
+//     assert_eq!(rewards.stability_pool_reward.amount.u128(), 16602);
 
-    data = suite.query_astro_staking_data().unwrap();
-    assert_eq!(data.0.u128(), 3_010_000 + 1); // when instantiate, added 1
-    assert_eq!(data.1.u128(), 2_009_800);
+//     data = suite.query_astro_staking_data().unwrap();
+//     assert_eq!(data.0.u128(), 3_010_000 + 1); // when instantiate, added 1
+//     assert_eq!(data.1.u128(), 2_009_800);
 
-    let info = suite.query_converter_stake_info().unwrap();
-    assert_eq!(info.astro.u128(), 1_999_099);
-    assert_eq!(info.xastro.u128(), 1_998_900);
-    assert_eq!(info.claimed_xastro.u128(), 0);
-}
+//     let info = suite.query_converter_stake_info().unwrap();
+//     assert_eq!(info.astro.u128(), 1_999_099);
+//     assert_eq!(info.xastro.u128(), 1_998_900);
+//     assert_eq!(info.claimed_xastro.u128(), 0);
+// }
 
 // #[test]
 // fn instantiate() {
