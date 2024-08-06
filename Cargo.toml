@@ -4,56 +4,86 @@ members = [
     "packages/*",
     "multitests",
 ]
+
 resolver = "2"
 
 [workspace.package]
-version    = "0.1.5"
+version    = "0.1.1"
 edition    = "2021"
 repository = "https://github.com/EclipsePad/equinox-contracts"
-authors    = ["Tadao Fukuda"]
+authors    = ["Tadao Fukuda", "M. Daeva"]
 license    = "Apache-2.0"
 
 [workspace.dependencies]
 anyhow                  = "1"
-cosmwasm-schema         = "1.5"
-cosmwasm-std            = "1.5"
+cosmwasm-schema         = "1.1"
+cosmwasm-std            = "1.1"
 cw2                     = "1.1.0"
 cw20                    = "1.1.0"
 cw20-base               = { version = "1.1.0", features = ["library"] }
 cw-controllers          = "1.0.1"
-cw-multi-test           = "1.2.0"
+cw-multi-test           = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks_1_0", features = ["cosmwasm_1_1"] }
+speculoos               = "0.11.0"
 cw-storage-plus         = "1.0.1"
 cw-utils                = "1.0.1"
 schemars                = "0.8.1"
 semver                  = "1.0.20"
 serde                   = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror               = "1.0.23"
+neutron-sdk             = "0.10.0"
 osmosis-std             = "0.21.0"
+derivative              = "2.2"
+itertools               = "0.12"
+strum                   = "0.24.1"
+strum_macros            = "0.24.3"
 
 equinox-msg             = { path = "./packages/equinox_msg" }
+eclipse-base            = { path = "./packages/eclipse-base" }
+eclipsepad-staking      = { path = "./packages/eclipsepad-staking" }
+minter-mocks            = { path = "./packages/minter-mocks" }
+tribute-market-mocks    = { path = "./packages/tribute-market-mocks" }
+cw20-gift               = { path = "./packages/cw20-gift" }
+
 eclipastro-token        = { path = "./contracts/token" }
 token-converter         = { path = "./contracts/token_converter" }
 single-sided-staking    = { path = "./contracts/single_sided_staking" }
-voter                   = { path = "./contracts/voter" }
 lp-staking              = { path = "./contracts/lp_staking" }
 lockdrop                = { path = "./contracts/lockdrop" }
-
+voter                   = { path = "./contracts/voter" }
 astro-generator         = { path = "./contracts/astro_generator_test_purpose" }
-faucet                  = { path = "./contracts/faucet_test_purpose" }
 
-# gauge-contract          = { path = "./contracts/gauge_contract", features = ["library"] }
-astroport-factory       = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
-astroport-incentives    = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
-astroport-pair          = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
-astroport-pair-stable   = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
-astroport-router        = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
-astroport-staking       = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
-astroport-vesting       = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
-# astroport-xastro-token  = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
-astroport               = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
-# astroport-pair-stable   = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
-# astroport-governance    = { git = "https://github.com/astroport-fi/astroport-governance.git", tag = "v5.1.0" }
-astroport-tokenfactory-tracker = { git = "https://github.com/astroport-fi/astroport-core.git", tag = "v5.1.0" }
+# astroport-core
+# https://github.com/astroport-fi/hidden_astroport_core/tree/feat/incentivize_many
+#
+# packages
+astroport               = { path = "./packages/astroport" }
+astroport-circular-buffer = { path = "./packages/circular_buffer" }
+#
+# contracts
+astroport-factory       = { path = "./packages/factory" }
+astroport-incentives    = { path = "./packages/incentives" } # formerly Generator
+astroport-pair          = { path = "./packages/pair" }
+astroport-pair-stable   = { path = "./packages/pair_stable" }
+astroport-router        = { path = "./packages/router" }
+astroport-staking       = { path = "./packages/staking" }
+astroport-vesting       = { path = "./packages/vesting" }
+astroport-xastro-token  = { path = "./packages/xastro_token" }
+astroport-tokenfactory-tracker = { path = "./packages/tokenfactory_tracker" }
+astroport-whitelist     = { path = "./packages/whitelist" }
+
+# astroport governance
+# https://github.com/astroport-fi/hidden_astroport_governance/tree/feat/revamped_vxastro
+#
+# packages
+astroport-governance    = { path = "./packages/astroport-governance" }
+#
+# contracts
+astro-assembly          = { path = "./packages/assembly" }
+builder-unlock          = { path = "./packages/builder_unlock" }
+astroport-emissions-controller = { path = "./packages/emissions_controller" }
+astroport-emissions-controller-outpost = { path = "./packages/emissions_controller_outpost" }
+astroport-voting-escrow = { path = "./packages/voting_escrow" }
+
 
 [profile.release]
 opt-level = "z"
@@ -65,3 +95,4 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
+

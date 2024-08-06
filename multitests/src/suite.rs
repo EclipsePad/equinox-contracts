@@ -53,7 +53,7 @@ use equinox_msg::{
         RewardResponse as ConverterRewardResponse, StakeInfo as ConverterStakeInfo,
         UpdateConfig as ConverterUpdateConfig,
     },
-    voter::InstantiateMsg as VoterInstantiateMsg,
+    voter::msg::InstantiateMsg as VoterInstantiateMsg,
 };
 
 use crate::common::stargate::MockStargate;
@@ -147,9 +147,9 @@ fn store_astroport_vesting(app: &mut TestApp) -> u64 {
 
 fn store_converter(app: &mut TestApp) -> u64 {
     let contract = Box::new(ContractWrapper::new_with_empty(
-        token_converter::contract::execute,
-        token_converter::contract::instantiate,
-        token_converter::contract::query,
+        eclipastro_token::contract::execute,
+        eclipastro_token::contract::instantiate,
+        eclipastro_token::contract::query,
     ));
 
     app.store_code(contract)
@@ -584,23 +584,24 @@ impl SuiteBuilder {
             .unwrap();
 
         let voter_id = store_voter(&mut app);
-        let voter_contract = app
-            .instantiate_contract(
-                voter_id,
-                admin.clone(),
-                &VoterInstantiateMsg {
-                    owner: admin.clone().into_string(),
-                    astro: ASTRO_DENOM.to_string(),
-                    xastro: xastro.clone(),
-                    vxastro: Addr::unchecked(VXASTRO.to_string()).to_string(),
-                    staking_contract: astro_staking_contract.clone().into_string(),
-                    converter_contract: converter_contract.clone().into_string(),
-                },
-                &[],
-                "voter",
-                Some(admin.clone().to_string()),
-            )
-            .unwrap();
+        let voter_contract = Addr::unchecked("voter_contract");
+        // let voter_contract = app
+        //     .instantiate_contract(
+        //         voter_id,
+        //         admin.clone(),
+        //         &VoterInstantiateMsg {
+        //             owner: admin.clone().into_string(),
+        //             astro: ASTRO_DENOM.to_string(),
+        //             xastro: xastro.clone(),
+        //             vxastro: Addr::unchecked(VXASTRO.to_string()).to_string(),
+        //             staking_contract: astro_staking_contract.clone().into_string(),
+        //             converter_contract: converter_contract.clone().into_string(),
+        //         },
+        //         &[],
+        //         "voter",
+        //         Some(admin.clone().to_string()),
+        //     )
+        //     .unwrap();
 
         let asset_infos = vec![
             AssetInfo::NativeToken {

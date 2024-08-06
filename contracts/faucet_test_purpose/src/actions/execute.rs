@@ -247,6 +247,10 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         to_address: sender_address.to_string(),
         amount: vec![coin(amount_to_send.u128(), config.astro_token.clone())],
     }));
+    msg_list.push(CosmosMsg::Bank(BankMsg::Send {
+        to_address: sender_address.to_string(),
+        amount: vec![coin(amount_to_send.u128(), config.xastro_token.clone())],
+    }));
     // msg_list.push(
     //     WasmMsg::Execute {
     //         contract_addr: config.eclipastro_token.to_string(),
