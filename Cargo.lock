@@ -1204,20 +1204,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "eclipastro-token"
-version = "0.1.1"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw2 1.1.2",
- "cw20 1.1.2",
- "cw20-base 1.1.2",
- "equinox-msg",
- "semver",
- "thiserror",
-]
-
-[[package]]
 name = "eclipse-base"
 version = "1.0.0"
 dependencies = [
@@ -2052,7 +2038,6 @@ dependencies = [
  "cw20 1.1.2",
  "cw20-base 1.1.2",
  "derivative",
- "eclipastro-token",
  "eclipse-base",
  "eclipsepad-staking",
  "equinox-msg",
