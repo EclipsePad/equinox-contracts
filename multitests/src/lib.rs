@@ -28,6 +28,7 @@ pub mod suite_astro {
         pub mod astroport_router;
         pub mod eclipsepad_staking;
         pub mod minter;
+        pub mod single_sided_staking;
         pub mod tribute_market_mocks;
         pub mod voter;
     }
