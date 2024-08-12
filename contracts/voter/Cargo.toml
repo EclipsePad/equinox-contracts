@@ -28,4 +28,4 @@ astroport-governance    = { workspace = true }
 astroport               = { workspace = true }
 equinox-msg             = { workspace = true }
 eclipse-base            = { workspace = true }
-tribute-market-mocks    = { workspace = true }
+tribute-market-mocks    = { workspace = true, features = ["library"] }
