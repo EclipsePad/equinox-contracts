@@ -16,6 +16,9 @@ pub mod common {
 #[cfg(test)]
 pub mod voter;
 
+#[cfg(test)]
+pub mod new_rewards;
+
 // https://github.com/astroport-fi/hidden_astroport_governance/tree/feat/revamped_vxastro/contracts/emissions_controller/tests/common
 pub mod suite_astro {
     pub mod contracts;
@@ -29,6 +32,7 @@ pub mod suite_astro {
         pub mod eclipsepad_staking;
         pub mod minter;
         pub mod single_sided_staking;
+        pub mod token_converter;
         pub mod tribute_market_mocks;
         pub mod voter;
     }
