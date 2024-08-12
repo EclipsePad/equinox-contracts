@@ -229,6 +229,13 @@ pub fn _stake(
     user_staking.staked = user_staking.staked.checked_add(amount).unwrap();
     total_staking = total_staking.checked_add(amount).unwrap();
     total_staking_by_duration = total_staking_by_duration.checked_add(amount).unwrap();
+    user_staking.xastro_price = deps
+        .querier
+        .query_wasm_smart(
+            config.voter,
+            &equinox_msg::voter::msg::QueryMsg::XastroPrice {},
+        )
+        .unwrap_or_default();
 
     USER_STAKED.save(
         deps.storage,
@@ -346,6 +353,8 @@ pub fn restake(
             &UserStaked {
                 staked: user_staking_from.staked - amount.unwrap(),
                 reward_weights: updated_reward_weights.clone(),
+                // TODO: query from voter
+                xastro_price: user_staking_from.xastro_price,
             },
         )?;
     }

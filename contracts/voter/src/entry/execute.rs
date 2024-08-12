@@ -13,11 +13,12 @@ use eclipse_base::{
 use equinox_msg::voter::{
     state::{
         ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ADDRESSES,
-        ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS,
-        ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED, MAX_EPOCH_AMOUNT,
-        RECIPIENT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID,
-        SWAP_REWARDS_REPLY_ID_CNT, SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG,
-        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
+        ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC,
+        ELECTOR_WEIGHTS, ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED,
+        MAX_EPOCH_AMOUNT, RECIPIENT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC,
+        STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT, SWAP_REWARDS_REPLY_ID_MIN,
+        TEMPORARY_REWARDS, TOKEN_CONFIG, TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT,
+        USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
     types::{
         AddressConfig, DateConfig, EssenceInfo, PoolInfoItem, RewardsClaimStage, RouteListItem,
@@ -453,6 +454,10 @@ fn lock_xastro(
     let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps.as_ref())?;
     let eclip_astro_amount =
         calc_eclip_astro_for_xastro(xastro_amount, astro_supply, xastro_supply);
+
+    ECLIP_ASTRO_MINTED_BY_VOTER.update(deps.storage, |x| -> StdResult<Uint128> {
+        Ok(x + eclip_astro_amount)
+    })?;
 
     let msg_list = vec![
         // replenish existent lock or create new one

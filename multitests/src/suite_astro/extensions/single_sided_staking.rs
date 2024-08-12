@@ -21,6 +21,7 @@ pub trait SingleSidedStakingExtension {
         reward_config: &RewardConfig,
         token_converter: &Addr,
         treasury: &Addr,
+        voter: &Addr,
     );
 
     fn single_sided_staking_try_stake(
@@ -68,6 +69,7 @@ impl SingleSidedStakingExtension for ControllerHelper {
         reward_config: &RewardConfig,
         token_converter: &Addr,
         treasury: &Addr,
+        voter: &Addr,
     ) {
         let code_id = self.app.store_code(Box::new(
             ContractWrapper::new_with_empty(
@@ -90,6 +92,7 @@ impl SingleSidedStakingExtension for ControllerHelper {
                     rewards: reward_config.to_owned(),
                     token_converter: token_converter.to_owned(),
                     treasury: treasury.to_owned(),
+                    voter: voter.to_string(),
                 },
                 &[],
                 NAME,

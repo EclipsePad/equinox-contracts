@@ -1,33 +1,21 @@
-use astroport::{asset::AssetInfo, router::SwapOperation};
+use astroport::asset::AssetInfo;
 use astroport_governance::emissions_controller::hub::{
-    AstroPoolConfig, OutpostInfo, OutpostParams, VotedPoolInfo,
+    AstroPoolConfig, OutpostInfo, OutpostParams,
 };
 
-use cosmwasm_std::{coins, Addr, Decimal, StdResult, Uint128};
+use cosmwasm_std::{coins, Addr, StdResult, Uint128};
 use cw_multi_test::Executor;
 
 use speculoos::assert_that;
 use strum::IntoEnumIterator;
 
-use eclipse_base::{converters::str_to_dec, error::parse_err};
+use eclipse_base::error::parse_err;
 
 use equinox_msg::{
     single_sided_staking::{RewardConfig, RewardDetail, TimeLockConfig},
     voter::{
-        msg::{DaoResponse, UserResponse, VoterInfoResponse},
         state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
-        types::{
-            BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem, RewardsInfo,
-            RouteItem, RouteListItem, UserType, VoteResults, WeightAllocationItem,
-        },
-    },
-};
-
-use voter::{
-    error::ContractError,
-    math::{
-        calc_essence_allocation, calc_pool_info_list_with_rewards, calc_scaled_essence_allocation,
-        calc_updated_essence_allocation, calc_weights_from_essence_allocation,
+        types::{BribesAllocationItem, RouteItem, RouteListItem},
     },
 };
 
@@ -38,7 +26,7 @@ use crate::suite_astro::{
         token_converter::TokenConverterExtension, tribute_market_mocks::TributeMarketExtension,
         voter::VoterExtension,
     },
-    helper::{assert_error, Acc, ControllerHelper, Denom, Pool},
+    helper::{Acc, ControllerHelper, Denom, Pool},
 };
 
 const INITIAL_LIQUIDITY: u128 = 1_000_000;
@@ -248,62 +236,6 @@ fn prepare_helper() -> ControllerHelper {
     h
 }
 
-fn add_eclipsepad_tribute_market(h: &mut ControllerHelper) -> Addr {
-    let owner = &h.acc(Acc::Owner);
-
-    let eclipsepad_tribute_market_contract =
-        h.tribute_market_instantiate_contract(&h.vxastro.clone(), &h.emission_controller.clone());
-
-    h.voter_try_update_address_config(
-        owner,
-        None::<Addr>,
-        None::<Vec<Addr>>,
-        None,
-        None,
-        None,
-        None,
-        Some(eclipsepad_tribute_market_contract.clone()),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
-
-    // add bribes in tribute market
-    let bribes_allocation: Vec<BribesAllocationItem> = vec![
-        BribesAllocationItem::new(
-            h.pool(Pool::EclipAtom),
-            &[
-                (100 * INITIAL_LIQUIDITY, Denom::Eclip),
-                (100 * INITIAL_LIQUIDITY, Denom::Atom),
-            ],
-        ),
-        BribesAllocationItem::new(
-            h.pool(Pool::NtrnAtom),
-            &[
-                (200 * INITIAL_LIQUIDITY, Denom::Ntrn),
-                (120 * INITIAL_LIQUIDITY, Denom::Atom),
-            ],
-        ),
-        BribesAllocationItem::new(
-            h.pool(Pool::AstroAtom),
-            &[(100 * INITIAL_LIQUIDITY, Denom::Astro)],
-        ),
-    ];
-
-    h.tribute_market_try_set_bribes_allocation(
-        &eclipsepad_tribute_market_contract,
-        owner,
-        &bribes_allocation,
-    )
-    .unwrap();
-
-    eclipsepad_tribute_market_contract
-}
-
 fn add_token_converter_and_flexible_vault(h: &mut ControllerHelper) {
     let astro = &h.astro.clone();
     let xastro = &h.xastro.clone();
@@ -361,34 +293,54 @@ fn add_token_converter_and_flexible_vault(h: &mut ControllerHelper) {
         },
         &h.token_converter_contract_address(),
         owner,
+        &h.voter_contract_address().clone(),
     );
 }
 
 #[test]
-fn default() -> StdResult<()> {
+fn eclip_astro_rewards() -> StdResult<()> {
     let mut h = prepare_helper();
     add_token_converter_and_flexible_vault(&mut h);
-    let ControllerHelper { astro, xastro, .. } = &ControllerHelper::new();
+    let ControllerHelper { astro, .. } = &ControllerHelper::new();
 
-    let eclip_atom = &h.pool(Pool::EclipAtom);
-    let ntrn_atom = &h.pool(Pool::NtrnAtom);
-    let astro_atom = &h.pool(Pool::AstroAtom);
-
-    let owner = &h.acc(Acc::Owner);
-    let dao = &h.acc(Acc::Dao);
-    // electors
     let alice = &h.acc(Acc::Alice);
-    let ruby = &h.acc(Acc::Ruby);
-    // delegators
     let bob = &h.acc(Acc::Bob);
-    let vlad = &h.acc(Acc::Vlad);
-    // slackers
-    let john = &h.acc(Acc::John);
-    // individual voters
-    let kate = &h.acc(Acc::Kate);
 
-    // h.eclipsepad_staking_try_stake(alice, 1_000, Denom::Eclip)?;
-    // h.eclipsepad_staking_try_lock(alice, 1_000, 4)?;
+    // set initial xastro price
+    let astroport_staking_contract = h.staking.clone();
+    let astro_additional_amount = coins(1_000_000, Denom::Astro.to_string());
+    h.mint_tokens(&astroport_staking_contract, &astro_additional_amount)
+        .map_err(parse_err)?;
+
+    let xastro_price = h.voter_query_xastro_price()?;
+    assert_that(&xastro_price.to_string().as_str()).is_equal_to("1.0099009900990099");
+
+    // get eclip_astro
+    h.voter_try_swap_to_eclip_astro(alice, 1_000, astro)?;
+    h.voter_try_swap_to_eclip_astro(bob, 3_000, astro)?;
+
+    // create flexible vaults
+    h.single_sided_staking_try_stake(alice, 999, &Denom::EclipAstro.to_string(), 0, &None)?;
+    h.single_sided_staking_try_stake(bob, 2_999, &Denom::EclipAstro.to_string(), 0, &None)?;
+
+    // increase xastro price
+    let astroport_staking_contract = h.staking.clone();
+    let astro_additional_amount = coins(4_000_000, Denom::Astro.to_string());
+    h.mint_tokens(&astroport_staking_contract, &astro_additional_amount)
+        .map_err(parse_err)?;
+
+    let xastro_price = h.voter_query_xastro_price()?;
+    assert_that(&xastro_price.to_string().as_str()).is_equal_to("1.049503405609047407");
+
+    let eclip_astro_minted_by_voter = h.voter_query_eclip_astro_minted_by_voter()?;
+    assert_that(&eclip_astro_minted_by_voter.u128()).is_equal_to(100_003_998);
+
+    // user_single_side_vault_eclip_astro_rewards = 0.8 * (user_single_side_vault_eclip_astro / total_single_side_vault_eclip_astro) *     \
+    // * eclip_astro_minted_by_voter * (xastro_to_astro_price_after / xastro_to_astro_price_before - 1)                                   \
+    // total_single_side_vault_eclip_astro = (total_flexible_vault_eclip_astro + total_time_lock_vault_eclip_astro)
+    // alice_single_side_vault_eclip_astro_rewards = 0.8 * (999 / (999 + 2_999)) * 100_003_998 * (1.049503405609047407 / 1.0099009900990099 - 1) = 783_922
+    let rewards = h.single_sided_staking_query_reward(alice)?;
+    assert_that(&rewards[0].rewards[0].rewards.eclipastro.u128()).is_equal_to(783_921);
 
     Ok(())
 }

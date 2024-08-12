@@ -43,6 +43,8 @@ pub const ADDRESS_CONFIG: Item<AddressConfig> = Item::new("address_config");
 pub const TOKEN_CONFIG: Item<TokenConfig> = Item::new("token_config");
 pub const DATE_CONFIG: Item<DateConfig> = Item::new("date_config");
 
+pub const ECLIP_ASTRO_MINTED_BY_VOTER: Item<Uint128> = Item::new("eclip_astro_minted_by_voter");
+
 /// state machine to rotate actions executed by x/cron
 pub const REWARDS_CLAIM_STAGE: Item<RewardsClaimStage> = Item::new("rewards_claim_stage");
 

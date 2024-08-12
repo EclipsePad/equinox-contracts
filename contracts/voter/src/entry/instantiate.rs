@@ -5,9 +5,9 @@ use equinox_msg::voter::{
     msg::InstantiateMsg,
     state::{
         ADDRESS_CONFIG, CONTRACT_NAME, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG,
-        ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
-        SLACKER_ESSENCE_ACC, SWAP_REWARDS_REPLY_ID_CNT, TEMPORARY_REWARDS, TOKEN_CONFIG,
-        TRANSFER_ADMIN_STATE, VOTE_RESULTS,
+        ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER,
+        IS_PAUSED, REWARDS_CLAIM_STAGE, SLACKER_ESSENCE_ACC, SWAP_REWARDS_REPLY_ID_CNT,
+        TEMPORARY_REWARDS, TOKEN_CONFIG, TRANSFER_ADMIN_STATE, VOTE_RESULTS,
     },
     types::{
         AddressConfig, DateConfig, EpochInfo, EssenceInfo, RewardsClaimStage, TokenConfig,
@@ -33,6 +33,7 @@ pub fn try_instantiate(
     SWAP_REWARDS_REPLY_ID_CNT.save(deps.storage, &0)?;
     IS_PAUSED.save(deps.storage, &false)?;
     REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::default())?;
+    ECLIP_ASTRO_MINTED_BY_VOTER.save(deps.storage, &Uint128::zero())?;
 
     ADDRESS_CONFIG.save(
         deps.storage,

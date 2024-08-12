@@ -186,6 +186,9 @@ pub enum QueryMsg {
     #[returns(Decimal)]
     XastroPrice {},
 
+    #[returns(Uint128)]
+    EclipAstroMintedByVoter {},
+
     #[returns(UserResponse)]
     User {
         address: String,

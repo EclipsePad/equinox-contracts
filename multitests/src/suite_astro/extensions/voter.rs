@@ -140,6 +140,8 @@ pub trait VoterExtension {
 
     fn voter_query_xastro_price(&self) -> StdResult<Decimal>;
 
+    fn voter_query_eclip_astro_minted_by_voter(&self) -> StdResult<Uint128>;
+
     fn voter_query_user(
         &self,
         address: impl ToString,
@@ -532,6 +534,13 @@ impl VoterExtension for ControllerHelper {
         self.app
             .wrap()
             .query_wasm_smart(self.voter_contract_address(), &QueryMsg::XastroPrice {})
+    }
+
+    fn voter_query_eclip_astro_minted_by_voter(&self) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract_address(),
+            &QueryMsg::EclipAstroMintedByVoter {},
+        )
     }
 
     fn voter_query_user(

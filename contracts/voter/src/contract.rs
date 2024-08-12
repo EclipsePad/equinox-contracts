@@ -142,6 +142,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         QueryMsg::XastroPrice {} => to_json_binary(&q::query_xastro_price(deps, env)?),
 
+        QueryMsg::EclipAstroMintedByVoter {} => {
+            to_json_binary(&q::query_eclip_astro_minted_by_voter(deps, env)?)
+        }
+
         QueryMsg::User {
             address,
             block_time,

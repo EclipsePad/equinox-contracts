@@ -28,6 +28,7 @@ pub fn try_instantiate(
                 .unwrap_or(DEFAULT_TIMELOCK_CONFIG.to_vec()),
             token_converter: deps.api.addr_validate(msg.token_converter.as_str())?,
             treasury: deps.api.addr_validate(msg.treasury.as_str())?,
+            voter: deps.api.addr_validate(&msg.voter)?,
         },
     )?;
 

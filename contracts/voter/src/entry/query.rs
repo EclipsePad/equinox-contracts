@@ -7,9 +7,9 @@ use equinox_msg::voter::{
         VoterInfoResponse,
     },
     state::{
-        ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, ELECTOR_ESSENCE_ACC,
-        ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE, ROUTE_CONFIG,
-        SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, VOTE_RESULTS,
+        ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, ECLIP_ASTRO_MINTED_BY_VOTER,
+        ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
+        ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, VOTE_RESULTS,
     },
     types::{
         AddressConfig, BribesAllocationItem, DateConfig, EpochInfo, RouteListItem, TokenConfig,
@@ -52,6 +52,10 @@ pub fn query_rewards(deps: Deps, env: Env) -> StdResult<Vec<(Uint128, String)>> 
 pub fn query_xastro_price(deps: Deps, _env: Env) -> StdResult<Decimal> {
     let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps)?;
     Ok(calc_xastro_price(astro_supply, xastro_supply))
+}
+
+pub fn query_eclip_astro_minted_by_voter(deps: Deps, _env: Env) -> StdResult<Uint128> {
+    ECLIP_ASTRO_MINTED_BY_VOTER.load(deps.storage)
 }
 
 // query from both tribute markets

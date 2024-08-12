@@ -1,6 +1,8 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, Uint128, WasmMsg};
+use cosmwasm_std::{
+    to_json_binary, Addr, CosmosMsg, Decimal, Decimal256, Env, StdResult, Uint128, WasmMsg,
+};
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
@@ -13,6 +15,7 @@ pub struct InstantiateMsg {
     /// ASTRO/eclipASTRO converter contract
     pub token_converter: Addr,
     pub treasury: Addr,
+    pub voter: String,
 }
 
 #[cw_serde]
@@ -138,6 +141,7 @@ pub struct Config {
     /// ASTRO/eclipASTRO converter contract
     pub token_converter: Addr,
     pub treasury: Addr,
+    pub voter: Addr,
 }
 
 #[cw_serde]
@@ -185,6 +189,7 @@ impl Default for RewardWeights {
 pub struct UserStaked {
     pub staked: Uint128,
     pub reward_weights: RewardWeights,
+    pub xastro_price: Decimal,
 }
 
 impl Default for UserStaked {
@@ -192,6 +197,7 @@ impl Default for UserStaked {
         UserStaked {
             staked: Uint128::zero(),
             reward_weights: RewardWeights::default(),
+            xastro_price: Decimal::zero(),
         }
     }
 }

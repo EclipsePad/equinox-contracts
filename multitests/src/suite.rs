@@ -576,6 +576,7 @@ impl SuiteBuilder {
                     ]),
                     token_converter: converter_contract.clone(),
                     treasury: Addr::unchecked(TREASURY.to_string()),
+                    voter: "wasm1_voter".to_string(),
                 },
                 &[],
                 "Single Sided Staking",

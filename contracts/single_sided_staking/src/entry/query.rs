@@ -1,9 +1,10 @@
-use cosmwasm_std::{Addr, Decimal256, Deps, Env, Order, StdResult, Uint128};
+use cosmwasm_std::{Addr, Decimal, Decimal256, Deps, Env, Order, StdResult, Uint128};
 use cw_storage_plus::Bound;
 use std::cmp::{max, min};
 
 use crate::{
     config::{BPS_DENOMINATOR, ONE_DAY, REWARD_DISTRIBUTION_PERIOD},
+    helpers::calc_user_single_side_vault_eclip_astro_rewards,
     state::{
         CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD_WEIGHTS, TOTAL_STAKING,
         TOTAL_STAKING_BY_DURATION, USER_STAKED,
@@ -258,8 +259,24 @@ pub fn calculate_total_user_reward(
     current_time: u64,
 ) -> StdResult<Vec<UserRewardByDuration>> {
     let config = CONFIG.load(deps.storage)?;
-    let updated_reward_weights = calculate_updated_reward_weights(deps, env, current_time)?;
+    let updated_reward_weights = calculate_updated_reward_weights(deps, env.clone(), current_time)?;
     let mut total_user_reward = vec![];
+    let total_single_side_vault_eclip_astro = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
+    let xastro_to_astro_price_after: Decimal = deps
+        .querier
+        .query_wasm_smart(
+            config.voter.clone(),
+            &equinox_msg::voter::msg::QueryMsg::XastroPrice {},
+        )
+        .unwrap_or_default();
+    let eclip_astro_minted_by_voter: Uint128 = deps
+        .querier
+        .query_wasm_smart(
+            config.voter,
+            &equinox_msg::voter::msg::QueryMsg::EclipAstroMintedByVoter {},
+        )
+        .unwrap_or_default();
+
     for timelock_config in config.timelock_config {
         let duration = timelock_config.duration;
         let multiplier = timelock_config.reward_multiplier;
@@ -268,17 +285,19 @@ pub fn calculate_total_user_reward(
             .range(deps.storage, None, None, Order::Ascending)
             .map(|s| {
                 let (locked_at, staking_data) = s.unwrap();
+                let user_single_side_vault_eclip_astro = staking_data.staked;
+                let xastro_to_astro_price_before = staking_data.xastro_price;
+
                 Ok(UserRewardByLockedAt {
                     locked_at,
                     rewards: UserReward {
-                        eclipastro: updated_reward_weights
-                            .eclipastro
-                            .checked_sub(staking_data.reward_weights.eclipastro)
-                            .unwrap_or_default()
-                            .checked_mul(Decimal256::from_ratio(staking_data.staked, 1u128))
-                            .unwrap()
-                            .to_uint_floor()
-                            .try_into()?,
+                        eclipastro: calc_user_single_side_vault_eclip_astro_rewards(
+                            user_single_side_vault_eclip_astro,
+                            total_single_side_vault_eclip_astro,
+                            eclip_astro_minted_by_voter,
+                            xastro_to_astro_price_before,
+                            xastro_to_astro_price_after,
+                        ),
                         beclip: updated_reward_weights
                             .beclip
                             .checked_sub(staking_data.reward_weights.beclip)
