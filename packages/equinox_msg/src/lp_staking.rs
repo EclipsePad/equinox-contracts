@@ -118,7 +118,6 @@ pub struct UpdateConfigMsg {
     pub lp_token: Option<AssetInfo>,
     pub lp_contract: Option<Addr>,
     pub rewards: Option<RewardDetails>,
-    pub converter: Option<Addr>,
     pub astroport_incentives: Option<Addr>,
     pub treasury: Option<Addr>,
     pub stability_pool: Option<Addr>,
@@ -139,15 +138,12 @@ pub struct Config {
     pub lp_token: AssetInfo,
     /// lp contract
     pub lp_contract: Addr,
-    pub rewards: RewardDetails,
     /// ASTRO token
     pub astro: String,
     /// xASTRO token
     pub xastro: String,
     /// ASTRO staking contract
     pub astro_staking: Addr,
-    /// eclipASTRO converter
-    pub converter: Addr,
     /// Astroport incentives
     pub astroport_incentives: Addr,
     pub treasury: Addr,
@@ -156,7 +152,7 @@ pub struct Config {
 }
 
 #[cw_serde]
-pub struct RewardConfig {
+pub struct RewardDistribution {
     /// users' reward in basis point
     pub users: u32,
     /// treasury reward in basis point
@@ -165,6 +161,13 @@ pub struct RewardConfig {
     pub ce_holders: u32,
     /// stability pool reward in basis point
     pub stability_pool: u32,
+}
+
+#[cw_serde]
+pub struct RewardConfig {
+    pub distribution: RewardDistribution,
+    pub reward_end_time: u64,
+    pub details: RewardDetails,
 }
 
 #[cw_serde]

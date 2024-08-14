@@ -7,8 +7,6 @@ pub mod single_sided_stake;
 #[cfg(test)]
 pub mod suite;
 #[cfg(test)]
-pub mod token_converter;
-#[cfg(test)]
 pub mod common {
     pub mod stargate;
 }
@@ -32,7 +30,6 @@ pub mod suite_astro {
         pub mod eclipsepad_staking;
         pub mod minter;
         pub mod single_sided_staking;
-        pub mod token_converter;
         pub mod tribute_market_mocks;
         pub mod voter;
     }

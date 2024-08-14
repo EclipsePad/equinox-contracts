@@ -38,6 +38,9 @@ pub enum ContractError {
     #[error("Callbacks cannot be invoked externally")]
     InvalidCallbackInvoke {},
 
+    #[error("Invalid reward end time")]
+    InvalidEndTime {},
+
     #[error("No locking period found: {0}")]
     NoLockingPeriodFound(u64),
 

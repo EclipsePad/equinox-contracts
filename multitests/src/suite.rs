@@ -47,12 +47,6 @@ use equinox_msg::{
         UserRewardByDuration as SingleStakingUserRewardByDuration,
         UserStaking as SingleSidedUserStaking,
     },
-    token_converter::{
-        Config as ConverterConfig, ExecuteMsg as ConverterExecuteMsg,
-        InstantiateMsg as ConverterInstantiateMsg, QueryMsg as ConverterQueryMsg,
-        RewardResponse as ConverterRewardResponse, StakeInfo as ConverterStakeInfo,
-        UpdateConfig as ConverterUpdateConfig,
-    },
     voter::msg::InstantiateMsg as VoterInstantiateMsg,
 };
 
@@ -140,16 +134,6 @@ fn store_astroport_vesting(app: &mut TestApp) -> u64 {
         astroport_vesting::contract::execute,
         astroport_vesting::contract::instantiate,
         astroport_vesting::contract::query,
-    ));
-
-    app.store_code(contract)
-}
-
-fn store_converter(app: &mut TestApp) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        token_converter::contract::execute,
-        token_converter::contract::instantiate,
-        token_converter::contract::query,
     ));
 
     app.store_code(contract)
@@ -473,28 +457,6 @@ impl SuiteBuilder {
                 None,
             )
             .unwrap();
-        let converter_id = store_converter(&mut app);
-        let converter_contract = app
-            .instantiate_contract(
-                converter_id,
-                admin.clone(),
-                &ConverterInstantiateMsg {
-                    owner: admin.clone().into_string(),
-                    astro: ASTRO_DENOM.to_string(),
-                    xastro: xastro.clone(),
-                    treasury: Addr::unchecked(TREASURY.to_string()).to_string(),
-                    staking_contract: astro_staking_contract.clone(),
-                },
-                &[],
-                "converter",
-                Some(admin.clone().to_string()),
-            )
-            .unwrap();
-        let converter_config: ConverterConfig = app
-            .wrap()
-            .query_wasm_smart(converter_contract.clone(), &ConverterQueryMsg::Config {})
-            .unwrap();
-        let eclipastro = converter_config.eclipastro;
         let beclip_id = store_astroport_token(&mut app);
         let beclip = app
             .instantiate_contract(
