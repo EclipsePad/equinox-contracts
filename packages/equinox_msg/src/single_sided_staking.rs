@@ -4,16 +4,18 @@ use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, 
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
-    pub owner: Addr,
+    pub owner: String,
     /// eclipASTRO token
     pub token: String,
-    pub rewards: RewardConfig,
+    /// ECLIP token
+    pub eclip: String,
+    /// bECLIP token
+    pub beclip: String,
     /// timelock config
     pub timelock_config: Option<Vec<TimeLockConfig>>,
     /// ASTRO/eclipASTRO converter contract
-    pub token_converter: Addr,
-    pub treasury: Addr,
     pub voter: String,
+    pub treasury: String,
 }
 
 #[cw_serde]
@@ -25,6 +27,11 @@ pub enum ExecuteMsg {
     /// Change config
     UpdateConfig {
         config: UpdateConfigMsg,
+    },
+    /// Change Reward config
+    UpdateRewardConfig {
+        details: Option<RewardDetails>,
+        reward_end_time: Option<u64>,
     },
     /// Claim rewards of user.
     Claim {
@@ -68,6 +75,8 @@ pub enum QueryMsg {
     /// query config
     #[returns(Config)]
     Config {},
+    #[returns(RewardConfig)]
+    RewardConfig {},
     /// query owner
     #[returns(Addr)]
     Owner {},
@@ -104,7 +113,7 @@ pub struct MigrateMsg {
 #[cw_serde]
 pub struct UpdateConfigMsg {
     pub timelock_config: Option<Vec<TimeLockConfig>>,
-    pub token_converter: Option<String>,
+    pub voter: Option<String>,
     pub rewards: Option<RewardConfig>,
     pub treasury: Option<String>,
 }
@@ -133,17 +142,21 @@ impl CallbackMsg {
 pub struct Config {
     /// eclipASTRO token
     pub token: String,
-    pub rewards: RewardConfig,
     /// lock config
     pub timelock_config: Vec<TimeLockConfig>,
     /// ASTRO/eclipASTRO converter contract
-    pub token_converter: Addr,
-    pub treasury: Addr,
     pub voter: Addr,
+    pub treasury: Addr,
 }
 
 #[cw_serde]
 pub struct RewardConfig {
+    pub reward_end_time: u64,
+    pub details: RewardDetails,
+}
+
+#[cw_serde]
+pub struct RewardDetails {
     pub eclip: RewardDetail,
     pub beclip: RewardDetail,
 }

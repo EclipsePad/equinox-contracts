@@ -40,9 +40,9 @@ pub fn update_config(
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let mut config = CONFIG.load(deps.storage)?;
     let mut res: Response = Response::new().add_attribute("action", "update config");
-    if let Some(token_converter) = new_config.token_converter {
-        config.token_converter = deps.api.addr_validate(&token_converter)?;
-        res = res.add_attribute("token_converter", token_converter.to_string());
+    if let Some(voter) = new_config.voter {
+        config.voter = deps.api.addr_validate(&voter)?;
+        res = res.add_attribute("voter", voter.to_string());
     }
     if let Some(treasury) = new_config.treasury {
         config.treasury = deps.api.addr_validate(&treasury)?;
@@ -189,7 +189,7 @@ pub fn stake(
             .query_balance(env.contract.address.to_string(), config.token)?;
         return Ok(Response::new().add_messages(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.token_converter.to_string(),
+                contract_addr: config.voter.to_string(),
                 msg: to_json_binary(&VoterExecuteMsg::SwapToEclipAstro {})?,
                 funds: vec![received_asset],
             }),
@@ -475,14 +475,14 @@ pub fn _claim(
     let reward_config = REWARD_CONFIG.load(deps.storage)?;
 
     let pending_eclipastro_rewards =
-        query_eclipastro_pending_rewards(deps.as_ref(), config.token_converter.to_string())?;
+        query_eclipastro_pending_rewards(deps.as_ref(), config.voter.to_string())?;
 
     let mut response = Response::new().add_attribute("action", "claim rewards");
     let mut msgs = vec![];
 
     if !pending_eclipastro_rewards.is_zero() {
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.token_converter.to_string(),
+            contract_addr: config.voter.to_string(),
             msg: to_json_binary(&VoterExecuteMsg::ClaimAstroRewards {})?,
             funds: vec![],
         }));

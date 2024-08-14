@@ -1,6 +1,6 @@
 use astroport::asset::Asset;
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Env, StdResult, WasmMsg};
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Env, StdResult, Uint128, WasmMsg};
 
 #[cw_serde]
 pub struct Config {
@@ -48,8 +48,13 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
+    /// query config
+    #[returns(Config)]
     Config {},
+
+    #[returns(Uint128)]
     Simulate { asset: Asset },
 }
 #[cw_serde]

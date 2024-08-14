@@ -482,6 +482,26 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+            let voter_id = store_voter(&mut app);
+            let voter_contract = Addr::unchecked("voter_contract");
+            // let voter_contract = app
+            //     .instantiate_contract(
+            //         voter_id,
+            //         admin.clone(),
+            //         &VoterInstantiateMsg {
+            //             owner: admin.clone().into_string(),
+            //             astro: ASTRO_DENOM.to_string(),
+            //             xastro: xastro.clone(),
+            //             vxastro: Addr::unchecked(VXASTRO.to_string()).to_string(),
+            //             staking_contract: astro_staking_contract.clone().into_string(),
+            //             converter_contract: converter_contract.clone().into_string(),
+            //         },
+            //         &[],
+            //         "voter",
+            //         Some(admin.clone().to_string()),
+            //     )
+            //     .unwrap();
+
         let single_staking_id = store_single_staking(&mut app);
         let single_staking_contract = app
             .instantiate_contract(
@@ -489,20 +509,8 @@ impl SuiteBuilder {
                 admin.clone(),
                 &SingleSidedStakingInstantiateMsg {
                     owner: admin.clone(),
-                    rewards: SingleStakingRewardConfig {
-                        eclip: SingleStakingRewardDetail {
-                            info: AssetInfo::NativeToken {
-                                denom: ECLIP_DENOM.to_string(),
-                            },
-                            daily_reward: Uint128::from(1_000_000u128),
-                        },
-                        beclip: SingleStakingRewardDetail {
-                            info: AssetInfo::Token {
-                                contract_addr: beclip.clone(),
-                            },
-                            daily_reward: Uint128::from(2_000_000u128),
-                        },
-                    },
+                    eclip: ECLIP_DENOM.to_string(),
+                        beclip: beclip.clone(),
                     token: eclipastro.clone(),
                     timelock_config: Some(vec![
                         TimeLockConfig {
@@ -536,7 +544,7 @@ impl SuiteBuilder {
                             reward_multiplier: 240000,
                         },
                     ]),
-                    token_converter: converter_contract.clone(),
+                    voter: voter_contract.clone(),
                     treasury: Addr::unchecked(TREASURY.to_string()),
                     voter: "wasm1_voter".to_string(),
                 },
@@ -545,26 +553,6 @@ impl SuiteBuilder {
                 Some(admin.clone().to_string()),
             )
             .unwrap();
-
-        let voter_id = store_voter(&mut app);
-        let voter_contract = Addr::unchecked("voter_contract");
-        // let voter_contract = app
-        //     .instantiate_contract(
-        //         voter_id,
-        //         admin.clone(),
-        //         &VoterInstantiateMsg {
-        //             owner: admin.clone().into_string(),
-        //             astro: ASTRO_DENOM.to_string(),
-        //             xastro: xastro.clone(),
-        //             vxastro: Addr::unchecked(VXASTRO.to_string()).to_string(),
-        //             staking_contract: astro_staking_contract.clone().into_string(),
-        //             converter_contract: converter_contract.clone().into_string(),
-        //         },
-        //         &[],
-        //         "voter",
-        //         Some(admin.clone().to_string()),
-        //     )
-        //     .unwrap();
 
         let asset_infos = vec![
             AssetInfo::NativeToken {
@@ -613,29 +601,17 @@ impl SuiteBuilder {
                     lp_token: AssetInfo::NativeToken {
                         denom: eclipastro_xastro_lp_token.clone(),
                     },
+                    eclip: ECLIP_DENOM.to_string(),
+                    beclip: beclip.clone(),
                     lp_contract: eclipastro_xastro_lp_contract.clone(),
-                    rewards: LpStakingRewardDetails {
-                        eclip: LpStakingRewardDetail {
-                            info: AssetInfo::NativeToken {
-                                denom: ECLIP_DENOM.to_string(),
-                            },
-                            daily_reward: Uint128::from(1_000_000u128),
-                        },
-                        beclip: LpStakingRewardDetail {
-                            info: AssetInfo::Token {
-                                contract_addr: beclip.clone(),
-                            },
-                            daily_reward: Uint128::from(2_000_000u128),
-                        },
-                    },
                     astro: ASTRO_DENOM.to_string(),
                     xastro: xastro.clone(),
                     astro_staking: astro_staking_contract.clone(),
                     converter: converter_contract.clone(),
                     astroport_incentives: astroport_incentives.clone(),
-                    treasury: Addr::unchecked(TREASURY.to_string()),
-                    stability_pool: Addr::unchecked(STABILITY_POOL_REWARD_HOLDER.to_string()),
-                    ce_reward_distributor: Addr::unchecked(CE_REWARD_HOLDER.to_string()),
+                    treasury: TREASURY.to_string(),
+                    stability_pool: STABILITY_POOL_REWARD_HOLDER.to_string(),
+                    ce_reward_distributor: CE_REWARD_HOLDER.to_string(),
                 },
                 &[],
                 "Eclipsefi lp staking",

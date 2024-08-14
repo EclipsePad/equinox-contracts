@@ -81,9 +81,9 @@ pub fn try_update_config(
         attributes.push(attr("new_eclipastro_token", &eclipastro_token));
     };
 
-    if let Some(converter) = new_cfg.converter {
-        cfg.converter = Some(deps.api.addr_validate(&converter)?);
-        attributes.push(attr("new_converter", &converter));
+    if let Some(voter) = new_cfg.voter {
+        cfg.voter = Some(deps.api.addr_validate(&voter)?);
+        attributes.push(attr("new_voter", &voter));
     };
 
     if let Some(dao_treasury_address) = new_cfg.dao_treasury_address {
@@ -278,10 +278,7 @@ pub fn try_extend_lockup(
                             cfg.eclipastro_token.unwrap().to_string(),
                         )?;
                         let msgs = vec![
-                            convert_eclipastro_msg(
-                                cfg.converter.unwrap().to_string(),
-                                received_token,
-                            )?,
+                            convert_eclipastro_msg(cfg.voter.unwrap().to_string(), received_token)?,
                             CallbackMsg::ExtendLockupAfterLockdrop {
                                 prev_eclipastro_balance: eclipastro_balance.amount,
                                 from_duration,
@@ -955,11 +952,8 @@ pub fn handle_stake_single_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMs
 
     if total_xastro_amount_to_staking.gt(&Uint128::zero()) {
         msgs.push(convert_eclipastro_msg(
-            cfg.converter.unwrap().to_string(),
-            &coin(
-                total_xastro_amount_to_staking.u128(),
-                cfg.xastro_token,
-            ),
+            cfg.voter.unwrap().to_string(),
+            &coin(total_xastro_amount_to_staking.u128(), cfg.xastro_token),
         )?);
     }
 
@@ -1063,8 +1057,8 @@ pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, 
 
     if xastro_exchange_amount.gt(&Uint128::zero()) {
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.converter.unwrap().to_string(),
-            msg: to_json_binary(&VoterExecuteMsg::SwapToEclipAstro {  })?,
+            contract_addr: cfg.voter.unwrap().to_string(),
+            msg: to_json_binary(&VoterExecuteMsg::SwapToEclipAstro {})?,
             funds: vec![coin(xastro_exchange_amount.u128(), cfg.xastro_token)],
         }));
     }
@@ -2088,9 +2082,9 @@ pub fn astro_convert_msg(astro_staking: String, coin: &Coin) -> StdResult<Cosmos
     }))
 }
 
-pub fn convert_eclipastro_msg(token_converter: String, coin: &Coin) -> StdResult<CosmosMsg> {
+pub fn convert_eclipastro_msg(voter: String, coin: &Coin) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: token_converter,
+        contract_addr: voter,
         msg: to_json_binary(&VoterExecuteMsg::SwapToEclipAstro {})?,
         funds: vec![coin.clone()],
     }))
