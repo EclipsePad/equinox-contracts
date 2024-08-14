@@ -24,11 +24,11 @@ pub fn try_instantiate(
     msg.lp_token.check(deps.api)?;
     ensure!(
         check_native_token_denom(&deps.querier, msg.astro.clone()).unwrap_or_default(),
-        ContractError::InvalidDenom(msg.astro.clone())
+        ContractError::InvalidDenom(msg.astro)
     );
     ensure!(
         check_native_token_denom(&deps.querier, msg.xastro.clone()).unwrap_or_default(),
-        ContractError::InvalidDenom(msg.xastro.clone())
+        ContractError::InvalidDenom(msg.xastro)
     );
     // update config
     CONFIG.save(

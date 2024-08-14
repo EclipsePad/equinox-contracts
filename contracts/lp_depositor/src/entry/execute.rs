@@ -77,7 +77,7 @@ pub fn try_convert(
                 max_spread: None,
                 to: None,
             })?,
-            funds: coins(asset.amount.u128(), config.eclipastro.clone()),
+            funds: coins(asset.amount.u128(), config.eclipastro),
         }));
     }
     msgs.push(CallbackMsg::DepositIntoPool { recipient }.to_cosmos_msg(&env)?);
@@ -142,7 +142,7 @@ fn try_deposit_into_pool(
         })?,
         funds: vec![
             coin(xastro_balance.amount.u128(), cfg.xastro.clone()),
-            coin(eclipastro_balance.amount.u128(), cfg.eclipastro.clone()),
+            coin(eclipastro_balance.amount.u128(), cfg.eclipastro),
         ],
     })];
     Ok(Response::new().add_messages(msgs))

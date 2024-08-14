@@ -519,7 +519,7 @@ pub fn withdraw_liquidity(
     ensure_eq!(
         denom,
         config.pair_info.liquidity_token,
-        PaymentError::MissingDenom(config.pair_info.liquidity_token.to_string())
+        PaymentError::MissingDenom(config.pair_info.liquidity_token)
     );
 
     let (pools, total_share) = pool_info(deps.querier, &config)?;
@@ -563,7 +563,7 @@ pub fn withdraw_liquidity(
 
     messages.push(tf_burn_msg(
         env.contract.address,
-        coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
+        coin(amount.u128(), config.pair_info.liquidity_token),
     ));
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![

@@ -77,7 +77,7 @@ pub fn _query_rewards(deps: Deps) -> StdResult<(RewardResponse, Uint128)> {
                 amount: stability_pool_reward,
             },
             treasury_reward: Reward {
-                token: config.xastro.to_string(),
+                token: config.xastro,
                 amount: treasury_reward,
             },
         },

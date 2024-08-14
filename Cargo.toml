@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version    = "0.1.1"
+version    = "0.1.7"
 edition    = "2021"
 repository = "https://github.com/EclipsePad/equinox-contracts"
 authors    = ["Tadao Fukuda", "M. Daeva"]
@@ -41,7 +41,7 @@ equinox-msg             = { path = "./packages/equinox_msg" }
 eclipse-base            = { path = "./packages/eclipse-base" }
 eclipsepad-staking      = { path = "./packages/eclipsepad-staking" }
 minter-mocks            = { path = "./packages/minter-mocks" }
-tribute-market-mocks    = { path = "./packages/tribute-market-mocks" }
+tribute-market-mocks    = { path = "./packages/tribute-market-mocks", features = ["library"] }
 cw20-gift               = { path = "./packages/cw20-gift" }
 
 token-converter         = { path = "./contracts/token_converter" }

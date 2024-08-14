@@ -328,7 +328,7 @@ pub fn query_eclipastro_pending_rewards(
 ) -> StdResult<Uint128> {
     let rewards: RewardResponse = deps
         .querier
-        .query_wasm_smart(converter_contract.clone(), &ConverterQueryMsg::Rewards {})
+        .query_wasm_smart(converter_contract, &ConverterQueryMsg::Rewards {})
         .unwrap();
     Ok(rewards.users_reward.amount)
 }

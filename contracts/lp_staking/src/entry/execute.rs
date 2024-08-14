@@ -297,7 +297,7 @@ pub fn _claim(
     if !pending_eclipse_rewards.is_empty() {
         msgs.push(
             CallbackMsg::DistributeEclipseRewards {
-                assets: pending_eclipse_rewards.clone(),
+                assets: pending_eclipse_rewards,
             }
             .to_cosmos_msg(&env)?,
         );
@@ -365,7 +365,7 @@ pub fn unstake(
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: cfg.astroport_incentives.to_string(),
         msg: to_json_binary(&IncentivesExecuteMsg::Withdraw {
-            lp_token: cfg.lp_token.clone().to_string(),
+            lp_token: cfg.lp_token.to_string(),
             amount,
         })?,
         funds: vec![],

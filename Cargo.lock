@@ -1310,7 +1310,7 @@ dependencies = [
 
 [[package]]
 name = "equinox-msg"
-version = "0.1.1"
+version = "0.1.7"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
  "astroport-governance 4.0.0-rc.1",
@@ -1899,7 +1899,7 @@ checksum = "78b3ae25bc7c8c38cec158d1f2757ee79e9b3740fbc7ccf0e59e4b08d793fa89"
 
 [[package]]
 name = "lockdrop"
-version = "0.1.1"
+version = "0.1.7"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
  "cosmwasm-schema",
@@ -1924,7 +1924,7 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "lp-depositor"
-version = "0.1.1"
+version = "0.1.7"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
  "cosmwasm-schema",
@@ -1941,7 +1941,7 @@ dependencies = [
 
 [[package]]
 name = "lp-staking"
-version = "0.1.1"
+version = "0.1.7"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
  "astroport-incentives",
@@ -2014,7 +2014,7 @@ dependencies = [
 
 [[package]]
 name = "multitests"
-version = "0.1.1"
+version = "0.1.7"
 dependencies = [
  "anyhow",
  "astro-assembly",
@@ -3014,7 +3014,7 @@ dependencies = [
 
 [[package]]
 name = "single-sided-staking"
-version = "0.1.1"
+version = "0.1.7"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
  "cosmwasm-schema",
@@ -3464,7 +3464,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "token-converter"
-version = "0.1.1"
+version = "0.1.7"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
  "cosmwasm-schema",
@@ -3669,7 +3669,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "voter"
-version = "0.1.1"
+version = "0.1.7"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
  "astroport-governance 4.0.0-rc.1",

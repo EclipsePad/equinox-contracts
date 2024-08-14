@@ -283,7 +283,7 @@ fn handle_convert_astro(
             env.contract.address,
             receiver,
             astro_amount_to_convert,
-            config.eclipastro.to_string(),
+            config.eclipastro,
         )?,
     ];
 
@@ -315,7 +315,7 @@ pub fn try_convert(
     // only ASTRO token or xASTRO token can execute this message
     ensure!(
         received_token.denom == config.astro || received_token.denom == config.xastro,
-        ContractError::UnknownToken(received_token.denom.clone())
+        ContractError::UnknownToken(received_token.denom)
     );
     if received_token.denom == config.astro {
         let xastro_balance = deps
@@ -347,9 +347,9 @@ pub fn try_convert(
         )?,
         mint_eclipastro_msg(
             env.contract.address,
-            receiver.clone(),
+            receiver,
             eclipastro_amount,
-            config.eclipastro.to_string(),
+            config.eclipastro,
         )?,
     ];
 

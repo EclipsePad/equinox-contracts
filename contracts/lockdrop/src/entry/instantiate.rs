@@ -31,15 +31,15 @@ pub fn try_instantiate(
 
     ensure!(
         check_native_token_denom(&deps.querier, msg.astro_token.clone()).unwrap_or_default(),
-        ContractError::InvalidDenom(msg.astro_token.clone())
+        ContractError::InvalidDenom(msg.astro_token)
     );
     ensure!(
         check_native_token_denom(&deps.querier, msg.xastro_token.clone()).unwrap_or_default(),
-        ContractError::InvalidDenom(msg.xastro_token.clone())
+        ContractError::InvalidDenom(msg.xastro_token)
     );
     ensure!(
-        check_native_token_denom(&deps.querier, msg.eclip.to_string().clone()).unwrap_or_default(),
-        ContractError::InvalidDenom(msg.eclip.to_string().clone())
+        check_native_token_denom(&deps.querier, msg.eclip.clone()).unwrap_or_default(),
+        ContractError::InvalidDenom(msg.eclip)
     );
     if let Some(mut lock_configs) = msg.lock_configs.clone() {
         lock_configs.sort_by(|a, b| a.duration.cmp(&b.duration));
