@@ -35,8 +35,6 @@ equinox-msg             = { workspace = true }
 eclipse-base            = { workspace = true }
 minter-mocks            = { workspace = true }
 tribute-market-mocks    = { workspace = true }
-eclipastro-token        = { workspace = true }
-token-converter         = { workspace = true }
 single-sided-staking    = { workspace = true }
 voter                   = { workspace = true }
 lp-staking              = { workspace = true }

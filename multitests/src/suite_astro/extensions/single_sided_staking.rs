@@ -17,11 +17,12 @@ pub trait SingleSidedStakingExtension {
     fn single_sided_staking_prepare_contract(
         &mut self,
         eclip_astro: &str,
+        eclip: &str,
+        beclip: &str,
         timelock_config: &Option<Vec<TimeLockConfig>>,
         reward_config: &RewardConfig,
-        token_converter: &Addr,
-        treasury: &Addr,
         voter: &Addr,
+        treasury: &Addr,
     );
 
     fn single_sided_staking_try_stake(
@@ -65,11 +66,12 @@ impl SingleSidedStakingExtension for ControllerHelper {
     fn single_sided_staking_prepare_contract(
         &mut self,
         eclip_astro: &str,
+        eclip: &str,
+        beclip: &str,
         timelock_config: &Option<Vec<TimeLockConfig>>,
         reward_config: &RewardConfig,
-        token_converter: &Addr,
-        treasury: &Addr,
         voter: &Addr,
+        treasury: &Addr,
     ) {
         let code_id = self.app.store_code(Box::new(
             ContractWrapper::new_with_empty(
@@ -86,13 +88,14 @@ impl SingleSidedStakingExtension for ControllerHelper {
                 code_id,
                 self.acc(Acc::Owner),
                 &equinox_msg::single_sided_staking::InstantiateMsg {
-                    owner: self.acc(Acc::Owner),
+                    owner: self.acc(Acc::Owner).to_string(),
                     token: eclip_astro.to_string(),
+                    eclip: eclip.to_string(),
+                    beclip: beclip.to_string(),
                     timelock_config: timelock_config.to_owned(),
                     rewards: reward_config.to_owned(),
-                    token_converter: token_converter.to_owned(),
-                    treasury: treasury.to_owned(),
                     voter: voter.to_string(),
+                    treasury: treasury.to_string(),
                 },
                 &[],
                 NAME,

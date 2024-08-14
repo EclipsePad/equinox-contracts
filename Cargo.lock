@@ -1204,20 +1204,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "eclipastro-token"
-version = "0.1.1"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw2 1.1.2",
- "cw20 1.1.2",
- "cw20-base 1.1.2",
- "equinox-msg",
- "semver",
- "thiserror",
-]
-
-[[package]]
 name = "eclipse-base"
 version = "1.0.0"
 dependencies = [
@@ -2052,7 +2038,6 @@ dependencies = [
  "cw20 1.1.2",
  "cw20-base 1.1.2",
  "derivative",
- "eclipastro-token",
  "eclipse-base",
  "eclipsepad-staking",
  "equinox-msg",
@@ -2066,7 +2051,6 @@ dependencies = [
  "speculoos",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "token-converter",
  "tribute-market-mocks",
  "voter",
 ]
@@ -3476,24 +3460,6 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
-
-[[package]]
-name = "token-converter"
-version = "0.1.1"
-dependencies = [
- "astroport 5.1.0-vxastro-rc.1",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-controllers",
- "cw-storage-plus 1.2.0",
- "cw-utils 1.0.3",
- "cw2 1.1.2",
- "cw20 1.1.2",
- "equinox-msg",
- "osmosis-std",
- "semver",
- "thiserror",
-]
 
 [[package]]
 name = "tokio"

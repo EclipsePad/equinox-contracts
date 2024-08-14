@@ -37,3 +37,8 @@ pub const DEFAULT_TIMELOCK_CONFIG: &[TimeLockConfig] = &[
         early_unlock_penalty_bps: 5000,
     },
 ];
+
+pub const DEFAULT_ECLIP_DAILY_REWARD: u128 = 12_800u128;
+pub const DEFAULT_BECLIP_DAILY_REWARD: u128 = 8_533u128;
+
+pub const DEFAULT_REWARD_PERIOD: u64 = 31536000; // 1 year

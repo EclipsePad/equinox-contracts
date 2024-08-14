@@ -8,7 +8,7 @@ use cosmwasm_std::{
     Uint128, WasmMsg,
 };
 use cw_utils::one_coin;
-use equinox_msg::{lp_depositor::CallbackMsg, token_converter::ExecuteMsg as ConverterExecuteMsg};
+use equinox_msg::{lp_depositor::CallbackMsg, voter::msg::ExecuteMsg as VoterExecuteMsg};
 
 use crate::{entry::query::get_asset_amount_to_convert_eclipastro, state::CONFIG, ContractError};
 
@@ -51,14 +51,14 @@ pub fn try_convert(
             }));
             msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.converter_contract.to_string(),
-                msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
+                msg: to_json_binary(&VoterExecuteMsg::SwapToEclipAstro {})?,
                 funds: coins(amount_to_eclipastro.u128(), config.astro),
             }));
         }
         if asset.denom == config.xastro {
             msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.converter_contract.to_string(),
-                msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
+                msg: to_json_binary(&VoterExecuteMsg::SwapToEclipAstro {})?,
                 funds: coins(amount_to_eclipastro.u128(), config.xastro),
             }));
         }

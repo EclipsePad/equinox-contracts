@@ -1,2 +1,0 @@
-[toolchain]
-channel = "1.70.0"  # required for osmosis-std 0.21.0
