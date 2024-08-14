@@ -23,7 +23,7 @@ pub fn try_instantiate(
             xastro: msg.xastro,
             staking_contract: deps.api.addr_validate(&msg.staking_contract)?,
             eclipastro: msg.eclipastro,
-            converter_contract: deps.api.addr_validate(&msg.converter_contract)?,
+            voter: deps.api.addr_validate(&msg.voter)?,
             lp_contract: deps.api.addr_validate(&msg.lp_contract)?,
             lp_token: msg.lp_token,
         },

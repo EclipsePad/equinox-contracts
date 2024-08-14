@@ -13,7 +13,7 @@ pub struct Config {
     /// ASTRO staking contract
     pub staking_contract: Addr,
     /// eclipASTRO converter contract
-    pub converter_contract: Addr,
+    pub voter: Addr,
     /// liquidity_pool
     pub lp_contract: Addr,
     /// lp_token
@@ -31,7 +31,7 @@ pub struct InstantiateMsg {
     /// ASTRO staking contract
     pub staking_contract: String,
     /// eclipASTRO converter contract
-    pub converter_contract: String,
+    pub voter: String,
     /// liquidity_pool
     pub lp_contract: String,
     /// lp_token

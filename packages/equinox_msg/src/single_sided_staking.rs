@@ -28,7 +28,7 @@ pub enum ExecuteMsg {
     UpdateConfig {
         config: UpdateConfigMsg,
     },
-    /// Change Reward config
+    /// Update reward config
     UpdateRewardConfig {
         details: Option<RewardDetails>,
         reward_end_time: Option<u64>,
@@ -41,6 +41,7 @@ pub enum ExecuteMsg {
     },
     ClaimAll {
         with_flexible: bool,
+        assets: Option<Vec<AssetInfo>>,
     },
     Callback(CallbackMsg),
     Stake {
@@ -75,6 +76,7 @@ pub enum QueryMsg {
     /// query config
     #[returns(Config)]
     Config {},
+    /// query reward config
     #[returns(RewardConfig)]
     RewardConfig {},
     /// query owner
@@ -114,7 +116,6 @@ pub struct MigrateMsg {
 pub struct UpdateConfigMsg {
     pub timelock_config: Option<Vec<TimeLockConfig>>,
     pub voter: Option<String>,
-    pub rewards: Option<RewardConfig>,
     pub treasury: Option<String>,
 }
 
@@ -151,8 +152,8 @@ pub struct Config {
 
 #[cw_serde]
 pub struct RewardConfig {
-    pub reward_end_time: u64,
     pub details: RewardDetails,
+    pub reward_end_time: u64,
 }
 
 #[cw_serde]

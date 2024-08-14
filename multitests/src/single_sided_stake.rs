@@ -3,7 +3,7 @@ use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::AdminError;
 use equinox_msg::{
     single_sided_staking::{
-        Config, RewardConfig, RewardDetail, TimeLockConfig, UpdateConfigMsg, UserReward,
+        Config, RewardDetail, RewardDetails, TimeLockConfig, UpdateConfigMsg, UserReward,
         UserRewardByDuration, UserRewardByLockedAt, UserStaking, UserStakingByDuration,
     },
     token_converter::{Reward, RewardResponse as ConverterRewardResponse},
@@ -43,20 +43,6 @@ fn update_config() {
             early_unlock_penalty_bps: 200,
             reward_multiplier: 1,
         }]),
-        rewards: Some(RewardConfig {
-            eclip: RewardDetail {
-                info: AssetInfo::NativeToken {
-                    denom: "eclip".to_string(),
-                },
-                daily_reward: Uint128::from(2_000_000u128),
-            },
-            beclip: RewardDetail {
-                info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked("wasm1_beclip"),
-                },
-                daily_reward: Uint128::from(2_000_000u128),
-            },
-        }),
         token_converter: Some("wasm1_token_converter".to_string()),
         treasury: Some("wasm1_treasury".to_string()),
     };
@@ -82,20 +68,6 @@ fn update_config() {
                 early_unlock_penalty_bps: 200,
                 reward_multiplier: 1,
             }],
-            rewards: RewardConfig {
-                eclip: RewardDetail {
-                    info: AssetInfo::NativeToken {
-                        denom: "eclip".to_string(),
-                    },
-                    daily_reward: Uint128::from(2_000_000u128),
-                },
-                beclip: RewardDetail {
-                    info: AssetInfo::Token {
-                        contract_addr: Addr::unchecked("wasm1_beclip"),
-                    },
-                    daily_reward: Uint128::from(2_000_000u128),
-                }
-            },
             token_converter: Addr::unchecked("wasm1_token_converter"),
             treasury: Addr::unchecked("wasm1_treasury"),
             voter: Addr::unchecked("wasm1_voter")
@@ -129,197 +101,217 @@ fn stake() {
 
     assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), vec![]);
     assert_eq!(suite.query_single_sided_total_staking().unwrap(), 0);
-    // alice converts 1_000 astro
-    // suite.convert_astro(BOB, 1_000).unwrap();
-    // let err = suite.single_sided_stake(BOB, 1_000, 10, None).unwrap_err();
-    // assert_eq!(
-    //     ContractError::NoLockingPeriodFound(10),
-    //     err.downcast().unwrap()
-    // );
-    // suite
-    //     .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
-    //     .unwrap();
-    // assert_eq!(
-    //     suite.query_single_sided_staking(BOB).unwrap(),
-    //     vec![UserStaking {
-    //         duration: ONE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: suite.get_time()
-    //         }]
-    //     }]
-    // );
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 1_000);
+    alice converts 1_000 astro
+    suite.convert_astro(BOB, 1_000).unwrap();
+    let err = suite.single_sided_stake(BOB, 1_000, 10, None).unwrap_err();
+    assert_eq!(
+        ContractError::NoLockingPeriodFound(10),
+        err.downcast().unwrap()
+    );
+    suite
+        .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
+        .unwrap();
+    assert_eq!(
+        suite.query_single_sided_staking(BOB).unwrap(),
+        vec![UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: suite.get_time()
+            }]
+        }]
+    );
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 1_000);
 
-    // suite.convert_astro(BOB, 1_000).unwrap();
-    // suite
-    //     .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
-    //     .unwrap();
-    // assert_eq!(
-    //     suite.query_single_sided_staking(BOB).unwrap(),
-    //     vec![UserStaking {
-    //         duration: ONE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(2_000u128),
-    //             locked_at: suite.get_time()
-    //         }]
-    //     }]
-    // );
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 2_000);
+    suite.convert_astro(BOB, 1_000).unwrap();
+    suite
+        .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
+        .unwrap();
+    assert_eq!(
+        suite.query_single_sided_staking(BOB).unwrap(),
+        vec![UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(2_000u128),
+                locked_at: suite.get_time()
+            }]
+        }]
+    );
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 2_000);
 
-    // suite.convert_astro(BOB, 1_000).unwrap();
-    // suite
-    //     .single_sided_stake(BOB, 1_000, THREE_MONTH, None)
-    //     .unwrap();
-    // let mut bob_staking = vec![
-    //     UserStaking {
-    //         duration: ONE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(2_000u128),
-    //             locked_at: suite.get_time(),
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: THREE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: suite.get_time(),
-    //         }],
-    //     },
-    // ];
-    // assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 3_000);
+    suite.convert_astro(BOB, 1_000).unwrap();
+    suite
+        .single_sided_stake(BOB, 1_000, THREE_MONTH, None)
+        .unwrap();
+    let mut bob_staking = vec![
+        UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(2_000u128),
+                locked_at: suite.get_time(),
+            }],
+        },
+        UserStaking {
+            duration: THREE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: suite.get_time(),
+            }],
+        },
+    ];
+    assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 3_000);
 
-    // suite.convert_astro(BOB, 1_000).unwrap();
-    // suite.single_sided_stake(BOB, 1_000, 0, None).unwrap();
-    // assert_eq!(
-    //     suite.query_single_sided_staking(BOB).unwrap(),
-    //     vec![
-    //         UserStaking {
-    //             duration: 0,
-    //             staking: vec![UserStakingByDuration {
-    //                 amount: Uint128::from(1_000u128),
-    //                 locked_at: 0u64,
-    //             }],
-    //         },
-    //         UserStaking {
-    //             duration: ONE_MONTH,
-    //             staking: vec![UserStakingByDuration {
-    //                 amount: Uint128::from(2_000u128),
-    //                 locked_at: suite.get_time(),
-    //             }],
-    //         },
-    //         UserStaking {
-    //             duration: THREE_MONTH,
-    //             staking: vec![UserStakingByDuration {
-    //                 amount: Uint128::from(1_000u128),
-    //                 locked_at: suite.get_time(),
-    //             }],
-    //         },
-    //     ]
-    // );
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 4_000);
+    suite.convert_astro(BOB, 1_000).unwrap();
+    suite.single_sided_stake(BOB, 1_000, 0, None).unwrap();
+    assert_eq!(
+        suite.query_single_sided_staking(BOB).unwrap(),
+        vec![
+            UserStaking {
+                duration: 0,
+                staking: vec![UserStakingByDuration {
+                    amount: Uint128::from(1_000u128),
+                    locked_at: 0u64,
+                }],
+            },
+            UserStaking {
+                duration: ONE_MONTH,
+                staking: vec![UserStakingByDuration {
+                    amount: Uint128::from(2_000u128),
+                    locked_at: suite.get_time(),
+                }],
+            },
+            UserStaking {
+                duration: THREE_MONTH,
+                staking: vec![UserStakingByDuration {
+                    amount: Uint128::from(1_000u128),
+                    locked_at: suite.get_time(),
+                }],
+            },
+        ]
+    );
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 4_000);
 
-    // suite.update_time(THREE_MONTH);
+    suite.update_time(THREE_MONTH);
 
-    // suite.convert_astro(BOB, 1_000).unwrap();
-    // suite
-    //     .single_sided_stake(BOB, 1_000, THREE_MONTH, None)
-    //     .unwrap();
-    // bob_staking = vec![
-    //     UserStaking {
-    //         duration: 0,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: 0u64,
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: ONE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(2_000u128),
-    //             locked_at: suite.get_time() - THREE_MONTH,
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: THREE_MONTH,
-    //         staking: vec![
-    //             UserStakingByDuration {
-    //                 amount: Uint128::from(1_000u128),
-    //                 locked_at: suite.get_time() - THREE_MONTH,
-    //             },
-    //             UserStakingByDuration {
-    //                 amount: Uint128::from(1_000u128),
-    //                 locked_at: suite.get_time(),
-    //             },
-    //         ],
-    //     },
-    // ];
-    // assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 5_000);
-    // let time = suite.get_time();
-    // suite
-    //     .single_sided_unstake(BOB, THREE_MONTH, time - THREE_MONTH, None, None)
-    //     .unwrap();
-    // bob_staking = vec![
-    //     UserStaking {
-    //         duration: 0,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: 0u64,
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: ONE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(2_000u128),
-    //             locked_at: suite.get_time() - THREE_MONTH,
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: THREE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: suite.get_time(),
-    //         }],
-    //     },
-    // ];
-    // assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 4_000);
-    // assert_eq!(suite.query_eclipastro_balance(BOB).unwrap(), 1_000);
-    // suite
-    //     .single_sided_restake(BOB, ONE_MONTH, time - THREE_MONTH, SIX_MONTH, None, None)
-    //     .unwrap();
-    // bob_staking = vec![
-    //     UserStaking {
-    //         duration: 0,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: 0u64,
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: THREE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: suite.get_time(),
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: SIX_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(2_000u128),
-    //             locked_at: suite.get_time(),
-    //         }],
-    //     },
-    // ];
-    // assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
+    suite.convert_astro(BOB, 1_000).unwrap();
+    suite
+        .single_sided_stake(BOB, 1_000, THREE_MONTH, None)
+        .unwrap();
+    bob_staking = vec![
+        UserStaking {
+            duration: 0,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: 0u64,
+            }],
+        },
+        UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(2_000u128),
+                locked_at: suite.get_time() - THREE_MONTH,
+            }],
+        },
+        UserStaking {
+            duration: THREE_MONTH,
+            staking: vec![
+                UserStakingByDuration {
+                    amount: Uint128::from(1_000u128),
+                    locked_at: suite.get_time() - THREE_MONTH,
+                },
+                UserStakingByDuration {
+                    amount: Uint128::from(1_000u128),
+                    locked_at: suite.get_time(),
+                },
+            ],
+        },
+    ];
+    assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 5_000);
+    let time = suite.get_time();
+    suite
+        .single_sided_unstake(BOB, THREE_MONTH, time - THREE_MONTH, None, None)
+        .unwrap();
+    bob_staking = vec![
+        UserStaking {
+            duration: 0,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: 0u64,
+            }],
+        },
+        UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(2_000u128),
+                locked_at: suite.get_time() - THREE_MONTH,
+            }],
+        },
+        UserStaking {
+            duration: THREE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: suite.get_time(),
+            }],
+        },
+    ];
+    assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 4_000);
+    assert_eq!(suite.query_eclipastro_balance(BOB).unwrap(), 1_000);
+    suite
+        .single_sided_restake(BOB, ONE_MONTH, time - THREE_MONTH, SIX_MONTH, None, None)
+        .unwrap();
+    bob_staking = vec![
+        UserStaking {
+            duration: 0,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: 0u64,
+            }],
+        },
+        UserStaking {
+            duration: THREE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: suite.get_time(),
+            }],
+        },
+        UserStaking {
+            duration: SIX_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(2_000u128),
+                locked_at: suite.get_time(),
+            }],
+        },
+    ];
+    assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
 }
 
 #[test]
 fn claim() {
     let mut suite = SuiteBuilder::new().build();
     suite.update_config();
+    suite
+        .update_single_sided_stake_reward_config(
+            &suite.admin(),
+            RewardDetails {
+                eclip: RewardDetail {
+                    info: AssetInfo::NativeToken {
+                        denom: suite.eclip(),
+                    },
+                    daily_reward: Uint128::from(1_000_000u128),
+                },
+                beclip: RewardDetail {
+                    info: AssetInfo::Token {
+                        contract_addr: Addr::unchecked(suite.beclip()),
+                    },
+                    daily_reward: Uint128::from(2_000_000u128),
+                },
+            },
+            None,
+        )
+        .unwrap();
 
     // mint beclip
     suite

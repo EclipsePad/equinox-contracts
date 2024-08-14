@@ -629,7 +629,7 @@ pub fn handle_increase_lockup_callback(
     let cfg = CONFIG.load(deps.storage)?;
     let xastro_balance = deps
         .querier
-        .query_balance(env.contract.address, cfg.xastro_token.clone())?;
+        .query_balance(env.contract.address, cfg.xastro_token)?;
     let xastro_deposit = xastro_balance.amount - prev_xastro_balance;
     ensure!(
         !xastro_deposit.is_zero(),
@@ -1226,7 +1226,7 @@ fn handle_deposit_into_pool(
         )
         .add_attribute("token1", eclipastro_token.to_string())
         .add_attribute("amount", eclipastro_amount_to_deposit)
-        .add_attribute("token2", cfg.xastro_token.to_string())
+        .add_attribute("token2", cfg.xastro_token)
         .add_attribute("amount", xastro_amount_to_deposit)
         .add_messages(msgs))
 }
@@ -1338,6 +1338,7 @@ pub fn _claim_single_sided_rewards(
         contract_addr: cfg.single_sided_staking.clone().unwrap().to_string(),
         msg: to_json_binary(&SingleSidedExecuteMsg::ClaimAll {
             with_flexible: true,
+            assets: None,
         })?,
         funds: vec![],
     }));
@@ -1489,7 +1490,7 @@ pub fn _claim_lp_rewards(
     let mut beclip_rewards = Uint128::zero();
     let mut eclip_rewards = Uint128::zero();
 
-    if let Some(assets) = assets.clone() {
+    if let Some(assets) = assets {
         for asset in assets {
             if asset.equal(&AssetInfo::NativeToken {
                 denom: cfg.astro_token.clone(),
@@ -1580,6 +1581,7 @@ pub fn _claim_all_single_sided_rewards(
         contract_addr: cfg.single_sided_staking.clone().unwrap().to_string(),
         msg: to_json_binary(&SingleSidedExecuteMsg::ClaimAll {
             with_flexible: true,
+            assets: None,
         })?,
         funds: vec![],
     }));
@@ -1681,11 +1683,7 @@ pub fn _claim_all_single_sided_rewards(
         );
     }
     if !eclip_rewards.is_zero() {
-        msgs.push(
-            cfg.eclip
-                .with_balance(eclip_rewards)
-                .into_msg(sender.clone())?,
-        );
+        msgs.push(cfg.eclip.with_balance(eclip_rewards).into_msg(sender)?);
     }
 
     Ok(Response::new().add_messages(msgs))
@@ -1821,11 +1819,7 @@ pub fn _claim_all_lp_rewards(
         );
     }
     if !eclip_rewards.is_zero() {
-        msgs.push(
-            cfg.eclip
-                .with_balance(eclip_rewards)
-                .into_msg(sender.clone())?,
-        );
+        msgs.push(cfg.eclip.with_balance(eclip_rewards).into_msg(sender)?);
     }
     Ok(Response::new().add_messages(msgs))
 }
@@ -1943,7 +1937,7 @@ pub fn _unlock_single_lockup(
                     duration,
                     locked_at: Some(cfg.countdown_start_at),
                     amount: Some(withdraw_amount),
-                    recipient: Some(sender.clone().clone()),
+                    recipient: Some(sender.clone()),
                 })?,
                 funds: vec![],
             }));

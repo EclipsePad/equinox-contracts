@@ -20,8 +20,6 @@ pub struct InstantiateMsg {
     pub beclip: String,
     /// astro staking contract
     pub astro_staking: String,
-    /// eclipASTRO converter
-    pub converter: String,
     /// Astroport incentives
     pub astroport_incentives: String,
     /// Eclipse treasury. send 67.5% of 20% of incentives rewards
@@ -122,19 +120,10 @@ impl CallbackMsg {
 pub struct UpdateConfigMsg {
     pub lp_token: Option<AssetInfo>,
     pub lp_contract: Option<Addr>,
-    pub rewards: Option<RewardDetails>,
     pub astroport_incentives: Option<Addr>,
     pub treasury: Option<Addr>,
     pub stability_pool: Option<Addr>,
     pub ce_reward_distributor: Option<Addr>,
-}
-
-#[cw_serde]
-pub struct UpdateRewardConfigMsg {
-    pub users: Option<u32>,
-    pub treasury: Option<u32>,
-    pub ce_holders: Option<u32>,
-    pub stability_pool: Option<u32>,
 }
 
 #[cw_serde]
