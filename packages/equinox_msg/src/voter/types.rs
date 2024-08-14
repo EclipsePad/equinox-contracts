@@ -275,6 +275,8 @@ pub struct AddressConfig {
     pub eclipsepad_staking: Addr,
     /// to get bribes for voting
     pub eclipsepad_tribute_market: Option<Addr>,
+    /// eclipASTRO single sided vault
+    pub eclipse_single_sided_vault: Option<Addr>,
 
     /// to stake ASTRO and get xASTRO
     pub astroport_staking: Addr,
@@ -328,4 +330,29 @@ pub struct TransferAdminState {
 pub struct TotalEssenceAndWeightAllocation {
     pub essence: Vec<EssenceAllocationItem>,
     pub weight: Vec<(String, Decimal)>,
+}
+
+#[cw_serde]
+pub struct ConvertInfo {
+    pub total_xastro: Uint128,
+    pub total_astro_deposited: Uint128,
+    pub claimed_xastro: Uint128,
+}
+
+impl Default for ConvertInfo {
+    fn default() -> Self {
+        Self {
+            total_xastro: Uint128::zero(),
+            total_astro_deposited: Uint128::zero(),
+            claimed_xastro: Uint128::zero(),
+        }
+    }
+}
+
+#[cw_serde]
+pub struct AstroStakingRewardConfig {
+    /// users' reward in basis point
+    pub users: u32,
+    /// treasury reward in basis point
+    pub treasury: u32,
 }
