@@ -7,8 +7,8 @@ pub const DEFAULT_REWARD_DISTRIBUTION: RewardDistribution = RewardDistribution {
     stability_pool: 250,
 };
 
-pub const DEFAULT_ECLIP_DAILY_REWARD: u128 = 19_200u128;
-pub const DEFAULT_BECLIP_DAILY_REWARD: u128 = 12_800u128;
+pub const DEFAULT_ECLIP_DAILY_REWARD: u128 = 19_200_000_000u128;
+pub const DEFAULT_BECLIP_DAILY_REWARD: u128 = 12_800_000_000u128;
 
 pub const BPS_DENOMINATOR: u32 = 10_000u32;
 

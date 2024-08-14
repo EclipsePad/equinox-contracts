@@ -100,191 +100,191 @@ fn stake() {
 
     assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), vec![]);
     assert_eq!(suite.query_single_sided_total_staking().unwrap(), 0);
-    // alice converts 1_000 astro
-    // suite.convert_astro(BOB, 1_000).unwrap();
-    // let err = suite.single_sided_stake(BOB, 1_000, 10, None).unwrap_err();
-    // assert_eq!(
-    //     ContractError::NoLockingPeriodFound(10),
-    //     err.downcast().unwrap()
-    // );
-    // suite
-    //     .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
-    //     .unwrap();
-    // assert_eq!(
-    //     suite.query_single_sided_staking(BOB).unwrap(),
-    //     vec![UserStaking {
-    //         duration: ONE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: suite.get_time()
-    //         }]
-    //     }]
-    // );
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 1_000);
+    alice converts 1_000 astro
+    suite.convert_astro(BOB, 1_000).unwrap();
+    let err = suite.single_sided_stake(BOB, 1_000, 10, None).unwrap_err();
+    assert_eq!(
+        ContractError::NoLockingPeriodFound(10),
+        err.downcast().unwrap()
+    );
+    suite
+        .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
+        .unwrap();
+    assert_eq!(
+        suite.query_single_sided_staking(BOB).unwrap(),
+        vec![UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: suite.get_time()
+            }]
+        }]
+    );
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 1_000);
 
-    // suite.convert_astro(BOB, 1_000).unwrap();
-    // suite
-    //     .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
-    //     .unwrap();
-    // assert_eq!(
-    //     suite.query_single_sided_staking(BOB).unwrap(),
-    //     vec![UserStaking {
-    //         duration: ONE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(2_000u128),
-    //             locked_at: suite.get_time()
-    //         }]
-    //     }]
-    // );
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 2_000);
+    suite.convert_astro(BOB, 1_000).unwrap();
+    suite
+        .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
+        .unwrap();
+    assert_eq!(
+        suite.query_single_sided_staking(BOB).unwrap(),
+        vec![UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(2_000u128),
+                locked_at: suite.get_time()
+            }]
+        }]
+    );
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 2_000);
 
-    // suite.convert_astro(BOB, 1_000).unwrap();
-    // suite
-    //     .single_sided_stake(BOB, 1_000, THREE_MONTH, None)
-    //     .unwrap();
-    // let mut bob_staking = vec![
-    //     UserStaking {
-    //         duration: ONE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(2_000u128),
-    //             locked_at: suite.get_time(),
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: THREE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: suite.get_time(),
-    //         }],
-    //     },
-    // ];
-    // assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 3_000);
+    suite.convert_astro(BOB, 1_000).unwrap();
+    suite
+        .single_sided_stake(BOB, 1_000, THREE_MONTH, None)
+        .unwrap();
+    let mut bob_staking = vec![
+        UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(2_000u128),
+                locked_at: suite.get_time(),
+            }],
+        },
+        UserStaking {
+            duration: THREE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: suite.get_time(),
+            }],
+        },
+    ];
+    assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 3_000);
 
-    // suite.convert_astro(BOB, 1_000).unwrap();
-    // suite.single_sided_stake(BOB, 1_000, 0, None).unwrap();
-    // assert_eq!(
-    //     suite.query_single_sided_staking(BOB).unwrap(),
-    //     vec![
-    //         UserStaking {
-    //             duration: 0,
-    //             staking: vec![UserStakingByDuration {
-    //                 amount: Uint128::from(1_000u128),
-    //                 locked_at: 0u64,
-    //             }],
-    //         },
-    //         UserStaking {
-    //             duration: ONE_MONTH,
-    //             staking: vec![UserStakingByDuration {
-    //                 amount: Uint128::from(2_000u128),
-    //                 locked_at: suite.get_time(),
-    //             }],
-    //         },
-    //         UserStaking {
-    //             duration: THREE_MONTH,
-    //             staking: vec![UserStakingByDuration {
-    //                 amount: Uint128::from(1_000u128),
-    //                 locked_at: suite.get_time(),
-    //             }],
-    //         },
-    //     ]
-    // );
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 4_000);
+    suite.convert_astro(BOB, 1_000).unwrap();
+    suite.single_sided_stake(BOB, 1_000, 0, None).unwrap();
+    assert_eq!(
+        suite.query_single_sided_staking(BOB).unwrap(),
+        vec![
+            UserStaking {
+                duration: 0,
+                staking: vec![UserStakingByDuration {
+                    amount: Uint128::from(1_000u128),
+                    locked_at: 0u64,
+                }],
+            },
+            UserStaking {
+                duration: ONE_MONTH,
+                staking: vec![UserStakingByDuration {
+                    amount: Uint128::from(2_000u128),
+                    locked_at: suite.get_time(),
+                }],
+            },
+            UserStaking {
+                duration: THREE_MONTH,
+                staking: vec![UserStakingByDuration {
+                    amount: Uint128::from(1_000u128),
+                    locked_at: suite.get_time(),
+                }],
+            },
+        ]
+    );
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 4_000);
 
-    // suite.update_time(THREE_MONTH);
+    suite.update_time(THREE_MONTH);
 
-    // suite.convert_astro(BOB, 1_000).unwrap();
-    // suite
-    //     .single_sided_stake(BOB, 1_000, THREE_MONTH, None)
-    //     .unwrap();
-    // bob_staking = vec![
-    //     UserStaking {
-    //         duration: 0,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: 0u64,
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: ONE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(2_000u128),
-    //             locked_at: suite.get_time() - THREE_MONTH,
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: THREE_MONTH,
-    //         staking: vec![
-    //             UserStakingByDuration {
-    //                 amount: Uint128::from(1_000u128),
-    //                 locked_at: suite.get_time() - THREE_MONTH,
-    //             },
-    //             UserStakingByDuration {
-    //                 amount: Uint128::from(1_000u128),
-    //                 locked_at: suite.get_time(),
-    //             },
-    //         ],
-    //     },
-    // ];
-    // assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 5_000);
-    // let time = suite.get_time();
-    // suite
-    //     .single_sided_unstake(BOB, THREE_MONTH, time - THREE_MONTH, None, None)
-    //     .unwrap();
-    // bob_staking = vec![
-    //     UserStaking {
-    //         duration: 0,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: 0u64,
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: ONE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(2_000u128),
-    //             locked_at: suite.get_time() - THREE_MONTH,
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: THREE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: suite.get_time(),
-    //         }],
-    //     },
-    // ];
-    // assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
-    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 4_000);
-    // assert_eq!(suite.query_eclipastro_balance(BOB).unwrap(), 1_000);
-    // suite
-    //     .single_sided_restake(BOB, ONE_MONTH, time - THREE_MONTH, SIX_MONTH, None, None)
-    //     .unwrap();
-    // bob_staking = vec![
-    //     UserStaking {
-    //         duration: 0,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: 0u64,
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: THREE_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(1_000u128),
-    //             locked_at: suite.get_time(),
-    //         }],
-    //     },
-    //     UserStaking {
-    //         duration: SIX_MONTH,
-    //         staking: vec![UserStakingByDuration {
-    //             amount: Uint128::from(2_000u128),
-    //             locked_at: suite.get_time(),
-    //         }],
-    //     },
-    // ];
-    // assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
+    suite.convert_astro(BOB, 1_000).unwrap();
+    suite
+        .single_sided_stake(BOB, 1_000, THREE_MONTH, None)
+        .unwrap();
+    bob_staking = vec![
+        UserStaking {
+            duration: 0,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: 0u64,
+            }],
+        },
+        UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(2_000u128),
+                locked_at: suite.get_time() - THREE_MONTH,
+            }],
+        },
+        UserStaking {
+            duration: THREE_MONTH,
+            staking: vec![
+                UserStakingByDuration {
+                    amount: Uint128::from(1_000u128),
+                    locked_at: suite.get_time() - THREE_MONTH,
+                },
+                UserStakingByDuration {
+                    amount: Uint128::from(1_000u128),
+                    locked_at: suite.get_time(),
+                },
+            ],
+        },
+    ];
+    assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 5_000);
+    let time = suite.get_time();
+    suite
+        .single_sided_unstake(BOB, THREE_MONTH, time - THREE_MONTH, None, None)
+        .unwrap();
+    bob_staking = vec![
+        UserStaking {
+            duration: 0,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: 0u64,
+            }],
+        },
+        UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(2_000u128),
+                locked_at: suite.get_time() - THREE_MONTH,
+            }],
+        },
+        UserStaking {
+            duration: THREE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: suite.get_time(),
+            }],
+        },
+    ];
+    assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 4_000);
+    assert_eq!(suite.query_eclipastro_balance(BOB).unwrap(), 1_000);
+    suite
+        .single_sided_restake(BOB, ONE_MONTH, time - THREE_MONTH, SIX_MONTH, None, None)
+        .unwrap();
+    bob_staking = vec![
+        UserStaking {
+            duration: 0,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: 0u64,
+            }],
+        },
+        UserStaking {
+            duration: THREE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(1_000u128),
+                locked_at: suite.get_time(),
+            }],
+        },
+        UserStaking {
+            duration: SIX_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::from(2_000u128),
+                locked_at: suite.get_time(),
+            }],
+        },
+    ];
+    assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
 }
 
 #[test]

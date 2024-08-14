@@ -3,7 +3,6 @@ use cosmwasm_std::{
     coins, ensure, ensure_eq, to_json_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo,
     Response, StdResult, Uint128, WasmMsg,
 };
-use cw20::{BalanceResponse, Cw20QueryMsg};
 use cw_utils::one_coin;
 
 use crate::{
@@ -153,19 +152,16 @@ pub fn _handle_callback(
             recipient,
         } => {
             let config = CONFIG.load(deps.storage)?;
-            let eclipastro_balance: BalanceResponse = deps.querier.query_wasm_smart(
-                config.token,
-                &Cw20QueryMsg::Balance {
-                    address: env.contract.address.to_string(),
-                },
-            )?;
+            let eclipastro_balance = deps
+                .querier
+                .query_balance(env.contract.address.to_string(), config.token)?;
             _stake(
                 deps,
                 env,
                 duration,
                 sender,
                 recipient,
-                eclipastro_balance.balance - prev_eclipastro_balance,
+                eclipastro_balance.amount - prev_eclipastro_balance,
             )
         }
     }
