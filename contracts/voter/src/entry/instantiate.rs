@@ -4,14 +4,15 @@ use cw2::set_contract_version;
 use equinox_msg::voter::{
     msg::InstantiateMsg,
     state::{
-        ADDRESS_CONFIG, CONTRACT_NAME, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG,
-        ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
-        SLACKER_ESSENCE_ACC, SWAP_REWARDS_REPLY_ID_CNT, TEMPORARY_REWARDS, TOKEN_CONFIG,
-        TRANSFER_ADMIN_STATE, VOTE_RESULTS,
+        ADDRESS_CONFIG, ASTRO_STAKING_REWARD_CONFIG, CONTRACT_NAME, DAO_ESSENCE_ACC,
+        DAO_WEIGHTS_ACC, DATE_CONFIG, ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ESSENCE_ACC,
+        ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE, SLACKER_ESSENCE_ACC,
+        SWAP_REWARDS_REPLY_ID_CNT, TEMPORARY_REWARDS, TOKEN_CONFIG, TRANSFER_ADMIN_STATE,
+        VOTE_RESULTS,
     },
     types::{
-        AddressConfig, DateConfig, EpochInfo, EssenceInfo, RewardsClaimStage, TokenConfig,
-        TransferAdminState,
+        AddressConfig, AstroStakingRewardConfig, DateConfig, EpochInfo, EssenceInfo,
+        RewardsClaimStage, TokenConfig, TransferAdminState,
     },
 };
 
@@ -33,6 +34,7 @@ pub fn try_instantiate(
     SWAP_REWARDS_REPLY_ID_CNT.save(deps.storage, &0)?;
     IS_PAUSED.save(deps.storage, &false)?;
     REWARDS_CLAIM_STAGE.save(deps.storage, &RewardsClaimStage::default())?;
+    ECLIP_ASTRO_MINTED_BY_VOTER.save(deps.storage, &Uint128::zero())?;
 
     ADDRESS_CONFIG.save(
         deps.storage,
@@ -56,6 +58,10 @@ pub fn try_instantiate(
             eclipsepad_staking: deps.api.addr_validate(&msg.eclipsepad_staking)?,
             eclipsepad_tribute_market: msg
                 .eclipsepad_tribute_market
+                .map(|x| deps.api.addr_validate(&x))
+                .transpose()?,
+            eclipse_single_sided_vault: msg
+                .eclipse_single_sided_vault
                 .map(|x| deps.api.addr_validate(&x))
                 .transpose()?,
             astroport_staking: deps.api.addr_validate(&msg.astroport_staking)?,
@@ -116,6 +122,14 @@ pub fn try_instantiate(
         &EpochInfo {
             start_date: msg.genesis_epoch_start_date,
             id: 1,
+        },
+    )?;
+
+    ASTRO_STAKING_REWARD_CONFIG.save(
+        deps.storage,
+        &AstroStakingRewardConfig {
+            users: 8000,
+            treasury: 2000,
         },
     )?;
 

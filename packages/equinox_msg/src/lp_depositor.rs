@@ -1,6 +1,6 @@
 use astroport::asset::Asset;
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Env, StdResult, WasmMsg};
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Env, StdResult, Uint128, WasmMsg};
 
 #[cw_serde]
 pub struct Config {
@@ -13,7 +13,7 @@ pub struct Config {
     /// ASTRO staking contract
     pub staking_contract: Addr,
     /// eclipASTRO converter contract
-    pub converter_contract: Addr,
+    pub voter: Addr,
     /// liquidity_pool
     pub lp_contract: Addr,
     /// lp_token
@@ -31,7 +31,7 @@ pub struct InstantiateMsg {
     /// ASTRO staking contract
     pub staking_contract: String,
     /// eclipASTRO converter contract
-    pub converter_contract: String,
+    pub voter: String,
     /// liquidity_pool
     pub lp_contract: String,
     /// lp_token
@@ -48,8 +48,13 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
+    /// query config
+    #[returns(Config)]
     Config {},
+
+    #[returns(Uint128)]
     Simulate { asset: Asset },
 }
 #[cw_serde]

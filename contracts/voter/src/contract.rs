@@ -51,6 +51,7 @@ pub fn execute(
             eclipsepad_minter,
             eclipsepad_staking,
             eclipsepad_tribute_market,
+            eclipse_single_sided_vault,
             astroport_staking,
             astroport_assembly,
             astroport_voting_escrow,
@@ -68,6 +69,7 @@ pub fn execute(
             eclipsepad_minter,
             eclipsepad_staking,
             eclipsepad_tribute_market,
+            eclipse_single_sided_vault,
             astroport_staking,
             astroport_assembly,
             astroport_voting_escrow,
@@ -101,6 +103,16 @@ pub fn execute(
         } => e::try_update_essence_allocation(deps, env, info, user_and_essence_list),
 
         ExecuteMsg::SwapToEclipAstro {} => e::try_swap_to_eclip_astro(deps, env, info),
+
+        ExecuteMsg::UpdateAstroStakingRewardConfig { config } => {
+            e::try_update_astro_staking_reward_config(deps, env, info, config)
+        }
+
+        ExecuteMsg::ClaimAstroRewards {} => e::try_claim_astro_staking_rewards(deps, env, info),
+
+        ExecuteMsg::ClaimTreasuryRewards {} => {
+            e::try_claim_astro_staking_treasury_rewards(deps, env, info)
+        }
 
         ExecuteMsg::Delegate {} => e::try_delegate(deps, env, info),
 
@@ -142,6 +154,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         QueryMsg::XastroPrice {} => to_json_binary(&q::query_xastro_price(deps, env)?),
 
+        QueryMsg::EclipAstroMintedByVoter {} => {
+            to_json_binary(&q::query_eclip_astro_minted_by_voter(deps, env)?)
+        }
+
         QueryMsg::User {
             address,
             block_time,
@@ -170,6 +186,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
 
         QueryMsg::OperationStatus {} => to_json_binary(&q::query_operation_status(deps, env)?),
+
+        QueryMsg::AstroStakingRewards {} => {
+            to_json_binary(&q::query_astro_staking_rewards(deps, env)?)
+        }
+        QueryMsg::AstroStakingTreasuryRewards {} => {
+            to_json_binary(&q::query_astro_staking_treasury_rewards(deps, env)?)
+        }
     }
 }
 

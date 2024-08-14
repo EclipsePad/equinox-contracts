@@ -32,6 +32,7 @@ pub trait VoterExtension {
         eclipsepad_minter: &Addr,
         eclipsepad_staking: &Addr,
         eclipsepad_tribute_market: Option<String>,
+        eclipse_single_sided_vault: Option<String>,
         astroport_staking: &Addr,
         astroport_assembly: &Addr,
         astroport_voting_escrow: &Addr,
@@ -62,6 +63,7 @@ pub trait VoterExtension {
         eclipsepad_minter: Option<Addr>,
         eclipsepad_staking: Option<Addr>,
         eclipsepad_tribute_market: Option<Addr>,
+        eclipse_single_sided_vault: Option<Addr>,
         astroport_staking: Option<Addr>,
         astroport_assembly: Option<Addr>,
         astroport_voting_escrow: Option<Addr>,
@@ -140,6 +142,8 @@ pub trait VoterExtension {
 
     fn voter_query_xastro_price(&self) -> StdResult<Decimal>;
 
+    fn voter_query_eclip_astro_minted_by_voter(&self) -> StdResult<Uint128>;
+
     fn voter_query_user(
         &self,
         address: impl ToString,
@@ -194,6 +198,7 @@ impl VoterExtension for ControllerHelper {
         eclipsepad_minter: &Addr,
         eclipsepad_staking: &Addr,
         eclipsepad_tribute_market: Option<String>,
+        eclipse_single_sided_vault: Option<String>,
         astroport_staking: &Addr,
         astroport_assembly: &Addr,
         astroport_voting_escrow: &Addr,
@@ -235,6 +240,7 @@ impl VoterExtension for ControllerHelper {
                     eclipsepad_minter: eclipsepad_minter.to_string(),
                     eclipsepad_staking: eclipsepad_staking.to_string(),
                     eclipsepad_tribute_market,
+                    eclipse_single_sided_vault,
                     astroport_staking: astroport_staking.to_string(),
                     astroport_assembly: astroport_assembly.to_string(),
                     astroport_voting_escrow: astroport_voting_escrow.to_string(),
@@ -285,6 +291,7 @@ impl VoterExtension for ControllerHelper {
         eclipsepad_minter: Option<Addr>,
         eclipsepad_staking: Option<Addr>,
         eclipsepad_tribute_market: Option<Addr>,
+        eclipse_single_sided_vault: Option<Addr>,
         astroport_staking: Option<Addr>,
         astroport_assembly: Option<Addr>,
         astroport_voting_escrow: Option<Addr>,
@@ -305,6 +312,7 @@ impl VoterExtension for ControllerHelper {
                     eclipsepad_minter: eclipsepad_minter.map(|x| x.to_string()),
                     eclipsepad_staking: eclipsepad_staking.map(|x| x.to_string()),
                     eclipsepad_tribute_market: eclipsepad_tribute_market.map(|x| x.to_string()),
+                    eclipse_single_sided_vault: eclipse_single_sided_vault.map(|x| x.to_string()),
                     astroport_staking: astroport_staking.map(|x| x.to_string()),
                     astroport_assembly: astroport_assembly.map(|x| x.to_string()),
                     astroport_voting_escrow: astroport_voting_escrow.map(|x| x.to_string()),
@@ -532,6 +540,13 @@ impl VoterExtension for ControllerHelper {
         self.app
             .wrap()
             .query_wasm_smart(self.voter_contract_address(), &QueryMsg::XastroPrice {})
+    }
+
+    fn voter_query_eclip_astro_minted_by_voter(&self) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract_address(),
+            &QueryMsg::EclipAstroMintedByVoter {},
+        )
     }
 
     fn voter_query_user(

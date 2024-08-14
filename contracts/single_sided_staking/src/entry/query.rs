@@ -14,7 +14,7 @@ use equinox_msg::{
         Config, RewardConfig, RewardWeights, StakingWithDuration, UserReward, UserRewardByDuration,
         UserRewardByLockedAt, UserStaking, UserStakingByDuration, VaultRewards,
     },
-    token_converter::{QueryMsg as ConverterQueryMsg, RewardResponse},
+    voter::msg::{AstroStakingRewardResponse, QueryMsg as VoterQueryMsg},
 };
 
 /// query owner
@@ -324,13 +324,16 @@ pub fn calculate_total_user_reward(
 
 pub fn query_eclipastro_pending_rewards(
     deps: Deps,
-    converter_contract: String,
+    voter: String,
 ) -> StdResult<Uint128> {
-    let rewards: RewardResponse = deps
+    let rewards: AstroStakingRewardResponse = deps
         .querier
-        .query_wasm_smart(converter_contract, &ConverterQueryMsg::Rewards {})
+        .query_wasm_smart(
+            voter.clone(),
+            &VoterQueryMsg::AstroStakingRewards {},
+        )
         .unwrap();
-    Ok(rewards.users_reward.amount)
+    Ok(rewards.users)
 }
 
 pub fn query_eclipastro_rewards(deps: Deps, env: Env) -> StdResult<Vec<(u64, Uint128)>> {

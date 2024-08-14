@@ -1,6 +1,5 @@
 use cosmwasm_std::StdError;
 use cw_controllers::AdminError;
-use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
 impl From<semver::Error> for ContractError {
@@ -120,4 +119,10 @@ pub enum ContractError {
 
     #[error("Msg version is not equal contract new version!")]
     ImproperMsgVersion,
+
+    #[error("No astro staking rewards claimable")]
+    NoAstroStakingRewards,
+
+    #[error("Invalid reward config")]
+    InvalidRewardConfig,
 }

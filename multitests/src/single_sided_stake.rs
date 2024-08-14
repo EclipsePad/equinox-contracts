@@ -70,6 +70,7 @@ fn update_config() {
             }],
             token_converter: Addr::unchecked("wasm1_token_converter"),
             treasury: Addr::unchecked("wasm1_treasury"),
+            voter: Addr::unchecked("wasm1_voter")
         }
     );
 }

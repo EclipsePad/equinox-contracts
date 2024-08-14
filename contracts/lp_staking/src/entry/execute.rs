@@ -45,10 +45,6 @@ pub fn update_config(
         config.lp_contract = deps.api.addr_validate(lp_contract.as_str())?;
         res = res.add_attribute("lp_contract", lp_contract.to_string());
     }
-    if let Some(converter) = new_config.converter {
-        config.converter = deps.api.addr_validate(converter.as_str())?;
-        res = res.add_attribute("converter", converter);
-    }
     if let Some(astroport_incentives) = new_config.astroport_incentives {
         config.astroport_incentives = deps.api.addr_validate(astroport_incentives.as_str())?;
         res = res.add_attribute("astroport_incentives", astroport_incentives.to_string());

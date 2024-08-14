@@ -10,18 +10,16 @@ pub struct InstantiateMsg {
     pub lp_token: AssetInfo,
     /// lp contract
     pub lp_contract: String,
-    /// ECLIP
-    pub eclip: String,
-    /// bECLIP
-    pub beclip: String,
     /// ASTRO token
     pub astro: String,
     /// xASTRO token
     pub xastro: String,
+    /// ECLIP token
+    pub eclip: String,
+    /// bECLIP token
+    pub beclip: String,
     /// astro staking contract
     pub astro_staking: String,
-    /// eclipASTRO converter
-    pub converter: String,
     /// Astroport incentives
     pub astroport_incentives: String,
     /// Eclipse treasury. send 67.5% of 20% of incentives rewards
@@ -122,7 +120,6 @@ impl CallbackMsg {
 pub struct UpdateConfigMsg {
     pub lp_token: Option<AssetInfo>,
     pub lp_contract: Option<Addr>,
-    pub converter: Option<Addr>,
     pub astroport_incentives: Option<Addr>,
     pub treasury: Option<Addr>,
     pub stability_pool: Option<Addr>,
@@ -141,8 +138,6 @@ pub struct Config {
     pub xastro: String,
     /// ASTRO staking contract
     pub astro_staking: Addr,
-    /// eclipASTRO converter
-    pub converter: Addr,
     /// Astroport incentives
     pub astroport_incentives: Addr,
     pub treasury: Addr,

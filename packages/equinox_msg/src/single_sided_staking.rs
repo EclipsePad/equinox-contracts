@@ -7,14 +7,14 @@ pub struct InstantiateMsg {
     pub owner: String,
     /// eclipASTRO token
     pub token: String,
-    /// ECLIP
+    /// ECLIP token
     pub eclip: String,
-    /// bECLIP
+    /// bECLIP token
     pub beclip: String,
     /// timelock config
     pub timelock_config: Option<Vec<TimeLockConfig>>,
     /// ASTRO/eclipASTRO converter contract
-    pub token_converter: String,
+    pub voter: String,
     pub treasury: String,
 }
 
@@ -115,7 +115,7 @@ pub struct MigrateMsg {
 #[cw_serde]
 pub struct UpdateConfigMsg {
     pub timelock_config: Option<Vec<TimeLockConfig>>,
-    pub token_converter: Option<String>,
+    pub voter: Option<String>,
     pub treasury: Option<String>,
 }
 
@@ -146,7 +146,7 @@ pub struct Config {
     /// lock config
     pub timelock_config: Vec<TimeLockConfig>,
     /// ASTRO/eclipASTRO converter contract
-    pub token_converter: Addr,
+    pub voter: Addr,
     pub treasury: Addr,
 }
 
