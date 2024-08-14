@@ -4,9 +4,9 @@ use astroport::{
     staking::ExecuteMsg as AstroStakingExecuteMsg,
 };
 use cosmwasm_std::{
-    attr, coin, ensure, ensure_eq, ensure_ne, from_json, to_json_binary, Addr, BankMsg, Coin,
-    CosmosMsg, DepsMut, Env, MessageInfo, Order, QuerierWrapper, Response, StdError, StdResult,
-    Uint128, Uint256, WasmMsg,
+    attr, coin, ensure, ensure_eq, from_json, to_json_binary, Addr, BankMsg, Coin, CosmosMsg,
+    DepsMut, Env, MessageInfo, Order, QuerierWrapper, Response, StdError, StdResult, Uint128,
+    Uint256, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
@@ -17,8 +17,8 @@ use equinox_msg::{
     },
     lp_staking::{Cw20HookMsg as LpStakingCw20HookMsg, ExecuteMsg as LpExecuteMsg},
     single_sided_staking::ExecuteMsg as SingleSidedExecuteMsg,
-    token_converter::ExecuteMsg as ConverterExecuteMsg,
     utils::has_unique_elements,
+    voter::msg::ExecuteMsg as VoterExecuteMsg,
 };
 
 use crate::{
@@ -153,9 +153,8 @@ pub fn try_increase_lockup(
         check_deposit_window(deps.as_ref(), current_time).unwrap(),
         ContractError::DepositWindowClosed {}
     );
-    ensure_ne!(
-        cfg.lock_configs.iter().find(|c| c.duration == duration),
-        None,
+    ensure!(
+        cfg.lock_configs.iter().any(|c| c.duration == duration),
         ContractError::InvalidDuration(duration)
     );
     ensure!(
@@ -208,17 +207,13 @@ pub fn try_extend_lockup(
     );
     let sender = info.sender.to_string();
 
-    ensure_ne!(
-        cfg.lock_configs
-            .iter()
-            .find(|c| c.duration == from_duration),
-        None,
+    ensure!(
+        cfg.lock_configs.iter().any(|c| c.duration == from_duration),
         ContractError::InvalidDuration(from_duration)
     );
 
-    ensure_ne!(
-        cfg.lock_configs.iter().find(|c| c.duration == to_duration),
-        None,
+    ensure!(
+        cfg.lock_configs.iter().any(|c| c.duration == to_duration),
         ContractError::InvalidDuration(to_duration)
     );
 
@@ -959,14 +954,13 @@ pub fn handle_stake_single_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMs
     let mut msgs = vec![];
 
     if total_xastro_amount_to_staking.gt(&Uint128::zero()) {
-        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.converter.unwrap().to_string(),
-            msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
-            funds: vec![coin(
+        msgs.push(convert_eclipastro_msg(
+            cfg.converter.unwrap().to_string(),
+            &coin(
                 total_xastro_amount_to_staking.u128(),
                 cfg.xastro_token,
-            )],
-        }));
+            ),
+        )?);
     }
 
     // callback function to stake eclipASTRO to single staking vaults
@@ -1070,7 +1064,7 @@ pub fn handle_stake_lp_vault(deps: DepsMut, env: Env) -> Result<Vec<CosmosMsg>, 
     if xastro_exchange_amount.gt(&Uint128::zero()) {
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.converter.unwrap().to_string(),
-            msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
+            msg: to_json_binary(&VoterExecuteMsg::SwapToEclipAstro {  })?,
             funds: vec![coin(xastro_exchange_amount.u128(), cfg.xastro_token)],
         }));
     }
@@ -2097,7 +2091,7 @@ pub fn astro_convert_msg(astro_staking: String, coin: &Coin) -> StdResult<Cosmos
 pub fn convert_eclipastro_msg(token_converter: String, coin: &Coin) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_converter,
-        msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
+        msg: to_json_binary(&VoterExecuteMsg::SwapToEclipAstro {})?,
         funds: vec![coin.clone()],
     }))
 }
