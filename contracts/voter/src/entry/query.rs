@@ -7,24 +7,26 @@ use equinox_msg::voter::{
         VoterInfoResponse,
     },
     state::{
-        ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, ECLIP_ASTRO_MINTED_BY_VOTER,
-        ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
-        ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, VOTE_RESULTS,
+        ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ESSENCE_FRACTIONS,
+        ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER,
+        IS_PAUSED, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG,
+        USER_ESSENCE, VOTE_RESULTS,
     },
     types::{
         AddressConfig, BribesAllocationItem, DateConfig, EpochInfo, RouteListItem, TokenConfig,
+        UserType,
     },
 };
 
 use crate::{
     helpers::{
-        get_accumulated_rewards, get_astro_and_xastro_supply, get_total_votes, get_user_type,
+        get_accumulated_rewards, get_astro_and_xastro_supply, get_total_votes, get_user_types,
         get_user_weights, query_astroport_bribe_allocation, query_astroport_rewards,
-        query_eclipsepad_bribe_allocation, query_eclipsepad_rewards,
+        query_eclipsepad_bribe_allocation, query_eclipsepad_rewards, split_user_essence_info,
     },
     math::{
         calc_essence_allocation, calc_merged_bribe_allocations, calc_merged_rewards,
-        calc_voting_power, calc_xastro_price,
+        calc_splitted_user_essence_info, calc_voting_power, calc_xastro_price,
     },
 };
 
@@ -119,27 +121,38 @@ pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Ui
     ))
 }
 
+/// rewards are the same for different user types as we have common rewards storage
 pub fn query_user(
     deps: Deps,
     env: Env,
     address: String,
     block_time: Option<u64>,
-) -> StdResult<UserResponse> {
+) -> StdResult<Vec<UserResponse>> {
     let block_time = block_time.unwrap_or(env.block.time.seconds());
     let user = &deps.api.addr_validate(&address)?;
-    let user_type = get_user_type(deps.storage, user)?;
-    let user_weights = get_user_weights(deps.storage, user, &user_type);
-    let essence_info = USER_ESSENCE.load(deps.storage, user).unwrap_or_default();
-    let essence_value = essence_info.capture(block_time);
-    let (_, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
+    let (delegator_essence_info, elector_or_slacker_essence_info) =
+        &split_user_essence_info(deps.storage, user);
 
-    Ok(UserResponse {
-        user_type,
-        essence_info,
-        essence_value,
-        weights: user_weights,
-        rewards: user_rewards,
-    })
+    get_user_types(deps.storage, user)?
+        .iter()
+        .map(|user_type| -> StdResult<UserResponse> {
+            let user_weights = get_user_weights(deps.storage, user, &user_type);
+            let essence_info = match user_type {
+                UserType::Delegator => delegator_essence_info,
+                _ => elector_or_slacker_essence_info,
+            };
+            let essence_value = essence_info.capture(block_time);
+            let (_, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
+
+            Ok(UserResponse {
+                user_type: user_type.to_owned(),
+                essence_info: essence_info.to_owned(),
+                essence_value,
+                weights: user_weights,
+                rewards: user_rewards,
+            })
+        })
+        .collect()
 }
 
 pub fn query_user_list(
@@ -164,17 +177,33 @@ pub fn query_user_list(
         .take(amount as usize)
         .map(|x| {
             let (address, essence_info) = x.unwrap();
-            let essence_value = essence_info.capture(block_time);
-            let user_type = get_user_type(deps.storage, &address)?;
-            let user_weights = get_user_weights(deps.storage, &address, &user_type);
-            let (_, user_rewards) = get_accumulated_rewards(deps.storage, &address, block_time)?;
-            let user_info = UserResponse {
-                user_type,
-                essence_info,
-                essence_value,
-                weights: user_weights,
-                rewards: user_rewards,
-            };
+            let delegator_essence_fraction = DELEGATOR_ESSENCE_FRACTIONS
+                .load(deps.storage, &address)
+                .unwrap_or_default();
+            let (delegator_essence_info, elector_or_slacker_essence_info) =
+                &calc_splitted_user_essence_info(&essence_info, delegator_essence_fraction);
+
+            let user_info = get_user_types(deps.storage, &address)?
+                .iter()
+                .map(|user_type| -> StdResult<UserResponse> {
+                    let user_weights = get_user_weights(deps.storage, &address, &user_type);
+                    let essence_info = match user_type {
+                        UserType::Delegator => delegator_essence_info,
+                        _ => elector_or_slacker_essence_info,
+                    };
+                    let essence_value = essence_info.capture(block_time);
+                    let (_, user_rewards) =
+                        get_accumulated_rewards(deps.storage, &address, block_time)?;
+
+                    Ok(UserResponse {
+                        user_type: user_type.to_owned(),
+                        essence_info: essence_info.to_owned(),
+                        essence_value,
+                        weights: user_weights,
+                        rewards: user_rewards,
+                    })
+                })
+                .collect::<StdResult<Vec<UserResponse>>>()?;
 
             Ok(UserListResponseItem { address, user_info })
         })

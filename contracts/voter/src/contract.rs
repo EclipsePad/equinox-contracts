@@ -102,9 +102,7 @@ pub fn execute(
 
         ExecuteMsg::SwapToEclipAstro {} => e::try_swap_to_eclip_astro(deps, env, info),
 
-        ExecuteMsg::Delegate {} => e::try_delegate(deps, env, info),
-
-        ExecuteMsg::Undelegate {} => e::try_undelegate(deps, env, info),
+        ExecuteMsg::SetDelegation { weight } => e::try_set_delegation(deps, env, info, weight),
 
         ExecuteMsg::PlaceVote { weight_allocation } => {
             e::try_place_vote(deps, env, info, weight_allocation)

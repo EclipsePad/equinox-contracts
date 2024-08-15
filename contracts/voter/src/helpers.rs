@@ -7,14 +7,14 @@ use eclipse_base::{
 };
 use equinox_msg::voter::{
     state::{
-        ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DELEGATOR_ADDRESSES,
+        ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DELEGATOR_ESSENCE_FRACTIONS,
         ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS,
         ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
         ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
     types::{
-        AddressConfig, BribesAllocationItem, RewardsClaimStage, RewardsInfo, RouteItem,
-        TokenConfig, TotalEssenceAndWeightAllocation, UserType, WeightAllocationItem,
+        AddressConfig, BribesAllocationItem, EssenceInfo, RewardsClaimStage, RewardsInfo,
+        RouteItem, TokenConfig, TotalEssenceAndWeightAllocation, UserType, WeightAllocationItem,
     },
 };
 
@@ -22,7 +22,8 @@ use crate::{
     error::ContractError,
     math::{
         calc_delegator_rewards, calc_merged_rewards, calc_personal_elector_rewards,
-        calc_scaled_essence_allocation, calc_updated_essence_allocation,
+        calc_scaled_essence_allocation, calc_splitted_user_essence_info,
+        calc_updated_essence_allocation,
     },
 };
 
@@ -124,7 +125,13 @@ pub fn get_route(storage: &dyn Storage, denom: &str) -> StdResult<Vec<SwapOperat
         .collect())
 }
 
-pub fn get_user_type(storage: &dyn Storage, address: &Addr) -> StdResult<UserType> {
+/// possible options:
+/// 1) elector
+/// 2) delegator
+/// 3) slacker
+/// 4) elector, delegator
+/// 5) slacker, delegator
+pub fn get_user_types(storage: &dyn Storage, address: &Addr) -> StdResult<Vec<UserType>> {
     // check if user exists
     if !USER_ESSENCE.has(storage, address) {
         Err(StdError::generic_err(
@@ -132,20 +139,43 @@ pub fn get_user_type(storage: &dyn Storage, address: &Addr) -> StdResult<UserTyp
         ))?;
     }
 
-    // elector is a user who placed a vote in current epoch
-    if ELECTOR_WEIGHTS.has(storage, address) {
-        return Ok(UserType::Elector);
-    }
+    let mut user_types: Vec<UserType> = if ELECTOR_WEIGHTS.has(storage, address) {
+        // elector is a user who placed a vote in current epoch
+        vec![UserType::Elector]
+    } else {
+        // slacker is a user who met one of following requirements:
+        // a) was an elector earlier (ELECTOR_WEIGHTS_REF) but didn't place a vote in current epoch
+        // b) has essence but didn't place a vote at all
+        vec![UserType::Slacker]
+    };
 
     // delegator is a user who delegated
-    if DELEGATOR_ADDRESSES.has(storage, address) {
-        return Ok(UserType::Delegator);
+    let delegator_essence_fraction = DELEGATOR_ESSENCE_FRACTIONS
+        .load(storage, address)
+        .unwrap_or_default();
+
+    if delegator_essence_fraction == Decimal::one() {
+        return Ok(vec![UserType::Delegator]);
     }
 
-    // slacker is a user who met one of following requirements:
-    // a) was an elector earlier (ELECTOR_WEIGHTS_REF) but didn't place a vote in current epoch
-    // b) has essence but didn't place a vote at all
-    Ok(UserType::Slacker)
+    if !delegator_essence_fraction.is_zero() {
+        user_types.push(UserType::Delegator);
+    }
+
+    Ok(user_types)
+}
+
+/// returns (delegator_essence_info, elector_or_slacker_essence_info)
+pub fn split_user_essence_info(
+    storage: &dyn Storage,
+    address: &Addr,
+) -> (EssenceInfo, EssenceInfo) {
+    let essence_info = USER_ESSENCE.load(storage, address).unwrap_or_default();
+    let delegator_essence_fraction = DELEGATOR_ESSENCE_FRACTIONS
+        .load(storage, address)
+        .unwrap_or_default();
+
+    calc_splitted_user_essence_info(&essence_info, delegator_essence_fraction)
 }
 
 pub fn get_user_weights(
@@ -231,76 +261,82 @@ pub fn get_accumulated_rewards(
     let epoch = EPOCH_COUNTER.load(storage)?;
     let rewards_claim_stage = REWARDS_CLAIM_STAGE.load(storage)?;
     let mut user_rewards = USER_REWARDS.load(storage, user).unwrap_or_default();
+    let mut is_updated = false;
 
     // it's only possible to claim user rewards when voter rewards are claimed and swapped
     // skip if rewards are claimed in previous epoch
     if !matches!(rewards_claim_stage, RewardsClaimStage::Swapped)
         || (user_rewards.last_update_epoch + 1 == epoch.id)
     {
-        return Ok((false, user_rewards));
+        return Ok((is_updated, user_rewards));
     }
 
-    let user_essence = USER_ESSENCE.load(storage, user)?;
+    let (delegator_essence_info, elector_or_slacker_essence_info) =
+        split_user_essence_info(storage, user);
     let TokenConfig { eclip, .. } = TOKEN_CONFIG.load(storage)?;
     let vote_results = VOTE_RESULTS.load(storage)?;
 
-    // collect rewards
-    match get_user_type(storage, user)? {
-        // For delegators previous epoch rewards will be accumulated on UpdateEssenceAllocation, ClaimRewards, Undelegate.
-        // Alternatively essence will be the same in each epoch then it's possible
-        // to iterate over range last_update_epoch..current_epoch_id and accumulate rewards
-        // for multiple epochs
-        UserType::Delegator => {
-            let delegator_unclaimed_rewards =
-                vote_results.iter().fold(Uint128::zero(), |acc, cur| {
-                    if cur.epoch_id <= user_rewards.last_update_epoch {
-                        acc
-                    } else {
-                        let delegator_rewards = calc_delegator_rewards(
-                            cur.dao_delegators_eclip_rewards,
-                            cur.slacker_essence,
-                            cur.dao_essence,
-                            user_essence.capture(cur.end_date),
-                        );
+    for user_type in get_user_types(storage, user)? {
+        // collect rewards
+        match user_type {
+            // For delegators previous epoch rewards will be accumulated on UpdateEssenceAllocation, ClaimRewards, Undelegate.
+            // Alternatively essence will be the same in each epoch then it's possible
+            // to iterate over range last_update_epoch..current_epoch_id and accumulate rewards
+            // for multiple epochs
+            UserType::Delegator => {
+                let delegator_unclaimed_rewards =
+                    vote_results.iter().fold(Uint128::zero(), |acc, cur| {
+                        if cur.epoch_id <= user_rewards.last_update_epoch {
+                            acc
+                        } else {
+                            let delegator_rewards = calc_delegator_rewards(
+                                cur.dao_delegators_eclip_rewards,
+                                cur.slacker_essence,
+                                cur.dao_essence,
+                                delegator_essence_info.capture(cur.end_date),
+                            );
 
-                        acc + delegator_rewards
-                    }
-                });
+                            acc + delegator_rewards
+                        }
+                    });
 
-            user_rewards.last_update_epoch = epoch.id - 1;
-            user_rewards.value =
-                calc_merged_rewards(&user_rewards.value, &[(delegator_unclaimed_rewards, eclip)]);
-
-            return Ok((true, user_rewards));
-        }
-        // For electors previous epoch rewards will be accumulated on UpdateEssenceAllocation,
-        // ClaimRewards, PlaceVote, Delegate. If last_update_epoch + 1 != current_epoch_id
-        // it means the user is a slacker now and doesn't have other epoch rewards
-        _ => {
-            if let Some(target_result) = vote_results
-                .iter()
-                .find(|x| x.epoch_id == user_rewards.last_update_epoch + 1)
-            {
-                let personal_elector_weight_list =
-                    ELECTOR_WEIGHTS_REF.load(storage, user).unwrap_or_default();
-                let elector_rewards = calc_personal_elector_rewards(
-                    &target_result.pool_info_list,
-                    &target_result.elector_weights,
-                    &personal_elector_weight_list,
-                    target_result.slacker_essence,
-                    target_result.elector_essence,
-                    user_essence.capture(block_time),
+                is_updated = true;
+                user_rewards.value = calc_merged_rewards(
+                    &user_rewards.value,
+                    &[(delegator_unclaimed_rewards, eclip.clone())],
                 );
-
-                user_rewards.last_update_epoch = epoch.id - 1;
-                user_rewards.value = calc_merged_rewards(&user_rewards.value, &elector_rewards);
-
-                return Ok((true, user_rewards));
             }
-        }
-    };
+            // For electors previous epoch rewards will be accumulated on UpdateEssenceAllocation,
+            // ClaimRewards, PlaceVote, Delegate. If last_update_epoch + 1 != current_epoch_id
+            // it means the user is a slacker now and doesn't have other epoch rewards
+            _ => {
+                if let Some(target_result) = vote_results
+                    .iter()
+                    .find(|x| x.epoch_id == user_rewards.last_update_epoch + 1)
+                {
+                    let personal_elector_weight_list =
+                        ELECTOR_WEIGHTS_REF.load(storage, user).unwrap_or_default();
+                    let elector_rewards = calc_personal_elector_rewards(
+                        &target_result.pool_info_list,
+                        &target_result.elector_weights,
+                        &personal_elector_weight_list,
+                        target_result.slacker_essence,
+                        target_result.elector_essence,
+                        elector_or_slacker_essence_info.capture(block_time),
+                    );
 
-    Ok((false, user_rewards))
+                    is_updated = true;
+                    user_rewards.value = calc_merged_rewards(&user_rewards.value, &elector_rewards);
+                }
+            }
+        };
+    }
+
+    if is_updated {
+        user_rewards.last_update_epoch = epoch.id - 1;
+    }
+
+    Ok((is_updated, user_rewards))
 }
 
 /// returns (astro_supply, xastro_supply)
@@ -316,6 +352,7 @@ pub fn get_astro_and_xastro_supply(deps: Deps) -> StdResult<(Uint128, Uint128)> 
             &astroport::staking::QueryMsg::TotalDeposit {},
         )
         .unwrap_or_default();
+
     let xastro_supply = deps
         .querier
         .query_wasm_smart::<Uint128>(

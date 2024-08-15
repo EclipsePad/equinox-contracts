@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_storage_plus::{Item, Map};
 
 use super::types::{
@@ -68,8 +68,8 @@ pub const ELECTOR_WEIGHTS_ACC: Item<Vec<WeightAllocationItem>> = Item::new("elec
 /// sum essence info over all electors, slackers are excluded
 pub const ELECTOR_ESSENCE_ACC: Item<EssenceInfo> = Item::new("elector_essence_acc");
 
-/// delegator addresses
-pub const DELEGATOR_ADDRESSES: Map<&Addr, bool> = Map::new("delegator_addresses");
+/// delegator essence fraction displaying how much of USER_ESSENCE was delegated
+pub const DELEGATOR_ESSENCE_FRACTIONS: Map<&Addr, Decimal> = Map::new("delegator_weights");
 /// dao list of pools with weight allocations
 pub const DAO_WEIGHTS_ACC: Item<Vec<WeightAllocationItem>> = Item::new("dao_weights_acc");
 /// dao essence info, slackers are excluded

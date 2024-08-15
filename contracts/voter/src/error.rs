@@ -1,6 +1,5 @@
 use cosmwasm_std::StdError;
 use cw_controllers::AdminError;
-use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
 impl From<semver::Error> for ContractError {
@@ -15,7 +14,6 @@ impl From<semver::Error> for ContractError {
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
-
 
     #[error("{0}")]
     Admin(#[from] AdminError),
@@ -37,7 +35,6 @@ pub enum ContractError {
 
     #[error("Unknown reply id: {0}")]
     UnknownReplyId(u64),
-
 
     #[error("Unauthorized")]
     Unauthorized,
@@ -110,6 +107,9 @@ pub enum ContractError {
 
     #[error("Weight is out of range!")]
     WeightIsOutOfRange,
+
+    #[error("Wrong token sent!")]
+    WrongToken,
 
     #[error("It's too late to accept admin role!")]
     TransferAdminDeadline,

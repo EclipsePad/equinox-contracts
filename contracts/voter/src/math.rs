@@ -44,8 +44,11 @@ pub fn calc_voter_to_tribute_voting_power_ratio(
         return Decimal::zero();
     }
 
-    voter_voting_power_decimal * applied_votes_weights_item
-        / u128_to_dec(tribute_market_voting_power)
+    std::cmp::min(
+        voter_voting_power_decimal * applied_votes_weights_item
+            / u128_to_dec(tribute_market_voting_power),
+        Decimal::one(),
+    )
 }
 
 /// voting_power = vxastro_amount * user_essence / total_essence
@@ -489,4 +492,23 @@ pub fn calc_merged_pool_info_list_with_rewards(
             }
         })
         .collect()
+}
+
+/// returns (delegator_essence_info, elector_or_slacker_essence_info)
+pub fn calc_splitted_user_essence_info(
+    essence_info: &EssenceInfo,
+    delegator_essence_fraction: Decimal,
+) -> (EssenceInfo, EssenceInfo) {
+    if delegator_essence_fraction.is_zero() {
+        return (EssenceInfo::default(), essence_info.to_owned());
+    }
+
+    if delegator_essence_fraction == Decimal::one() {
+        return (essence_info.to_owned(), EssenceInfo::default());
+    }
+
+    let delegator_essence_info = essence_info.scale(delegator_essence_fraction);
+    let elector_or_slacker_essence_info = essence_info.sub(&delegator_essence_info);
+
+    (delegator_essence_info, elector_or_slacker_essence_info)
 }

@@ -136,9 +136,9 @@ pub enum ExecuteMsg {
     /// swap ASTRO -> xASTRO will be provided first if it's required
     SwapToEclipAstro {},
 
-    Delegate {},
-
-    Undelegate {},
+    SetDelegation {
+        weight: Decimal,
+    },
 
     PlaceVote {
         weight_allocation: Vec<WeightAllocationItem>,
@@ -189,7 +189,7 @@ pub enum QueryMsg {
     #[returns(Uint128)]
     EclipAstroMintedByVoter {},
 
-    #[returns(UserResponse)]
+    #[returns(Vec<UserResponse>)]
     User {
         address: String,
         block_time: Option<u64>,
@@ -242,7 +242,7 @@ pub struct UserListResponse {
 #[cw_serde]
 pub struct UserListResponseItem {
     pub address: Addr,
-    pub user_info: UserResponse,
+    pub user_info: Vec<UserResponse>,
 }
 
 #[cw_serde]
