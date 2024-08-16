@@ -1,7 +1,7 @@
 use cosmwasm_std::{coins, Addr, Decimal, StdResult, Uint128};
 use cw_multi_test::{AppResponse, ContractWrapper, Executor};
 
-use eclipse_base::error::parse_err;
+use eclipse_base::{converters::str_to_dec, error::parse_err};
 use equinox_msg::voter::{
     msg::{
         DaoResponse, ExecuteMsg, InstantiateMsg, QueryMsg, SudoMsg, UserListResponse, UserResponse,
@@ -102,9 +102,11 @@ pub trait VoterExtension {
         denom: &str,
     ) -> StdResult<AppResponse>;
 
-    fn voter_try_delegate(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
-
-    fn voter_try_undelegate(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
+    fn voter_try_set_delegation(
+        &mut self,
+        sender: impl ToString,
+        weight: &str,
+    ) -> StdResult<AppResponse>;
 
     fn voter_try_place_vote(
         &mut self,
@@ -148,7 +150,7 @@ pub trait VoterExtension {
         &self,
         address: impl ToString,
         block_time: Option<u64>,
-    ) -> StdResult<UserResponse>;
+    ) -> StdResult<Vec<UserResponse>>;
 
     fn voter_query_user_list(
         &self,
@@ -406,23 +408,18 @@ impl VoterExtension for ControllerHelper {
             .map_err(parse_err)
     }
 
-    fn voter_try_delegate(&mut self, sender: impl ToString) -> StdResult<AppResponse> {
+    fn voter_try_set_delegation(
+        &mut self,
+        sender: impl ToString,
+        weight: &str,
+    ) -> StdResult<AppResponse> {
         self.app
             .execute_contract(
                 Addr::unchecked(sender.to_string()),
                 self.voter_contract_address(),
-                &ExecuteMsg::Delegate {},
-                &[],
-            )
-            .map_err(parse_err)
-    }
-
-    fn voter_try_undelegate(&mut self, sender: impl ToString) -> StdResult<AppResponse> {
-        self.app
-            .execute_contract(
-                Addr::unchecked(sender.to_string()),
-                self.voter_contract_address(),
-                &ExecuteMsg::Undelegate {},
+                &ExecuteMsg::SetDelegation {
+                    weight: str_to_dec(weight),
+                },
                 &[],
             )
             .map_err(parse_err)
@@ -553,7 +550,7 @@ impl VoterExtension for ControllerHelper {
         &self,
         address: impl ToString,
         block_time: Option<u64>,
-    ) -> StdResult<UserResponse> {
+    ) -> StdResult<Vec<UserResponse>> {
         self.app.wrap().query_wasm_smart(
             self.voter_contract_address(),
             &QueryMsg::User {

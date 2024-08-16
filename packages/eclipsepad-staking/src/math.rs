@@ -706,10 +706,9 @@ pub mod v3 {
         block_time: u64,
         seconds_per_essence: Uint128,
     ) -> Uint128 {
-        min(
-            a * Uint128::from(block_time) - b,
-            a * Uint128::from(YEAR_IN_SECONDS),
-        ) / seconds_per_essence
+        let at = a * Uint128::from(block_time);
+
+        min(at - min(b, at), a * Uint128::from(YEAR_IN_SECONDS)) / seconds_per_essence
     }
 
     // TODO +

@@ -114,9 +114,7 @@ pub fn execute(
             e::try_claim_astro_staking_treasury_rewards(deps, env, info)
         }
 
-        ExecuteMsg::Delegate {} => e::try_delegate(deps, env, info),
-
-        ExecuteMsg::Undelegate {} => e::try_undelegate(deps, env, info),
+        ExecuteMsg::SetDelegation { weight } => e::try_set_delegation(deps, env, info, weight),
 
         ExecuteMsg::PlaceVote { weight_allocation } => {
             e::try_place_vote(deps, env, info, weight_allocation)

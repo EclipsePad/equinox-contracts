@@ -41,11 +41,11 @@ pub fn update_config(
     let mut res: Response = Response::new().add_attribute("action", "update config");
     if let Some(voter) = new_config.voter {
         config.voter = deps.api.addr_validate(&voter)?;
-        res = res.add_attribute("voter", voter.to_string());
+        res = res.add_attribute("voter", voter);
     }
     if let Some(treasury) = new_config.treasury {
         config.treasury = deps.api.addr_validate(&treasury)?;
-        res = res.add_attribute("treasury", treasury.to_string());
+        res = res.add_attribute("treasury", treasury);
     }
     if let Some(timelock_config) = new_config.timelock_config {
         config.timelock_config.clone_from(&timelock_config);

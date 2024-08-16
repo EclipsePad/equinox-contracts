@@ -14,7 +14,7 @@ use equinox_msg::voter::{
     msg::AstroStakingRewardResponse,
     state::{
         ADDRESS_CONFIG, ASTRO_PENDING_TREASURY_REWARD, ASTRO_STAKING_REWARD_CONFIG,
-        DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ADDRESSES,
+        DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ESSENCE_FRACTIONS,
         ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC,
         ELECTOR_WEIGHTS, ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED,
         MAX_EPOCH_AMOUNT, RECIPIENT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC,
@@ -33,15 +33,17 @@ use crate::{
     error::ContractError,
     helpers::{
         check_pause_state, check_rewards_claim_stage, get_accumulated_rewards,
-        get_astro_and_xastro_supply, get_route, get_total_votes, get_user_type, get_user_weights,
+        get_astro_and_xastro_supply, get_route, get_total_votes, get_user_types, get_user_weights,
         query_astroport_bribe_allocation, query_astroport_rewards,
-        query_eclipsepad_bribe_allocation, query_eclipsepad_rewards, verify_weight_allocation,
+        query_eclipsepad_bribe_allocation, query_eclipsepad_rewards, split_user_essence_info,
+        verify_weight_allocation,
     },
     math::{
         calc_eclip_astro_for_xastro, calc_essence_allocation,
         calc_merged_pool_info_list_with_rewards, calc_pool_info_list_with_rewards,
-        calc_updated_essence_allocation, calc_voter_to_tribute_voting_power_ratio,
-        calc_weights_from_essence_allocation, split_dao_eclip_rewards, split_rewards,
+        calc_splitted_user_essence_info, calc_updated_essence_allocation,
+        calc_voter_to_tribute_voting_power_ratio, calc_weights_from_essence_allocation,
+        split_dao_eclip_rewards, split_rewards,
     },
 };
 
@@ -295,8 +297,15 @@ pub fn try_update_essence_allocation(
 
     for (user_address, user_essence_after) in user_and_essence_list {
         let user = &Addr::unchecked(user_address);
-        let user_type = get_user_type(deps.storage, user).unwrap_or(UserType::Slacker);
         let user_essence_before = USER_ESSENCE.load(deps.storage, user).unwrap_or_default();
+        let delegator_essence_fraction = DELEGATOR_ESSENCE_FRACTIONS
+            .load(deps.storage, user)
+            .unwrap_or_default();
+
+        let (delegator_essence_info_before, elector_or_slacker_essence_info_before) =
+            calc_splitted_user_essence_info(&user_essence_before, delegator_essence_fraction);
+        let (delegator_essence_info_after, elector_or_slacker_essence_info_after) =
+            calc_splitted_user_essence_info(&user_essence_after, delegator_essence_fraction);
 
         // collect rewards
         let (is_updated, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
@@ -305,64 +314,72 @@ pub fn try_update_essence_allocation(
             ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
         }
 
-        match user_type {
-            UserType::Elector => {
-                let user_weights = get_user_weights(deps.storage, user, &user_type);
-                let user_essence_allocation_before =
-                    calc_essence_allocation(&user_essence_before, &user_weights);
-                let user_essence_allocation_after =
-                    calc_essence_allocation(&user_essence_after, &user_weights);
-
-                let elector_essence_acc_before = ELECTOR_ESSENCE_ACC.load(deps.storage)?;
-                let elector_weights_acc_before = ELECTOR_WEIGHTS_ACC.load(deps.storage)?;
-                let elector_essence_allocation_acc_before = calc_essence_allocation(
-                    &elector_essence_acc_before,
-                    &elector_weights_acc_before,
-                );
-                let elector_essence_allocation_acc_after = calc_updated_essence_allocation(
-                    &elector_essence_allocation_acc_before,
-                    &user_essence_allocation_after,
-                    &user_essence_allocation_before,
-                );
-                let (elector_essence_acc_after, elector_weights_acc_after) =
-                    calc_weights_from_essence_allocation(
-                        &elector_essence_allocation_acc_after,
-                        block_time,
-                    );
-
-                ELECTOR_ESSENCE_ACC.save(deps.storage, &elector_essence_acc_after)?;
-                ELECTOR_WEIGHTS_ACC.save(deps.storage, &elector_weights_acc_after)?;
-            }
-            UserType::Delegator => {
-                DAO_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-                    Ok(x.add(&user_essence_after).sub(&user_essence_before))
-                })?;
-            }
-            UserType::Slacker => {
-                SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-                    Ok(x.add(&user_essence_after).sub(&user_essence_before))
-                })?;
-            }
-        };
-
-        // update user essence
-        if user_essence_after.is_zero() {
-            USER_ESSENCE.remove(deps.storage, user);
-            // rewards must be claimed before decreasing essence to zero
-            USER_REWARDS.remove(deps.storage, user);
-
+        for user_type in get_user_types(deps.storage, user).unwrap_or(vec![UserType::Slacker]) {
             match user_type {
                 UserType::Elector => {
-                    ELECTOR_WEIGHTS.remove(deps.storage, user);
-                    ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
+                    let user_weights = get_user_weights(deps.storage, user, &user_type);
+                    let user_essence_allocation_before = calc_essence_allocation(
+                        &elector_or_slacker_essence_info_before,
+                        &user_weights,
+                    );
+                    let user_essence_allocation_after = calc_essence_allocation(
+                        &elector_or_slacker_essence_info_after,
+                        &user_weights,
+                    );
+
+                    let elector_essence_acc_before = ELECTOR_ESSENCE_ACC.load(deps.storage)?;
+                    let elector_weights_acc_before = ELECTOR_WEIGHTS_ACC.load(deps.storage)?;
+                    let elector_essence_allocation_acc_before = calc_essence_allocation(
+                        &elector_essence_acc_before,
+                        &elector_weights_acc_before,
+                    );
+                    let elector_essence_allocation_acc_after = calc_updated_essence_allocation(
+                        &elector_essence_allocation_acc_before,
+                        &user_essence_allocation_after,
+                        &user_essence_allocation_before,
+                    );
+                    let (elector_essence_acc_after, elector_weights_acc_after) =
+                        calc_weights_from_essence_allocation(
+                            &elector_essence_allocation_acc_after,
+                            block_time,
+                        );
+
+                    ELECTOR_ESSENCE_ACC.save(deps.storage, &elector_essence_acc_after)?;
+                    ELECTOR_WEIGHTS_ACC.save(deps.storage, &elector_weights_acc_after)?;
                 }
                 UserType::Delegator => {
-                    DELEGATOR_ADDRESSES.remove(deps.storage, user);
+                    DAO_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                        Ok(x.add(&delegator_essence_info_after)
+                            .sub(&delegator_essence_info_before))
+                    })?;
                 }
-                UserType::Slacker => {}
+                UserType::Slacker => {
+                    SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                        Ok(x.add(&elector_or_slacker_essence_info_after)
+                            .sub(&elector_or_slacker_essence_info_before))
+                    })?;
+                }
+            };
+
+            // update user essence
+            if user_essence_after.is_zero() {
+                USER_ESSENCE.remove(deps.storage, user);
+                // rewards must be claimed before decreasing essence to zero
+                USER_REWARDS.remove(deps.storage, user);
+
+                match user_type {
+                    UserType::Elector => {
+                        ELECTOR_WEIGHTS.remove(deps.storage, user);
+                        ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
+                    }
+                    UserType::Delegator => {
+                        DELEGATOR_ESSENCE_FRACTIONS.remove(deps.storage, user);
+                    }
+                    UserType::Slacker => {}
+                }
+            } else {
+                USER_ESSENCE.save(deps.storage, user, &user_essence_after)?;
             }
-        } else {
-            USER_ESSENCE.save(deps.storage, user, &user_essence_after)?;
         }
     }
 
@@ -390,7 +407,7 @@ pub fn try_swap_to_eclip_astro(
 
     // check if ASTRO or xASTRO was sent
     if token_in != astro && token_in != xastro {
-        Err(ContractError::UnknownToken(token_in.to_string()))?;
+        Err(ContractError::WrongToken)?;
     }
 
     // check if amount isn't zero
@@ -619,80 +636,21 @@ pub fn try_claim_astro_staking_treasury_rewards(
     Ok(Response::new().add_messages(msgs))
 }
 
-pub fn try_delegate(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    check_pause_state(deps.storage)?;
-    check_rewards_claim_stage(deps.storage)?;
-    let block_time = env.block.time.seconds();
-    let user = &info.sender;
-    let user_type = get_user_type(deps.storage, user)?;
-    let user_essence_before = USER_ESSENCE.load(deps.storage, user)?;
-
-    // collect rewards
-    let (is_updated, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
-    if is_updated {
-        USER_REWARDS.save(deps.storage, user, &user_rewards)?;
-        ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
-    }
-
-    match user_type {
-        UserType::Elector => {
-            let user_weights = get_user_weights(deps.storage, user, &user_type);
-            let user_essence_allocation_before =
-                calc_essence_allocation(&user_essence_before, &user_weights);
-            let user_essence_allocation_after =
-                calc_essence_allocation(&EssenceInfo::default(), &user_weights);
-
-            let elector_essence_acc_before = ELECTOR_ESSENCE_ACC.load(deps.storage)?;
-            let elector_weights_acc_before = ELECTOR_WEIGHTS_ACC.load(deps.storage)?;
-            let elector_essence_allocation_acc_before =
-                calc_essence_allocation(&elector_essence_acc_before, &elector_weights_acc_before);
-            let elector_essence_allocation_acc_after = calc_updated_essence_allocation(
-                &elector_essence_allocation_acc_before,
-                &user_essence_allocation_after,
-                &user_essence_allocation_before,
-            );
-            let (elector_essence_acc_after, elector_weights_acc_after) =
-                calc_weights_from_essence_allocation(
-                    &elector_essence_allocation_acc_after,
-                    block_time,
-                );
-
-            ELECTOR_WEIGHTS.remove(deps.storage, user);
-            ELECTOR_ESSENCE_ACC.save(deps.storage, &elector_essence_acc_after)?;
-            ELECTOR_WEIGHTS_ACC.save(deps.storage, &elector_weights_acc_after)?;
-
-            DELEGATOR_ADDRESSES.save(deps.storage, user, &true)?;
-            DAO_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-                Ok(x.add(&user_essence_before))
-            })?;
-        }
-        UserType::Delegator => Err(ContractError::DelegateTwice)?,
-        UserType::Slacker => {
-            DELEGATOR_ADDRESSES.save(deps.storage, user, &true)?;
-
-            SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-                Ok(x.sub(&user_essence_before))
-            })?;
-            DAO_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-                Ok(x.add(&user_essence_before))
-            })?;
-        }
-    };
-
-    Ok(Response::new().add_attribute("action", "try_delegate"))
-}
-
-pub fn try_undelegate(
+pub fn try_set_delegation(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    weight: Decimal,
 ) -> Result<Response, ContractError> {
     check_pause_state(deps.storage)?;
     check_rewards_claim_stage(deps.storage)?;
     let block_time = env.block.time.seconds();
     let user = &info.sender;
-    let user_type = get_user_type(deps.storage, user)?;
-    let user_essence = USER_ESSENCE.load(deps.storage, user)?;
+    let user_types = get_user_types(deps.storage, user)?;
+    let essence_info = USER_ESSENCE.load(deps.storage, user).unwrap_or_default();
+    let delegator_essence_fraction = DELEGATOR_ESSENCE_FRACTIONS
+        .load(deps.storage, user)
+        .unwrap_or_default();
 
     // collect rewards
     let (is_updated, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
@@ -701,22 +659,76 @@ pub fn try_undelegate(
         ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
     }
 
-    match user_type {
-        UserType::Elector => Err(ContractError::DelegatorIsNotFound)?,
-        UserType::Delegator => {
-            DELEGATOR_ADDRESSES.remove(deps.storage, user);
+    // check if weight isn't out of range
+    if weight > Decimal::one() {
+        Err(ContractError::WeightIsOutOfRange)?;
+    }
 
-            DAO_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-                Ok(x.sub(&user_essence))
-            })?;
-            SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-                Ok(x.add(&user_essence))
-            })?;
-        }
-        UserType::Slacker => Err(ContractError::DelegatorIsNotFound)?,
-    };
+    // user can't undelegate if he wasn't delegator before
+    if weight.is_zero() && delegator_essence_fraction.is_zero() {
+        Err(ContractError::DelegatorIsNotFound)?;
+    }
 
-    Ok(Response::new().add_attribute("action", "try_undelegate"))
+    // don't allow useless txs
+    if weight == delegator_essence_fraction {
+        Err(ContractError::DelegateTwice)?;
+    }
+
+    let (delegator_essence_info_before, elector_or_slacker_essence_info_before) =
+        calc_splitted_user_essence_info(&essence_info, delegator_essence_fraction);
+    let (delegator_essence_info_after, elector_or_slacker_essence_info_after) =
+        calc_splitted_user_essence_info(&essence_info, weight);
+
+    for user_type in user_types {
+        match user_type {
+            UserType::Elector => {
+                let user_weights = get_user_weights(deps.storage, user, &user_type);
+                let user_essence_allocation_before =
+                    calc_essence_allocation(&elector_or_slacker_essence_info_before, &user_weights);
+                let user_essence_allocation_after =
+                    calc_essence_allocation(&elector_or_slacker_essence_info_after, &user_weights);
+
+                let elector_essence_acc_before = ELECTOR_ESSENCE_ACC.load(deps.storage)?;
+                let elector_weights_acc_before = ELECTOR_WEIGHTS_ACC.load(deps.storage)?;
+                let elector_essence_allocation_acc_before = calc_essence_allocation(
+                    &elector_essence_acc_before,
+                    &elector_weights_acc_before,
+                );
+                let elector_essence_allocation_acc_after = calc_updated_essence_allocation(
+                    &elector_essence_allocation_acc_before,
+                    &user_essence_allocation_after,
+                    &user_essence_allocation_before,
+                );
+                let (elector_essence_acc_after, elector_weights_acc_after) =
+                    calc_weights_from_essence_allocation(
+                        &elector_essence_allocation_acc_after,
+                        block_time,
+                    );
+
+                ELECTOR_ESSENCE_ACC.save(deps.storage, &elector_essence_acc_after)?;
+                ELECTOR_WEIGHTS_ACC.save(deps.storage, &elector_weights_acc_after)?;
+            }
+            _ => {
+                SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+                    Ok(x.add(&elector_or_slacker_essence_info_after)
+                        .sub(&elector_or_slacker_essence_info_before))
+                })?;
+            }
+        };
+    }
+
+    DAO_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+        Ok(x.add(&delegator_essence_info_after)
+            .sub(&delegator_essence_info_before))
+    })?;
+
+    if weight.is_zero() {
+        DELEGATOR_ESSENCE_FRACTIONS.remove(deps.storage, user);
+    } else {
+        DELEGATOR_ESSENCE_FRACTIONS.save(deps.storage, user, &weight)?;
+    }
+
+    Ok(Response::new().add_attribute("action", "try_set_delegation"))
 }
 
 pub fn try_place_vote(
@@ -730,8 +742,9 @@ pub fn try_place_vote(
     verify_weight_allocation(deps.as_ref(), &weight_allocation)?;
     let block_time = env.block.time.seconds();
     let user = &info.sender;
-    let user_type = get_user_type(deps.storage, user)?;
-    let user_essence = USER_ESSENCE.load(deps.storage, user)?;
+    let user_types = get_user_types(deps.storage, user)?;
+    let (_delegator_essence_info, elector_or_slacker_essence_info) =
+        split_user_essence_info(deps.storage, user);
 
     // collect rewards
     let (is_updated, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
@@ -740,21 +753,23 @@ pub fn try_place_vote(
         ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
     }
 
-    match user_type {
-        UserType::Elector => {}
-        UserType::Delegator => Err(ContractError::DelegatorCanNotVote)?,
-        UserType::Slacker => {
-            SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
-                Ok(x.sub(&user_essence))
-            })?;
-        }
-    };
+    let user_type = user_types
+        .iter()
+        .find(|x| !matches!(x, UserType::Delegator))
+        .ok_or(ContractError::DelegatorCanNotVote)?;
+
+    if let UserType::Slacker = user_type {
+        SLACKER_ESSENCE_ACC.update(deps.storage, |x| -> StdResult<EssenceInfo> {
+            Ok(x.sub(&elector_or_slacker_essence_info))
+        })?;
+    }
 
     // update elector
     let user_weights_before = ELECTOR_WEIGHTS.load(deps.storage, user).unwrap_or_default();
     let user_essence_allocation_before =
-        calc_essence_allocation(&user_essence, &user_weights_before);
-    let user_essence_allocation_after = calc_essence_allocation(&user_essence, &weight_allocation);
+        calc_essence_allocation(&elector_or_slacker_essence_info, &user_weights_before);
+    let user_essence_allocation_after =
+        calc_essence_allocation(&elector_or_slacker_essence_info, &weight_allocation);
 
     let elector_essence_acc_before = ELECTOR_ESSENCE_ACC.load(deps.storage)?;
     let elector_weights_acc_before = ELECTOR_WEIGHTS_ACC.load(deps.storage)?;

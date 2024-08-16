@@ -322,16 +322,10 @@ pub fn calculate_total_user_reward(
     Ok(total_user_reward)
 }
 
-pub fn query_eclipastro_pending_rewards(
-    deps: Deps,
-    voter: String,
-) -> StdResult<Uint128> {
+pub fn query_eclipastro_pending_rewards(deps: Deps, voter: String) -> StdResult<Uint128> {
     let rewards: AstroStakingRewardResponse = deps
         .querier
-        .query_wasm_smart(
-            voter.clone(),
-            &VoterQueryMsg::AstroStakingRewards {},
-        )
+        .query_wasm_smart(voter, &VoterQueryMsg::AstroStakingRewards {})
         .unwrap();
     Ok(rewards.users)
 }

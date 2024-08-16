@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
@@ -105,14 +107,14 @@ impl EssenceInfo {
         }
     }
 
-    /// self - item
+    /// self - min(item, self)
     pub fn sub(&self, item: &Self) -> Self {
         let (a1, b1) = self.staking_components;
         let (a2, b2) = item.staking_components;
 
         Self {
-            staking_components: (a1 - a2, b1 - b2),
-            locking_amount: self.locking_amount - item.locking_amount,
+            staking_components: (a1 - min(a2, a1), b1 - min(b2, b1)),
+            locking_amount: self.locking_amount - min(item.locking_amount, self.locking_amount),
         }
     }
 
@@ -148,10 +150,9 @@ fn calc_staking_essence_from_components(a: Uint128, b: Uint128, block_time: u64)
     const SECONDS_PER_ESSENCE: u128 = 31_536_000;
     const YEAR_IN_SECONDS: u64 = 31_536_000;
 
-    std::cmp::min(
-        a * Uint128::from(block_time) - b,
-        a * Uint128::from(YEAR_IN_SECONDS),
-    ) / Uint128::new(SECONDS_PER_ESSENCE)
+    let at = a * Uint128::from(block_time);
+
+    min(at - min(b, at), a * Uint128::from(YEAR_IN_SECONDS)) / Uint128::new(SECONDS_PER_ESSENCE)
 }
 
 #[cw_serde]
@@ -251,7 +252,7 @@ impl BribesAllocationItem {
         Self {
             lp_token: Addr::unchecked(lp_token.to_string()),
             rewards: rewards
-                .into_iter()
+                .iter()
                 .map(|(amount, denom)| (Uint128::new(amount.to_owned()), denom.to_string()))
                 .collect(),
         }

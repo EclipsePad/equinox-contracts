@@ -108,6 +108,9 @@ pub enum ContractError {
     #[error("Weight is out of range!")]
     WeightIsOutOfRange,
 
+    #[error("Wrong token sent!")]
+    WrongToken,
+
     #[error("It's too late to accept admin role!")]
     TransferAdminDeadline,
 

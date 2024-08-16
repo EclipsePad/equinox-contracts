@@ -76,7 +76,11 @@ pub fn try_allocate_rewards(
                 let ratio = if tribute_market_voting_power.is_zero() {
                     Decimal::zero()
                 } else {
-                    user_voting_power_decimal * weight / u128_to_dec(tribute_market_voting_power)
+                    std::cmp::min(
+                        user_voting_power_decimal * weight
+                            / u128_to_dec(tribute_market_voting_power),
+                        Decimal::one(),
+                    )
                 };
 
                 Ok((lp_token.to_owned(), ratio))

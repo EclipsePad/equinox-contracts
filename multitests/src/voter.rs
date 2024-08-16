@@ -474,8 +474,8 @@ fn full_cycle() -> StdResult<()> {
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
     h.voter_try_place_vote(ruby, weights_ruby)?;
-    h.voter_try_delegate(bob)?;
-    h.voter_try_delegate(vlad)?;
+    h.voter_try_set_delegation(bob, "1")?;
+    h.voter_try_set_delegation(vlad, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // final voting
@@ -711,8 +711,8 @@ fn full_cycle() -> StdResult<()> {
             // dao_rewards_per_denom = sum_over_pools(voter_rewards * (dao_essence * dao_weight) / (voter_essence * voter_weight))
             //
             // dao_eclip_rewards = 16_351_589 + 16_351_589 + 86_666_666 + 52_000_000 + 6_348_976 = 177_718_820
-            // dao_treasury_eclip_rewards = 0.8 * 177_718_820 = 35_543_763
-            // dao_delegators_eclip_rewards = 177_718_820 - 35_543_763 = 142_175_051
+            // dao_delegators_eclip_rewards = 0.8 * 177_718_820 = 142_175_051
+            // dao_treasury_eclip_rewards = 177_718_820 - 142_175_051 = 35_543_763
             dao_treasury_eclip_rewards: Uint128::new(35_543_763),
             dao_delegators_eclip_rewards: Uint128::new(142_175_051),
             // dao_rewards_per_denom = sum_over_pools(voter_rewards * (dao_essence * dao_weight) / (voter_essence * voter_weight))
@@ -756,11 +756,11 @@ fn full_cycle() -> StdResult<()> {
     assert_that(&(treasury_balance_after - treasury_balance_before)).is_equal_to(35_543_763);
 
     // query user rewards
-    let alice_rewards = h.voter_query_user(alice, None)?.rewards.value;
-    let ruby_rewards = h.voter_query_user(ruby, None)?.rewards.value;
-    let bob_rewards = h.voter_query_user(bob, None)?.rewards.value;
-    let vlad_rewards = h.voter_query_user(vlad, None)?.rewards.value;
-    let john_rewards = h.voter_query_user(john, None)?.rewards.value;
+    let alice_rewards = &h.voter_query_user(alice, None)?[0].rewards.value;
+    let ruby_rewards = &h.voter_query_user(ruby, None)?[0].rewards.value;
+    let bob_rewards = &h.voter_query_user(bob, None)?[0].rewards.value;
+    let vlad_rewards = &h.voter_query_user(vlad, None)?[0].rewards.value;
+    let john_rewards = &h.voter_query_user(john, None)?[0].rewards.value;
 
     // elector_personal_rewards = sum_over_pools(elector_personal_rewards_per_pool)
     // elector_personal_rewards_per_pool = elector_rewards * (personal_elector_essence * personal_weight) /
@@ -769,7 +769,7 @@ fn full_cycle() -> StdResult<()> {
     // alice_astro_in_astro_atom = 20_756_268 * (500 * 0.6) / ((3_400 - 0.8 * 3_000) * 0.5) = 12_453_760
     // alice_atom_in_eclip_atom = 8_553_140 * (500 * 0.4) / ((3_400 - 0.8 * 3_000) * 0.2) = 8_553_140
     // alice_eclip_in_eclip_atom = 8_553_140 * (500 * 0.4) / ((3_400 - 0.8 * 3_000) * 0.2) = 8_553_140
-    assert_that(&alice_rewards).is_equal_to(vec![
+    assert_that(&alice_rewards).is_equal_to(&vec![
         (Uint128::new(12_453_760), Denom::Astro.to_string()),
         (Uint128::new(8_553_140), Denom::Atom.to_string()),
         (Uint128::new(8_553_140), Denom::Eclip.to_string()),
@@ -777,7 +777,7 @@ fn full_cycle() -> StdResult<()> {
     // ruby_astro_in_astro_atom = 20_756_268 * (500 * 0.4) / ((3_400 - 0.8 * 3_000) * 0.5) = 8_302_507
     // ruby_atom_in_ntrn_atom = 68_000_001 * (500 * 0.6) / ((3_400 - 0.8 * 3_000) * 0.3) = 68_000_001
     // ruby_ntrn_in_ntrn_atom = 113_333_334 * (500 * 0.6) / ((3_400 - 0.8 * 3_000) * 0.3) = 113_333_334
-    assert_that(&ruby_rewards).is_equal_to(vec![
+    assert_that(&ruby_rewards).is_equal_to(&vec![
         (Uint128::new(8_302_507), Denom::Astro.to_string()),
         (Uint128::new(68_000_001), Denom::Atom.to_string()),
         (Uint128::new(113_333_334), Denom::Ntrn.to_string()),
@@ -786,12 +786,12 @@ fn full_cycle() -> StdResult<()> {
     //
     // bob_rewards = 142_175_051 * 500 / (2_600 - 0.2 * 3_000) = 35_543_762
     assert_that(&bob_rewards)
-        .is_equal_to(vec![(Uint128::new(35_543_762), Denom::Eclip.to_string())]);
+        .is_equal_to(&vec![(Uint128::new(35_543_762), Denom::Eclip.to_string())]);
     // vlad_rewards = 142_175_051 * 1_500 / (2_600 - 0.2 * 3_000) = 106_631_288
     assert_that(&vlad_rewards)
-        .is_equal_to(vec![(Uint128::new(106_631_288), Denom::Eclip.to_string())]);
+        .is_equal_to(&vec![(Uint128::new(106_631_288), Denom::Eclip.to_string())]);
     // slacker_rewards = 0
-    assert_that(&john_rewards).is_equal_to(vec![]);
+    assert_that(&john_rewards).is_equal_to(&vec![]);
 
     // claim user rewards
     let alice_astro_balance_before = h.query_balance(alice, Denom::Astro);
@@ -1077,21 +1077,21 @@ fn auto_updating_essence() -> StdResult<()> {
     let essence_info_bob = h.voter_query_user(bob, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+    assert_that(&essence_info_alice[0]).is_equal_to(UserResponse {
         user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
         weights: vec![],
         rewards: RewardsInfo::default(),
     });
-    assert_that(&essence_info_bob).is_equal_to(UserResponse {
+    assert_that(&essence_info_bob[0]).is_equal_to(UserResponse {
         user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
         weights: vec![],
         rewards: RewardsInfo::default(),
     });
-    assert_that(&essence_info_john).is_equal_to(UserResponse {
+    assert_that(&essence_info_john[0]).is_equal_to(UserResponse {
         user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
@@ -1101,27 +1101,27 @@ fn auto_updating_essence() -> StdResult<()> {
 
     // take roles: alice - elector, bob - delegator, john - slacker
     h.voter_try_place_vote(alice, weights)?;
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
 
     let essence_info_alice = h.voter_query_user(alice, None)?;
     let essence_info_bob = h.voter_query_user(bob, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+    assert_that(&essence_info_alice[0]).is_equal_to(UserResponse {
         user_type: UserType::Elector,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
         weights: weights.to_owned(),
         rewards: RewardsInfo::default(),
     });
-    assert_that(&essence_info_bob).is_equal_to(UserResponse {
+    assert_that(&essence_info_bob[0]).is_equal_to(UserResponse {
         user_type: UserType::Delegator,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
         weights: vec![],
         rewards: RewardsInfo::default(),
     });
-    assert_that(&essence_info_john).is_equal_to(UserResponse {
+    assert_that(&essence_info_john[0]).is_equal_to(UserResponse {
         user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(1000, 1716163200000, 0),
         essence_value: Uint128::zero(),
@@ -1139,21 +1139,21 @@ fn auto_updating_essence() -> StdResult<()> {
     let essence_info_bob = h.voter_query_user(bob, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+    assert_that(&essence_info_alice[0]).is_equal_to(UserResponse {
         user_type: UserType::Elector,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
         essence_value: Uint128::new(1000),
         weights: weights.to_owned(),
         rewards: RewardsInfo::default(),
     });
-    assert_that(&essence_info_bob).is_equal_to(UserResponse {
+    assert_that(&essence_info_bob[0]).is_equal_to(UserResponse {
         user_type: UserType::Delegator,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
         essence_value: Uint128::new(1000),
         weights: vec![],
         rewards: RewardsInfo::default(),
     });
-    assert_that(&essence_info_john).is_equal_to(UserResponse {
+    assert_that(&essence_info_john[0]).is_equal_to(UserResponse {
         user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1000),
         essence_value: Uint128::new(1000),
@@ -1196,7 +1196,7 @@ fn changing_weights_by_essence() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     let essence_info_alice = h.voter_query_user(alice, None)?;
@@ -1204,7 +1204,7 @@ fn changing_weights_by_essence() -> StdResult<()> {
     let voter_info = h.voter_query_voter_info(None)?;
     let block_time = h.get_block_time();
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+    assert_that(&essence_info_alice[0]).is_equal_to(UserResponse {
         user_type: UserType::Elector,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
@@ -1253,7 +1253,7 @@ fn changing_weights_by_essence() -> StdResult<()> {
     let voter_info = h.voter_query_voter_info(None)?;
     let block_time = h.get_block_time();
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+    assert_that(&essence_info_alice[0]).is_equal_to(UserResponse {
         user_type: UserType::Elector,
         essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
         essence_value: Uint128::new(2_000),
@@ -1344,8 +1344,8 @@ fn electors_delegators_slackers_dao_voting() -> StdResult<()> {
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
     h.voter_try_place_vote(bob, weights_bob)?;
-    h.voter_try_delegate(john)?;
-    h.voter_try_delegate(kate)?;
+    h.voter_try_set_delegation(john, "1")?;
+    h.voter_try_set_delegation(kate, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // final voting
@@ -1518,7 +1518,7 @@ fn delegators_slackers_dao_voting() -> StdResult<()> {
     }
 
     // place votes
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // final voting
@@ -1590,8 +1590,8 @@ fn electors_delegators_dao_voting() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
-    h.voter_try_delegate(bob)?;
-    h.voter_try_delegate(john)?;
+    h.voter_try_set_delegation(bob, "1")?;
+    h.voter_try_set_delegation(john, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // final voting
@@ -1786,7 +1786,7 @@ fn delegators_dao_voting() -> StdResult<()> {
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
         h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
-        h.voter_try_delegate(user)?;
+        h.voter_try_set_delegation(user, "1")?;
     }
 
     // place votes
@@ -1900,7 +1900,7 @@ fn delegators_voting() -> StdResult<()> {
     for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
         h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
         h.eclipsepad_staking_try_lock(user, amount, 4)?;
-        h.voter_try_delegate(user)?;
+        h.voter_try_set_delegation(user, "1")?;
     }
 
     // final voting
@@ -2014,7 +2014,7 @@ fn change_vote_after_dao_voting() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(alice, weights_alice_before)?;
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // revote
@@ -2094,7 +2094,7 @@ fn user_roles_default() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // check roles
@@ -2102,9 +2102,9 @@ fn user_roles_default() -> StdResult<()> {
     let bob_info = h.voter_query_user(bob, None)?;
     let john_info = h.voter_query_user(john, None)?;
 
-    assert_that(&alice_info.user_type).is_equal_to(UserType::Elector);
-    assert_that(&bob_info.user_type).is_equal_to(UserType::Delegator);
-    assert_that(&john_info.user_type).is_equal_to(UserType::Slacker);
+    assert_that(&alice_info[0].user_type).is_equal_to(UserType::Elector);
+    assert_that(&bob_info[0].user_type).is_equal_to(UserType::Delegator);
+    assert_that(&john_info[0].user_type).is_equal_to(UserType::Slacker);
 
     // final voting
     h.wait(h.voter_query_date_config()?.vote_delay);
@@ -2116,9 +2116,9 @@ fn user_roles_default() -> StdResult<()> {
     let bob_info = h.voter_query_user(bob, None)?;
     let john_info = h.voter_query_user(john, None)?;
 
-    assert_that(&alice_info.user_type).is_equal_to(UserType::Slacker);
-    assert_that(&bob_info.user_type).is_equal_to(UserType::Delegator);
-    assert_that(&john_info.user_type).is_equal_to(UserType::Slacker);
+    assert_that(&alice_info[0].user_type).is_equal_to(UserType::Slacker);
+    assert_that(&bob_info[0].user_type).is_equal_to(UserType::Delegator);
+    assert_that(&john_info[0].user_type).is_equal_to(UserType::Slacker);
 
     Ok(())
 }
@@ -2155,20 +2155,20 @@ fn electors_and_slackers_can_delegate() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
 
     // check roles
     let essence_info_alice = h.voter_query_user(alice, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+    assert_that(&essence_info_alice[0]).is_equal_to(UserResponse {
         user_type: UserType::Elector,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
         weights: weights_alice.to_owned(),
         rewards: RewardsInfo::default(),
     });
-    assert_that(&essence_info_john).is_equal_to(UserResponse {
+    assert_that(&essence_info_john[0]).is_equal_to(UserResponse {
         user_type: UserType::Slacker,
         essence_info: EssenceInfo::new::<u128>(0, 0, 3_000),
         essence_value: Uint128::new(3_000),
@@ -2177,21 +2177,21 @@ fn electors_and_slackers_can_delegate() -> StdResult<()> {
     });
 
     // delegate
-    h.voter_try_delegate(alice)?;
-    h.voter_try_delegate(john)?;
+    h.voter_try_set_delegation(alice, "1")?;
+    h.voter_try_set_delegation(john, "1")?;
 
     // check roles
     let essence_info_alice = h.voter_query_user(alice, None)?;
     let essence_info_john = h.voter_query_user(john, None)?;
 
-    assert_that(&essence_info_alice).is_equal_to(UserResponse {
+    assert_that(&essence_info_alice[0]).is_equal_to(UserResponse {
         user_type: UserType::Delegator,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
         weights: vec![],
         rewards: RewardsInfo::default(),
     });
-    assert_that(&essence_info_john).is_equal_to(UserResponse {
+    assert_that(&essence_info_john[0]).is_equal_to(UserResponse {
         user_type: UserType::Delegator,
         essence_info: EssenceInfo::new::<u128>(0, 0, 3_000),
         essence_value: Uint128::new(3_000),
@@ -2262,13 +2262,13 @@ fn delegators_and_dao_can_not_delegate() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(alice, weights)?;
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights)?;
 
     // delegate
-    let res = h.voter_try_delegate(bob).unwrap_err();
+    let res = h.voter_try_set_delegation(bob, "1").unwrap_err();
     assert_error(&res, ContractError::DelegateTwice);
-    let res = h.voter_try_delegate(dao).unwrap_err();
+    let res = h.voter_try_set_delegation(dao, "1").unwrap_err();
     assert_error(&res, ContractError::UserIsNotFound);
 
     Ok(())
@@ -2301,7 +2301,7 @@ fn delegators_can_not_vote() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(alice, weights)?;
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights)?;
 
     // place vote as delegator
@@ -2343,16 +2343,16 @@ fn undelegate_default() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // undelegate
-    h.voter_try_undelegate(bob)?;
+    h.voter_try_set_delegation(bob, "0")?;
     for user in [alice, john] {
-        let res = h.voter_try_undelegate(user).unwrap_err();
+        let res = h.voter_try_set_delegation(user, "0").unwrap_err();
         assert_error(&res, ContractError::DelegatorIsNotFound);
     }
-    let res = h.voter_try_undelegate(dao).unwrap_err();
+    let res = h.voter_try_set_delegation(dao, "0").unwrap_err();
     assert_error(&res, ContractError::UserIsNotFound);
 
     // final voting
@@ -2426,7 +2426,7 @@ fn reset_electors_and_dao_on_epoch_start() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // check votes
@@ -2434,7 +2434,7 @@ fn reset_electors_and_dao_on_epoch_start() -> StdResult<()> {
     let dao_info = h.voter_query_dao_info(None)?;
     let voter_info = h.voter_query_voter_info(None)?;
 
-    assert_that(&alice_info).is_equal_to(UserResponse {
+    assert_that(&alice_info[0]).is_equal_to(UserResponse {
         user_type: UserType::Elector,
         essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
         essence_value: Uint128::new(1_000),
@@ -2472,7 +2472,7 @@ fn reset_electors_and_dao_on_epoch_start() -> StdResult<()> {
     let dao_info = h.voter_query_dao_info(None)?;
     let voter_info = h.voter_query_voter_info(None)?;
 
-    assert_that(&alice_info.user_type).is_equal_to(UserType::Slacker);
+    assert_that(&alice_info[0].user_type).is_equal_to(UserType::Slacker);
     assert_that(&dao_info.weights).is_equal_to(vec![]);
     assert_that(&voter_info.slacker_essence_acc).is_equal_to(EssenceInfo::new::<u128>(0, 0, 4_000));
 
@@ -2512,7 +2512,7 @@ fn rotating_claim_stage() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // try vote too early
@@ -2534,9 +2534,9 @@ fn rotating_claim_stage() -> StdResult<()> {
     assert_error(&res, ContractError::AwaitSwappedStage);
     let res = h.voter_try_place_vote_as_dao(dao, weights_dao).unwrap_err();
     assert_error(&res, ContractError::AwaitSwappedStage);
-    let res = h.voter_try_undelegate(bob).unwrap_err();
+    let res = h.voter_try_set_delegation(bob, "0").unwrap_err();
     assert_error(&res, ContractError::AwaitSwappedStage);
-    let res = h.voter_try_delegate(john).unwrap_err();
+    let res = h.voter_try_set_delegation(john, "1").unwrap_err();
     assert_error(&res, ContractError::AwaitSwappedStage);
     let res = h.voter_try_claim_rewards(alice).unwrap_err();
     assert_error(&res, ContractError::RewardsAreNotFound);
@@ -2564,9 +2564,9 @@ fn rotating_claim_stage() -> StdResult<()> {
     assert_error(&res, ContractError::AwaitSwappedStage);
     let res = h.voter_try_place_vote_as_dao(dao, weights_dao).unwrap_err();
     assert_error(&res, ContractError::AwaitSwappedStage);
-    let res = h.voter_try_undelegate(bob).unwrap_err();
+    let res = h.voter_try_set_delegation(bob, "0").unwrap_err();
     assert_error(&res, ContractError::AwaitSwappedStage);
-    let res = h.voter_try_delegate(john).unwrap_err();
+    let res = h.voter_try_set_delegation(john, "1").unwrap_err();
     assert_error(&res, ContractError::AwaitSwappedStage);
     let res = h.voter_try_claim_rewards(alice).unwrap_err();
     assert_error(&res, ContractError::RewardsAreNotFound);
@@ -2581,9 +2581,9 @@ fn rotating_claim_stage() -> StdResult<()> {
     assert_error(&res, ContractError::AwaitSwappedStage);
     let res = h.voter_try_place_vote_as_dao(dao, weights_dao).unwrap_err();
     assert_error(&res, ContractError::AwaitSwappedStage);
-    let res = h.voter_try_undelegate(bob).unwrap_err();
+    let res = h.voter_try_set_delegation(bob, "0").unwrap_err();
     assert_error(&res, ContractError::AwaitSwappedStage);
-    let res = h.voter_try_delegate(john).unwrap_err();
+    let res = h.voter_try_set_delegation(john, "1").unwrap_err();
     assert_error(&res, ContractError::AwaitSwappedStage);
     let res = h.voter_try_claim_rewards(alice).unwrap_err();
     assert_error(&res, ContractError::RewardsAreNotFound);
@@ -2596,8 +2596,8 @@ fn rotating_claim_stage() -> StdResult<()> {
     assert_error(&res, ContractError::VotingDelay);
 
     // check rewards
-    let rewards = h.voter_query_user(alice, None)?.rewards;
-    assert_that(&rewards).is_equal_to(RewardsInfo {
+    let rewards = &h.voter_query_user(alice, None)?[0].rewards;
+    assert_that(&rewards).is_equal_to(&RewardsInfo {
         last_update_epoch: 1,
         value: vec![
             (Uint128::new(76_576_577), Denom::Astro.to_string()),
@@ -2615,8 +2615,8 @@ fn rotating_claim_stage() -> StdResult<()> {
     assert_error(&res, ContractError::RewardsAreNotFound);
 
     // check rewards
-    let rewards = h.voter_query_user(alice, None)?.rewards;
-    assert_that(&rewards).is_equal_to(RewardsInfo {
+    let rewards = &h.voter_query_user(alice, None)?[0].rewards;
+    assert_that(&rewards).is_equal_to(&RewardsInfo {
         last_update_epoch: 1,
         value: vec![],
     });
@@ -2651,7 +2651,7 @@ fn clearing_storages() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(alice, weights)?;
-    h.voter_try_delegate(bob)?;
+    h.voter_try_set_delegation(bob, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights)?;
 
     // unlock
@@ -2827,8 +2827,8 @@ fn multiple_epochs_and_claim_rewards_single_time() -> StdResult<()> {
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
     h.voter_try_place_vote(ruby, weights_ruby)?;
-    h.voter_try_delegate(bob)?;
-    h.voter_try_delegate(vlad)?;
+    h.voter_try_set_delegation(bob, "1")?;
+    h.voter_try_set_delegation(vlad, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // vote interacting with emissions_controller directly
@@ -3030,8 +3030,8 @@ fn vote_e1_delegate_e2_undelegate_e3() -> StdResult<()> {
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
     h.voter_try_place_vote(ruby, weights_ruby)?;
-    h.voter_try_delegate(bob)?;
-    h.voter_try_delegate(vlad)?;
+    h.voter_try_set_delegation(bob, "1")?;
+    h.voter_try_set_delegation(vlad, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // vote interacting with emissions_controller directly
@@ -3076,7 +3076,7 @@ fn vote_e1_delegate_e2_undelegate_e3() -> StdResult<()> {
     // epoch 2, alice is delegator
     //
     // place votes
-    h.voter_try_delegate(alice)?;
+    h.voter_try_set_delegation(alice, "1")?;
     h.voter_try_place_vote(ruby, weights_ruby)?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
@@ -3119,7 +3119,7 @@ fn vote_e1_delegate_e2_undelegate_e3() -> StdResult<()> {
     // epoch 3, alice is slacker
     //
     // place votes
-    h.voter_try_undelegate(alice)?;
+    h.voter_try_set_delegation(alice, "0")?;
     h.voter_try_place_vote(ruby, weights_ruby)?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
@@ -3231,9 +3231,9 @@ fn delegate_e1_undelegate_e2_vote_e3() -> StdResult<()> {
 
     // place votes
     h.voter_try_place_vote(ruby, weights_ruby)?;
-    h.voter_try_delegate(alice)?;
-    h.voter_try_delegate(bob)?;
-    h.voter_try_delegate(vlad)?;
+    h.voter_try_set_delegation(alice, "1")?;
+    h.voter_try_set_delegation(bob, "1")?;
+    h.voter_try_set_delegation(vlad, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // vote interacting with emissions_controller directly
@@ -3278,7 +3278,7 @@ fn delegate_e1_undelegate_e2_vote_e3() -> StdResult<()> {
     // epoch 2, alice is delegator
     //
     // place votes
-    h.voter_try_undelegate(alice)?;
+    h.voter_try_set_delegation(alice, "0")?;
     h.voter_try_place_vote(ruby, weights_ruby)?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
@@ -3440,8 +3440,8 @@ fn two_tribute_markets() -> StdResult<()> {
     // place votes
     h.voter_try_place_vote(alice, weights_alice)?;
     h.voter_try_place_vote(ruby, weights_ruby)?;
-    h.voter_try_delegate(bob)?;
-    h.voter_try_delegate(vlad)?;
+    h.voter_try_set_delegation(bob, "1")?;
+    h.voter_try_set_delegation(vlad, "1")?;
     h.voter_try_place_vote_as_dao(dao, weights_dao)?;
 
     // vote interacting with emissions_controller directly
@@ -3484,26 +3484,26 @@ fn two_tribute_markets() -> StdResult<()> {
     h.voter_try_push()?;
 
     // check rewards
-    let alice_rewards = h.voter_query_user(alice, None)?.rewards.value;
-    let ruby_rewards = h.voter_query_user(ruby, None)?.rewards.value;
-    let bob_rewards = h.voter_query_user(bob, None)?.rewards.value;
-    let vlad_rewards = h.voter_query_user(vlad, None)?.rewards.value;
+    let alice_rewards = &h.voter_query_user(alice, None)?[0].rewards.value;
+    let ruby_rewards = &h.voter_query_user(ruby, None)?[0].rewards.value;
+    let bob_rewards = &h.voter_query_user(bob, None)?[0].rewards.value;
+    let vlad_rewards = &h.voter_query_user(vlad, None)?[0].rewards.value;
 
     // 2x times higher rewards comparing to single tribute market case "full_cycle"
-    assert_that(&alice_rewards).is_equal_to(vec![
+    assert_that(&alice_rewards).is_equal_to(&vec![
         (Uint128::new(24_907_521), Denom::Astro.to_string()),
         (Uint128::new(17_106_279), Denom::Atom.to_string()),
         (Uint128::new(17_106_279), Denom::Eclip.to_string()),
     ]);
-    assert_that(&ruby_rewards).is_equal_to(vec![
+    assert_that(&ruby_rewards).is_equal_to(&vec![
         (Uint128::new(16_605_014), Denom::Astro.to_string()),
         (Uint128::new(136_000_001), Denom::Atom.to_string()),
         (Uint128::new(226_666_667), Denom::Ntrn.to_string()),
     ]);
     assert_that(&bob_rewards)
-        .is_equal_to(vec![(Uint128::new(71_087_527), Denom::Eclip.to_string())]);
+        .is_equal_to(&vec![(Uint128::new(71_087_527), Denom::Eclip.to_string())]);
     assert_that(&vlad_rewards)
-        .is_equal_to(vec![(Uint128::new(213_262_581), Denom::Eclip.to_string())]);
+        .is_equal_to(&vec![(Uint128::new(213_262_581), Denom::Eclip.to_string())]);
 
     // claim user rewards
     for user in [alice, ruby, bob, vlad] {
@@ -3527,6 +3527,806 @@ fn two_tribute_markets() -> StdResult<()> {
     assert_that(&(ruby_ntrn_balance_after - ruby_ntrn_balance_before)).is_equal_to(226_666_667);
     assert_that(&(bob_eclip_balance_after - bob_eclip_balance_before)).is_equal_to(71_087_527);
     assert_that(&(vlad_eclip_balance_after - vlad_eclip_balance_before)).is_equal_to(213_262_581);
+
+    Ok(())
+}
+
+// elector -> elector, delegator -> elector, delegator -> delegator -> elector, delegator -> elector
+#[test]
+fn multiple_roles_elector_and_delegator() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let dao = &h.acc(Acc::Dao);
+    // electors
+    let alice = &h.acc(Acc::Alice);
+    let ruby = &h.acc(Acc::Ruby);
+    // delegators
+    let bob = &h.acc(Acc::Bob);
+    let vlad = &h.acc(Acc::Vlad);
+    // slackers
+    let john = &h.acc(Acc::John);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.4"),
+        WeightAllocationItem::new(astro_atom, "0.6"),
+    ];
+    let weights_ruby = &vec![
+        WeightAllocationItem::new(ntrn_atom, "0.6"),
+        WeightAllocationItem::new(astro_atom, "0.4"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [
+        (alice, 500),
+        (ruby, 500),
+        (bob, 500),
+        (vlad, 1_500),
+        (john, 3_000),
+    ] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_place_vote(ruby, weights_ruby)?;
+    h.voter_try_set_delegation(bob, "1")?;
+    h.voter_try_set_delegation(vlad, "1")?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![UserResponse {
+        user_type: UserType::Elector,
+        essence_info: EssenceInfo::new::<u128>(0, 0, 500),
+        essence_value: Uint128::new(500),
+        weights: weights_alice.to_owned(),
+        rewards: RewardsInfo::default(),
+    }]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
+        essence_value: Uint128::new(2_000),
+        weights: weights_dao.to_owned(),
+    });
+
+    // elector -> elector, delegator
+    h.voter_try_set_delegation(alice, "0.6")?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![
+        UserResponse {
+            user_type: UserType::Elector,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 200),
+            essence_value: Uint128::new(200),
+            weights: weights_alice.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+        UserResponse {
+            user_type: UserType::Delegator,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 300),
+            essence_value: Uint128::new(300),
+            weights: weights_dao.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+    ]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_300),
+        essence_value: Uint128::new(2_300),
+        weights: weights_dao.to_owned(),
+    });
+
+    // elector, delegator -> elector, delegator
+    h.voter_try_set_delegation(alice, "0.4")?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![
+        UserResponse {
+            user_type: UserType::Elector,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 300),
+            essence_value: Uint128::new(300),
+            weights: weights_alice.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+        UserResponse {
+            user_type: UserType::Delegator,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 200),
+            essence_value: Uint128::new(200),
+            weights: weights_dao.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+    ]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_200),
+        essence_value: Uint128::new(2_200),
+        weights: weights_dao.to_owned(),
+    });
+
+    // elector, delegator -> delegator
+    h.voter_try_set_delegation(alice, "1")?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![UserResponse {
+        user_type: UserType::Delegator,
+        essence_info: EssenceInfo::new::<u128>(0, 0, 500),
+        essence_value: Uint128::new(500),
+        weights: weights_dao.to_owned(),
+        rewards: RewardsInfo::default(),
+    }]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_500),
+        essence_value: Uint128::new(2_500),
+        weights: weights_dao.to_owned(),
+    });
+
+    // delegator -> elector, delegator
+    h.voter_try_set_delegation(alice, "0.4")?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![
+        UserResponse {
+            user_type: UserType::Elector,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 300),
+            essence_value: Uint128::new(300),
+            weights: weights_alice.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+        UserResponse {
+            user_type: UserType::Delegator,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 200),
+            essence_value: Uint128::new(200),
+            weights: weights_dao.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+    ]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_200),
+        essence_value: Uint128::new(2_200),
+        weights: weights_dao.to_owned(),
+    });
+
+    // increase essence
+    h.wait(1);
+    h.eclipsepad_staking_try_stake(alice, 500, Denom::Eclip)?;
+    h.eclipsepad_staking_try_lock(alice, 500, 4)?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![
+        UserResponse {
+            user_type: UserType::Elector,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 600),
+            essence_value: Uint128::new(600),
+            weights: weights_alice.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+        UserResponse {
+            user_type: UserType::Delegator,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 400),
+            essence_value: Uint128::new(400),
+            weights: weights_dao.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+    ]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_400),
+        essence_value: Uint128::new(2_400),
+        weights: weights_dao.to_owned(),
+    });
+
+    // elector, delegator -> elector
+    h.voter_try_set_delegation(alice, "0")?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![UserResponse {
+        user_type: UserType::Elector,
+        essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
+        essence_value: Uint128::new(1_000),
+        weights: weights_alice.to_owned(),
+        rewards: RewardsInfo::default(),
+    }]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
+        essence_value: Uint128::new(2_000),
+        weights: weights_dao.to_owned(),
+    });
+
+    Ok(())
+}
+
+// slacker -> slacker, delegator -> slacker, delegator -> delegator -> slacker, delegator -> slacker
+#[test]
+fn multiple_roles_slacker_and_delegator() -> StdResult<()> {
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let dao = &h.acc(Acc::Dao);
+    // electors
+    let alice = &h.acc(Acc::Alice);
+    let ruby = &h.acc(Acc::Ruby);
+    // delegators
+    let bob = &h.acc(Acc::Bob);
+    let vlad = &h.acc(Acc::Vlad);
+    // slackers
+    let john = &h.acc(Acc::John);
+
+    let weights_ruby = &vec![
+        WeightAllocationItem::new(ntrn_atom, "0.6"),
+        WeightAllocationItem::new(astro_atom, "0.4"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [
+        (alice, 500),
+        (ruby, 500),
+        (bob, 500),
+        (vlad, 1_500),
+        (john, 3_000),
+    ] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(ruby, weights_ruby)?;
+    h.voter_try_set_delegation(bob, "1")?;
+    h.voter_try_set_delegation(vlad, "1")?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![UserResponse {
+        user_type: UserType::Slacker,
+        essence_info: EssenceInfo::new::<u128>(0, 0, 500),
+        essence_value: Uint128::new(500),
+        weights: vec![],
+        rewards: RewardsInfo::default(),
+    }]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
+        essence_value: Uint128::new(2_000),
+        weights: weights_dao.to_owned(),
+    });
+
+    // slacker -> slacker, delegator
+    h.voter_try_set_delegation(alice, "0.6")?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![
+        UserResponse {
+            user_type: UserType::Slacker,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 200),
+            essence_value: Uint128::new(200),
+            weights: vec![],
+            rewards: RewardsInfo::default(),
+        },
+        UserResponse {
+            user_type: UserType::Delegator,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 300),
+            essence_value: Uint128::new(300),
+            weights: weights_dao.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+    ]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_300),
+        essence_value: Uint128::new(2_300),
+        weights: weights_dao.to_owned(),
+    });
+
+    // slacker, delegator -> slacker, delegator
+    h.voter_try_set_delegation(alice, "0.4")?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![
+        UserResponse {
+            user_type: UserType::Slacker,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 300),
+            essence_value: Uint128::new(300),
+            weights: vec![],
+            rewards: RewardsInfo::default(),
+        },
+        UserResponse {
+            user_type: UserType::Delegator,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 200),
+            essence_value: Uint128::new(200),
+            weights: weights_dao.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+    ]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_200),
+        essence_value: Uint128::new(2_200),
+        weights: weights_dao.to_owned(),
+    });
+
+    // slacker, delegator -> delegator
+    h.voter_try_set_delegation(alice, "1")?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![UserResponse {
+        user_type: UserType::Delegator,
+        essence_info: EssenceInfo::new::<u128>(0, 0, 500),
+        essence_value: Uint128::new(500),
+        weights: weights_dao.to_owned(),
+        rewards: RewardsInfo::default(),
+    }]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_500),
+        essence_value: Uint128::new(2_500),
+        weights: weights_dao.to_owned(),
+    });
+
+    // delegator -> slacker, delegator
+    h.voter_try_set_delegation(alice, "0.4")?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![
+        UserResponse {
+            user_type: UserType::Slacker,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 300),
+            essence_value: Uint128::new(300),
+            weights: vec![],
+            rewards: RewardsInfo::default(),
+        },
+        UserResponse {
+            user_type: UserType::Delegator,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 200),
+            essence_value: Uint128::new(200),
+            weights: weights_dao.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+    ]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_200),
+        essence_value: Uint128::new(2_200),
+        weights: weights_dao.to_owned(),
+    });
+
+    // increase essence
+    h.wait(1);
+    h.eclipsepad_staking_try_stake(alice, 500, Denom::Eclip)?;
+    h.eclipsepad_staking_try_lock(alice, 500, 4)?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![
+        UserResponse {
+            user_type: UserType::Slacker,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 600),
+            essence_value: Uint128::new(600),
+            weights: vec![],
+            rewards: RewardsInfo::default(),
+        },
+        UserResponse {
+            user_type: UserType::Delegator,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 400),
+            essence_value: Uint128::new(400),
+            weights: weights_dao.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+    ]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_400),
+        essence_value: Uint128::new(2_400),
+        weights: weights_dao.to_owned(),
+    });
+
+    // slacker, delegator -> slacker
+    h.voter_try_set_delegation(alice, "0")?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![UserResponse {
+        user_type: UserType::Slacker,
+        essence_info: EssenceInfo::new::<u128>(0, 0, 1_000),
+        essence_value: Uint128::new(1_000),
+        weights: vec![],
+        rewards: RewardsInfo::default(),
+    }]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
+        essence_value: Uint128::new(2_000),
+        weights: weights_dao.to_owned(),
+    });
+
+    Ok(())
+}
+
+// slacker -> slacker, delegator -> elector, delegator -> slacker, delegator
+#[test]
+fn multiple_roles_rewards_and_slacker_delegator_and_elector_delegator_conversion() -> StdResult<()>
+{
+    let mut h = prepare_helper();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let owner = &h.acc(Acc::Owner);
+    let dao = &h.acc(Acc::Dao);
+    // electors
+    let alice = &h.acc(Acc::Alice);
+    let ruby = &h.acc(Acc::Ruby);
+    // delegators
+    let bob = &h.acc(Acc::Bob);
+    let vlad = &h.acc(Acc::Vlad);
+    // slackers
+    let john = &h.acc(Acc::John);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.4"),
+        WeightAllocationItem::new(astro_atom, "0.6"),
+    ];
+    let weights_ruby = &vec![
+        WeightAllocationItem::new(ntrn_atom, "0.6"),
+        WeightAllocationItem::new(astro_atom, "0.4"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [
+        (alice, 500),
+        (ruby, 500),
+        (bob, 500),
+        (vlad, 1_500),
+        (john, 3_000),
+    ] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(ruby, weights_ruby)?;
+    h.voter_try_set_delegation(bob, "1")?;
+    h.voter_try_set_delegation(vlad, "1")?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![UserResponse {
+        user_type: UserType::Slacker,
+        essence_info: EssenceInfo::new::<u128>(0, 0, 500),
+        essence_value: Uint128::new(500),
+        weights: vec![],
+        rewards: RewardsInfo::default(),
+    }]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_000),
+        essence_value: Uint128::new(2_000),
+        weights: weights_dao.to_owned(),
+    });
+
+    // slacker -> slacker, delegator
+    h.voter_try_set_delegation(alice, "0.6")?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![
+        UserResponse {
+            user_type: UserType::Slacker,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 200),
+            essence_value: Uint128::new(200),
+            weights: vec![],
+            rewards: RewardsInfo::default(),
+        },
+        UserResponse {
+            user_type: UserType::Delegator,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 300),
+            essence_value: Uint128::new(300),
+            weights: weights_dao.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+    ]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_300),
+        essence_value: Uint128::new(2_300),
+        weights: weights_dao.to_owned(),
+    });
+
+    // slacker, delegator -> elector, delegator
+    h.voter_try_place_vote(alice, weights_alice)?;
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![
+        UserResponse {
+            user_type: UserType::Elector,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 200),
+            essence_value: Uint128::new(200),
+            weights: weights_alice.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+        UserResponse {
+            user_type: UserType::Delegator,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 300),
+            essence_value: Uint128::new(300),
+            weights: weights_dao.to_owned(),
+            rewards: RewardsInfo::default(),
+        },
+    ]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_300),
+        essence_value: Uint128::new(2_300),
+        weights: weights_dao.to_owned(),
+    });
+
+    // final voting
+    let date_config = h.voter_query_date_config()?;
+    let epoch_length = date_config.epoch_length;
+    let vote_delay = date_config.vote_delay;
+    h.wait(h.voter_query_date_config()?.vote_delay);
+    h.voter_try_push()?;
+
+    // check voting power and votes allocation
+    let tribute_voting_power = h.total_vp(None)?;
+    let voted_pools = h.query_voted_pools(None)?;
+
+    let block_time = 1716163200;
+    assert_that(&tribute_voting_power.u128()).is_equal_to(100_000_000);
+    // voter_essence_allocation = elector_weights * (elector_essence + 0.8 * slacker_essence) +
+    // + dao_weights * (dao_essence + 0.2 * slacker_essence)
+    // ruby_essence_allocation = 500 * (0, 0.6, 0.4) = (0, 300, 200)
+    // alice_elector_essence_allocation = 200 * (0.4, 0, 0.6) = (80, 0, 120)
+    // full_elector_essence_allocation = (0, 300, 200) + (80, 0, 120) * (500 + 200 + 0.8 * 3_000) / (500 + 200) =
+    // = (80, 300, 320) * 3_100 / 700 = (354, 1_328, 1_417)
+    // full_dao_essence_allocation = (300 + 2_000 + 0.2 * 3_000) * (0.5, 0.3, 0.2) =
+    // = 2_900 * (0.5, 0.3, 0.2) = (1_450, 870, 580)
+    // voter_essence_allocation = (354, 1_328, 1_417) + (1_450, 870, 580) = (1_804, 2_198, 1_997)
+    // voter_weights = (1_804, 2_198, 1_997) / 5_999 = (0.300716786131021836, 0.366394399066511085, 0.332888814802467077)
+    // voter_vp_allocation = voter_total_vp * voter_weights = (30_071_678, 36_639_439, 33_288_881)
+    assert_that(&voted_pools).is_equal_to(vec![
+        (
+            eclip_atom.to_string(),
+            VotedPoolInfo {
+                init_ts: block_time,
+                voting_power: Uint128::new(30_071_678),
+            },
+        ),
+        (
+            ntrn_atom.to_string(),
+            VotedPoolInfo {
+                init_ts: block_time,
+                voting_power: Uint128::new(36_639_439),
+            },
+        ),
+        (
+            astro_atom.to_string(),
+            VotedPoolInfo {
+                init_ts: block_time,
+                voting_power: Uint128::new(33_288_881),
+            },
+        ),
+    ]);
+
+    // allocate rewards
+    h.wait(epoch_length - vote_delay + 1);
+    h.tribute_market_try_allocate_rewards(
+        &h.tribute_market_contract_address(),
+        owner,
+        &[&h.voter_contract_address()],
+    )?;
+
+    // check rewards allocation
+    let voter_rewards = h.tribute_market_query_rewards(
+        &h.tribute_market_contract_address(),
+        h.voter_contract_address(),
+    )?;
+
+    // tribute bribe allocation
+    // eclip-atom: 100 atom, 100 eclip
+    // ntrn-atom: 200 ntrn, 120 atom
+    // astro-atom: 100 astro
+    //
+    // voter rewards
+    // astro = 100
+    // atom = 100 + 120 = 220
+    // eclip = 100
+    // ntrn = 200
+    assert_that(&voter_rewards).is_equal_to(vec![
+        (Uint128::new(100_000_000), Denom::Astro.to_string()),
+        (Uint128::new(220_000_000), Denom::Atom.to_string()),
+        (Uint128::new(100_000_000), Denom::Eclip.to_string()),
+        (Uint128::new(200_000_000), Denom::Ntrn.to_string()),
+    ]);
+
+    // claim rewards
+    h.voter_try_push()?;
+    // swap rewards
+    h.voter_try_push()?;
+
+    // check vote results
+    let block_time = h.get_block_time();
+    let voter_info = h.voter_query_voter_info(None)?;
+
+    assert_that(&voter_info).is_equal_to(VoterInfoResponse {
+        block_time,
+        elector_votes: vec![],
+        slacker_essence_acc: EssenceInfo::new::<u128>(0, 0, 3_700),
+        total_votes: vec![],
+        vote_results: vec![VoteResults {
+            epoch_id: 1,
+            end_date: 1717372800,
+            elector_essence: Uint128::new(3_100),
+            dao_essence: Uint128::new(2_900),
+            slacker_essence: Uint128::new(3_000),
+            // (0, 300, 200) + (80, 0, 120) / 700 = (0.114285714285714285, 0.428571428571428571, 0.457142857142857142)
+            elector_weights: vec![
+                WeightAllocationItem::new(eclip_atom, "0.114285714285714285"),
+                WeightAllocationItem::new(ntrn_atom, "0.428571428571428571"),
+                WeightAllocationItem::new(astro_atom, "0.457142857142857142"),
+            ],
+            dao_weights: weights_dao.to_owned(),
+            // dao_eclip_rewards = sum_over_denoms(dao_rewards_per_denom)
+            // dao_rewards_per_denom = sum_over_pools(voter_rewards * (dao_essence * dao_weight) / (voter_essence * voter_weight))
+            //
+            // dao_astro = 100_000_000 * (2_900 * 0.2) / (6_000 * 0.332888814802467077) = 29_038_724
+            // dao_atom = 100_000_000 * (2_900 * 0.5) / (6_000 * 0.300716786131021836) + 120_000_000 * (2_900 * 0.3) / (6_000 * 0.366394399066511085) = 127_853_351
+            // dao_eclip = 100_000_000 * (2_900 * 0.5) / (6_000 * 0.300716786131021836) = 80_363_543
+            // dao_ntrn = 200_000_000 * (2_900 * 0.3) / (6_000 * 0.366394399066511085) = 79_149_681
+            //
+            // dao_eclip_rewards = 29_038_724 + 127_853_351 + 80_363_543 + 79_149_681 = 316_405_299
+            // dao_delegators_eclip_rewards = 0.8 * 316_405_299 = 253_124_239
+            // dao_treasury_eclip_rewards = 316_405_299 - 253_124_239 = 63_281_060
+            dao_treasury_eclip_rewards: Uint128::new(63_281_059),
+            dao_delegators_eclip_rewards: Uint128::new(253_124_235),
+            // dao_rewards_per_denom = sum_over_pools(voter_rewards * (dao_essence * dao_weight) / (voter_essence * voter_weight))
+            // elector_rewards_per_denom = rewards_per_denom - dao_rewards_per_denom
+            //
+            // eclip_in_eclip_atom = 100_000_000 - 80_363_543 = 19_636_457
+            // atom_in_eclip_atom = 100_000_000 - 80_363_543 = 19_636_457
+            //
+            // ntrn_in_ntrn_atom = 200_000_000 - 79_149_681 = 120_850_319
+            // atom_in_ntrn_atom = 120_000_000 - 120_000_000 * (2_900 * 0.3) / (6_000 * 0.366394399066511085) = 72_510_192
+            //
+            // astro_in_astro_atom = 100_000_000 - 29_038_724 = 70_961_276
+            pool_info_list: vec![
+                PoolInfoItem::new(
+                    eclip_atom,
+                    "0.300716786131021836",
+                    &[
+                        (19_636_457, &Denom::Atom.to_string()),
+                        (19_636_457, &Denom::Eclip.to_string()),
+                    ],
+                ),
+                PoolInfoItem::new(
+                    ntrn_atom,
+                    "0.366394399066511085",
+                    &[
+                        (72_510_192, &Denom::Atom.to_string()),
+                        (120_850_319, &Denom::Ntrn.to_string()),
+                    ],
+                ),
+                PoolInfoItem::new(
+                    astro_atom,
+                    "0.332888814802467077",
+                    &[(70_961_276, &Denom::Astro.to_string())],
+                ),
+            ],
+        }],
+    });
+
+    // claim user rewards
+    let alice_astro_balance_before = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_before = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_before = h.query_balance(alice, Denom::Eclip);
+
+    h.voter_try_claim_rewards(alice)?;
+
+    let alice_astro_balance_after = h.query_balance(alice, Denom::Astro);
+    let alice_atom_balance_after = h.query_balance(alice, Denom::Atom);
+    let alice_eclip_balance_after = h.query_balance(alice, Denom::Eclip);
+
+    // elector_personal_rewards = sum_over_pools(elector_personal_rewards_per_pool)
+    // elector_personal_rewards_per_pool = elector_rewards * (personal_elector_essence * personal_weight) /
+    //     ((elector_essence - 0.8 * slacker_essence) * elector_weight)
+    //
+    // alice_astro_in_astro_atom = 70_961_276 * (200 * 0.6) / ((3_100 - 0.8 * 3_000) * 0.457142857142857142) = 26_610_478
+    // alice_atom_in_eclip_atom = 19_636_457 * (200 * 0.4) / ((3_100 - 0.8 * 3_000) * 0.114285714285714285) = 19_636_457
+    // alice_eclip_in_eclip_atom = 19_636_457 * (200 * 0.4) / ((3_100 - 0.8 * 3_000) * 0.114285714285714285) = 19_636_457
+    //
+    // personal_delegator_eclip = total_delegator_eclip * personal_delegator_essence / total_delegator_essence
+    //
+    // alice_delegator_eclip = 253_124_235 * 300 / 2_300 = 33_016_204
+    // alice_eclip = 19_636_457 + 33_016_204 = 52_652_661
+    assert_that(&(alice_astro_balance_after - alice_astro_balance_before)).is_equal_to(26_610_478);
+    assert_that(&(alice_atom_balance_after - alice_atom_balance_before)).is_equal_to(19_636_457);
+    assert_that(&(alice_eclip_balance_after - alice_eclip_balance_before)).is_equal_to(52_652_661);
+
+    // check parameters
+    let alice_info = h.voter_query_user(alice, None)?;
+    let dao_info = h.voter_query_dao_info(None)?;
+
+    assert_that(&alice_info).is_equal_to(vec![
+        UserResponse {
+            user_type: UserType::Slacker,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 200),
+            essence_value: Uint128::new(200),
+            weights: vec![],
+            rewards: RewardsInfo {
+                last_update_epoch: 1,
+                value: vec![],
+            },
+        },
+        UserResponse {
+            user_type: UserType::Delegator,
+            essence_info: EssenceInfo::new::<u128>(0, 0, 300),
+            essence_value: Uint128::new(300),
+            weights: vec![],
+            rewards: RewardsInfo {
+                last_update_epoch: 1,
+                value: vec![],
+            },
+        },
+    ]);
+    assert_that(&dao_info).is_equal_to(DaoResponse {
+        essence_info: EssenceInfo::new::<u128>(0, 0, 2_300),
+        essence_value: Uint128::new(2_300),
+        weights: vec![],
+    });
 
     Ok(())
 }
