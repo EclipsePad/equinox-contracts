@@ -46,6 +46,7 @@ use equinox_msg::{
         UserRewardByDuration as SingleStakingUserRewardByDuration,
         UserStaking as SingleSidedUserStaking,
     },
+    voter::msg::AstroStakingRewardResponse,
 };
 use voter_mocks::state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY};
 
@@ -585,7 +586,7 @@ impl SuiteBuilder {
                     }),
                 },
                 &[],
-                "converter",
+                "beclip",
                 Some(admin.clone().to_string()),
             )
             .unwrap();
@@ -914,23 +915,29 @@ impl Suite {
     }
 
     pub fn update_config(&mut self) {
-        // TODO: ?
-        // self.app
-        //     .execute_contract(
-        //         self.admin.clone(),
-        //         self.converter_contract.clone(),
-        //         &ConverterExecuteMsg::UpdateConfig {
-        //             config: ConverterUpdateConfig {
-        //                 vxastro_holder: Some(self.voter_contract.clone()),
-        //                 treasury: None,
-        //                 stability_pool: Some(self.eclipse_stability_pool.clone()),
-        //                 single_staking_contract: Some(self.single_staking_contract.clone()),
-        //                 ce_reward_distributor: Some(self.ce_reward_distributor.clone()),
-        //             },
-        //         },
-        //         &[],
-        //     )
-        //     .unwrap();
+        self.app
+            .execute_contract(
+                self.admin.clone(),
+                self.voter_contract.clone(),
+                &equinox_msg::voter::msg::ExecuteMsg::UpdateAddressConfig {
+                    admin: None,
+                    worker_list: None,
+                    eclipse_dao: None,
+                    eclipsepad_foundry: None,
+                    eclipsepad_minter: None,
+                    eclipsepad_staking: None,
+                    eclipsepad_tribute_market: None,
+                    eclipse_single_sided_vault: Some(self.single_staking_contract.to_string()),
+                    astroport_staking: None,
+                    astroport_assembly: None,
+                    astroport_voting_escrow: None,
+                    astroport_emission_controller: None,
+                    astroport_router: None,
+                    astroport_tribute_market: None,
+                },
+                &[],
+            )
+            .unwrap();
 
         self.app
             .execute_contract(
@@ -1016,6 +1023,24 @@ impl Suite {
         )
     }
 
+    pub fn claim_astro_rewards(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.voter_contract.clone(),
+            &equinox_msg::voter::msg::ExecuteMsg::ClaimAstroRewards {},
+            &[],
+        )
+    }
+
+    pub fn claim_treasury_rewards(&mut self, sender: &str) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.voter_contract.clone(),
+            &equinox_msg::voter::msg::ExecuteMsg::ClaimTreasuryRewards {},
+            &[],
+        )
+    }
+
     pub fn query_eclipastro_balance(&self, address: &str) -> StdResult<u128> {
         let balance = self
             .app
@@ -1055,6 +1080,20 @@ impl Suite {
     //     )?;
     //     Ok(info)
     // }
+
+    pub fn query_astro_staking_rewards(&self) -> StdResult<AstroStakingRewardResponse> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract.clone(),
+            &equinox_msg::voter::msg::QueryMsg::AstroStakingRewards {},
+        )
+    }
+
+    pub fn query_astro_staking_treasury_rewards(&self) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            self.voter_contract.clone(),
+            &equinox_msg::voter::msg::QueryMsg::AstroStakingTreasuryRewards {},
+        )
+    }
 
     pub fn provide_liquidity(
         &mut self,
