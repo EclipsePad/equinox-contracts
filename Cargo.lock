@@ -2053,6 +2053,7 @@ dependencies = [
  "strum_macros 0.24.3",
  "tribute-market-mocks",
  "voter",
+ "voter-mocks",
 ]
 
 [[package]]
@@ -3650,6 +3651,25 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "voter"
+version = "0.1.2"
+dependencies = [
+ "astroport 5.1.0-vxastro-rc.1",
+ "astroport-governance 4.0.0-rc.1",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-controllers",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "eclipse-base",
+ "equinox-msg",
+ "semver",
+ "thiserror",
+ "tribute-market-mocks",
+]
+
+[[package]]
+name = "voter-mocks"
 version = "0.1.2"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",

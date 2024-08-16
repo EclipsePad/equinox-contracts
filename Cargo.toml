@@ -42,6 +42,7 @@ eclipse-base            = { path = "./packages/eclipse-base" }
 eclipsepad-staking      = { path = "./packages/eclipsepad-staking" }
 minter-mocks            = { path = "./packages/minter-mocks" }
 tribute-market-mocks    = { path = "./packages/tribute-market-mocks", features = ["library"] }
+voter-mocks             = { path = "./packages/voter-mocks", features = ["library"] }
 cw20-gift               = { path = "./packages/cw20-gift" }
 
 single-sided-staking    = { path = "./contracts/single_sided_staking" }

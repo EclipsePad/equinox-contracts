@@ -97,8 +97,8 @@ fn stake() {
 
     assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), vec![]);
     assert_eq!(suite.query_single_sided_total_staking().unwrap(), 0);
-    // alice converts 1_000 astro
-    suite.convert_astro(BOB, 1_000).unwrap();
+    // bob converts 1_001 astro and get 1_000 eclipAstro due to rounding
+    suite.convert_astro(BOB, 1_001).unwrap();
     let err = suite.single_sided_stake(BOB, 1_000, 10, None).unwrap_err();
     assert_eq!(
         ContractError::NoLockingPeriodFound(10),
@@ -119,7 +119,7 @@ fn stake() {
     );
     assert_eq!(suite.query_single_sided_total_staking().unwrap(), 1_000);
 
-    suite.convert_astro(BOB, 1_000).unwrap();
+    suite.convert_astro(BOB, 1_001).unwrap();
     suite
         .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
         .unwrap();
@@ -135,7 +135,7 @@ fn stake() {
     );
     assert_eq!(suite.query_single_sided_total_staking().unwrap(), 2_000);
 
-    suite.convert_astro(BOB, 1_000).unwrap();
+    suite.convert_astro(BOB, 1_001).unwrap();
     suite
         .single_sided_stake(BOB, 1_000, THREE_MONTH, None)
         .unwrap();
@@ -158,7 +158,7 @@ fn stake() {
     assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
     assert_eq!(suite.query_single_sided_total_staking().unwrap(), 3_000);
 
-    suite.convert_astro(BOB, 1_000).unwrap();
+    suite.convert_astro(BOB, 1_001).unwrap();
     suite.single_sided_stake(BOB, 1_000, 0, None).unwrap();
     assert_eq!(
         suite.query_single_sided_staking(BOB).unwrap(),
@@ -190,7 +190,7 @@ fn stake() {
 
     suite.update_time(THREE_MONTH);
 
-    suite.convert_astro(BOB, 1_000).unwrap();
+    suite.convert_astro(BOB, 1_001).unwrap();
     suite
         .single_sided_stake(BOB, 1_000, THREE_MONTH, None)
         .unwrap();
