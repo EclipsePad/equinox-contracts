@@ -312,6 +312,7 @@ pub const VXASTRO: &str = "wasm1_vxastro";
 pub const STABILITY_POOL_REWARD_HOLDER: &str = "wasm1_stability_pool_reward_holder";
 pub const CE_REWARD_HOLDER: &str = "wasm1_ce_reward_holder";
 pub const ECLIP_DENOM: &str = "factory/wasm1_admin/eclip";
+pub const ECLIP_ASTRO_DENOM: &str = "factory/contract1/eclipAstro";
 pub const COIN_REGISTRY: &str = "wasm1_coin_registry";
 pub const CHAIN_ID: &str = "cw-multitest-1";
 
@@ -481,25 +482,25 @@ impl SuiteBuilder {
             )
             .unwrap();
 
-            let voter_id = store_voter(&mut app);
-            let voter_contract = Addr::unchecked("voter_contract");
-            // let voter_contract = app
-            //     .instantiate_contract(
-            //         voter_id,
-            //         admin.clone(),
-            //         &VoterInstantiateMsg {
-            //             owner: admin.clone().into_string(),
-            //             astro: ASTRO_DENOM.to_string(),
-            //             xastro: xastro.clone(),
-            //             vxastro: Addr::unchecked(VXASTRO.to_string()).to_string(),
-            //             staking_contract: astro_staking_contract.clone().into_string(),
-            //             converter_contract: converter_contract.clone().into_string(),
-            //         },
-            //         &[],
-            //         "voter",
-            //         Some(admin.clone().to_string()),
-            //     )
-            //     .unwrap();
+        let voter_id = store_voter(&mut app);
+        let voter_contract = Addr::unchecked("voter_contract");
+        // let voter_contract = app
+        //     .instantiate_contract(
+        //         voter_id,
+        //         admin.clone(),
+        //         &VoterInstantiateMsg {
+        //             owner: admin.clone().into_string(),
+        //             astro: ASTRO_DENOM.to_string(),
+        //             xastro: xastro.clone(),
+        //             vxastro: Addr::unchecked(VXASTRO.to_string()).to_string(),
+        //             staking_contract: astro_staking_contract.clone().into_string(),
+        //             converter_contract: converter_contract.clone().into_string(),
+        //         },
+        //         &[],
+        //         "voter",
+        //         Some(admin.clone().to_string()),
+        //     )
+        //     .unwrap();
 
         let single_staking_id = store_single_staking(&mut app);
         let single_staking_contract = app
@@ -510,7 +511,7 @@ impl SuiteBuilder {
                     owner: admin.to_string(),
                     eclip: ECLIP_DENOM.to_string(),
                     beclip: beclip.to_string(),
-                    token: eclipastro.clone(),
+                    token: ECLIP_ASTRO_DENOM.to_string(),
                     timelock_config: Some(vec![
                         TimeLockConfig {
                             duration: 0,
@@ -543,9 +544,8 @@ impl SuiteBuilder {
                             reward_multiplier: 240000,
                         },
                     ]),
-                    voter: voter_contract.clone(),
-                    treasury: Addr::unchecked(TREASURY.to_string()),
-                    voter: "wasm1_voter".to_string(),
+                    voter: voter_contract.to_string(),
+                    treasury: TREASURY.to_string(),
                 },
                 &[],
                 "Single Sided Staking",
@@ -555,7 +555,7 @@ impl SuiteBuilder {
 
         let asset_infos = vec![
             AssetInfo::NativeToken {
-                denom: eclipastro.clone(),
+                denom: ECLIP_ASTRO_DENOM.to_string(),
             },
             AssetInfo::NativeToken {
                 denom: xastro.clone(),
@@ -578,7 +578,7 @@ impl SuiteBuilder {
                 &FactoryQueryMsg::Pair {
                     asset_infos: vec![
                         AssetInfo::NativeToken {
-                            denom: eclipastro.clone(),
+                            denom: ECLIP_ASTRO_DENOM.to_string(),
                         },
                         AssetInfo::NativeToken {
                             denom: xastro.clone(),
@@ -606,7 +606,6 @@ impl SuiteBuilder {
                     astro: ASTRO_DENOM.to_string(),
                     xastro: xastro.clone(),
                     astro_staking: astro_staking_contract.to_string(),
-                    converter: converter_contract.to_string(),
                     astroport_incentives: astroport_incentives.to_string(),
                     treasury: TREASURY.to_string(),
                     stability_pool: STABILITY_POOL_REWARD_HOLDER.to_string(),
@@ -625,7 +624,7 @@ impl SuiteBuilder {
                 lockdrop_code_id,
                 admin.clone(),
                 &LockdropInstantiateMsg {
-                    init_timestamp: init_timestamp,
+                    init_timestamp,
                     deposit_window: None,
                     withdrawal_window: None,
                     lock_configs: None,
@@ -652,8 +651,7 @@ impl SuiteBuilder {
             astro: ASTRO_DENOM.to_string(),
             xastro,
             astro_staking_contract,
-            eclipastro,
-            converter_contract,
+            eclipastro: ECLIP_ASTRO_DENOM.to_string(),
             beclip,
             eclip: ECLIP_DENOM.to_string(),
             single_staking_contract,
@@ -678,7 +676,6 @@ pub struct Suite {
     astro_staking_contract: Addr,
     xastro: String,
     eclipastro: String,
-    converter_contract: Addr,
     beclip: Addr,
     eclip: String,
     single_staking_contract: Addr,
@@ -709,9 +706,6 @@ impl Suite {
     }
     pub fn eclipastro(&self) -> String {
         self.eclipastro.to_string()
-    }
-    pub fn converter_contract(&self) -> String {
-        self.converter_contract.to_string()
     }
     pub fn beclip(&self) -> String {
         self.beclip.to_string()
@@ -1211,12 +1205,18 @@ impl Suite {
             &[],
         )
     }
-    pub fn single_stake_claim_all(&mut self, sender: &str) -> AnyResult<AppResponse> {
+    pub fn single_stake_claim_all(
+        &mut self,
+        sender: &str,
+        with_flexible: bool,
+        assets: Option<Vec<AssetInfo>>,
+    ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.single_staking_contract.clone(),
             &SingleSidedStakingExecuteMsg::ClaimAll {
-                with_flexible: true,
+                with_flexible,
+                assets,
             },
             &[],
         )

@@ -1,12 +1,9 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::AdminError;
-use equinox_msg::{
-    single_sided_staking::{
-        Config, RewardDetail, RewardDetails, TimeLockConfig, UpdateConfigMsg, UserReward,
-        UserRewardByDuration, UserRewardByLockedAt, UserStaking, UserStakingByDuration,
-    },
-    token_converter::{Reward, RewardResponse as ConverterRewardResponse},
+use equinox_msg::single_sided_staking::{
+    Config, RewardDetail, RewardDetails, TimeLockConfig, UpdateConfigMsg, UserReward,
+    UserRewardByDuration, UserRewardByLockedAt, UserStaking, UserStakingByDuration,
 };
 use single_sided_staking::error::ContractError;
 
@@ -43,7 +40,7 @@ fn update_config() {
             early_unlock_penalty_bps: 200,
             reward_multiplier: 1,
         }]),
-        token_converter: Some("wasm1_token_converter".to_string()),
+        voter: Some("wasm1_voter".to_string()),
         treasury: Some("wasm1_treasury".to_string()),
     };
 
@@ -68,7 +65,6 @@ fn update_config() {
                 early_unlock_penalty_bps: 200,
                 reward_multiplier: 1,
             }],
-            token_converter: Addr::unchecked("wasm1_token_converter"),
             treasury: Addr::unchecked("wasm1_treasury"),
             voter: Addr::unchecked("wasm1_voter")
         }
@@ -101,7 +97,7 @@ fn stake() {
 
     assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), vec![]);
     assert_eq!(suite.query_single_sided_total_staking().unwrap(), 0);
-    alice converts 1_000 astro
+    // alice converts 1_000 astro
     suite.convert_astro(BOB, 1_000).unwrap();
     let err = suite.single_sided_stake(BOB, 1_000, 10, None).unwrap_err();
     assert_eq!(

@@ -93,7 +93,6 @@ impl SingleSidedStakingExtension for ControllerHelper {
                     eclip: eclip.to_string(),
                     beclip: beclip.to_string(),
                     timelock_config: timelock_config.to_owned(),
-                    rewards: reward_config.to_owned(),
                     voter: voter.to_string(),
                     treasury: treasury.to_string(),
                 },
