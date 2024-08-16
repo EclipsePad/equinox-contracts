@@ -3,7 +3,7 @@ use cw_multi_test::{AppResponse, ContractWrapper, Executor};
 
 use eclipse_base::error::parse_err;
 use equinox_msg::single_sided_staking::{
-    ExecuteMsg, QueryMsg, RewardConfig, TimeLockConfig, UserRewardByDuration, UserStaking,
+    ExecuteMsg, QueryMsg, TimeLockConfig, UserRewardByDuration, UserStaking,
 };
 
 use crate::suite_astro::helper::{Acc, ControllerHelper, Extension};
@@ -20,7 +20,6 @@ pub trait SingleSidedStakingExtension {
         eclip: &str,
         beclip: &str,
         timelock_config: &Option<Vec<TimeLockConfig>>,
-        reward_config: &RewardConfig,
         voter: &Addr,
         treasury: &Addr,
     );
@@ -69,7 +68,6 @@ impl SingleSidedStakingExtension for ControllerHelper {
         eclip: &str,
         beclip: &str,
         timelock_config: &Option<Vec<TimeLockConfig>>,
-        reward_config: &RewardConfig,
         voter: &Addr,
         treasury: &Addr,
     ) {
