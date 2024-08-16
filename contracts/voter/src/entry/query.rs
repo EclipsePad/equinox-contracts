@@ -3,14 +3,15 @@ use cw_storage_plus::Bound;
 
 use equinox_msg::voter::{
     msg::{
-        DaoResponse, OperationStatusResponse, UserListResponse, UserListResponseItem, UserResponse,
-        VoterInfoResponse,
+        AstroStakingRewardResponse, DaoResponse, OperationStatusResponse, UserListResponse,
+        UserListResponseItem, UserResponse, VoterInfoResponse,
     },
     state::{
-        ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ESSENCE_FRACTIONS,
+        ADDRESS_CONFIG, ASTRO_PENDING_TREASURY_REWARD, ASTRO_STAKING_REWARD_CONFIG,
+        DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ESSENCE_FRACTIONS,
         ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER,
         IS_PAUSED, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG,
-        USER_ESSENCE, VOTE_RESULTS,
+        TOTAL_CONVERT_INFO, USER_ESSENCE, VOTE_RESULTS,
     },
     types::{
         AddressConfig, BribesAllocationItem, DateConfig, EpochInfo, RouteListItem, TokenConfig,
@@ -26,7 +27,8 @@ use crate::{
     },
     math::{
         calc_essence_allocation, calc_merged_bribe_allocations, calc_merged_rewards,
-        calc_splitted_user_essence_info, calc_voting_power, calc_xastro_price,
+        calc_splitted_user_essence_info, calc_voting_power, calc_xastro_price, calculate_claimable,
+        calculate_eclipastro_amount,
     },
 };
 
@@ -136,7 +138,7 @@ pub fn query_user(
     get_user_types(deps.storage, user)?
         .iter()
         .map(|user_type| -> StdResult<UserResponse> {
-            let user_weights = get_user_weights(deps.storage, user, &user_type);
+            let user_weights = get_user_weights(deps.storage, user, user_type);
             let essence_info = match user_type {
                 UserType::Delegator => delegator_essence_info,
                 _ => elector_or_slacker_essence_info,
@@ -186,7 +188,7 @@ pub fn query_user_list(
             let user_info = get_user_types(deps.storage, &address)?
                 .iter()
                 .map(|user_type| -> StdResult<UserResponse> {
-                    let user_weights = get_user_weights(deps.storage, &address, &user_type);
+                    let user_weights = get_user_weights(deps.storage, &address, user_type);
                     let essence_info = match user_type {
                         UserType::Delegator => delegator_essence_info,
                         _ => elector_or_slacker_essence_info,
@@ -282,4 +284,46 @@ pub fn query_operation_status(deps: Deps, _env: Env) -> StdResult<OperationStatu
         is_paused: IS_PAUSED.load(deps.storage)?,
         rewards_claim_stage: REWARDS_CLAIM_STAGE.load(deps.storage)?,
     })
+}
+
+/// query reward
+pub fn query_astro_staking_rewards(deps: Deps, env: Env) -> StdResult<AstroStakingRewardResponse> {
+    let res: (AstroStakingRewardResponse, Uint128) = _query_astro_staking_rewards(deps, env)?;
+    Ok(res.0)
+}
+
+pub fn query_astro_staking_treasury_rewards(deps: Deps, _env: Env) -> StdResult<Uint128> {
+    let astro_staking_treasury_rewards = ASTRO_PENDING_TREASURY_REWARD
+        .load(deps.storage)
+        .unwrap_or_default();
+    Ok(astro_staking_treasury_rewards)
+}
+
+pub fn _query_astro_staking_rewards(
+    deps: Deps,
+    _env: Env,
+) -> StdResult<(AstroStakingRewardResponse, Uint128)> {
+    let reward_config = ASTRO_STAKING_REWARD_CONFIG.load(deps.storage)?;
+    let total_convert_info = TOTAL_CONVERT_INFO.load(deps.storage).unwrap_or_default();
+
+    // ASTRO / xASTRO rate from voter contract
+    let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps)?;
+    // calculate user rewards as xASTRO
+    let claimable_xastro = calculate_claimable(
+        total_convert_info.total_xastro,
+        total_convert_info.total_astro_deposited,
+        xastro_supply,
+        astro_supply,
+        total_convert_info.claimed_xastro,
+    );
+
+    let users_reward = claimable_xastro.multiply_ratio(reward_config.users, 10000u32);
+    let treasury_reward = claimable_xastro.checked_sub(users_reward).unwrap();
+    Ok((
+        AstroStakingRewardResponse {
+            users: calculate_eclipastro_amount(xastro_supply, astro_supply, users_reward),
+            treasury: calculate_eclipastro_amount(xastro_supply, astro_supply, treasury_reward),
+        },
+        claimable_xastro,
+    ))
 }

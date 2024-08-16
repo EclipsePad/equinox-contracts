@@ -8,7 +8,7 @@ use cosmwasm_std::{
     Uint128, WasmMsg,
 };
 use cw_utils::one_coin;
-use equinox_msg::{lp_depositor::CallbackMsg, token_converter::ExecuteMsg as ConverterExecuteMsg};
+use equinox_msg::{lp_depositor::CallbackMsg, voter::msg::ExecuteMsg as VoterExecuteMsg};
 
 use crate::{entry::query::get_asset_amount_to_convert_eclipastro, state::CONFIG, ContractError};
 
@@ -50,15 +50,15 @@ pub fn try_convert(
                 funds: vec![coin(amount_to_xastro.u128(), config.astro.clone())],
             }));
             msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.converter_contract.to_string(),
-                msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
+                contract_addr: config.voter.to_string(),
+                msg: to_json_binary(&VoterExecuteMsg::SwapToEclipAstro {})?,
                 funds: coins(amount_to_eclipastro.u128(), config.astro),
             }));
         }
         if asset.denom == config.xastro {
             msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.converter_contract.to_string(),
-                msg: to_json_binary(&ConverterExecuteMsg::Convert { recipient: None })?,
+                contract_addr: config.voter.to_string(),
+                msg: to_json_binary(&VoterExecuteMsg::SwapToEclipAstro {})?,
                 funds: coins(amount_to_eclipastro.u128(), config.xastro),
             }));
         }
@@ -77,7 +77,7 @@ pub fn try_convert(
                 max_spread: None,
                 to: None,
             })?,
-            funds: coins(asset.amount.u128(), config.eclipastro.clone()),
+            funds: coins(asset.amount.u128(), config.eclipastro),
         }));
     }
     msgs.push(CallbackMsg::DepositIntoPool { recipient }.to_cosmos_msg(&env)?);
@@ -142,7 +142,7 @@ fn try_deposit_into_pool(
         })?,
         funds: vec![
             coin(xastro_balance.amount.u128(), cfg.xastro.clone()),
-            coin(eclipastro_balance.amount.u128(), cfg.eclipastro.clone()),
+            coin(eclipastro_balance.amount.u128(), cfg.eclipastro),
         ],
     })];
     Ok(Response::new().add_messages(msgs))

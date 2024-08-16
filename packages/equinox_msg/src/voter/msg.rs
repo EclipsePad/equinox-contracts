@@ -2,8 +2,8 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
 use super::types::{
-    EssenceAllocationItem, EssenceInfo, RewardsClaimStage, RewardsInfo, RouteListItem, UserType,
-    VoteResults, WeightAllocationItem,
+    AstroStakingRewardConfig, EssenceAllocationItem, EssenceInfo, RewardsClaimStage, RewardsInfo,
+    RouteListItem, UserType, VoteResults, WeightAllocationItem,
 };
 
 #[cw_serde]
@@ -26,6 +26,8 @@ pub struct InstantiateMsg {
     pub eclipsepad_staking: String,
     /// to get bribes for voting
     pub eclipsepad_tribute_market: Option<String>,
+    /// eclipASTRO single sided vault
+    pub eclipse_single_sided_vault: Option<String>,
 
     /// to stake ASTRO and get xASTRO
     pub astroport_staking: String,
@@ -91,6 +93,8 @@ pub enum ExecuteMsg {
         eclipsepad_staking: Option<String>,
         /// to get bribes for voting
         eclipsepad_tribute_market: Option<String>,
+        /// eclipASTRO single sided vault
+        eclipse_single_sided_vault: Option<String>,
 
         /// to stake ASTRO and get xASTRO
         astroport_staking: Option<String>,
@@ -135,6 +139,14 @@ pub enum ExecuteMsg {
     /// a user can lock xASTRO to get eclipASTRO and boost voting power for essence holders
     /// swap ASTRO -> xASTRO will be provided first if it's required
     SwapToEclipAstro {},
+
+    UpdateAstroStakingRewardConfig {
+        config: AstroStakingRewardConfig,
+    },
+
+    ClaimAstroRewards {},
+
+    ClaimTreasuryRewards {},
 
     SetDelegation {
         weight: Decimal,
@@ -219,6 +231,12 @@ pub enum QueryMsg {
 
     #[returns(OperationStatusResponse)]
     OperationStatus {},
+
+    #[returns(AstroStakingRewardResponse)]
+    AstroStakingRewards {},
+
+    #[returns(Uint128)]
+    AstroStakingTreasuryRewards {},
 }
 
 #[cw_serde]
@@ -271,4 +289,10 @@ pub struct VoterInfoResponse {
 pub struct OperationStatusResponse {
     pub is_paused: bool,
     pub rewards_claim_stage: RewardsClaimStage,
+}
+
+#[cw_serde]
+pub struct AstroStakingRewardResponse {
+    pub users: Uint128,
+    pub treasury: Uint128,
 }

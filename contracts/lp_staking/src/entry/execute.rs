@@ -9,7 +9,9 @@ use cosmwasm_std::{
 };
 use cw_utils::one_coin;
 use equinox_msg::{
-    lp_staking::{CallbackMsg, RewardConfig, RewardWeight, UpdateConfigMsg, UserStaking},
+    lp_staking::{
+        CallbackMsg, RewardDetails, RewardDistribution, RewardWeight, UpdateConfigMsg, UserStaking,
+    },
     utils::has_unique_elements,
 };
 
@@ -42,14 +44,6 @@ pub fn update_config(
     if let Some(lp_contract) = new_config.lp_contract {
         config.lp_contract = deps.api.addr_validate(lp_contract.as_str())?;
         res = res.add_attribute("lp_contract", lp_contract.to_string());
-    }
-    if let Some(rewards) = new_config.rewards {
-        config.rewards = rewards.clone();
-        res = res.add_attribute("rewards", "update rewards");
-    }
-    if let Some(converter) = new_config.converter {
-        config.converter = deps.api.addr_validate(converter.as_str())?;
-        res = res.add_attribute("converter", converter);
     }
     if let Some(astroport_incentives) = new_config.astroport_incentives {
         config.astroport_incentives = deps.api.addr_validate(astroport_incentives.as_str())?;
@@ -90,19 +84,39 @@ pub fn update_owner(
 /// Update reward config
 pub fn update_reward_config(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
-    config: RewardConfig,
+    distribution: Option<RewardDistribution>,
+    reward_end_time: Option<u64>,
+    details: Option<RewardDetails>,
 ) -> Result<Response, ContractError> {
     // only owner can executable
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    let mut reward_config = REWARD_CONFIG.load(deps.storage)?;
     // the sum bps should be 10000
-    ensure_eq!(
-        config.users + config.treasury + config.ce_holders + config.stability_pool,
-        BPS_DENOMINATOR,
-        ContractError::RewardDistributionErr {}
-    );
-    REWARD_CONFIG.save(deps.storage, &config)?;
+    if let Some(distribution) = distribution {
+        ensure_eq!(
+            distribution.users
+                + distribution.treasury
+                + distribution.ce_holders
+                + distribution.stability_pool,
+            BPS_DENOMINATOR,
+            ContractError::RewardDistributionErr {}
+        );
+        reward_config.distribution = distribution;
+    }
+    if let Some(reward_end_time) = reward_end_time {
+        let current_time = env.block.time.seconds();
+        ensure!(
+            reward_config.reward_end_time > current_time && reward_end_time > current_time,
+            ContractError::InvalidEndTime {}
+        );
+        reward_config.reward_end_time = reward_end_time;
+    }
+    if let Some(details) = details {
+        reward_config.details = details;
+    }
+    REWARD_CONFIG.save(deps.storage, &reward_config)?;
     Ok(Response::new().add_attribute("action", "update reward config"))
 }
 
@@ -180,6 +194,8 @@ pub fn _claim(
     let cfg = CONFIG.load(deps.storage)?;
     let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
     let mut user_staking = STAKING.load(deps.storage, &sender).unwrap_or_default();
+    let reward_config = REWARD_CONFIG.load(deps.storage)?;
+    let reward_end_time = reward_config.reward_end_time;
     let mut msgs = vec![];
 
     let assets_list = assets
@@ -277,7 +293,7 @@ pub fn _claim(
     if !pending_eclipse_rewards.is_empty() {
         msgs.push(
             CallbackMsg::DistributeEclipseRewards {
-                assets: pending_eclipse_rewards.clone(),
+                assets: pending_eclipse_rewards,
             }
             .to_cosmos_msg(&env)?,
         );
@@ -285,7 +301,11 @@ pub fn _claim(
 
     REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
     STAKING.save(deps.storage, &sender, &user_staking)?;
-    LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
+    if reward_end_time > env.block.time.seconds() {
+        LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
+    } else {
+        LAST_CLAIMED.save(deps.storage, &reward_end_time)?;
+    }
 
     Ok((
         user_staking,
@@ -341,7 +361,7 @@ pub fn unstake(
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: cfg.astroport_incentives.to_string(),
         msg: to_json_binary(&IncentivesExecuteMsg::Withdraw {
-            lp_token: cfg.lp_token.clone().to_string(),
+            lp_token: cfg.lp_token.to_string(),
             amount,
         })?,
         funds: vec![],
@@ -365,12 +385,14 @@ pub fn distribute_eclipse_rewards(
     let mut msgs = vec![];
     for asset in assets {
         if asset.info.to_string() == cfg.astro.clone() {
-            let ce_holders_rewards = asset
-                .amount
-                .multiply_ratio(reward_cfg.ce_holders, 10_000 - reward_cfg.users);
-            let stability_pool_rewards = asset
-                .amount
-                .multiply_ratio(reward_cfg.stability_pool, 10_000 - reward_cfg.users);
+            let ce_holders_rewards = asset.amount.multiply_ratio(
+                reward_cfg.distribution.ce_holders,
+                BPS_DENOMINATOR - reward_cfg.distribution.users,
+            );
+            let stability_pool_rewards = asset.amount.multiply_ratio(
+                reward_cfg.distribution.stability_pool,
+                BPS_DENOMINATOR - reward_cfg.distribution.users,
+            );
             let treasury_rewards = asset
                 .amount
                 .checked_sub(ce_holders_rewards)

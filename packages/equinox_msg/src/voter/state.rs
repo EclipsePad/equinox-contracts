@@ -2,8 +2,9 @@ use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_storage_plus::{Item, Map};
 
 use super::types::{
-    AddressConfig, DateConfig, EpochInfo, EssenceInfo, RewardsClaimStage, RewardsInfo, RouteItem,
-    TokenConfig, TransferAdminState, VoteResults, WeightAllocationItem,
+    AddressConfig, AstroStakingRewardConfig, ConvertInfo, DateConfig, EpochInfo, EssenceInfo,
+    RewardsClaimStage, RewardsInfo, RouteItem, TokenConfig, TransferAdminState, VoteResults,
+    WeightAllocationItem,
 };
 
 /// Contract name that is used for migration
@@ -86,3 +87,9 @@ pub const TEMPORARY_REWARDS: Item<Uint128> = Item::new("temporary_rewards");
 pub const EPOCH_COUNTER: Item<EpochInfo> = Item::new("epoch_counter");
 /// route by 1st denom_in, last denom_out is ECLIP
 pub const ROUTE_CONFIG: Map<&str, Vec<RouteItem>> = Map::new("route_config");
+
+/// eclipASTRO convert info
+pub const TOTAL_CONVERT_INFO: Item<ConvertInfo> = Item::new("total_convert_info");
+pub const ASTRO_PENDING_TREASURY_REWARD: Item<Uint128> = Item::new("astro_pending_treasury_reward");
+pub const ASTRO_STAKING_REWARD_CONFIG: Item<AstroStakingRewardConfig> =
+    Item::new("astro_staking_reward_config");

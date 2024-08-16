@@ -26,16 +26,16 @@ pub const DEFAULT_LOCK_CONFIGS: &[LockConfig] = &[
         multiplier: 20000,
         early_unlock_penalty_bps: 5000,
     },
-    LockConfig {
-        duration: 86400 * 30 * 9,
-        multiplier: 22500,
-        early_unlock_penalty_bps: 5000,
-    },
-    LockConfig {
-        duration: 86400 * 365,
-        multiplier: 25000,
-        early_unlock_penalty_bps: 5000,
-    },
+    // LockConfig {
+    //     duration: 86400 * 30 * 9,
+    //     multiplier: 22500,
+    //     early_unlock_penalty_bps: 5000,
+    // },
+    // LockConfig {
+    //     duration: 86400 * 365,
+    //     multiplier: 25000,
+    //     early_unlock_penalty_bps: 5000,
+    // },
 ];
 
 pub const DEFAULT_REWARD_DISTRIBUTION_CONFIG: RewardDistributionConfig = RewardDistributionConfig {

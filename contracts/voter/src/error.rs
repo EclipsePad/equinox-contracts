@@ -122,4 +122,10 @@ pub enum ContractError {
 
     #[error("Msg version is not equal contract new version!")]
     ImproperMsgVersion,
+
+    #[error("No astro staking rewards claimable")]
+    NoAstroStakingRewards,
+
+    #[error("Invalid reward config")]
+    InvalidRewardConfig,
 }

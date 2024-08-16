@@ -1,21 +1,21 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{
-    to_json_binary, Addr, CosmosMsg, Decimal, Decimal256, Env, StdResult, Uint128, WasmMsg,
-};
+use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, Uint128, WasmMsg};
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
-    pub owner: Addr,
+    pub owner: String,
     /// eclipASTRO token
     pub token: String,
-    pub rewards: RewardConfig,
+    /// ECLIP token
+    pub eclip: String,
+    /// bECLIP token
+    pub beclip: String,
     /// timelock config
     pub timelock_config: Option<Vec<TimeLockConfig>>,
     /// ASTRO/eclipASTRO converter contract
-    pub token_converter: Addr,
-    pub treasury: Addr,
     pub voter: String,
+    pub treasury: String,
 }
 
 #[cw_serde]
@@ -28,6 +28,11 @@ pub enum ExecuteMsg {
     UpdateConfig {
         config: UpdateConfigMsg,
     },
+    /// Update reward config
+    UpdateRewardConfig {
+        details: Option<RewardDetails>,
+        reward_end_time: Option<u64>,
+    },
     /// Claim rewards of user.
     Claim {
         duration: u64,
@@ -36,6 +41,7 @@ pub enum ExecuteMsg {
     },
     ClaimAll {
         with_flexible: bool,
+        assets: Option<Vec<AssetInfo>>,
     },
     Callback(CallbackMsg),
     Stake {
@@ -70,6 +76,9 @@ pub enum QueryMsg {
     /// query config
     #[returns(Config)]
     Config {},
+    /// query reward config
+    #[returns(RewardConfig)]
+    RewardConfig {},
     /// query owner
     #[returns(Addr)]
     Owner {},
@@ -106,8 +115,7 @@ pub struct MigrateMsg {
 #[cw_serde]
 pub struct UpdateConfigMsg {
     pub timelock_config: Option<Vec<TimeLockConfig>>,
-    pub token_converter: Option<String>,
-    pub rewards: Option<RewardConfig>,
+    pub voter: Option<String>,
     pub treasury: Option<String>,
 }
 
@@ -135,17 +143,21 @@ impl CallbackMsg {
 pub struct Config {
     /// eclipASTRO token
     pub token: String,
-    pub rewards: RewardConfig,
     /// lock config
     pub timelock_config: Vec<TimeLockConfig>,
     /// ASTRO/eclipASTRO converter contract
-    pub token_converter: Addr,
-    pub treasury: Addr,
     pub voter: Addr,
+    pub treasury: Addr,
 }
 
 #[cw_serde]
 pub struct RewardConfig {
+    pub details: RewardDetails,
+    pub reward_end_time: u64,
+}
+
+#[cw_serde]
+pub struct RewardDetails {
     pub eclip: RewardDetail,
     pub beclip: RewardDetail,
 }
@@ -189,7 +201,6 @@ impl Default for RewardWeights {
 pub struct UserStaked {
     pub staked: Uint128,
     pub reward_weights: RewardWeights,
-    pub xastro_price: Decimal,
 }
 
 impl Default for UserStaked {
@@ -197,7 +208,6 @@ impl Default for UserStaked {
         UserStaked {
             staked: Uint128::zero(),
             reward_weights: RewardWeights::default(),
-            xastro_price: Decimal::zero(),
         }
     }
 }

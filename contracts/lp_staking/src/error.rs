@@ -32,6 +32,9 @@ pub enum ContractError {
     #[error("Invalid denom {0}")]
     InvalidDenom(String),
 
+    #[error("Invalid reward end time")]
+    InvalidEndTime {},
+
     #[error("Staking amount is zero")]
     InvalidStakingAmount {},
 

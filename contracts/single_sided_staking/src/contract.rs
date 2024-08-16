@@ -1,21 +1,25 @@
 use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult,
 };
+use cw2::{get_contract_version, set_contract_version};
+use semver::Version;
 
 use crate::{
     entry::{
         execute::{
             _handle_callback, allow_users, block_users, claim, claim_all, restake, stake, unstake,
-            update_config, update_owner,
+            update_config, update_owner, update_reward_config,
         },
         instantiate::try_instantiate,
         query::{
             calculate_penalty, query_config, query_eclipastro_rewards, query_owner, query_reward,
-            query_staking, query_total_staking, query_total_staking_by_duration,
+            query_reward_config, query_staking, query_total_staking,
+            query_total_staking_by_duration,
         },
     },
     error::ContractError,
-    state::ALLOWED_USERS,
+    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION},
 };
 use equinox_msg::single_sided_staking::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RestakeData,
@@ -43,13 +47,20 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
+        ExecuteMsg::UpdateRewardConfig {
+            details,
+            reward_end_time,
+        } => update_reward_config(deps, env, info, details, reward_end_time),
         ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
         ExecuteMsg::Claim {
             duration,
             locked_at,
             assets,
         } => claim(deps, env, info, duration, locked_at, assets),
-        ExecuteMsg::ClaimAll { with_flexible } => claim_all(deps, env, info, with_flexible),
+        ExecuteMsg::ClaimAll {
+            with_flexible,
+            assets,
+        } => claim_all(deps, env, info, with_flexible, assets),
         ExecuteMsg::Stake {
             duration,
             recipient,
@@ -95,6 +106,7 @@ pub fn execute(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
+        QueryMsg::RewardConfig {} => Ok(to_json_binary(&query_reward_config(deps, env)?)?),
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::Staking { user } => Ok(to_json_binary(&query_staking(deps, env, user)?)?),
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
@@ -121,6 +133,31 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::new())
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let version: Version = CONTRACT_VERSION.parse()?;
+    let storage_version: Version = get_contract_version(deps.storage)?.version.parse()?;
+    let contract_name = get_contract_version(deps.storage)?.contract;
+
+    match msg.update_contract_name {
+        Some(true) => {}
+        _ => {
+            ensure_eq!(
+                contract_name,
+                CONTRACT_NAME,
+                ContractError::ContractNameErr(contract_name)
+            );
+        }
+    }
+
+    ensure_eq!(
+        (version > storage_version),
+        true,
+        ContractError::VersionErr(storage_version.to_string())
+    );
+
+    if version > storage_version {
+        set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    }
+
+    Ok(Response::new().add_attribute("new_contract_version", CONTRACT_VERSION))
 }

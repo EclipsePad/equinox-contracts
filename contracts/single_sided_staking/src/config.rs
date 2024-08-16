@@ -26,14 +26,19 @@ pub const DEFAULT_TIMELOCK_CONFIG: &[TimeLockConfig] = &[
         reward_multiplier: 20000,
         early_unlock_penalty_bps: 5000,
     },
-    TimeLockConfig {
-        duration: ONE_DAY * 30 * 9,
-        reward_multiplier: 22500,
-        early_unlock_penalty_bps: 5000,
-    },
-    TimeLockConfig {
-        duration: 86400 * 365,
-        reward_multiplier: 25000,
-        early_unlock_penalty_bps: 5000,
-    },
+    // TimeLockConfig {
+    //     duration: ONE_DAY * 30 * 9,
+    //     reward_multiplier: 22500,
+    //     early_unlock_penalty_bps: 5000,
+    // },
+    // TimeLockConfig {
+    //     duration: 86400 * 365,
+    //     reward_multiplier: 25000,
+    //     early_unlock_penalty_bps: 5000,
+    // },
 ];
+
+pub const DEFAULT_ECLIP_DAILY_REWARD: u128 = 12_800_000_000u128;
+pub const DEFAULT_BECLIP_DAILY_REWARD: u128 = 8_533_000_000u128;
+
+pub const DEFAULT_REWARD_PERIOD: u64 = 31536000; // 1 year

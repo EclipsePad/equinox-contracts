@@ -1,5 +1,5 @@
 use cosmwasm_schema::write_api;
-use equinox_msg::token_converter::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use equinox_msg::lp_depositor::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     write_api! {

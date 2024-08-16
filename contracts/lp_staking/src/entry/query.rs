@@ -125,19 +125,23 @@ pub fn calculate_incentive_pending_rewards(deps: Deps, contract: Addr) -> StdRes
 }
 
 pub fn calculate_vault_rewards(deps: Deps, current_time: u64) -> StdResult<VaultRewards> {
-    let cfg = CONFIG.load(deps.storage)?;
     let last_claimed = LAST_CLAIMED.load(deps.storage).unwrap_or(current_time);
+    let reward_config = REWARD_CONFIG.load(deps.storage)?;
+    let mut time_passed = current_time - last_claimed;
+    if reward_config.reward_end_time < current_time {
+        time_passed = reward_config.reward_end_time - last_claimed;
+    }
     Ok(VaultRewards {
-        eclip: cfg
-            .rewards
+        eclip: reward_config
+            .details
             .eclip
             .daily_reward
-            .multiply_ratio(current_time - last_claimed, 86400u64),
-        beclip: cfg
-            .rewards
+            .multiply_ratio(time_passed, 86400u64),
+        beclip: reward_config
+            .details
             .beclip
             .daily_reward
-            .multiply_ratio(current_time - last_claimed, 86400u64),
+            .multiply_ratio(time_passed, 86400u64),
     })
 }
 
@@ -148,7 +152,9 @@ pub fn calculate_pending_eclipse_rewards(
     let reward_cfg = REWARD_CONFIG.load(deps.storage)?;
     let mut eclipse_rewards = vec![];
     for reward in astroport_rewards {
-        let user_reward = reward.amount.multiply_ratio(reward_cfg.users, 10_000u32);
+        let user_reward = reward
+            .amount
+            .multiply_ratio(reward_cfg.distribution.users, 10_000u32);
         let eclipse_reward = Asset {
             info: reward.info.clone(),
             amount: reward.amount.checked_sub(user_reward).unwrap(),
@@ -163,7 +169,6 @@ pub fn calculate_updated_reward_weights(
     astroport_rewards: Vec<Asset>,
     vault_rewards: VaultRewards,
 ) -> StdResult<Vec<RewardWeight>> {
-    let config = CONFIG.load(deps.storage)?;
     let reward_cfg = REWARD_CONFIG.load(deps.storage)?;
     let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
     if total_staking.is_zero() {
@@ -176,7 +181,9 @@ pub fn calculate_updated_reward_weights(
     let eclip_user_reward_weight = Decimal256::from_ratio(vault_rewards.eclip, total_staking);
     for reward in astroport_rewards {
         let mut is_exist = false;
-        let user_reward = reward.amount.multiply_ratio(reward_cfg.users, 10_000u32);
+        let user_reward = reward
+            .amount
+            .multiply_ratio(reward_cfg.distribution.users, 10_000u32);
         reward_weights = reward_weights
             .into_iter()
             .map(|mut a| {
@@ -185,11 +192,11 @@ pub fn calculate_updated_reward_weights(
                         .reward_weight
                         .checked_add(Decimal256::from_ratio(user_reward, total_staking))
                         .unwrap();
-                    if reward.info.equal(&config.rewards.beclip.info) {
+                    if reward.info.equal(&reward_cfg.details.beclip.info) {
                         a.reward_weight += beclip_user_reward_weight;
                         is_beclip = true;
                     }
-                    if reward.info.equal(&config.rewards.eclip.info) {
+                    if reward.info.equal(&reward_cfg.details.eclip.info) {
                         a.reward_weight += eclip_user_reward_weight;
                         is_eclip = true;
                     }
@@ -200,11 +207,11 @@ pub fn calculate_updated_reward_weights(
             .collect::<Vec<RewardWeight>>();
         if !is_exist {
             let mut reward_weight = Decimal256::from_ratio(user_reward, total_staking);
-            if reward.info.equal(&config.rewards.beclip.info) {
+            if reward.info.equal(&reward_cfg.details.beclip.info) {
                 reward_weight += beclip_user_reward_weight;
                 is_beclip = true;
             }
-            if reward.info.equal(&config.rewards.eclip.info) {
+            if reward.info.equal(&reward_cfg.details.eclip.info) {
                 reward_weight += eclip_user_reward_weight;
                 is_eclip = true;
             }
@@ -219,7 +226,7 @@ pub fn calculate_updated_reward_weights(
         reward_weights = reward_weights
             .into_iter()
             .map(|mut a| {
-                if a.info.equal(&config.rewards.beclip.info) {
+                if a.info.equal(&reward_cfg.details.beclip.info) {
                     a.reward_weight = a
                         .reward_weight
                         .checked_add(beclip_user_reward_weight)
@@ -231,7 +238,7 @@ pub fn calculate_updated_reward_weights(
             .collect::<Vec<RewardWeight>>();
         if !is_exist {
             reward_weights.push(RewardWeight {
-                info: config.rewards.beclip.info,
+                info: reward_cfg.details.beclip.info,
                 reward_weight: beclip_user_reward_weight,
             })
         }
@@ -241,7 +248,7 @@ pub fn calculate_updated_reward_weights(
         reward_weights = reward_weights
             .into_iter()
             .map(|mut a| {
-                if a.info.equal(&config.rewards.eclip.info) {
+                if a.info.equal(&reward_cfg.details.eclip.info) {
                     a.reward_weight = a
                         .reward_weight
                         .checked_add(eclip_user_reward_weight)
@@ -253,7 +260,7 @@ pub fn calculate_updated_reward_weights(
             .collect::<Vec<RewardWeight>>();
         if !is_exist {
             reward_weights.push(RewardWeight {
-                info: config.rewards.eclip.info,
+                info: reward_cfg.details.eclip.info,
                 reward_weight: eclip_user_reward_weight,
             })
         }

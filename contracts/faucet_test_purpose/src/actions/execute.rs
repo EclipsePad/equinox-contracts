@@ -119,7 +119,7 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
             WasmMsg::Execute {
                 contract_addr: config.staking_contract.to_string(),
                 msg: to_json_binary(&StakingExecuteMsg::Enter { receiver: None })?,
-                funds: vec![astro_amount_to_convert.clone()],
+                funds: vec![astro_amount_to_convert],
             }
             .into(),
         );

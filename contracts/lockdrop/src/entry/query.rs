@@ -314,7 +314,7 @@ pub fn query_user_lp_lockup_info(
             .collect::<Vec<UserLpLockupInfoResponse>>())
     } else {
         Ok(LP_USER_LOCKUP_INFO
-            .prefix(&user_address.to_string())
+            .prefix(&user_address)
             .range(deps.storage, None, None, Order::Ascending)
             .map(|r| {
                 let (duration, user_lockup_info) = r.unwrap();

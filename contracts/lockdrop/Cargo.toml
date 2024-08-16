@@ -30,4 +30,3 @@ schemars                = { workspace = true }
 semver                  = { workspace = true }
 serde                   = { workspace = true }
 astroport               = { workspace = true }
-# astroport-pair-stable   = { workspace = true }

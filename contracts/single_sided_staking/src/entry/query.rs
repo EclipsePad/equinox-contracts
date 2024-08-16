@@ -1,21 +1,20 @@
-use cosmwasm_std::{Addr, Decimal, Decimal256, Deps, Env, Order, StdResult, Uint128};
+use cosmwasm_std::{Addr, Decimal256, Deps, Env, Order, StdResult, Uint128};
 use cw_storage_plus::Bound;
 use std::cmp::{max, min};
 
 use crate::{
     config::{BPS_DENOMINATOR, ONE_DAY, REWARD_DISTRIBUTION_PERIOD},
-    helpers::calc_user_single_side_vault_eclip_astro_rewards,
     state::{
-        CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD_WEIGHTS, TOTAL_STAKING,
-        TOTAL_STAKING_BY_DURATION, USER_STAKED,
+        CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD_CONFIG, REWARD_WEIGHTS,
+        TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED,
     },
 };
 use equinox_msg::{
     single_sided_staking::{
-        Config, RewardWeights, StakingWithDuration, UserReward, UserRewardByDuration,
+        Config, RewardConfig, RewardWeights, StakingWithDuration, UserReward, UserRewardByDuration,
         UserRewardByLockedAt, UserStaking, UserStakingByDuration, VaultRewards,
     },
-    token_converter::{QueryMsg as ConverterQueryMsg, RewardResponse},
+    voter::msg::{AstroStakingRewardResponse, QueryMsg as VoterQueryMsg},
 };
 
 /// query owner
@@ -27,6 +26,12 @@ pub fn query_owner(deps: Deps, _env: Env) -> StdResult<Addr> {
 /// query config
 pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
     let config = CONFIG.load(deps.storage)?;
+    Ok(config)
+}
+
+/// query reward config
+pub fn query_reward_config(deps: Deps, _env: Env) -> StdResult<RewardConfig> {
+    let config = REWARD_CONFIG.load(deps.storage)?;
     Ok(config)
 }
 
@@ -172,18 +177,22 @@ pub fn calculate_vault_rewards(
     last_claim_time: u64,
     current_time: u64,
 ) -> StdResult<VaultRewards> {
-    let config = CONFIG.load(deps.storage)?;
+    let reward_config = REWARD_CONFIG.load(deps.storage)?;
+    let mut time_passed = current_time - last_claim_time;
+    if reward_config.reward_end_time < current_time {
+        time_passed = reward_config.reward_end_time - last_claim_time;
+    }
     Ok(VaultRewards {
-        eclip: config
-            .rewards
+        eclip: reward_config
+            .details
             .eclip
             .daily_reward
-            .multiply_ratio(current_time - last_claim_time, ONE_DAY),
-        beclip: config
-            .rewards
+            .multiply_ratio(time_passed, ONE_DAY),
+        beclip: reward_config
+            .details
             .beclip
             .daily_reward
-            .multiply_ratio(current_time - last_claim_time, ONE_DAY),
+            .multiply_ratio(time_passed, ONE_DAY),
     })
 }
 
@@ -259,24 +268,8 @@ pub fn calculate_total_user_reward(
     current_time: u64,
 ) -> StdResult<Vec<UserRewardByDuration>> {
     let config = CONFIG.load(deps.storage)?;
-    let updated_reward_weights = calculate_updated_reward_weights(deps, env.clone(), current_time)?;
+    let updated_reward_weights = calculate_updated_reward_weights(deps, env, current_time)?;
     let mut total_user_reward = vec![];
-    let total_single_side_vault_eclip_astro = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
-    let xastro_to_astro_price_after: Decimal = deps
-        .querier
-        .query_wasm_smart(
-            config.voter.clone(),
-            &equinox_msg::voter::msg::QueryMsg::XastroPrice {},
-        )
-        .unwrap_or_default();
-    let eclip_astro_minted_by_voter: Uint128 = deps
-        .querier
-        .query_wasm_smart(
-            config.voter,
-            &equinox_msg::voter::msg::QueryMsg::EclipAstroMintedByVoter {},
-        )
-        .unwrap_or_default();
-
     for timelock_config in config.timelock_config {
         let duration = timelock_config.duration;
         let multiplier = timelock_config.reward_multiplier;
@@ -285,19 +278,17 @@ pub fn calculate_total_user_reward(
             .range(deps.storage, None, None, Order::Ascending)
             .map(|s| {
                 let (locked_at, staking_data) = s.unwrap();
-                let user_single_side_vault_eclip_astro = staking_data.staked;
-                let xastro_to_astro_price_before = staking_data.xastro_price;
-
                 Ok(UserRewardByLockedAt {
                     locked_at,
                     rewards: UserReward {
-                        eclipastro: calc_user_single_side_vault_eclip_astro_rewards(
-                            user_single_side_vault_eclip_astro,
-                            total_single_side_vault_eclip_astro,
-                            eclip_astro_minted_by_voter,
-                            xastro_to_astro_price_before,
-                            xastro_to_astro_price_after,
-                        ),
+                        eclipastro: updated_reward_weights
+                            .eclipastro
+                            .checked_sub(staking_data.reward_weights.eclipastro)
+                            .unwrap_or_default()
+                            .checked_mul(Decimal256::from_ratio(staking_data.staked, 1u128))
+                            .unwrap()
+                            .to_uint_floor()
+                            .try_into()?,
                         beclip: updated_reward_weights
                             .beclip
                             .checked_sub(staking_data.reward_weights.beclip)
@@ -331,15 +322,12 @@ pub fn calculate_total_user_reward(
     Ok(total_user_reward)
 }
 
-pub fn query_eclipastro_pending_rewards(
-    deps: Deps,
-    converter_contract: String,
-) -> StdResult<Uint128> {
-    let rewards: RewardResponse = deps
+pub fn query_eclipastro_pending_rewards(deps: Deps, voter: String) -> StdResult<Uint128> {
+    let rewards: AstroStakingRewardResponse = deps
         .querier
-        .query_wasm_smart(converter_contract.clone(), &ConverterQueryMsg::Rewards {})
+        .query_wasm_smart(voter, &VoterQueryMsg::AstroStakingRewards {})
         .unwrap();
-    Ok(rewards.users_reward.amount)
+    Ok(rewards.users)
 }
 
 pub fn query_eclipastro_rewards(deps: Deps, env: Env) -> StdResult<Vec<(u64, Uint128)>> {
