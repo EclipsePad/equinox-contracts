@@ -27,10 +27,10 @@ use equinox_msg::{
     lockdrop::{
         Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
         ExecuteMsg as LockdropExecuteMsg, IncentiveAmounts, IncentiveRewards,
-        InstantiateMsg as LockdropInstantiateMsg, LpLockupInfoResponse, LpLockupStateResponse,
-        QueryMsg as LockdropQueryMsg, SingleLockupInfoResponse, SingleLockupStateResponse,
-        StakeType, UpdateConfigMsg as LockdropUpdateConfigMsg, UserLpLockupInfoResponse,
-        UserSingleLockupInfoResponse,
+        InstantiateMsg as LockdropInstantiateMsg, LockConfig, LpLockupInfoResponse,
+        LpLockupStateResponse, QueryMsg as LockdropQueryMsg, SingleLockupInfoResponse,
+        SingleLockupStateResponse, StakeType, UpdateConfigMsg as LockdropUpdateConfigMsg,
+        UserLpLockupInfoResponse, UserSingleLockupInfoResponse,
     },
     lp_staking::{
         Config as LpStakingConfig, ExecuteMsg as LpStakingExecuteMsg,
@@ -675,6 +675,29 @@ impl SuiteBuilder {
             )
             .unwrap();
 
+        app.execute_contract(
+            admin.clone(),
+            voter_contract.clone(),
+            &equinox_msg::voter::msg::ExecuteMsg::UpdateAddressConfig {
+                admin: None,
+                worker_list: None,
+                eclipse_dao: None,
+                eclipsepad_foundry: None,
+                eclipsepad_minter: None,
+                eclipsepad_staking: None,
+                eclipsepad_tribute_market: None,
+                eclipse_single_sided_vault: Some(single_staking_contract.to_string()),
+                astroport_staking: None,
+                astroport_assembly: None,
+                astroport_voting_escrow: None,
+                astroport_emission_controller: None,
+                astroport_router: None,
+                astroport_tribute_market: None,
+            },
+            &[],
+        )
+        .unwrap();
+
         // create eclipAstro
         app.execute_contract(
             admin.clone(),
@@ -776,7 +799,38 @@ impl SuiteBuilder {
                     init_timestamp,
                     deposit_window: None,
                     withdrawal_window: None,
-                    lock_configs: None,
+                    lock_configs: Some(vec![
+                        LockConfig {
+                            duration: 0,
+                            early_unlock_penalty_bps: 5000,
+                            multiplier: 10000,
+                        },
+                        LockConfig {
+                            duration: 86400 * 30,
+                            early_unlock_penalty_bps: 5000,
+                            multiplier: 20000,
+                        },
+                        LockConfig {
+                            duration: 86400 * 30 * 3,
+                            early_unlock_penalty_bps: 5000,
+                            multiplier: 60000,
+                        },
+                        LockConfig {
+                            duration: 86400 * 30 * 6,
+                            early_unlock_penalty_bps: 5000,
+                            multiplier: 120000,
+                        },
+                        LockConfig {
+                            duration: 86400 * 30 * 9,
+                            early_unlock_penalty_bps: 5000,
+                            multiplier: 180000,
+                        },
+                        LockConfig {
+                            duration: 86400 * 365,
+                            early_unlock_penalty_bps: 5000,
+                            multiplier: 240000,
+                        },
+                    ]),
                     astro_token: ASTRO_DENOM.to_string(),
                     xastro_token: xastro.clone(),
                     astro_staking: astro_staking_contract.to_string(),
@@ -1058,13 +1112,13 @@ impl Suite {
     //     Ok(balance.u128())
     // }
 
-    // pub fn query_converter_rewards(&self) -> StdResult<ConverterRewardResponse> {
-    //     let rewards: ConverterRewardResponse = self.app.wrap().query_wasm_smart(
-    //         self.converter_contract.clone(),
-    //         &ConverterQueryMsg::Rewards {},
-    //     )?;
-    //     Ok(rewards)
-    // }
+    pub fn query_voter_astro_staking_rewards(&self) -> StdResult<AstroStakingRewardResponse> {
+        let rewards: AstroStakingRewardResponse = self.app.wrap().query_wasm_smart(
+            self.voter_contract.clone(),
+            &equinox_msg::voter::msg::QueryMsg::AstroStakingRewards {},
+        )?;
+        Ok(rewards)
+    }
 
     // pub fn query_converter_stake_info(&self) -> StdResult<ConverterStakeInfo> {
     //     let info: ConverterStakeInfo = self.app.wrap().query_wasm_smart(
@@ -1388,6 +1442,7 @@ impl Suite {
         sender: &str,
         duration: u64,
         locked_at: u64,
+        assets: Option<Vec<AssetInfo>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
@@ -1395,7 +1450,7 @@ impl Suite {
             &SingleSidedStakingExecuteMsg::Claim {
                 duration,
                 locked_at: Some(locked_at),
-                assets: None,
+                assets,
             },
             &[],
         )

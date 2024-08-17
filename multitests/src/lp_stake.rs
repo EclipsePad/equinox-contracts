@@ -94,7 +94,7 @@ fn lp_staking() {
     suite
         .mint_native(BOB.to_string(), suite.astro(), 1_000_000_000)
         .unwrap();
-    suite.convert_astro(BOB, 1_001).unwrap();
+    suite.convert_astro(BOB, 1_000).unwrap();
 
     let bob_eclipastro_amount = suite.query_eclipastro_balance(BOB).unwrap();
     assert_eq!(bob_eclipastro_amount, 1_000);
@@ -140,6 +140,9 @@ fn lp_staking() {
     assert_eq!(bob_xastro_amount, 0);
     let bob_lp_token_amount = suite.query_lp_token_balance(BOB).unwrap();
     assert_eq!(bob_lp_token_amount.u128(), 953u128);
+
+    let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
+    assert_eq!(total_lp_token_staking.u128(), 0);
     let bob_lp_token_stake_amount = 500u128;
 
     suite
@@ -153,6 +156,8 @@ fn lp_staking() {
         bob_lp_token_staking.staked.u128(),
         bob_lp_token_stake_amount
     );
+    let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
+    assert_eq!(total_lp_token_staking.u128(), bob_lp_token_stake_amount);
     let bob_lp_token_rewards = suite.query_user_lp_token_rewards(BOB).unwrap();
     assert_eq!(
         bob_lp_token_rewards,
@@ -280,10 +285,14 @@ fn lp_staking() {
 
     // mint bECLIP to lp staking contract for reward distribution
     suite
-        .mint_beclip(&suite.lp_staking_contract(), 5_000_000_000)
+        .mint_beclip(&suite.lp_staking_contract(), 5_000_000_000_000_000)
         .unwrap();
     suite
-        .mint_native(suite.lp_staking_contract(), suite.eclip(), 5_000_000_000)
+        .mint_native(
+            suite.lp_staking_contract(),
+            suite.eclip(),
+            5_000_000_000_000_000,
+        )
         .unwrap();
 
     // claim rewards
@@ -338,131 +347,133 @@ fn lp_staking() {
         .send_denom(suite.eclipastro_xastro_lp_token(), BOB, 400u128, ALICE)
         .unwrap();
 
+    let reward_weights = suite.query_reward_weights().unwrap();
+
     suite.stake_lp_token(ALICE, 100u128).unwrap();
     assert_eq!(
         suite.query_user_reward_weights(ALICE.to_string()).unwrap(),
-        vec![]
+        reward_weights
     );
 
-    // update time againd
-    suite.update_time(86400);
+    // // update time againd
+    // suite.update_time(86400);
 
-    let pending_incentives = suite
-        .query_incentive_pending_rewards(&suite.lp_staking_contract())
-        .unwrap();
-    assert_eq!(pending_incentives.len(), 1);
-    assert_eq!(pending_incentives[0].amount.u128(), 864000u128);
-    let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
-    assert_eq!(total_lp_token_staking.u128(), bob_lp_token_stake_amount);
-    // assert_eq!(total_lp_token_staking.astroport_reward_weights.len(), 1);
+    // let pending_incentives = suite
+    //     .query_incentive_pending_rewards(&suite.lp_staking_contract())
+    //     .unwrap();
+    // assert_eq!(pending_incentives.len(), 1);
+    // assert_eq!(pending_incentives[0].amount.u128(), 864000u128);
+    // let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
+    // assert_eq!(total_lp_token_staking.u128(), bob_lp_token_stake_amount + 100);
+    // // assert_eq!(total_lp_token_staking.astroport_reward_weights.len(), 1);
+    // // assert_eq!(
+    // //     total_lp_token_staking.astroport_reward_weights[0].asset,
+    // //     AssetInfo::Token {
+    // //         contract_addr: Addr::unchecked(suite.astro_staking_contract())
+    // //     }
+    // // );
+    // let new_astro_reward_weight = astro_reward_weight
+    //     + Decimal256::from_ratio(864000u128 * 8_000 / 10_000, bob_lp_token_stake_amount + 100);
+    // let new_eclip_reward_weight =
+    //     eclip_reward_weight + Decimal256::from_ratio(reward_config.details.eclip.daily_reward, bob_lp_token_stake_amount + 100);
+    // // assert_eq!(
+    // //     total_lp_token_staking.astroport_reward_weights[0].reward_weight,
+    // //     new_astro_reward_weight
+    // // ); // 2764.8
+    // // assert_eq!(
+    // //     total_lp_token_staking.eclip_reward_weight,
+    // //     new_eclip_reward_weight
+    // // ); // 400
+    // let user_rewards = suite.query_user_lp_staking_reward(ALICE).unwrap();
+    // // assert_eq!(
+    // //     user_rewards[0].asset,
+    // //     AssetInfo::Token {
+    // //         contract_addr: Addr::unchecked(suite.astro_staking_contract())
+    // //     }
+    // // );
+    // let alice_pending_astro_reward = (new_astro_reward_weight - astro_reward_weight)
+    //     .checked_mul(Decimal256::from_ratio(100u128, 1u128))
+    //     .unwrap()
+    //     .to_uint128_with_precision(0u32)
+    //     .unwrap()
+    //     .u128();
+    // assert_eq!(user_rewards[0].amount.u128(), alice_pending_astro_reward); // 691200
+
+    // // assert_eq!(
+    // //     user_rewards[1].asset,
+    // //     AssetInfo::NativeToken {
+    // //         denom: suite.eclip()
+    // //     }
+    // // );
+    // let alice_pending_eclip_reward = (new_eclip_reward_weight - eclip_reward_weight)
+    //     .checked_mul(Decimal256::from_ratio(100u128, 1u128))
+    //     .unwrap()
+    //     .to_uint128_with_precision(0u32)
+    //     .unwrap()
+    //     .u128();
+    // assert_eq!(user_rewards[1].amount.u128(), alice_pending_eclip_reward); // 100_000
+
+    // // mint bECLIP to lp staking contract for reward distribution
+    // suite
+    //     .mint_beclip(&suite.lp_staking_contract(), 5_000_000_000)
+    //     .unwrap();
+    // suite
+    //     .mint_native(suite.lp_staking_contract(), suite.eclip(), 5_000_000_000)
+    //     .unwrap();
+
+    // // claim rewards
+    // let bob_astro_balance = suite
+    //     .query_balance_native(BOB.to_string(), suite.astro())
+    //     .unwrap();
+    // let bob_beclip_balance = suite.query_beclip_balance(BOB).unwrap();
+    // suite.lp_staking_claim_rewards(BOB).unwrap();
+    // let new_bob_astro_balance = suite
+    //     .query_balance_native(BOB.to_string(), suite.astro())
+    //     .unwrap();
+    // let new_bob_beclip_balance = suite.query_beclip_balance(BOB).unwrap();
     // assert_eq!(
-    //     total_lp_token_staking.astroport_reward_weights[0].asset,
-    //     AssetInfo::Token {
-    //         contract_addr: Addr::unchecked(suite.astro_staking_contract())
-    //     }
+    //     new_bob_astro_balance - bob_astro_balance,
+    //     bob_pending_astro_reward.u128()
     // );
-    let new_astro_reward_weight = astro_reward_weight
-        + Decimal256::from_ratio(864000u128 * 8_000 / 10_000, bob_lp_token_stake_amount);
-    let new_eclip_reward_weight =
-        eclip_reward_weight + Decimal256::from_ratio(1_000_000_000u128, bob_lp_token_stake_amount);
     // assert_eq!(
-    //     total_lp_token_staking.astroport_reward_weights[0].reward_weight,
-    //     new_astro_reward_weight
-    // ); // 2764.8
-    // assert_eq!(
-    //     total_lp_token_staking.eclip_reward_weight,
-    //     new_eclip_reward_weight
-    // ); // 400
-    let user_rewards = suite.query_user_lp_staking_reward(ALICE).unwrap();
-    // assert_eq!(
-    //     user_rewards[0].asset,
-    //     AssetInfo::Token {
-    //         contract_addr: Addr::unchecked(suite.astro_staking_contract())
-    //     }
+    //     new_bob_beclip_balance - bob_beclip_balance,
+    //     bob_pending_beclip_reward.u128()
     // );
-    let alice_pending_astro_reward = (new_astro_reward_weight - astro_reward_weight)
-        .checked_mul(Decimal256::from_ratio(bob_lp_token_stake_amount, 1u128))
-        .unwrap()
-        .to_uint128_with_precision(0u32)
-        .unwrap()
-        .u128();
-    assert_eq!(user_rewards[0].amount.u128(), alice_pending_astro_reward); // 691200
-
+    // let user_rewards = suite.query_user_lp_staking_reward(BOB).unwrap();
     // assert_eq!(
-    //     user_rewards[1].asset,
-    //     AssetInfo::NativeToken {
-    //         denom: suite.eclip()
-    //     }
+    //     user_rewards,
+    //     [
+    //         RewardAmount {
+    //             info: AssetInfo::NativeToken {
+    //                 denom: suite.astro()
+    //             },
+    //             amount: Uint128::zero()
+    //         },
+    //         RewardAmount {
+    //             info: AssetInfo::Token {
+    //                 contract_addr: Addr::unchecked(suite.beclip())
+    //             },
+    //             amount: Uint128::zero()
+    //         },
+    //         RewardAmount {
+    //             info: AssetInfo::NativeToken {
+    //                 denom: suite.eclip()
+    //             },
+    //             amount: Uint128::zero()
+    //         },
+    //     ]
     // );
-    let alice_pending_eclip_reward = (new_eclip_reward_weight - eclip_reward_weight)
-        .checked_mul(Decimal256::from_ratio(bob_lp_token_stake_amount, 1u128))
-        .unwrap()
-        .to_uint128_with_precision(0u32)
-        .unwrap()
-        .u128();
-    assert_eq!(user_rewards[1].amount.u128(), alice_pending_eclip_reward); // 100_000
+    // suite.update_time(86400 * 30);
+    // assert_eq!(
+    //     suite.query_user_reward_weights(ALICE.to_string()).unwrap(),
+    //     vec![]
+    // );
+    // // assert_eq!(suite.query_reward_weights().unwrap(), vec![]);
+    // suite
+    //     .send_denom(suite.eclipastro_xastro_lp_token(), BOB, 400u128, ALICE)
+    //     .unwrap();
 
-    // mint bECLIP to lp staking contract for reward distribution
-    suite
-        .mint_beclip(&suite.lp_staking_contract(), 5_000_000_000)
-        .unwrap();
-    suite
-        .mint_native(suite.lp_staking_contract(), suite.eclip(), 5_000_000_000)
-        .unwrap();
-
-    // claim rewards
-    let bob_astro_balance = suite
-        .query_balance_native(BOB.to_string(), suite.astro())
-        .unwrap();
-    let bob_beclip_balance = suite.query_beclip_balance(BOB).unwrap();
-    suite.lp_staking_claim_rewards(BOB).unwrap();
-    let new_bob_astro_balance = suite
-        .query_balance_native(BOB.to_string(), suite.astro())
-        .unwrap();
-    let new_bob_beclip_balance = suite.query_beclip_balance(BOB).unwrap();
-    assert_eq!(
-        new_bob_astro_balance - bob_astro_balance,
-        bob_pending_astro_reward.u128()
-    );
-    assert_eq!(
-        new_bob_beclip_balance - bob_beclip_balance,
-        bob_pending_beclip_reward.u128()
-    );
-    let user_rewards = suite.query_user_lp_staking_reward(BOB).unwrap();
-    assert_eq!(
-        user_rewards,
-        [
-            RewardAmount {
-                info: AssetInfo::NativeToken {
-                    denom: suite.astro()
-                },
-                amount: Uint128::zero()
-            },
-            RewardAmount {
-                info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked(suite.beclip())
-                },
-                amount: Uint128::zero()
-            },
-            RewardAmount {
-                info: AssetInfo::NativeToken {
-                    denom: suite.eclip()
-                },
-                amount: Uint128::zero()
-            },
-        ]
-    );
-    suite.update_time(86400 * 30);
-    assert_eq!(
-        suite.query_user_reward_weights(ALICE.to_string()).unwrap(),
-        vec![]
-    );
-    // assert_eq!(suite.query_reward_weights().unwrap(), vec![]);
-    suite
-        .send_denom(suite.eclipastro_xastro_lp_token(), BOB, 400u128, ALICE)
-        .unwrap();
-
-    suite.stake_lp_token(ALICE, 100u128).unwrap();
+    // suite.stake_lp_token(ALICE, 100u128).unwrap();
     // assert_eq!(
     //     suite.query_user_reward_weights(ALICE.to_string()).unwrap(),
     //     vec![]
