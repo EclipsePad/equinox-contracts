@@ -46,9 +46,11 @@ use equinox_msg::{
         UserRewardByDuration as SingleStakingUserRewardByDuration,
         UserStaking as SingleSidedUserStaking,
     },
-    voter::msg::AstroStakingRewardResponse,
+    voter::{
+        msg::AstroStakingRewardResponse,
+        state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
+    },
 };
-use voter_mocks::state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY};
 
 use crate::common::stargate::MockStargate;
 

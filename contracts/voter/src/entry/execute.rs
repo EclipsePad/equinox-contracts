@@ -17,10 +17,10 @@ use equinox_msg::voter::{
         DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ESSENCE_FRACTIONS,
         ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC,
         ELECTOR_WEIGHTS, ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED,
-        MAX_EPOCH_AMOUNT, RECIPIENT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC,
-        STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT, SWAP_REWARDS_REPLY_ID_MIN,
-        TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_CONVERT_INFO, TRANSFER_ADMIN_STATE,
-        TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
+        MAX_EPOCH_AMOUNT, RECIPIENT_AND_AMOUNT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG,
+        SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT,
+        SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_CONVERT_INFO,
+        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
     types::{
         AddressConfig, AstroStakingRewardConfig, DateConfig, EssenceInfo, PoolInfoItem,
@@ -417,7 +417,7 @@ pub fn try_swap_to_eclip_astro(
 
     // get xastro first
     if token_in == astro {
-        RECIPIENT.save(deps.storage, &sender_address)?;
+        RECIPIENT_AND_AMOUNT.save(deps.storage, &(sender_address, Some(asset_amount)))?;
 
         let msg = SubMsg {
             id: STAKE_ASTRO_REPLY_ID,
@@ -434,7 +434,7 @@ pub fn try_swap_to_eclip_astro(
         return Ok(Response::new().add_submessage(msg));
     }
 
-    lock_xastro(deps, env, asset_amount, &sender_address)
+    lock_xastro(deps, env, asset_amount, &None, &sender_address)
 }
 
 pub fn handle_stake_astro_reply(
@@ -456,14 +456,15 @@ pub fn handle_stake_astro_reply(
         }
     }
 
-    let recipient = &RECIPIENT.load(deps.storage)?;
-    lock_xastro(deps, env, xastro_amount, recipient)
+    let (recipient, astro_amount) = &RECIPIENT_AND_AMOUNT.load(deps.storage)?;
+    lock_xastro(deps, env, xastro_amount, astro_amount, recipient)
 }
 
 fn lock_xastro(
     deps: DepsMut,
     _env: Env,
     xastro_amount: Uint128,
+    astro_amount: &Option<Uint128>,
     recipient: &Addr,
 ) -> Result<Response, ContractError> {
     let AddressConfig {
@@ -480,8 +481,11 @@ fn lock_xastro(
 
     // calculate eclipASTRO amount
     let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps.as_ref())?;
-    let eclip_astro_amount =
-        calc_eclip_astro_for_xastro(xastro_amount, astro_supply, xastro_supply);
+    let eclip_astro_amount = astro_amount.unwrap_or(calc_eclip_astro_for_xastro(
+        xastro_amount,
+        astro_supply,
+        xastro_supply,
+    ));
 
     ECLIP_ASTRO_MINTED_BY_VOTER.update(deps.storage, |x| -> StdResult<Uint128> {
         Ok(x + eclip_astro_amount)

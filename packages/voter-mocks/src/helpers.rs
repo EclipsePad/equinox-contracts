@@ -5,9 +5,17 @@ use eclipse_base::{
     converters::{str_to_dec, u128_to_dec},
     utils::unwrap_field,
 };
-use equinox_msg::voter::types::{
-    AddressConfig, BribesAllocationItem, EssenceInfo, RewardsClaimStage, RewardsInfo, RouteItem,
-    TokenConfig, TotalEssenceAndWeightAllocation, UserType, WeightAllocationItem,
+use equinox_msg::voter::{
+    state::{
+        ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DELEGATOR_ESSENCE_FRACTIONS,
+        ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS,
+        ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
+        ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
+    },
+    types::{
+        AddressConfig, BribesAllocationItem, EssenceInfo, RewardsClaimStage, RewardsInfo,
+        RouteItem, TokenConfig, TotalEssenceAndWeightAllocation, UserType, WeightAllocationItem,
+    },
 };
 
 use crate::{
@@ -16,12 +24,6 @@ use crate::{
         calc_delegator_rewards, calc_merged_rewards, calc_personal_elector_rewards,
         calc_scaled_essence_allocation, calc_splitted_user_essence_info,
         calc_updated_essence_allocation,
-    },
-    state::{
-        ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DELEGATOR_ESSENCE_FRACTIONS,
-        ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS,
-        ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
-        ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
 };
 

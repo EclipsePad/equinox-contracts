@@ -4,16 +4,16 @@ use cosmwasm_std::{
 
 use equinox_msg::voter::{
     msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SudoMsg},
+    state::{
+        REWARDS_CLAIM_STAGE, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_MAX,
+        SWAP_REWARDS_REPLY_ID_MIN,
+    },
     types::RewardsClaimStage,
 };
 
 use crate::{
     entry::{execute as e, instantiate::try_instantiate, migrate::migrate_contract, query as q},
     error::ContractError,
-    state::{
-        REWARDS_CLAIM_STAGE, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_MAX,
-        SWAP_REWARDS_REPLY_ID_MIN,
-    },
 };
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].

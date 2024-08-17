@@ -528,12 +528,3 @@ pub fn calculate_claimable(
         .checked_sub(cliamed_xastro)
         .unwrap_or_default()
 }
-
-// TODO: can we replace it with calc_eclip_astro_for_xastro?
-pub fn calculate_eclipastro_amount(
-    total_shares: Uint128,
-    total_deposit: Uint128,
-    xastro: Uint128,
-) -> Uint128 {
-    xastro.multiply_ratio(total_deposit, total_shares)
-}
