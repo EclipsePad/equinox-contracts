@@ -288,8 +288,13 @@ pub fn query_operation_status(deps: Deps, _env: Env) -> StdResult<OperationStatu
 
 /// query reward
 pub fn query_astro_staking_rewards(deps: Deps, env: Env) -> StdResult<AstroStakingRewardResponse> {
+    let astro_pending_treasury_reward = ASTRO_PENDING_TREASURY_REWARD
+        .load(deps.storage)
+        .unwrap_or_default();
     let res: (AstroStakingRewardResponse, Uint128) = _query_astro_staking_rewards(deps, env)?;
-    Ok(res.0)
+    let mut rewards = res.0;
+    rewards.treasury += astro_pending_treasury_reward;
+    Ok(rewards)
 }
 
 pub fn query_astro_staking_treasury_rewards(deps: Deps, _env: Env) -> StdResult<Uint128> {
