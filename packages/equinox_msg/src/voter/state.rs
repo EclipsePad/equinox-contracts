@@ -52,7 +52,7 @@ pub const REWARDS_CLAIM_STAGE: Item<RewardsClaimStage> = Item::new("rewards_clai
 /// Stores the state of changing admin process
 pub const TRANSFER_ADMIN_STATE: Item<TransferAdminState> = Item::new("transfer_admin_state");
 /// temporary storage for eclipASTRO recipients
-pub const RECIPIENT: Item<Addr> = Item::new("recipient");
+pub const RECIPIENT_AND_AMOUNT: Item<(Addr, Option<Uint128>)> = Item::new("recipient_and_amount");
 
 /// essence info by user address
 pub const USER_ESSENCE: Map<&Addr, EssenceInfo> = Map::new("user_essence");

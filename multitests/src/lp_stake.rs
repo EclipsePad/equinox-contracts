@@ -2,7 +2,7 @@ use astroport::{
     asset::{Asset, AssetInfo, Decimal256Ext},
     vesting::{VestingAccount, VestingSchedule, VestingSchedulePoint},
 };
-use cosmwasm_std::{Addr, Decimal256, Uint128, Uint256};
+use cosmwasm_std::{Addr, Decimal256, Uint128};
 use equinox_msg::lp_staking::{RewardAmount, RewardWeight};
 
 use crate::suite::{Suite, SuiteBuilder, ALICE, BOB};
@@ -364,11 +364,17 @@ fn lp_staking() {
     assert_eq!(pending_incentives.len(), 1);
     assert_eq!(pending_incentives[0].amount.u128(), 864000u128);
     let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
-    assert_eq!(total_lp_token_staking.u128(), bob_lp_token_stake_amount + 100);
+    assert_eq!(
+        total_lp_token_staking.u128(),
+        bob_lp_token_stake_amount + 100
+    );
     let new_astro_reward_weight = astro_reward_weight
         + Decimal256::from_ratio(864000u128 * 8_000 / 10_000, bob_lp_token_stake_amount + 100);
-    let new_eclip_reward_weight =
-        eclip_reward_weight + Decimal256::from_ratio(reward_config.details.eclip.daily_reward, bob_lp_token_stake_amount + 100);
+    let new_eclip_reward_weight = eclip_reward_weight
+        + Decimal256::from_ratio(
+            reward_config.details.eclip.daily_reward,
+            bob_lp_token_stake_amount + 100,
+        );
     let user_rewards = suite.query_user_lp_staking_reward(ALICE).unwrap();
     let alice_pending_astro_reward = (new_astro_reward_weight - astro_reward_weight)
         .checked_mul(Decimal256::from_ratio(100u128, 1u128))
@@ -377,10 +383,10 @@ fn lp_staking() {
         .unwrap()
         .u128();
     assert_eq!(user_rewards[0].amount.u128(), alice_pending_astro_reward); // 691200
-    // assert_eq!(new_eclip_reward_weight, Decimal256::from_ratio(70400000u128, 1u128));
-    // assert_eq!(eclip_reward_weight, Decimal256::from_ratio(38400000u128, 1u128));
-    // assert_eq!(suite.query_user_lp_token_staking(ALICE).unwrap().staked.u128(), 100u128);
-    // assert_eq!(user_rewards, vec![]);
+                                                                           // assert_eq!(new_eclip_reward_weight, Decimal256::from_ratio(70400000u128, 1u128));
+                                                                           // assert_eq!(eclip_reward_weight, Decimal256::from_ratio(38400000u128, 1u128));
+                                                                           // assert_eq!(suite.query_user_lp_token_staking(ALICE).unwrap().staked.u128(), 100u128);
+                                                                           // assert_eq!(user_rewards, vec![]);
 
     let alice_pending_eclip_reward = (new_eclip_reward_weight - eclip_reward_weight)
         .checked_mul(Decimal256::from_ratio(100u128, 1u128))
@@ -445,10 +451,10 @@ fn lp_staking() {
     // update time againd
     suite.update_time(86400);
 
-        // unstake
-        suite.lp_unstake(BOB, 500u128, None).unwrap();
-        let bob_lp_token_staking = suite.query_user_lp_token_staking(BOB).unwrap();
-        assert_eq!(bob_lp_token_staking.staked.u128(), 0u128);
-        let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
-        assert_eq!(total_lp_token_staking.u128(), 100u128);
+    // unstake
+    suite.lp_unstake(BOB, 500u128, None).unwrap();
+    let bob_lp_token_staking = suite.query_user_lp_token_staking(BOB).unwrap();
+    assert_eq!(bob_lp_token_staking.staked.u128(), 0u128);
+    let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
+    assert_eq!(total_lp_token_staking.u128(), 100u128);
 }

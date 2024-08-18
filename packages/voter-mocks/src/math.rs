@@ -4,11 +4,13 @@ use eclipse_base::{
     converters::{str_to_dec, u128_to_dec},
     staking::state::SECONDS_PER_ESSENCE,
 };
-use equinox_msg::voter::types::{
-    BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem, WeightAllocationItem,
+use equinox_msg::voter::{
+    state::{DAO_TREASURY_REWARDS_FRACTION, ELECTOR_ADDITIONAL_ESSENCE_FRACTION},
+    types::{
+        BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem,
+        WeightAllocationItem,
+    },
 };
-
-use crate::state::{DAO_TREASURY_REWARDS_FRACTION, ELECTOR_ADDITIONAL_ESSENCE_FRACTION};
 
 /// xastro_price = astro_supply / xastro_supply
 pub fn calc_xastro_price(astro_supply: Uint128, xastro_supply: Uint128) -> Decimal {
@@ -525,12 +527,4 @@ pub fn calculate_claimable(
         .multiply_ratio(total_shares, total_deposit)
         .checked_sub(cliamed_xastro)
         .unwrap_or_default()
-}
-
-pub fn calculate_eclipastro_amount(
-    total_shares: Uint128,
-    total_deposit: Uint128,
-    xastro: Uint128,
-) -> Uint128 {
-    xastro.multiply_ratio(total_deposit, total_shares)
 }

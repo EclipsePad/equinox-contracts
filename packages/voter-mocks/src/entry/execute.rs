@@ -12,6 +12,16 @@ use eclipse_base::{
 };
 use equinox_msg::voter::{
     msg::AstroStakingRewardResponse,
+    state::{
+        ADDRESS_CONFIG, ASTRO_PENDING_TREASURY_REWARD, ASTRO_STAKING_REWARD_CONFIG,
+        DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ESSENCE_FRACTIONS,
+        ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC,
+        ELECTOR_WEIGHTS, ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED,
+        MAX_EPOCH_AMOUNT, RECIPIENT_AND_AMOUNT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG,
+        SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT,
+        SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_CONVERT_INFO,
+        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
+    },
     types::{
         AddressConfig, AstroStakingRewardConfig, DateConfig, EssenceInfo, PoolInfoItem,
         RewardsClaimStage, RouteListItem, TokenConfig, TransferAdminState, UserType, VoteResults,
@@ -34,16 +44,6 @@ use crate::{
         calc_splitted_user_essence_info, calc_updated_essence_allocation,
         calc_voter_to_tribute_voting_power_ratio, calc_weights_from_essence_allocation,
         split_dao_eclip_rewards, split_rewards,
-    },
-    state::{
-        ADDRESS_CONFIG, ASTRO_PENDING_TREASURY_REWARD, ASTRO_STAKING_REWARD_CONFIG,
-        DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ESSENCE_FRACTIONS,
-        ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC,
-        ELECTOR_WEIGHTS, ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED,
-        MAX_EPOCH_AMOUNT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG,
-        SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT,
-        SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_CONVERT_INFO,
-        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
 };
 
@@ -453,7 +453,9 @@ pub fn try_swap_to_eclip_astro(
 
     // get xastro first
     if token_in == astro {
-        let submsg = SubMsg {
+        RECIPIENT_AND_AMOUNT.save(deps.storage, &(sender_address, Some(asset_amount)))?;
+
+        let msg = SubMsg {
             id: STAKE_ASTRO_REPLY_ID,
             msg: WasmMsg::Execute {
                 contract_addr: astroport_staking.to_string(),
@@ -469,10 +471,7 @@ pub fn try_swap_to_eclip_astro(
         return Ok(res.add_submessage(submsg));
     }
 
-    total_convert_info.total_xastro += asset_amount;
-    TOTAL_CONVERT_INFO.save(deps.storage, &total_convert_info)?;
-
-    lock_xastro(deps, env, asset_amount, res)
+    lock_xastro(deps, env, asset_amount, &None, &sender_address)
 }
 
 pub fn handle_stake_astro_reply(
@@ -495,40 +494,59 @@ pub fn handle_stake_astro_reply(
         }
     }
 
-    total_convert_info.total_xastro += xastro_amount;
-    TOTAL_CONVERT_INFO.save(deps.storage, &total_convert_info)?;
-
-    lock_xastro(deps, env, xastro_amount, Response::new())
+    let (recipient, astro_amount) = &RECIPIENT_AND_AMOUNT.load(deps.storage)?;
+    lock_xastro(deps, env, xastro_amount, astro_amount, recipient)
 }
 
 fn lock_xastro(
     _deps: DepsMut,
     _env: Env,
-    _xastro_amount: Uint128,
-    res: Response,
+    xastro_amount: Uint128,
+    astro_amount: &Option<Uint128>,
+    recipient: &Addr,
 ) -> Result<Response, ContractError> {
-    // let AddressConfig {
-    //     astroport_voting_escrow,
-    //     eclipsepad_minter,
-    //     ..
-    // } = ADDRESS_CONFIG.load(deps.storage)?;
-    // let TokenConfig {
-    //     xastro,
-    //     ..
-    // } = TOKEN_CONFIG.load(deps.storage)?;
+    let AddressConfig {
+        eclipsepad_minter, ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
+    let TokenConfig { eclip_astro, .. } = TOKEN_CONFIG.load(deps.storage)?;
+    let mut total_convert_info = TOTAL_CONVERT_INFO.load(deps.storage).unwrap_or_default();
 
-    Ok(res)
+    // calculate eclipASTRO amount
+    let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps.as_ref())?;
+    let eclip_astro_amount = astro_amount.unwrap_or(calc_eclip_astro_for_xastro(
+        xastro_amount,
+        astro_supply,
+        xastro_supply,
+    ));
 
-    // let msg_list = vec![
-    //     // replenish existent lock or create new one
-    //     CosmosMsg::Wasm(WasmMsg::Execute {
-    //         contract_addr: astroport_voting_escrow.to_string(),
-    //         msg: to_json_binary(&astroport_governance::voting_escrow::ExecuteMsg::Lock {
-    //             receiver: None,
-    //         })?,
-    //         funds: coins(xastro_amount.u128(), xastro),
-    //     }),
-    // ];
+    ECLIP_ASTRO_MINTED_BY_VOTER.update(deps.storage, |x| -> StdResult<Uint128> {
+        Ok(x + eclip_astro_amount)
+    })?;
+
+    total_convert_info.total_xastro += xastro_amount;
+    total_convert_info.total_astro_deposited += eclip_astro_amount;
+    TOTAL_CONVERT_INFO.save(deps.storage, &total_convert_info)?;
+
+    let msg_list = vec![
+        // // replenish existent lock or create new one
+        // CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: astroport_voting_escrow.to_string(),
+        //     msg: to_json_binary(&astroport_governance::voting_escrow::ExecuteMsg::Lock {
+        //         receiver: None,
+        //     })?,
+        //     funds: coins(xastro_amount.u128(), xastro),
+        // }),
+        // mint eclipAstro to user
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: eclipsepad_minter.to_string(),
+            msg: to_json_binary(&eclipse_base::minter::msg::ExecuteMsg::Mint {
+                denom_or_address: eclip_astro,
+                amount: eclip_astro_amount,
+                recipient: Some(recipient.to_string()),
+            })?,
+            funds: vec![],
+        }),
+    ];
 
     // Ok(res
     //     .add_messages(msg_list))

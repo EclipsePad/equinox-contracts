@@ -46,9 +46,11 @@ use equinox_msg::{
         UserRewardByDuration as SingleStakingUserRewardByDuration,
         UserStaking as SingleSidedUserStaking,
     },
-    voter::msg::AstroStakingRewardResponse,
+    voter::{
+        msg::AstroStakingRewardResponse,
+        state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
+    },
 };
-use voter_mocks::state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY};
 
 use crate::common::stargate::MockStargate;
 
@@ -1973,7 +1975,10 @@ impl Suite {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lp_staking_contract.clone(),
-            &LpStakingExecuteMsg::Unstake { amount: Uint128::from(amount), recipient },
+            &LpStakingExecuteMsg::Unstake {
+                amount: Uint128::from(amount),
+                recipient,
+            },
             &[],
         )
     }

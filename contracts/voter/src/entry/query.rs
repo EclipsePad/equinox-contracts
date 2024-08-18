@@ -26,9 +26,9 @@ use crate::{
         query_eclipsepad_bribe_allocation, query_eclipsepad_rewards, split_user_essence_info,
     },
     math::{
-        calc_essence_allocation, calc_merged_bribe_allocations, calc_merged_rewards,
-        calc_splitted_user_essence_info, calc_voting_power, calc_xastro_price, calculate_claimable,
-        calculate_eclipastro_amount,
+        calc_eclip_astro_for_xastro, calc_essence_allocation, calc_merged_bribe_allocations,
+        calc_merged_rewards, calc_splitted_user_essence_info, calc_voting_power, calc_xastro_price,
+        calculate_claimable,
     },
 };
 
@@ -326,8 +326,8 @@ pub fn _query_astro_staking_rewards(
     let treasury_reward = claimable_xastro.checked_sub(users_reward).unwrap();
     Ok((
         AstroStakingRewardResponse {
-            users: calculate_eclipastro_amount(xastro_supply, astro_supply, users_reward),
-            treasury: calculate_eclipastro_amount(xastro_supply, astro_supply, treasury_reward),
+            users: calc_eclip_astro_for_xastro(users_reward, astro_supply, xastro_supply),
+            treasury: calc_eclip_astro_for_xastro(treasury_reward, astro_supply, xastro_supply),
         },
         claimable_xastro,
     ))
