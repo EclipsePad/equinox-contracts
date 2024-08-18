@@ -1969,13 +1969,16 @@ impl Suite {
     pub fn lp_unstake(
         &mut self,
         sender: &str,
-        amount: Uint128,
+        amount: u128,
         recipient: Option<String>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lp_staking_contract.clone(),
-            &LpStakingExecuteMsg::Unstake { amount, recipient },
+            &LpStakingExecuteMsg::Unstake {
+                amount: Uint128::from(amount),
+                recipient,
+            },
             &[],
         )
     }

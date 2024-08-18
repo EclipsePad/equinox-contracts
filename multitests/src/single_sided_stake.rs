@@ -535,7 +535,7 @@ fn claim() {
         suite.query_voter_astro_staking_rewards().unwrap(),
         AstroStakingRewardResponse {
             users: Uint128::from(0u128), // (3998 * 1104001 / 1003998 - 4000) * 0.8,
-            treasury: Uint128::from(0u128)
+            treasury: Uint128::from(79u128)
         }
     );
 

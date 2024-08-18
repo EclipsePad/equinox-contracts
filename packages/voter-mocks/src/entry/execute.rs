@@ -468,9 +468,15 @@ fn lock_xastro(
     recipient: &Addr,
 ) -> Result<Response, ContractError> {
     let AddressConfig {
-        eclipsepad_minter, ..
+        astroport_voting_escrow,
+        eclipsepad_minter,
+        ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
-    let TokenConfig { eclip_astro, .. } = TOKEN_CONFIG.load(deps.storage)?;
+    let TokenConfig {
+        xastro,
+        eclip_astro,
+        ..
+    } = TOKEN_CONFIG.load(deps.storage)?;
     let mut total_convert_info = TOTAL_CONVERT_INFO.load(deps.storage).unwrap_or_default();
 
     // calculate eclipASTRO amount
@@ -490,7 +496,7 @@ fn lock_xastro(
     TOTAL_CONVERT_INFO.save(deps.storage, &total_convert_info)?;
 
     let msg_list = vec![
-        // // replenish existent lock or create new one
+        // replenish existent lock or create new one
         // CosmosMsg::Wasm(WasmMsg::Execute {
         //     contract_addr: astroport_voting_escrow.to_string(),
         //     msg: to_json_binary(&astroport_governance::voting_escrow::ExecuteMsg::Lock {
