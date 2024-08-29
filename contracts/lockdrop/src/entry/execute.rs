@@ -1345,6 +1345,7 @@ pub fn _claim_single_sided_rewards(
         contract_addr: cfg.single_sided_staking.clone().unwrap().to_string(),
         msg: to_json_binary(&SingleSidedExecuteMsg::ClaimAll {
             with_flexible: true,
+            assets: None
         })?,
         funds: vec![],
     }));
@@ -1587,6 +1588,7 @@ pub fn _claim_all_single_sided_rewards(
         contract_addr: cfg.single_sided_staking.clone().unwrap().to_string(),
         msg: to_json_binary(&SingleSidedExecuteMsg::ClaimAll {
             with_flexible: true,
+            assets: None
         })?,
         funds: vec![],
     }));

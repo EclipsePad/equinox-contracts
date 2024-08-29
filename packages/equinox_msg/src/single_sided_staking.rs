@@ -41,6 +41,7 @@ pub enum ExecuteMsg {
     },
     ClaimAll {
         with_flexible: bool,
+        assets: Option<Vec<AssetInfo>>
     },
     Callback(CallbackMsg),
     Stake {

@@ -57,7 +57,7 @@ pub fn execute(
             locked_at,
             assets,
         } => claim(deps, env, info, duration, locked_at, assets),
-        ExecuteMsg::ClaimAll { with_flexible } => claim_all(deps, env, info, with_flexible),
+        ExecuteMsg::ClaimAll { with_flexible, assets } => claim_all(deps, env, info, with_flexible, assets),
         ExecuteMsg::Stake {
             duration,
             recipient,
