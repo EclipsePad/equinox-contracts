@@ -22,6 +22,7 @@ use equinox_msg::{
 };
 
 use crate::{
+    config::BPS_DENOMINATOR,
     entry::query::{
         calculate_lp_staking_user_rewards, calculate_lp_total_rewards,
         calculate_pending_lockdrop_incentives, calculate_single_sided_total_rewards,
@@ -1853,17 +1854,11 @@ pub fn _unlock_single_lockup(
     let cfg = CONFIG.load(deps.storage)?;
     let mut lockup_info = SINGLE_LOCKUP_INFO.load(deps.storage, duration)?;
     let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
-    let lock_config = cfg
-        .lock_configs
-        .iter()
-        .find(|c| c.duration == duration)
-        .unwrap();
     if !check_lockdrop_ended(deps.as_ref(), current_time).unwrap() {
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             current_time,
             &cfg,
             user_lockup_info.xastro_amount_in_lockups,
-            lock_config.early_unlock_penalty_bps,
         );
         if let Some(amount) = amount {
             ensure!(
@@ -1965,17 +1960,11 @@ pub fn _unlock_lp_lockup(
     let cfg = CONFIG.load(deps.storage)?;
     let mut lockup_info = LP_LOCKUP_INFO.load(deps.storage, duration)?;
     let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
-    let lock_config = cfg
-        .lock_configs
-        .iter()
-        .find(|c| c.duration == duration)
-        .unwrap();
     if !check_lockdrop_ended(deps.as_ref(), current_time).unwrap() {
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             current_time,
             &cfg,
             user_lockup_info.xastro_amount_in_lockups,
-            lock_config.early_unlock_penalty_bps,
         );
         if let Some(amount) = amount {
             ensure!(
@@ -2031,7 +2020,13 @@ pub fn _unlock_lp_lockup(
         let mut penalty_amount = Uint128::zero();
 
         if current_time < cfg.countdown_start_at + duration {
-            penalty_amount = withdraw_amount.checked_div_ceil((2u128, 1u128)).unwrap();
+            let lock_config = cfg
+                .lock_configs
+                .iter()
+                .find(|c| c.duration == duration)
+                .unwrap();
+            penalty_amount = withdraw_amount
+                .multiply_ratio(lock_config.early_unlock_penalty_bps, BPS_DENOMINATOR);
         }
         let lp_token = cfg.lp_token.unwrap();
         let mut msgs = vec![

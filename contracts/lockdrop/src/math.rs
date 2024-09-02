@@ -2,8 +2,6 @@ use cosmwasm_std::{Decimal256, StdResult, Uint128, Uint256};
 use equinox_msg::lockdrop::Config;
 use std::cmp::min;
 
-use crate::config::BPS_DENOMINATOR;
-
 pub fn calculate_weight(amount: Uint128, duration: u64, config: &Config) -> StdResult<Uint256> {
     let lock_config = config
         .lock_configs
@@ -21,7 +19,6 @@ pub fn calculate_max_withdrawal_amount_allowed(
     current_timestamp: u64,
     config: &Config,
     amount: Uint128,
-    early_unlock_bps: u64,
 ) -> Uint128 {
     let withdrawal_cutoff_init_point = config.init_timestamp + config.deposit_window;
 
@@ -36,7 +33,7 @@ pub fn calculate_max_withdrawal_amount_allowed(
     if current_timestamp < withdrawal_cutoff_final {
         let time_left = withdrawal_cutoff_final - current_timestamp;
         min(
-            amount.multiply_ratio(early_unlock_bps, BPS_DENOMINATOR),
+            amount.multiply_ratio(1u128, 2u128),
             amount.multiply_ratio(time_left, config.withdrawal_window),
         )
     }

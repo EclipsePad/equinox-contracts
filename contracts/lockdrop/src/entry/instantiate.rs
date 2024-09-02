@@ -1,5 +1,5 @@
 use astroport::asset::AssetInfo;
-use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response, Uint128};
+use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
 use equinox_msg::lockdrop::{Config, InstantiateMsg, LockConfig, LpLockupState, SingleLockupState};
 
@@ -102,7 +102,6 @@ pub fn try_instantiate(
         init_timestamp: msg.init_timestamp,
         deposit_window: msg.deposit_window.unwrap_or(DEFAULT_DEPOSIT_WINDOW),
         withdrawal_window: msg.withdrawal_window.unwrap_or(DEFAULT_WITHDRAW_WINDOW),
-        lockdrop_incentives: Uint128::zero(),
         astro_staking: deps.api.addr_validate(&msg.astro_staking)?,
         claims_allowed: false,
         countdown_start_at: 0u64,

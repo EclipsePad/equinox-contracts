@@ -200,8 +200,6 @@ pub struct Config {
     pub withdrawal_window: u64,
     /// lockup config
     pub lock_configs: Vec<LockConfig>,
-    /// Total ECLIP lockdrop incentives to be distributed among the users
-    pub lockdrop_incentives: Uint128,
     pub dao_treasury_address: Option<Addr>,
     pub claims_allowed: bool,
     pub countdown_start_at: u64,
