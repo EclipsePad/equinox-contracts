@@ -31,7 +31,7 @@ pub fn calc_eclip_astro_for_xastro(
         return Uint128::zero();
     }
 
-    xastro_amount * astro_supply / xastro_supply
+    xastro_amount.multiply_ratio(astro_supply, xastro_supply)
 }
 
 /// voter_to_tribute_voting_power_ratio = voter_voting_power_decimal * applied_votes_weights_item / tribute_market_voting_power
