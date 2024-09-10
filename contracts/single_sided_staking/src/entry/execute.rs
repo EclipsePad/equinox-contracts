@@ -1,6 +1,7 @@
 use astroport::asset::{AssetInfo, AssetInfoExt};
 use cosmwasm_std::{
-    attr, coins, ensure, ensure_eq, to_json_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg
+    attr, coins, ensure, ensure_eq, to_json_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env,
+    MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw_utils::one_coin;
 
@@ -153,7 +154,11 @@ pub fn propose_new_owner(
     let new_owner_addr = deps.api.addr_validate(&new_owner)?;
 
     // Check that the new owner is not the same as the current one
-    ensure_eq!(OWNER.is_admin(deps.as_ref(), &new_owner_addr).unwrap(), false, ContractError::SameOwner {});
+    ensure_eq!(
+        OWNER.is_admin(deps.as_ref(), &new_owner_addr).unwrap(),
+        false,
+        ContractError::SameOwner {}
+    );
 
     if MAX_PROPOSAL_TTL < expires_in {
         return Err(ContractError::ExpiresInErr(MAX_PROPOSAL_TTL));

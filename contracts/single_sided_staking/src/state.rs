@@ -2,7 +2,9 @@ use cosmwasm_std::Uint128;
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
 
-use equinox_msg::single_sided_staking::{Config, OwnershipProposal, RewardConfig, RewardWeights, UserStaked};
+use equinox_msg::single_sided_staking::{
+    Config, OwnershipProposal, RewardConfig, RewardWeights, UserStaked,
+};
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = "single sided staking contract";
