@@ -8,8 +8,9 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            _handle_callback, allow_users, block_users, claim, claim_all, restake, stake, unstake,
-            update_config, update_owner, update_reward_config,
+            _handle_callback, allow_users, block_users, claim, claim_all, claim_ownership,
+            drop_ownership_proposal, propose_new_owner, restake, stake, unstake, update_config,
+            update_reward_config,
         },
         instantiate::try_instantiate,
         query::{
@@ -51,7 +52,11 @@ pub fn execute(
             details,
             reward_end_time,
         } => update_reward_config(deps, env, info, details, reward_end_time),
-        ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            propose_new_owner(deps, env, info, owner, expires_in)
+        }
+        ExecuteMsg::DropOwnershipProposal {} => drop_ownership_proposal(deps, info),
+        ExecuteMsg::ClaimOwnership {} => claim_ownership(deps, env, info),
         ExecuteMsg::Claim {
             duration,
             locked_at,

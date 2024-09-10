@@ -4,6 +4,7 @@ pub const ONE_DAY: u64 = 86400u64;
 pub const REWARD_DISTRIBUTION_PERIOD: u64 = 8 * ONE_DAY; // 8 days
 pub const REWARD_DISTRIBUTION_TIME_DIFF: u64 = 6 * 3_600; // 6 hours
 pub const BPS_DENOMINATOR: u64 = 10000;
+pub const MAX_PROPOSAL_TTL: u64 = 1209600;
 
 pub const DEFAULT_TIMELOCK_CONFIG: &[TimeLockConfig] = &[
     TimeLockConfig {
@@ -25,7 +26,7 @@ pub const DEFAULT_TIMELOCK_CONFIG: &[TimeLockConfig] = &[
         duration: ONE_DAY * 30 * 6,
         reward_multiplier: 20000,
         early_unlock_penalty_bps: 5000,
-    }
+    },
 ];
 
 pub const DEFAULT_ECLIP_DAILY_REWARD: u128 = 12_800_000_000u128;

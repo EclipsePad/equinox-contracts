@@ -21,9 +21,12 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub enum ExecuteMsg {
     /// Change the owner
-    UpdateOwner {
+    ProposeNewOwner {
         owner: String,
+        expires_in: u64,
     },
+    DropOwnershipProposal {},
+    ClaimOwnership {},
     /// Change config
     UpdateConfig {
         config: UpdateConfigMsg,
@@ -263,4 +266,13 @@ pub struct StakingWithDuration {
 pub struct AstroStaking {
     pub total_shares: Uint128,
     pub total_deposit: Uint128,
+}
+
+/// This structure describes the parameters used for creating a request for a change of contract ownership.
+#[cw_serde]
+pub struct OwnershipProposal {
+    /// The newly proposed contract owner
+    pub owner: Addr,
+    /// Time until the proposal to change ownership expires
+    pub ttl: u64,
 }

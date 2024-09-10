@@ -120,8 +120,8 @@ pub fn calculate_penalty(
         .into_iter()
         .find(|c| c.duration == duration)
     {
-        let penalty_amount = amount
-            .multiply_ratio(timelock_config.early_unlock_penalty_bps, BPS_DENOMINATOR);
+        let penalty_amount =
+            amount.multiply_ratio(timelock_config.early_unlock_penalty_bps, BPS_DENOMINATOR);
         Ok(penalty_amount)
     } else {
         Ok(Uint128::zero())

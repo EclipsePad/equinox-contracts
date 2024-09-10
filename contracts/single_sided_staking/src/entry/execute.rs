@@ -1,23 +1,24 @@
 use astroport::asset::{AssetInfo, AssetInfoExt};
 use cosmwasm_std::{
-    coins, ensure, ensure_eq, to_json_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo,
-    Response, Uint128, WasmMsg,
+    attr, coins, ensure, ensure_eq, to_json_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, Uint128, WasmMsg
 };
 use cw_utils::one_coin;
 
 use crate::{
+    config::MAX_PROPOSAL_TTL,
     entry::query::calculate_penalty,
     error::ContractError,
     state::{
-        ALLOWED_USERS, CONFIG, LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD_CONFIG,
-        REWARD_WEIGHTS, TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED,
+        ALLOWED_USERS, CONFIG, LAST_CLAIM_TIME, OWNER, OWNERSHIP_PROPOSAL,
+        PENDING_ECLIPASTRO_REWARDS, REWARD_CONFIG, REWARD_WEIGHTS, TOTAL_STAKING,
+        TOTAL_STAKING_BY_DURATION, USER_STAKED,
     },
 };
 
 use equinox_msg::{
     single_sided_staking::{
-        CallbackMsg, RestakeData, RewardDetails, RewardWeights, UpdateConfigMsg, UserReward,
-        UserStaked,
+        CallbackMsg, OwnershipProposal, RestakeData, RewardDetails, RewardWeights, UpdateConfigMsg,
+        UserReward, UserStaked,
     },
     utils::has_unique_elements,
     voter::msg::ExecuteMsg as VoterExecuteMsg,
@@ -140,21 +141,72 @@ pub fn block_users(
     Ok(Response::new().add_attribute("action", "update allowed users"))
 }
 
-/// Update owner
-/// Only owner
-pub fn update_owner(
-    mut deps: DepsMut,
-    _env: Env,
+pub fn propose_new_owner(
+    deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     new_owner: String,
+    expires_in: u64,
 ) -> Result<Response, ContractError> {
-    // only owner can update owner
+    // only owner can propose new owner
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let new_owner_addr = deps.api.addr_validate(&new_owner)?;
-    OWNER.set(deps.branch(), Some(new_owner_addr))?;
-    Ok(Response::new()
-        .add_attribute("action", "update owner")
-        .add_attribute("to", new_owner))
+
+    // Check that the new owner is not the same as the current one
+    ensure_eq!(OWNER.is_admin(deps.as_ref(), &new_owner_addr).unwrap(), false, ContractError::SameOwner {});
+
+    if MAX_PROPOSAL_TTL < expires_in {
+        return Err(ContractError::ExpiresInErr(MAX_PROPOSAL_TTL));
+    }
+
+    let new_proposal = OwnershipProposal {
+        owner: new_owner_addr,
+        ttl: env.block.time.seconds() + expires_in,
+    };
+
+    OWNERSHIP_PROPOSAL.save(deps.storage, &new_proposal)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "propose_new_owner"),
+        attr("new_owner", new_owner),
+    ]))
+}
+
+pub fn drop_ownership_proposal(
+    deps: DepsMut,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    // only owner can drop ownership proposal
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+
+    OWNERSHIP_PROPOSAL.remove(deps.storage);
+
+    Ok(Response::new().add_attributes(vec![attr("action", "drop_ownership_proposal")]))
+}
+
+pub fn claim_ownership(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    // only owner can drop ownership proposal
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+
+    let proposal = OWNERSHIP_PROPOSAL.load(deps.storage)?;
+
+    ensure!(
+        env.block.time.seconds() > proposal.ttl,
+        ContractError::OwnershipProposalExpired {}
+    );
+
+    OWNER.set(deps.branch(), Some(proposal.owner.clone()))?;
+
+    OWNERSHIP_PROPOSAL.remove(deps.storage);
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "claim_ownership"),
+        attr("new_owner", proposal.owner),
+    ]))
 }
 
 pub fn _handle_callback(

@@ -2,7 +2,7 @@ use cosmwasm_std::Uint128;
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
 
-use equinox_msg::single_sided_staking::{Config, RewardConfig, RewardWeights, UserStaked};
+use equinox_msg::single_sided_staking::{Config, OwnershipProposal, RewardConfig, RewardWeights, UserStaked};
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = "single sided staking contract";
@@ -21,3 +21,5 @@ pub const LAST_CLAIM_TIME: Item<u64> = Item::new("last_claim_time");
 pub const REWARD_WEIGHTS: Item<RewardWeights> = Item::new("reward_weights");
 pub const PENDING_ECLIPASTRO_REWARDS: Map<u64, Uint128> = Map::new("pending_eclipastro_rewards");
 pub const REWARD_CONFIG: Item<RewardConfig> = Item::new("reward_config");
+/// Stores the latest contract ownership transfer proposal
+pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

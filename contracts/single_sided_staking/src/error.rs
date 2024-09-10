@@ -26,11 +26,14 @@ pub enum ContractError {
     #[error("Amount {got} exceeds your staking {expected}")]
     ExeedingUnstakeAmount { got: u128, expected: u128 },
 
-    #[error("Can't extend from duration {0} to duration {1}")]
+    #[error("Can't extend from duration {0} to duration {0}")]
     ExtendDurationErr(u64, u64),
 
     #[error("Exceed locked amount")]
     ExceedAmount {},
+
+    #[error("Parameter expires_in cannot be higher than {0}")]
+    ExpiresInErr(u64),
 
     #[error("Invalid asset")]
     InvalidAsset {},
@@ -50,8 +53,14 @@ pub enum ContractError {
     #[error("Not allowed address: {0}")]
     NotAllowed(String),
 
+    #[error("Ownership proposal expired")]
+    OwnershipProposalExpired {},
+
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
+
+    #[error("New owner cannot be same")]
+    SameOwner {},
 
     #[error("Semver parsing error: {0}")]
     SemVer(String),
