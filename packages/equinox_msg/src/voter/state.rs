@@ -86,6 +86,16 @@ pub const TEMPORARY_REWARDS: Item<Uint128> = Item::new("temporary_rewards");
 /// current epoch id and start date
 pub const EPOCH_COUNTER: Item<EpochInfo> = Item::new("epoch_counter");
 /// route by 1st denom_in, last denom_out is ECLIP
+// possible options for mainnet:
+// [TOKEN-ECLIP]
+// [TOKEN-ATOM, ATOM-ECLIP]
+// [TOKEN-NTRN, NTRN-ATOM, ATOM-ECLIP]
+// [TOKEN-USDC, USDC-NTRN, NTRN-ATOM, ATOM-ECLIP]
+// [TOKEN-axlUSDC, axlUSDC-NTRN, NTRN-ATOM, ATOM-ECLIP]
+// [TOKEN-ASTRO, ASTRO-USDC, USDC-NTRN, NTRN-ATOM, ATOM-ECLIP]
+// [TOKEN-AXL, AXL-NTRN, NTRN-ATOM, ATOM-ECLIP]
+// [TOKEN-wstETH, wstETH-NTRN, NTRN-ATOM, ATOM-ECLIP]
+// [TOKEN-TIA, TIA-NTRN, NTRN-ATOM, ATOM-ECLIP]
 pub const ROUTE_CONFIG: Map<&str, Vec<RouteItem>> = Map::new("route_config");
 
 /// eclipASTRO convert info

@@ -23,13 +23,14 @@ use equinox_msg::voter::{
         TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
     },
     types::{
-        AddressConfig, AstroStakingRewardConfig, DateConfig, EssenceInfo, PoolInfoItem,
-        RewardsClaimStage, RouteListItem, TokenConfig, TransferAdminState, UserType, VoteResults,
-        WeightAllocationItem,
+        AddressConfig, AstroStakingRewardConfig, ConvertInfo, DateConfig, EssenceInfo,
+        PoolInfoItem, RewardsClaimStage, RouteListItem, TokenConfig, TransferAdminState, UserType,
+        VoteResults, WeightAllocationItem,
     },
 };
 
 use crate::{
+    entry::query::query_voter_xastro,
     error::ContractError,
     helpers::{
         check_pause_state, check_rewards_claim_stage, get_accumulated_rewards,
@@ -1265,4 +1266,68 @@ pub fn try_update_route_list(
     }
 
     Ok(Response::new().add_attribute("action", "try_rewrite_route_list"))
+}
+
+pub fn try_unlock_xastro(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    amount: Uint128,
+    recipient: Option<String>,
+) -> Result<Response, ContractError> {
+    check_pause_state(deps.storage)?;
+    // don't allow unlock xastro when votes are in emissions_controller
+    check_rewards_claim_stage(deps.storage)?;
+    let (sender_address, ..) = check_funds(deps.as_ref(), &info, FundsType::Empty)?;
+    let AddressConfig {
+        astroport_voting_escrow,
+        worker_list,
+        ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
+    let TokenConfig { xastro, .. } = TOKEN_CONFIG.load(deps.storage)?;
+
+    if !worker_list.contains(&sender_address) {
+        Err(ContractError::Unauthorized)?;
+    }
+
+    if amount.is_zero() {
+        Err(ContractError::ZeroAmount)?;
+    }
+
+    let max_xastro_amount = query_voter_xastro(deps.as_ref(), env)?;
+    if amount > max_xastro_amount {
+        Err(ContractError::ExceededMaxAmount)?;
+    }
+
+    let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps.as_ref())?;
+    let astro_amount = calc_eclip_astro_for_xastro(amount, astro_supply, xastro_supply);
+    TOTAL_CONVERT_INFO.update(deps.storage, |mut x| -> StdResult<ConvertInfo> {
+        x.total_xastro -= amount;
+        x.total_astro_deposited -= astro_amount;
+        Ok(x)
+    })?;
+
+    let msg_list = vec![
+        // unlock part of xAstro instantly
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: astroport_voting_escrow.to_string(),
+            msg: to_json_binary(
+                &astroport_governance::voting_escrow::ExecuteMsg::InstantUnlock { amount },
+            )?,
+            funds: vec![],
+        }),
+        // send xAstro to recipient
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: recipient
+                .map(|x| deps.api.addr_validate(&x))
+                .transpose()?
+                .unwrap_or(sender_address)
+                .to_string(),
+            amount: coins(amount.u128(), xastro),
+        }),
+    ];
+
+    Ok(Response::new()
+        .add_messages(msg_list)
+        .add_attribute("action", "try_unlock_xastro"))
 }

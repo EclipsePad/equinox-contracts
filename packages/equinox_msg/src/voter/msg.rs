@@ -166,6 +166,11 @@ pub enum ExecuteMsg {
     UpdateRouteList {
         route_list: Vec<RouteListItem>,
     },
+
+    UnlockXastro {
+        amount: Uint128,
+        recipient: Option<String>,
+    },
 }
 
 #[cw_serde]
@@ -193,6 +198,10 @@ pub enum QueryMsg {
     /// query vxASTRO based voting power
     #[returns(Uint128)]
     VotingPower { address: String },
+
+    /// voter xASTRO amount locked in voting escrow
+    #[returns(Uint128)]
+    VoterXastro {},
 
     /// query xASTRO/ASTRO ratio
     #[returns(Decimal)]

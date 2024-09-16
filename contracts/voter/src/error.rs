@@ -96,6 +96,9 @@ pub enum ContractError {
     #[error("Zero amount")]
     ZeroAmount,
 
+    #[error("Max amount is exceeded")]
+    ExceededMaxAmount,
+
     #[error("Empty voting list!")]
     EmptyVotingList,
 

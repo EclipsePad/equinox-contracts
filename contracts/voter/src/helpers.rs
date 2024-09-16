@@ -66,7 +66,7 @@ pub fn verify_weight_allocation(
         Err(ContractError::WeightsAreUnbalanced)?;
     }
 
-    // TODO
+    // TODO: change logic if 50 pools will not be enough
     // 5) whitelist
     let whitelisted_pools: Vec<String> = deps.querier.query_wasm_smart(
         ADDRESS_CONFIG

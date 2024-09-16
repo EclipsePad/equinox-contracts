@@ -53,6 +53,27 @@ pub fn query_rewards(deps: Deps, env: Env) -> StdResult<Vec<(Uint128, String)>> 
     Ok(calc_merged_rewards(&astroport_rewards, &eclipsepad_rewards))
 }
 
+pub fn query_voter_xastro(deps: Deps, env: Env) -> StdResult<Uint128> {
+    // let voter = env.contract.address;
+    // let AddressConfig {
+    //     astroport_voting_escrow,
+    //     ..
+    // } = ADDRESS_CONFIG.load(deps.storage)?;
+
+    // let astroport_governance::voting_escrow::LockInfoResponse { amount, .. } =
+    //     deps.querier.query_wasm_smart(
+    //         &astroport_voting_escrow,
+    //         &astroport_governance::voting_escrow::QueryMsg::LockInfo {
+    //             user: voter.to_string(),
+    //         },
+    //     )?;
+
+    let total_convert_info = TOTAL_CONVERT_INFO.load(deps.storage).unwrap_or_default();
+    let amount = total_convert_info.total_xastro;
+
+    Ok(amount)
+}
+
 pub fn query_xastro_price(deps: Deps, _env: Env) -> StdResult<Decimal> {
     let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps)?;
     Ok(calc_xastro_price(astro_supply, xastro_supply))
