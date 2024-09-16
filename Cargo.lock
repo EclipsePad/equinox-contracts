@@ -45,10 +45,10 @@ checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
 
 [[package]]
 name = "astro-assembly"
-version = "3.0.0-rc.1"
+version = "3.0.0"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
- "astroport-governance 4.0.0-rc.1",
+ "astroport-governance 4.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -172,10 +172,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-emissions-controller"
-version = "1.0.0-rc.1"
+version = "1.0.1"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
- "astroport-governance 4.0.0-rc.1",
+ "astroport-governance 4.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -189,10 +189,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-emissions-controller-outpost"
-version = "1.0.0-rc.1"
+version = "1.0.0"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
- "astroport-governance 4.0.0-rc.1",
+ "astroport-governance 4.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -245,7 +245,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-governance"
-version = "4.0.0-rc.1"
+version = "4.1.0"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
  "cosmwasm-schema",
@@ -368,10 +368,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-voting-escrow"
-version = "1.0.0-rc.1"
+version = "1.1.0"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
- "astroport-governance 4.0.0-rc.1",
+ "astroport-governance 4.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -1313,7 +1313,7 @@ name = "equinox-msg"
 version = "0.1.2"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
- "astroport-governance 4.0.0-rc.1",
+ "astroport-governance 4.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -2021,7 +2021,7 @@ dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
  "astroport-emissions-controller",
  "astroport-factory",
- "astroport-governance 4.0.0-rc.1",
+ "astroport-governance 4.1.0",
  "astroport-incentives",
  "astroport-pair",
  "astroport-pair-stable",
@@ -3551,7 +3551,7 @@ dependencies = [
 name = "tribute-market-mocks"
 version = "1.0.0"
 dependencies = [
- "astroport-governance 4.0.0-rc.1",
+ "astroport-governance 4.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -3654,7 +3654,7 @@ name = "voter"
 version = "0.1.2"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
- "astroport-governance 4.0.0-rc.1",
+ "astroport-governance 4.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-controllers",
@@ -3673,7 +3673,7 @@ name = "voter-mocks"
 version = "0.1.2"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
- "astroport-governance 4.0.0-rc.1",
+ "astroport-governance 4.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-controllers",
