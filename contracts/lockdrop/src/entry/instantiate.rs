@@ -93,6 +93,7 @@ pub fn try_instantiate(
         eclip: AssetInfo::NativeToken { denom: msg.eclip },
         eclipastro_token: None,
         voter: None,
+        eclip_staking: None,
         single_sided_staking: None,
         lp_staking: None,
         liquidity_pool: None,

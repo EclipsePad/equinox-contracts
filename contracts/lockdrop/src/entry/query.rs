@@ -742,7 +742,7 @@ pub fn query_user_single_rewards(
     from: u64,
 ) -> StdResult<UserReward> {
     let cfg = CONFIG.load(deps.storage)?;
-    Ok(deps.querier.query_wasm_smart(
+    deps.querier.query_wasm_smart(
         cfg.single_sided_staking.unwrap(),
         &SingleSidedQueryMsg::CalculateReward {
             amount,
@@ -751,5 +751,5 @@ pub fn query_user_single_rewards(
             from,
             to: None,
         },
-    )?)
+    )
 }

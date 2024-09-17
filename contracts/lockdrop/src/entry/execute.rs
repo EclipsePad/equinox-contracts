@@ -4,12 +4,13 @@ use astroport::{
     staking::ExecuteMsg as AstroStakingExecuteMsg,
 };
 use cosmwasm_std::{
-    attr, coin, ensure, ensure_eq, from_json, to_json_binary, Addr, BankMsg, Coin, CosmosMsg,
-    DepsMut, Env, MessageInfo, Order, QuerierWrapper, Response, StdError, StdResult, Uint128,
-    Uint256, WasmMsg,
+    attr, coin, coins, ensure, ensure_eq, from_json, to_json_binary, Addr, BankMsg, Coin,
+    CosmosMsg, DepsMut, Env, MessageInfo, Order, QuerierWrapper, Response, StdError, StdResult,
+    Uint128, Uint256, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
+use eclipse_base::staking::msg::ExecuteMsg as EclipStakingExecuteMsg;
 use equinox_msg::{
     lockdrop::{
         CallbackMsg, Cw20HookMsg, IncentiveRewards, RewardDistributionConfig, StakeType,
@@ -83,6 +84,11 @@ pub fn try_update_config(
     if let Some(voter) = new_cfg.voter {
         cfg.voter = Some(deps.api.addr_validate(&voter)?);
         attributes.push(attr("new_voter", &voter));
+    };
+
+    if let Some(eclip_staking) = new_cfg.eclip_staking {
+        cfg.eclip_staking = Some(deps.api.addr_validate(&eclip_staking)?);
+        attributes.push(attr("new_eclip_staking", &eclip_staking));
     };
 
     if let Some(dao_treasury_address) = new_cfg.dao_treasury_address {
@@ -1353,11 +1359,13 @@ pub fn _claim_single_sided_rewards(
     }
 
     if !rewards.beclip.is_zero() {
-        msgs.push(
-            cfg.beclip
-                .with_balance(rewards.beclip)
-                .into_msg(sender.clone())?,
-        );
+        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.eclip_staking.unwrap().to_string(),
+            msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
+                address_and_amount_list: vec![(sender.clone(), rewards.beclip)],
+            })?,
+            funds: coins(rewards.beclip.u128(), cfg.eclip.to_string()),
+        }));
     }
 
     if !rewards.eclip.is_zero() {
@@ -1472,11 +1480,13 @@ pub fn _claim_lp_rewards(
         }));
     }
     if !beclip_rewards.is_zero() {
-        msgs.push(
-            cfg.beclip
-                .with_balance(beclip_rewards)
-                .into_msg(sender.clone())?,
-        );
+        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.eclip_staking.unwrap().to_string(),
+            msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
+                address_and_amount_list: vec![(sender.clone(), beclip_rewards)],
+            })?,
+            funds: coins(beclip_rewards.u128(), cfg.eclip.to_string()),
+        }));
     }
 
     if !eclip_rewards.is_zero() {
@@ -1572,11 +1582,13 @@ pub fn _claim_all_single_sided_rewards(
         );
     }
     if !beclip_rewards.is_zero() {
-        msgs.push(
-            cfg.beclip
-                .with_balance(beclip_rewards)
-                .into_msg(sender.clone())?,
-        );
+        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.eclip_staking.unwrap().to_string(),
+            msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
+                address_and_amount_list: vec![(sender.clone(), beclip_rewards)],
+            })?,
+            funds: coins(beclip_rewards.u128(), cfg.eclip.to_string()),
+        }));
     }
     if !eclip_rewards.is_zero() {
         msgs.push(cfg.eclip.with_balance(eclip_rewards).into_msg(sender)?);
@@ -1708,11 +1720,13 @@ pub fn _claim_all_lp_rewards(
         }));
     }
     if !beclip_rewards.is_zero() {
-        msgs.push(
-            cfg.beclip
-                .with_balance(beclip_rewards)
-                .into_msg(sender.clone())?,
-        );
+        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.eclip_staking.unwrap().to_string(),
+            msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
+                address_and_amount_list: vec![(sender.clone(), beclip_rewards)],
+            })?,
+            funds: coins(beclip_rewards.u128(), cfg.eclip.to_string()),
+        }));
     }
     if !eclip_rewards.is_zero() {
         msgs.push(cfg.eclip.with_balance(eclip_rewards).into_msg(sender)?);

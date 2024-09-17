@@ -184,6 +184,8 @@ pub struct Config {
     pub eclipastro_token: Option<AssetInfo>,
     /// ASTRO/eclipASTRO converter contract address
     pub voter: Option<Addr>,
+    /// ECLIP staking
+    pub eclip_staking: Option<Addr>,
     /// eclipASTRO single sided staking pool address
     pub single_sided_staking: Option<Addr>,
     /// eclipASTRO/xASTRO lp staking pool address
@@ -214,6 +216,7 @@ pub struct UpdateConfigMsg {
     pub liquidity_pool: Option<String>,
     pub eclipastro_token: Option<String>,
     pub voter: Option<String>,
+    pub eclip_staking: Option<String>,
     pub dao_treasury_address: Option<String>,
 }
 

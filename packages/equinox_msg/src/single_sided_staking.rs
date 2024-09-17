@@ -9,6 +9,8 @@ pub struct InstantiateMsg {
     pub token: String,
     /// ECLIP token
     pub eclip: String,
+    /// ECLIP staking
+    pub eclip_staking: String,
     /// bECLIP token
     pub beclip: String,
     /// timelock config
@@ -164,6 +166,7 @@ pub struct Config {
     /// ASTRO/eclipASTRO converter contract
     pub voter: Addr,
     pub treasury: Addr,
+    pub eclip_staking: Addr,
 }
 
 #[cw_serde]

@@ -4,6 +4,7 @@ use cosmwasm_std::{
     Env, MessageInfo, Response, Storage, Uint128, WasmMsg,
 };
 use cw_utils::one_coin;
+use eclipse_base::staking::msg::ExecuteMsg as EclipStakingExecuteMsg;
 
 use crate::{
     config::{MAX_PROPOSAL_TTL, ONE_DAY},
@@ -586,14 +587,16 @@ pub fn _claim(
     }
 
     if !rewards.beclip.is_zero() {
-        msgs.push(
-            reward_config
-                .details
-                .beclip
-                .info
-                .with_balance(rewards.beclip)
-                .into_msg(sender.clone())?,
-        );
+        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.eclip_staking.to_string(),
+            msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
+                address_and_amount_list: vec![(sender.clone(), rewards.beclip)],
+            })?,
+            funds: coins(
+                rewards.beclip.u128(),
+                reward_config.details.eclip.info.to_string(),
+            ),
+        }));
         response = response
             .add_attribute("action", "claim user beclip reward")
             .add_attribute("amount", rewards.beclip.to_string());

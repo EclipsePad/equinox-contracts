@@ -4,10 +4,11 @@ use astroport::{
     staking::ExecuteMsg as StakingExecuteMsg,
 };
 use cosmwasm_std::{
-    attr, coin, ensure, ensure_eq, to_json_binary, BankMsg, CosmosMsg, Decimal256, DepsMut, Env,
+    attr, coin, coins, ensure, ensure_eq, to_json_binary, CosmosMsg, Decimal256, DepsMut, Env,
     MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw_utils::one_coin;
+use eclipse_base::staking::msg::ExecuteMsg as EclipStakingExecuteMsg;
 use equinox_msg::{
     lp_staking::{
         CallbackMsg, OwnershipProposal, RewardDetails, RewardDistribution, RewardWeight,
@@ -296,7 +297,6 @@ pub fn _claim(
             sender.clone(),
             updated_reward_weights.clone(),
         )?;
-        let mut coins = vec![];
         let mut updated_user_reward_weights = vec![];
         for r in user_rewards {
             let claimable = assets.clone().is_none()
@@ -304,7 +304,20 @@ pub fn _claim(
                     && assets.clone().unwrap().iter().any(|a| a.equal(&r.info)));
             if !r.amount.is_zero() && claimable {
                 if r.info.is_native_token() {
-                    coins.push(coin(r.amount.u128(), r.info.to_string()));
+                    if r.info.equal(&reward_config.details.beclip.info) {
+                        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                            contract_addr: cfg.eclip_staking.to_string(),
+                            msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
+                                address_and_amount_list: vec![(sender.clone(), r.amount)],
+                            })?,
+                            funds: coins(
+                                r.amount.u128(),
+                                reward_config.details.eclip.info.to_string(),
+                            ),
+                        }));
+                    } else {
+                        msgs.push(r.info.with_balance(r.amount).into_msg(sender.clone())?);
+                    }
                     response = response
                         .add_attribute("action", "claim")
                         .add_attribute("denom", r.info.to_string())
@@ -338,12 +351,6 @@ pub fn _claim(
             }
         }
         user_staking.reward_weights = updated_user_reward_weights;
-        if !coins.is_empty() {
-            msgs.push(CosmosMsg::Bank(BankMsg::Send {
-                to_address: sender.clone(),
-                amount: coins,
-            }));
-        }
     } else {
         user_staking
             .reward_weights

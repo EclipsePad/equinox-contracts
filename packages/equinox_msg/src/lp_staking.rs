@@ -20,6 +20,8 @@ pub struct InstantiateMsg {
     pub beclip: String,
     /// astro staking contract
     pub astro_staking: String,
+    /// ECLIP staking
+    pub eclip_staking: String,
     /// Astroport incentives
     pub astroport_incentives: String,
     /// Eclipse treasury. send 67.5% of 20% of incentives rewards
@@ -141,6 +143,8 @@ pub struct Config {
     pub xastro: String,
     /// ASTRO staking contract
     pub astro_staking: Addr,
+    /// ECLIP staking
+    pub eclip_staking: Addr,
     /// Astroport incentives
     pub astroport_incentives: Addr,
     pub treasury: Addr,
