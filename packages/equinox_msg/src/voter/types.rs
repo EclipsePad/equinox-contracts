@@ -14,9 +14,9 @@ pub enum UserType {
 
 #[cw_serde]
 pub enum RewardsClaimStage {
+    Swapped,
     Unclaimed,
     Claimed,
-    Swapped,
 }
 
 impl Default for RewardsClaimStage {

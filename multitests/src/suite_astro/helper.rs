@@ -471,6 +471,21 @@ impl ControllerHelper {
         )
     }
 
+    pub fn set_priveleged_list(
+        &mut self,
+        user: &Addr,
+        list: &[impl ToString],
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.vxastro.clone(),
+            &voting_escrow::ExecuteMsg::SetPrivilegedList {
+                list: list.iter().map(|x| x.to_string()).collect(),
+            },
+            &[],
+        )
+    }
+
     pub fn timetravel(&mut self, time: u64) {
         self.app.update_block(|block| {
             block.time = block.time.plus_seconds(time);

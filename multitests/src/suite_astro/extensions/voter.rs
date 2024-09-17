@@ -126,6 +126,13 @@ pub trait VoterExtension {
         route_list: &[RouteListItem],
     ) -> StdResult<AppResponse>;
 
+    fn voter_try_unlock_xastro(
+        &mut self,
+        sender: impl ToString,
+        amount: u128,
+        recipient: &Option<Addr>,
+    ) -> StdResult<AppResponse>;
+
     fn voter_try_push(&mut self) -> StdResult<AppResponse>;
 
     fn voter_try_claim_rewards(&mut self, sender: impl ToString) -> StdResult<AppResponse>;
@@ -141,6 +148,8 @@ pub trait VoterExtension {
     fn voter_query_bribes_allocation(&self) -> StdResult<Vec<BribesAllocationItem>>;
 
     fn voter_query_voting_power(&self, address: impl ToString) -> StdResult<Uint128>;
+
+    fn voter_query_voter_xastro(&self) -> StdResult<Uint128>;
 
     fn voter_query_xastro_price(&self) -> StdResult<Decimal>;
 
@@ -476,6 +485,25 @@ impl VoterExtension for ControllerHelper {
             .map_err(parse_err)
     }
 
+    fn voter_try_unlock_xastro(
+        &mut self,
+        sender: impl ToString,
+        amount: u128,
+        recipient: &Option<Addr>,
+    ) -> StdResult<AppResponse> {
+        self.app
+            .execute_contract(
+                Addr::unchecked(sender.to_string()),
+                self.voter_contract_address(),
+                &ExecuteMsg::UnlockXastro {
+                    amount: Uint128::new(amount),
+                    recipient: recipient.as_ref().map(|x| x.to_string()),
+                },
+                &[],
+            )
+            .map_err(parse_err)
+    }
+
     fn voter_try_push(&mut self) -> StdResult<AppResponse> {
         self.app
             .wasm_sudo(self.voter_contract_address(), &SudoMsg::Push {})
@@ -531,6 +559,12 @@ impl VoterExtension for ControllerHelper {
                 address: address.to_string(),
             },
         )
+    }
+
+    fn voter_query_voter_xastro(&self) -> StdResult<Uint128> {
+        self.app
+            .wrap()
+            .query_wasm_smart(self.voter_contract_address(), &QueryMsg::VoterXastro {})
     }
 
     fn voter_query_xastro_price(&self) -> StdResult<Decimal> {

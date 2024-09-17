@@ -128,6 +128,10 @@ pub fn execute(
         ExecuteMsg::UpdateRouteList { route_list } => {
             e::try_update_route_list(deps, env, info, route_list)
         }
+
+        ExecuteMsg::UnlockXastro { amount, recipient } => {
+            e::try_unlock_xastro(deps, env, info, amount, recipient)
+        }
     }
 }
 
@@ -148,6 +152,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::VotingPower { address } => {
             to_json_binary(&q::query_voting_power(deps, env, address)?)
         }
+
+        QueryMsg::VoterXastro {} => to_json_binary(&q::query_voter_xastro(deps, env)?),
 
         QueryMsg::XastroPrice {} => to_json_binary(&q::query_xastro_price(deps, env)?),
 

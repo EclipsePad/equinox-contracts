@@ -4332,3 +4332,109 @@ fn multiple_roles_rewards_and_slacker_delegator_and_elector_delegator_conversion
 
     Ok(())
 }
+
+#[test]
+fn instant_xastro_unlock() -> StdResult<()> {
+    let mut h = prepare_helper();
+    let ControllerHelper { xastro, .. } = &ControllerHelper::new();
+
+    let eclip_atom = &h.pool(Pool::EclipAtom);
+    let ntrn_atom = &h.pool(Pool::NtrnAtom);
+    let astro_atom = &h.pool(Pool::AstroAtom);
+
+    let owner = &h.acc(Acc::Owner);
+    let dao = &h.acc(Acc::Dao);
+    let alice = &h.acc(Acc::Alice);
+    let bob = &h.acc(Acc::Bob);
+    let john = &h.acc(Acc::John);
+    let ruby = &h.acc(Acc::Ruby);
+
+    let weights_alice = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.2"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.5"),
+    ];
+    let weights_dao = &vec![
+        WeightAllocationItem::new(eclip_atom, "0.5"),
+        WeightAllocationItem::new(ntrn_atom, "0.3"),
+        WeightAllocationItem::new(astro_atom, "0.2"),
+    ];
+
+    // stake and lock
+    for (user, amount) in [(alice, 1_000), (bob, 2_000), (john, 3_000)] {
+        h.eclipsepad_staking_try_stake(user, amount, Denom::Eclip)?;
+        h.eclipsepad_staking_try_lock(user, amount, 4)?;
+    }
+
+    // place votes
+    h.voter_try_place_vote(alice, weights_alice)?;
+    h.voter_try_set_delegation(bob, "1")?;
+    h.voter_try_place_vote_as_dao(dao, weights_dao)?;
+
+    // check voting power
+    let voter_xastro = h.voter_query_voter_xastro()?;
+    let voting_power = h.voter_query_voting_power(h.voter_contract_address())?;
+
+    assert_that(&voter_xastro.u128()).is_equal_to(100_000_000);
+    assert_that(&voting_power.u128()).is_equal_to(100_000_000);
+
+    // try unlock xastro
+    let res = h
+        .voter_try_unlock_xastro(ruby, 10_000_000, &None)
+        .unwrap_err();
+    assert_error(&res, ContractError::Unauthorized);
+
+    // update wl
+    h.voter_try_update_address_config(
+        owner,
+        None::<Addr>,
+        Some(vec![ruby]),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )?;
+    h.set_priveleged_list(owner, &[h.voter_contract_address()])
+        .map_err(parse_err)?;
+
+    let res = h.voter_try_unlock_xastro(ruby, 0, &None).unwrap_err();
+    assert_error(&res, ContractError::ZeroAmount);
+
+    let res = h
+        .voter_try_unlock_xastro(ruby, 200_000_000, &None)
+        .unwrap_err();
+    assert_error(&res, ContractError::ExceededMaxAmount);
+
+    let ruby_xastro_before = h.query_balance(ruby, xastro);
+    h.voter_try_unlock_xastro(ruby, 10_000_000, &None)?;
+    let ruby_xastro_after = h.query_balance(ruby, xastro);
+    assert_that(&(ruby_xastro_after - ruby_xastro_before)).is_equal_to(10_000_000);
+
+    // check voting power
+    let voter_xastro = h.voter_query_voter_xastro()?;
+    let voting_power = h.voter_query_voting_power(h.voter_contract_address())?;
+
+    assert_that(&voter_xastro.u128()).is_equal_to(90_000_000);
+    assert_that(&voting_power.u128()).is_equal_to(90_000_000);
+
+    // final voting
+    h.wait(h.voter_query_date_config()?.vote_delay);
+    // vote
+    h.voter_try_push()?;
+
+    // try unlock xastro
+    let res = h
+        .voter_try_unlock_xastro(ruby, 10_000_000, &None)
+        .unwrap_err();
+    assert_error(&res, ContractError::AwaitSwappedStage);
+
+    Ok(())
+}
