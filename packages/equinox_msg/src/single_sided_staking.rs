@@ -1,6 +1,6 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, Uint128, WasmMsg};
+use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Env, StdResult, Uint128, WasmMsg};
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
@@ -90,13 +90,26 @@ pub enum QueryMsg {
     TotalStaking {},
     /// query total_staking_by_duration
     #[returns(Vec<StakingWithDuration>)]
-    TotalStakingByDuration {},
+    TotalStakingByDuration { timestamp: Option<u64> },
     /// query user_staking
     #[returns(Vec<UserStaking>)]
     Staking { user: String },
     /// query pending_rewards
-    #[returns(Vec<UserRewardByDuration>)]
-    Reward { user: String },
+    #[returns(UserReward)]
+    Reward {
+        user: String,
+        duration: u64,
+        locked_at: u64,
+    },
+    /// query calculate reward
+    #[returns(UserReward)]
+    CalculateReward {
+        amount: Uint128,
+        duration: u64,
+        locked_at: Option<u64>,
+        from: u64,
+        to: Option<u64>,
+    },
     /// query calculating penalty
     #[returns(Uint128)]
     CalculatePenalty {
@@ -156,7 +169,7 @@ pub struct Config {
 #[cw_serde]
 pub struct RewardConfig {
     pub details: RewardDetails,
-    pub reward_end_time: u64,
+    pub reward_end_time: Option<u64>,
 }
 
 #[cw_serde]
@@ -183,38 +196,6 @@ pub struct TimeLockConfig {
     pub early_unlock_penalty_bps: u64,
     pub reward_multiplier: u64,
 }
-
-#[cw_serde]
-pub struct RewardWeights {
-    pub eclipastro: Decimal256,
-    pub beclip: Decimal256,
-    pub eclip: Decimal256,
-}
-
-impl Default for RewardWeights {
-    fn default() -> Self {
-        RewardWeights {
-            eclip: Decimal256::zero(),
-            eclipastro: Decimal256::zero(),
-            beclip: Decimal256::zero(),
-        }
-    }
-}
-#[cw_serde]
-pub struct UserStaked {
-    pub staked: Uint128,
-    pub reward_weights: RewardWeights,
-}
-
-impl Default for UserStaked {
-    fn default() -> Self {
-        UserStaked {
-            staked: Uint128::zero(),
-            reward_weights: RewardWeights::default(),
-        }
-    }
-}
-
 #[cw_serde]
 #[derive(Default)]
 pub struct UserReward {
@@ -259,7 +240,8 @@ pub struct RestakeData {
 
 #[cw_serde]
 pub struct StakingWithDuration {
-    pub amount: Uint128,
+    pub staked: Uint128,
+    pub valid_staked: Uint128,
     pub duration: u64,
 }
 

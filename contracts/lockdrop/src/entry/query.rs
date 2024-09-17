@@ -12,12 +12,11 @@ use equinox_msg::{
         Config, DetailedLpLockupInfo, DetailedSingleLockupInfo, IncentiveAmounts,
         LockdropIncentive, LockdropIncentives, LpLockupInfoResponse, LpLockupStateResponse,
         LpStakingRewardWeights, LpStakingRewards, LpUserLockupInfo, RewardDistributionConfig,
-        SingleLockupInfoResponse, SingleLockupStateResponse, SingleStakingRewardWeights,
-        SingleStakingRewards, SingleStakingRewardsByDuration, SingleUserLockupInfo, StakeType,
-        UserLpLockupInfoResponse, UserSingleLockupInfoResponse,
+        SingleLockupInfoResponse, SingleLockupStateResponse, SingleStakingRewardsByDuration,
+        StakeType, UserLpLockupInfoResponse, UserSingleLockupInfoResponse,
     },
     lp_staking::{QueryMsg as LpStakingQueryMsg, RewardAmount},
-    single_sided_staking::{QueryMsg as SingleSidedQueryMsg, UserRewardByDuration},
+    single_sided_staking::{QueryMsg as SingleSidedQueryMsg, UserReward},
 };
 
 use crate::{
@@ -52,12 +51,31 @@ pub fn query_reward_config(deps: Deps, _env: Env) -> StdResult<RewardDistributio
 /// query eclipASTRO Lockdrop info
 pub fn query_single_lockup_info(deps: Deps, env: Env) -> StdResult<SingleLockupInfoResponse> {
     let cfg = CONFIG.load(deps.storage)?;
-    let single_staking_rewards =
-        calculate_single_sided_total_rewards(deps, env.contract.address.to_string())?;
+    let mut single_staking_rewards: Vec<SingleStakingRewardsByDuration> = vec![];
     let single_lockups = SINGLE_LOCKUP_INFO
         .range(deps.storage, None, None, Order::Ascending)
         .map(|r| {
             let (duration, lockup_info) = r.unwrap();
+            let locked_at = if duration == 0u64 {
+                0u64
+            } else {
+                cfg.countdown_start_at
+            };
+            let single_staking_reward: UserReward = deps
+                .querier
+                .query_wasm_smart(
+                    cfg.single_sided_staking.clone().unwrap(),
+                    &SingleSidedQueryMsg::Reward {
+                        user: env.contract.address.to_string(),
+                        duration,
+                        locked_at,
+                    },
+                )
+                .unwrap();
+            single_staking_rewards.push(SingleStakingRewardsByDuration {
+                duration,
+                rewards: single_staking_reward,
+            });
             let reward_weights = SINGLE_STAKING_REWARD_WEIGHTS
                 .load(deps.storage, duration)
                 .unwrap_or_default();
@@ -139,20 +157,34 @@ pub fn query_lp_lockup_state(deps: Deps, _env: Env) -> StdResult<LpLockupStateRe
 /// query eclipASTRO user lockup info
 pub fn query_user_single_lockup_info(
     deps: Deps,
-    env: Env,
+    _env: Env,
     user_address: String,
 ) -> StdResult<Vec<UserSingleLockupInfoResponse>> {
     let cfg = CONFIG.load(deps.storage)?;
     let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
 
     if cfg.claims_allowed {
-        let single_staking_rewards =
-            calculate_single_sided_total_rewards(deps, env.contract.address.to_string())?;
         Ok(SINGLE_USER_LOCKUP_INFO
             .prefix(&user_address)
             .range(deps.storage, None, None, Order::Ascending)
             .map(|r| {
                 let (duration, mut user_lockup_info) = r.unwrap();
+                let locked_at = if duration == 0u64 {
+                    0u64
+                } else {
+                    cfg.countdown_start_at
+                };
+                let single_staking_reward: UserReward = deps
+                    .querier
+                    .query_wasm_smart(
+                        cfg.single_sided_staking.clone().unwrap(),
+                        &SingleSidedQueryMsg::Reward {
+                            user: user_address.clone(),
+                            duration,
+                            locked_at,
+                        },
+                    )
+                    .unwrap();
                 if user_lockup_info.total_eclipastro_staked.is_zero() {
                     user_lockup_info.total_eclipastro_staked = user_lockup_info
                         .xastro_amount_in_lockups
@@ -165,27 +197,6 @@ pub fn query_user_single_lockup_info(
                     duration,
                 )
                 .unwrap();
-                let pending_lockdrop_incentives = calculate_pending_lockdrop_incentives(
-                    deps,
-                    env.block.time.seconds(),
-                    user_lockup_info.lockdrop_incentives.clone(),
-                )
-                .unwrap();
-                let updated_reward_weights = calculate_updated_single_staking_reward_weights(
-                    deps,
-                    single_staking_rewards
-                        .iter()
-                        .find(|r| r.duration == duration)
-                        .unwrap(),
-                )
-                .unwrap();
-                let user_rewards = calculate_single_staking_user_rewards(
-                    deps,
-                    updated_reward_weights,
-                    pending_lockdrop_incentives.clone(),
-                    user_lockup_info.clone(),
-                )
-                .unwrap();
                 UserSingleLockupInfoResponse {
                     duration,
                     xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
@@ -196,19 +207,21 @@ pub fn query_user_single_lockup_info(
                     staking_rewards: vec![
                         Asset {
                             info: cfg.eclipastro_token.clone().unwrap(),
-                            amount: user_rewards.eclipastro,
+                            amount: single_staking_reward.eclipastro
+                                + user_lockup_info.unclaimed_rewards.eclipastro,
                         },
                         Asset {
                             info: cfg.beclip.clone(),
-                            amount: user_rewards.beclip - pending_lockdrop_incentives.beclip,
+                            amount: single_staking_reward.beclip
+                                + user_lockup_info.unclaimed_rewards.beclip,
                         },
                         Asset {
                             info: cfg.eclip.clone(),
-                            amount: user_rewards.eclip - pending_lockdrop_incentives.eclip,
+                            amount: single_staking_reward.eclip
+                                + user_lockup_info.unclaimed_rewards.eclip,
                         },
                     ],
                     countdown_start_at: cfg.countdown_start_at,
-                    reward_weights: user_lockup_info.reward_weights,
                 }
             })
             .collect::<Vec<UserSingleLockupInfoResponse>>())
@@ -234,7 +247,6 @@ pub fn query_user_single_lockup_info(
                     lockdrop_incentives: user_lockup_info.lockdrop_incentives,
                     staking_rewards: vec![],
                     countdown_start_at: cfg.countdown_start_at,
-                    reward_weights: user_lockup_info.reward_weights,
                 }
             })
             .collect::<Vec<UserSingleLockupInfoResponse>>())
@@ -349,70 +361,6 @@ pub fn query_incentives(deps: Deps, stake_type: StakeType) -> StdResult<Incentiv
     Ok(LP_LOCKDROP_INCENTIVES
         .load(deps.storage)
         .unwrap_or_default())
-}
-
-pub fn calculate_single_sided_total_rewards(
-    deps: Deps,
-    user: String,
-) -> StdResult<Vec<SingleStakingRewardsByDuration>> {
-    let cfg = CONFIG.load(deps.storage)?;
-    if cfg.single_sided_staking.is_none() {
-        return Ok(vec![]);
-    }
-    let rewards: Vec<UserRewardByDuration> = deps.querier.query_wasm_smart(
-        cfg.single_sided_staking.unwrap().to_string(),
-        &SingleSidedQueryMsg::Reward { user },
-    )?;
-    let mut single_staking_rewards = vec![];
-    for reward_by_duration in rewards {
-        let duration = reward_by_duration.duration;
-        let mut eclipastro_reward = Uint128::zero();
-        let mut beclip_reward = Uint128::zero();
-        let mut eclip_reward = Uint128::zero();
-        for reward_by_locked_at in reward_by_duration.rewards {
-            eclipastro_reward += reward_by_locked_at.rewards.eclipastro;
-            beclip_reward += reward_by_locked_at.rewards.beclip;
-            eclip_reward += reward_by_locked_at.rewards.eclip;
-        }
-        single_staking_rewards.push(SingleStakingRewardsByDuration {
-            duration,
-            rewards: SingleStakingRewards {
-                eclipastro: eclipastro_reward,
-                beclip: beclip_reward,
-                eclip: eclip_reward,
-            },
-        })
-    }
-    Ok(single_staking_rewards)
-}
-
-pub fn calculate_updated_single_staking_reward_weights(
-    deps: Deps,
-    rewards_by_duration: &SingleStakingRewardsByDuration,
-) -> Result<SingleStakingRewardWeights, ContractError> {
-    let duration = rewards_by_duration.duration;
-    let mut reward_weights = SINGLE_STAKING_REWARD_WEIGHTS
-        .load(deps.storage, duration)
-        .unwrap_or_default();
-    let lockup_info = SINGLE_LOCKUP_INFO
-        .load(deps.storage, duration)
-        .unwrap_or_default();
-    if lockup_info.total_staked - lockup_info.total_withdrawed == Uint128::zero() {
-        return Ok(reward_weights);
-    }
-    reward_weights.eclipastro += Decimal256::from_ratio(
-        rewards_by_duration.rewards.eclipastro,
-        lockup_info.total_staked - lockup_info.total_withdrawed,
-    );
-    reward_weights.beclip += Decimal256::from_ratio(
-        rewards_by_duration.rewards.beclip,
-        lockup_info.total_staked - lockup_info.total_withdrawed,
-    );
-    reward_weights.eclip += Decimal256::from_ratio(
-        rewards_by_duration.rewards.eclip,
-        lockup_info.total_staked - lockup_info.total_withdrawed,
-    );
-    Ok(reward_weights)
 }
 
 pub fn calculate_pending_lockdrop_incentives(
@@ -640,54 +588,6 @@ pub fn get_user_lp_lockdrop_incentives(
     Ok(lockdrop_incentives)
 }
 
-pub fn calculate_single_staking_user_rewards(
-    _deps: Deps,
-    reward_weights: SingleStakingRewardWeights,
-    pending_lockdrop_incentives: IncentiveAmounts,
-    user_lockup_info: SingleUserLockupInfo,
-) -> StdResult<SingleStakingRewards> {
-    let eclipastro_reward: Uint128 = reward_weights
-        .eclipastro
-        .checked_sub(user_lockup_info.reward_weights.eclipastro)
-        .unwrap_or_default()
-        .checked_mul(Decimal256::from_ratio(
-            user_lockup_info.total_eclipastro_staked - user_lockup_info.total_eclipastro_withdrawed,
-            1u128,
-        ))
-        .unwrap()
-        .to_uint_floor()
-        .try_into()?;
-    let mut beclip_reward: Uint128 = reward_weights
-        .beclip
-        .checked_sub(user_lockup_info.reward_weights.beclip)
-        .unwrap_or_default()
-        .checked_mul(Decimal256::from_ratio(
-            user_lockup_info.total_eclipastro_staked - user_lockup_info.total_eclipastro_withdrawed,
-            1u128,
-        ))
-        .unwrap()
-        .to_uint_floor()
-        .try_into()?;
-    beclip_reward += pending_lockdrop_incentives.beclip;
-    let mut eclip_reward: Uint128 = reward_weights
-        .eclip
-        .checked_sub(user_lockup_info.reward_weights.eclip)
-        .unwrap_or_default()
-        .checked_mul(Decimal256::from_ratio(
-            user_lockup_info.total_eclipastro_staked - user_lockup_info.total_eclipastro_withdrawed,
-            1u128,
-        ))
-        .unwrap()
-        .to_uint_floor()
-        .try_into()?;
-    eclip_reward += pending_lockdrop_incentives.eclip;
-    Ok(SingleStakingRewards {
-        eclipastro: eclipastro_reward,
-        eclip: eclip_reward,
-        beclip: beclip_reward,
-    })
-}
-
 pub fn calculate_lp_total_rewards(deps: Deps, user: String) -> StdResult<LpStakingRewards> {
     let cfg = CONFIG.load(deps.storage)?;
     if cfg.lp_staking.is_none() {
@@ -832,4 +732,24 @@ pub fn query_lp_pool_assets(deps: Deps) -> StdResult<Vec<Asset>> {
         .querier
         .query_wasm_smart(cfg.liquidity_pool.unwrap(), &PoolQueryMsg::Pool {})?;
     Ok(response.assets)
+}
+
+pub fn query_user_single_rewards(
+    deps: Deps,
+    amount: Uint128,
+    duration: u64,
+    locked_at: Option<u64>,
+    from: u64,
+) -> StdResult<UserReward> {
+    let cfg = CONFIG.load(deps.storage)?;
+    Ok(deps.querier.query_wasm_smart(
+        cfg.single_sided_staking.unwrap(),
+        &SingleSidedQueryMsg::CalculateReward {
+            amount,
+            duration,
+            locked_at,
+            from,
+            to: None,
+        },
+    )?)
 }

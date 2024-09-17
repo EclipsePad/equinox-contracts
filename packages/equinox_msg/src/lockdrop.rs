@@ -5,6 +5,8 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ReceiveMsg;
 
+use crate::single_sided_staking::UserReward;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Account which can update config
@@ -254,10 +256,27 @@ pub struct SingleUserLockupInfo {
     /// Boolean value indicating if the user's has withdrawn funds post the only 1 withdrawal limit cutoff
     pub withdrawal_flag: bool,
     pub lockdrop_incentives: LockdropIncentives,
-    /// Asset rewards weights
-    pub reward_weights: SingleStakingRewardWeights,
+    pub last_claimed: Option<u64>,
     pub total_eclipastro_staked: Uint128,
     pub total_eclipastro_withdrawed: Uint128,
+    pub unclaimed_rewards: UnclaimedRewards,
+}
+
+#[cw_serde]
+pub struct UnclaimedRewards {
+    pub eclip: Uint128,
+    pub beclip: Uint128,
+    pub eclipastro: Uint128,
+}
+
+impl Default for UnclaimedRewards {
+    fn default() -> Self {
+        UnclaimedRewards {
+            eclip: Uint128::zero(),
+            beclip: Uint128::zero(),
+            eclipastro: Uint128::zero(),
+        }
+    }
 }
 
 #[cw_serde]
@@ -289,9 +308,10 @@ impl Default for SingleUserLockupInfo {
                 beclip: LockdropIncentive::default(),
                 eclip: LockdropIncentive::default(),
             },
-            reward_weights: SingleStakingRewardWeights::default(),
+            last_claimed: None,
             total_eclipastro_staked: Uint128::zero(),
             total_eclipastro_withdrawed: Uint128::zero(),
+            unclaimed_rewards: UnclaimedRewards::default(),
         }
     }
 }
@@ -395,26 +415,9 @@ impl Default for SingleStakingRewardWeights {
 }
 
 #[cw_serde]
-pub struct SingleStakingRewards {
-    pub eclipastro: Uint128,
-    pub eclip: Uint128,
-    pub beclip: Uint128,
-}
-
-impl Default for SingleStakingRewards {
-    fn default() -> Self {
-        SingleStakingRewards {
-            eclip: Uint128::zero(),
-            eclipastro: Uint128::zero(),
-            beclip: Uint128::zero(),
-        }
-    }
-}
-
-#[cw_serde]
 pub struct SingleStakingRewardsByDuration {
     pub duration: u64,
-    pub rewards: SingleStakingRewards,
+    pub rewards: UserReward,
 }
 
 #[cw_serde]
@@ -513,7 +516,6 @@ pub struct UserSingleLockupInfoResponse {
     pub lockdrop_incentives: LockdropIncentives,
     pub staking_rewards: Vec<Asset>,
     pub countdown_start_at: u64,
-    pub reward_weights: SingleStakingRewardWeights,
 }
 
 #[cw_serde]

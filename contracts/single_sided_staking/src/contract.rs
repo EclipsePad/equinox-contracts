@@ -14,8 +14,8 @@ use crate::{
         },
         instantiate::try_instantiate,
         query::{
-            calculate_penalty, query_config, query_eclipastro_rewards, query_owner, query_reward,
-            query_reward_config, query_staking, query_total_staking,
+            calculate_penalty, query_calculate_reward, query_config, query_eclipastro_rewards,
+            query_owner, query_reward, query_reward_config, query_staking, query_total_staking,
             query_total_staking_by_duration,
         },
     },
@@ -115,10 +115,25 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::Staking { user } => Ok(to_json_binary(&query_staking(deps, env, user)?)?),
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
-        QueryMsg::TotalStakingByDuration {} => Ok(to_json_binary(
-            &query_total_staking_by_duration(deps, env)?,
+        QueryMsg::TotalStakingByDuration { timestamp } => Ok(to_json_binary(
+            &query_total_staking_by_duration(deps, env, timestamp)?,
         )?),
-        QueryMsg::Reward { user } => Ok(to_json_binary(&query_reward(deps, env, user)?)?),
+        QueryMsg::Reward {
+            user,
+            duration,
+            locked_at,
+        } => Ok(to_json_binary(&query_reward(
+            deps, env, user, duration, locked_at,
+        )?)?),
+        QueryMsg::CalculateReward {
+            amount,
+            duration,
+            locked_at,
+            from,
+            to,
+        } => Ok(to_json_binary(&query_calculate_reward(
+            deps, env, amount, duration, locked_at, from, to,
+        )?)?),
         QueryMsg::CalculatePenalty {
             amount,
             duration,

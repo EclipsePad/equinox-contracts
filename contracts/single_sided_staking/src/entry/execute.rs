@@ -1,33 +1,31 @@
 use astroport::asset::{AssetInfo, AssetInfoExt};
 use cosmwasm_std::{
-    attr, coins, ensure, ensure_eq, to_json_binary, BankMsg, Coin, CosmosMsg, DepsMut, Env,
-    MessageInfo, Response, Uint128, WasmMsg,
+    attr, coins, ensure, ensure_eq, to_json_binary, BankMsg, Coin, CosmosMsg, Decimal256, DepsMut,
+    Env, MessageInfo, Response, Storage, Uint128, WasmMsg,
 };
 use cw_utils::one_coin;
 
 use crate::{
-    config::MAX_PROPOSAL_TTL,
-    entry::query::calculate_penalty,
+    config::{MAX_PROPOSAL_TTL, ONE_DAY},
+    entry::query::{calculate_penalty, calculate_total_user_reward},
     error::ContractError,
     state::{
-        ALLOWED_USERS, CONFIG, LAST_CLAIM_TIME, OWNER, OWNERSHIP_PROPOSAL,
-        PENDING_ECLIPASTRO_REWARDS, REWARD_CONFIG, REWARD_WEIGHTS, TOTAL_STAKING,
-        TOTAL_STAKING_BY_DURATION, USER_STAKED,
+        RewardWeights, TotalStakingByDuration, UserStaked, ALLOWED_USERS, CONFIG, LAST_CLAIM_TIME,
+        OWNER, OWNERSHIP_PROPOSAL, PENDING_ECLIPASTRO_REWARDS, REWARD_CONFIG, REWARD_WEIGHTS,
+        STAKING_DURATION_BY_END_TIME, TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED,
     },
 };
 
 use equinox_msg::{
     single_sided_staking::{
-        CallbackMsg, OwnershipProposal, RestakeData, RewardDetails, RewardWeights, UpdateConfigMsg,
-        UserReward, UserStaked,
+        CallbackMsg, OwnershipProposal, RestakeData, RewardDetails, UpdateConfigMsg, UserReward,
     },
     utils::has_unique_elements,
     voter::msg::ExecuteMsg as VoterExecuteMsg,
 };
 
 use super::query::{
-    calculate_total_user_reward, calculate_updated_reward_weights, calculate_user_reward,
-    query_eclipastro_pending_rewards,
+    calculate_eclipastro_reward, calculate_user_reward, query_eclipastro_pending_rewards,
 };
 
 /// Update config
@@ -60,7 +58,7 @@ pub fn update_config(
 /// Update reward config
 /// Only owner
 pub fn update_reward_config(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     details: Option<RewardDetails>,
@@ -74,9 +72,9 @@ pub fn update_reward_config(
     let mut msgs = vec![];
 
     if let Some(details) = details {
+        // update all total_staking_by_duration and reward_weights by now
+        update_reward_weights(deps.branch(), env)?;
         reward_config.details = details;
-        let updated_reward_weights =
-            calculate_updated_reward_weights(deps.as_ref(), env.clone(), current_time)?;
         let pending_eclipastro_rewards =
             query_eclipastro_pending_rewards(deps.as_ref(), config.voter.to_string())?;
 
@@ -88,11 +86,10 @@ pub fn update_reward_config(
             }));
             PENDING_ECLIPASTRO_REWARDS.save(
                 deps.storage,
-                env.block.time.seconds(),
+                current_time,
                 &pending_eclipastro_rewards,
             )?;
         }
-        REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
         LAST_CLAIM_TIME.save(deps.storage, &current_time)?;
     }
     if let Some(reward_end_time) = reward_end_time {
@@ -100,7 +97,7 @@ pub fn update_reward_config(
             reward_end_time > current_time,
             ContractError::InvalidEndTime {}
         );
-        reward_config.reward_end_time = reward_end_time;
+        reward_config.reward_end_time = Some(reward_end_time);
     }
     REWARD_CONFIG.save(deps.storage, &reward_config)?;
     Ok(Response::new()
@@ -290,6 +287,7 @@ pub fn stake(
     )
 }
 
+/// stake eclipASTRO
 pub fn _stake(
     mut deps: DepsMut,
     env: Env,
@@ -298,17 +296,17 @@ pub fn _stake(
     recipient: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
+    let block_time = env.block.time.seconds();
     let config = CONFIG.load(deps.storage)?;
     let mut total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
-    let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION
-        .load(deps.storage, lock_duration)
-        .unwrap_or_default();
-    let current_time = env.block.time.seconds();
+
+    // if flexible, locked_at is 0, else current time
     let locked_at = match lock_duration {
         0u64 => 0u64,
-        _ => current_time,
+        _ => block_time,
     };
 
+    // check if duration is exists in config
     ensure!(
         config
             .timelock_config
@@ -316,12 +314,20 @@ pub fn _stake(
             .any(|i| i.duration == lock_duration),
         ContractError::NoLockingPeriodFound(lock_duration)
     );
-
-    let (mut user_staking, _, response) =
-        _claim_single(deps.branch(), env, sender, lock_duration, locked_at, None)?;
+    // update total_staking_by_duration, reward_weights by now
+    let reward_weights = update_reward_weights(deps.branch(), env.clone())?;
+    // calculate user's rewards
+    let (mut user_staking, response) = _claim_single(
+        deps.branch(),
+        env,
+        sender,
+        lock_duration,
+        locked_at,
+        reward_weights,
+        None,
+    )?;
     user_staking.staked = user_staking.staked.checked_add(amount).unwrap();
     total_staking = total_staking.checked_add(amount).unwrap();
-    total_staking_by_duration = total_staking_by_duration.checked_add(amount).unwrap();
 
     USER_STAKED.save(
         deps.storage,
@@ -329,7 +335,7 @@ pub fn _stake(
         &user_staking,
     )?;
     TOTAL_STAKING.save(deps.storage, &total_staking)?;
-    TOTAL_STAKING_BY_DURATION.save(deps.storage, lock_duration, &total_staking_by_duration)?;
+    TotalStakingByDuration::add(deps.storage, amount, lock_duration, block_time)?;
     Ok(response
         .add_attribute("action", "stake eclipastro")
         .add_attribute("duration", lock_duration.to_string())
@@ -350,10 +356,10 @@ pub fn restake(
     let sender = data.sender;
     let amount = data.amount;
     let recipient = data.recipient;
+    let block_time = env.block.time.seconds();
     let is_allowed_user = ALLOWED_USERS
         .load(deps.storage, &sender)
         .unwrap_or_default();
-    let current_time = env.block.time.seconds();
     let mut add_amount = Uint128::zero();
 
     if !funds.is_empty() {
@@ -364,23 +370,28 @@ pub fn restake(
         add_amount = funds[0].amount;
     }
 
-    let user_staking_from = USER_STAKED.load(deps.storage, (&sender, from_duration, locked_at))?;
+    // update total_staking_by_duration, reward_weights by now
+    let reward_weights = update_reward_weights(deps.branch(), env.clone())?;
+    // claim all assets
+    let (user_staking_from, response) = _claim_single(
+        deps.branch(),
+        env,
+        sender.to_string(),
+        from_duration,
+        locked_at,
+        reward_weights.clone(),
+        None,
+    )?;
     let mut user_staking_to = USER_STAKED
-        .load(deps.storage, (&recipient, to_duration, current_time))
-        .unwrap_or_default();
-    let mut total_staking_by_duration_from = TOTAL_STAKING_BY_DURATION
-        .load(deps.storage, from_duration)
-        .unwrap_or_default();
-    let mut total_staking_by_duration_to = TOTAL_STAKING_BY_DURATION
-        .load(deps.storage, to_duration)
+        .load(deps.storage, (&recipient, to_duration, block_time))
         .unwrap_or_default();
     let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
-
+    // to duration must be longer than from duration
     ensure!(
         from_duration <= to_duration,
         ContractError::ExtendDurationErr(from_duration, to_duration)
     );
-
+    // check to duration is exist
     ensure!(
         config
             .timelock_config
@@ -388,12 +399,12 @@ pub fn restake(
             .any(|i| i.duration == to_duration),
         ContractError::NoLockingPeriodFound(to_duration)
     );
-
+    // check if there is restaking amount
     ensure!(
         !user_staking_from.staked.is_zero(),
         ContractError::NoLockedAmount {}
     );
-
+    // only allowed users can partial restake
     if let Some(amount) = amount {
         ensure!(is_allowed_user, ContractError::NotAllowed(sender));
         ensure!(
@@ -401,28 +412,24 @@ pub fn restake(
             ContractError::ExceedAmount {}
         );
     }
-
-    let (user_staking_from, updated_reward_weights, response) = _claim_single(
-        deps.branch(),
-        env,
-        sender.to_string(),
-        from_duration,
-        locked_at,
-        None,
-    )?;
+    // if additional amount, increate total staking
     if !add_amount.is_zero() {
         total_staking += add_amount;
         TOTAL_STAKING.save(deps.storage, &total_staking)?;
     }
     let restake_amount = amount.unwrap_or(user_staking_from.staked);
-    total_staking_by_duration_from -= restake_amount;
-    total_staking_by_duration_to += restake_amount + add_amount;
-    user_staking_to.staked += restake_amount + add_amount;
-    user_staking_to.reward_weights = updated_reward_weights.clone();
-    USER_STAKED.save(
+    TotalStakingByDuration::sub(
         deps.storage,
-        (&recipient, to_duration, current_time),
-        &user_staking_to,
+        restake_amount,
+        from_duration,
+        locked_at,
+        block_time,
+    )?;
+    TotalStakingByDuration::add(
+        deps.storage,
+        restake_amount + add_amount,
+        to_duration,
+        block_time,
     )?;
     if amount.is_none() || amount.unwrap().eq(&user_staking_from.staked) {
         USER_STAKED.remove(deps.storage, (&sender, from_duration, locked_at));
@@ -432,13 +439,17 @@ pub fn restake(
             (&sender, from_duration, locked_at),
             &UserStaked {
                 staked: user_staking_from.staked - amount.unwrap(),
-                reward_weights: updated_reward_weights.clone(),
+                reward_weights: reward_weights.clone(),
             },
         )?;
     }
-    TOTAL_STAKING_BY_DURATION.save(deps.storage, from_duration, &total_staking_by_duration_from)?;
-    TOTAL_STAKING_BY_DURATION.save(deps.storage, to_duration, &total_staking_by_duration_to)?;
-    REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
+    user_staking_to.staked += restake_amount + add_amount;
+    user_staking_to.reward_weights = reward_weights.clone();
+    USER_STAKED.save(
+        deps.storage,
+        (&recipient, to_duration, block_time),
+        &user_staking_to,
+    )?;
 
     Ok(response
         .add_attribute("action", "add lock")
@@ -451,43 +462,44 @@ pub fn restake(
         .add_attribute("to", to_duration.to_string())
         .add_attribute("receiver", recipient))
 }
-
+/// claim user rewards message, update user reward weights
 pub fn _claim_single(
     deps: DepsMut,
     env: Env,
     sender: String,
     duration: u64,
     locked_at: u64,
+    reward_weights: RewardWeights,
     assets: Option<Vec<AssetInfo>>,
-) -> Result<(UserStaked, RewardWeights, Response), ContractError> {
+) -> Result<(UserStaked, Response), ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let block_time = env.block.time.seconds();
     let reward_config = REWARD_CONFIG.load(deps.storage)?;
     let mut user_staking = USER_STAKED
         .load(deps.storage, (&sender, duration, locked_at))
         .unwrap_or_default();
     let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
-
+    // if assets is some, get it
     let assets_list = assets
         .clone()
         .unwrap_or_default()
         .into_iter()
         .map(|a| a.to_string());
+    // check if there is duplicated asset
     ensure!(
         has_unique_elements(assets_list),
         ContractError::DuplicatedAssets {}
     );
-
-    let current_time = env.block.time.seconds();
-    let updated_reward_weights =
-        calculate_updated_reward_weights(deps.as_ref(), env.clone(), current_time)?;
+    // calculate user reward by duration and lock time
     let user_reward = calculate_user_reward(
         deps.as_ref(),
         sender.clone(),
         duration,
         locked_at,
-        &updated_reward_weights,
+        block_time,
     )?;
     let mut user_reward_to_claim = UserReward::default();
+    // if assets is exist, only claim those, else claim all
     if let Some(assets) = assets {
         for asset in assets {
             if asset.equal(&AssetInfo::NativeToken {
@@ -496,37 +508,38 @@ pub fn _claim_single(
                 user_staking
                     .reward_weights
                     .eclipastro
-                    .clone_from(&updated_reward_weights.eclipastro);
+                    .clone_from(&reward_weights.eclipastro);
                 user_reward_to_claim.eclipastro = user_reward.eclipastro;
             }
             if asset.equal(&reward_config.details.eclip.info) {
-                user_staking.reward_weights.eclip = updated_reward_weights.eclip;
+                user_staking.reward_weights.eclip = reward_weights.eclip;
                 user_reward_to_claim.eclip = user_reward.eclip;
             }
             if asset.equal(&reward_config.details.beclip.info) {
-                user_staking.reward_weights.beclip = updated_reward_weights.beclip;
+                user_staking.reward_weights.beclip = reward_weights.beclip;
                 user_reward_to_claim.beclip = user_reward.beclip;
             }
         }
     } else {
         user_reward_to_claim = user_reward;
-        user_staking.reward_weights = updated_reward_weights.clone();
+        user_staking.reward_weights = reward_weights.clone();
     }
-    REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
+    // save user reward weights
     USER_STAKED.save(deps.storage, (&sender, duration, locked_at), &user_staking)?;
-    let current_time = env.block.time.seconds();
-    if reward_config.reward_end_time > current_time {
-        LAST_CLAIM_TIME.save(deps.storage, &current_time)?;
-    } else {
-        LAST_CLAIM_TIME.save(deps.storage, &reward_config.reward_end_time)?;
+    // update last claim time
+    let mut last_claim_time = block_time;
+    if let Some(reward_end_time) = reward_config.reward_end_time {
+        if reward_end_time < block_time {
+            last_claim_time = reward_end_time;
+        }
     }
+    LAST_CLAIM_TIME.save(deps.storage, &last_claim_time)?;
     if total_staking.is_zero() {
         let response: Response = Response::new();
-        return Ok((user_staking, updated_reward_weights, response));
+        return Ok((user_staking, response));
     }
     Ok((
         user_staking,
-        updated_reward_weights,
         _claim(deps, env, sender, user_reward_to_claim)?,
     ))
 }
@@ -604,14 +617,14 @@ pub fn _claim(
 }
 
 pub fn _claim_all(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     sender: String,
     with_flexible: bool,
     assets: Option<Vec<AssetInfo>>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let current_time = env.block.time.seconds();
+    let block_time = env.block.time.seconds();
     let reward_config = REWARD_CONFIG.load(deps.storage)?;
 
     let assets_list = assets
@@ -624,10 +637,8 @@ pub fn _claim_all(
         ContractError::DuplicatedAssets {}
     );
 
-    let updated_reward_weights =
-        calculate_updated_reward_weights(deps.as_ref(), env.clone(), current_time)?;
-    let total_user_reward =
-        calculate_total_user_reward(deps.as_ref(), env.clone(), sender.clone(), current_time)?;
+    let reward_weights = update_reward_weights(deps.branch(), env.clone())?;
+    let total_user_reward = calculate_total_user_reward(deps.as_ref(), sender.clone(), block_time)?;
     let mut total_eclipastro_reward = Uint128::zero();
     let mut total_beclip_reward = Uint128::zero();
     let mut total_eclip_reward = Uint128::zero();
@@ -649,15 +660,15 @@ pub fn _claim_all(
                         user_staking
                             .reward_weights
                             .eclipastro
-                            .clone_from(&updated_reward_weights.eclipastro);
+                            .clone_from(&reward_weights.eclipastro);
                         total_eclipastro_reward += reward_locked_at.rewards.eclipastro;
                     }
                     if asset.equal(&reward_config.details.eclip.info) {
-                        user_staking.reward_weights.eclip = updated_reward_weights.eclip;
+                        user_staking.reward_weights.eclip = reward_weights.eclip;
                         total_eclip_reward += reward_locked_at.rewards.eclip;
                     }
                     if asset.equal(&reward_config.details.beclip.info) {
-                        user_staking.reward_weights.beclip = updated_reward_weights.beclip;
+                        user_staking.reward_weights.beclip = reward_weights.beclip;
                         total_beclip_reward += reward_locked_at.rewards.beclip;
                     }
                 }
@@ -665,7 +676,7 @@ pub fn _claim_all(
                 total_eclipastro_reward += reward_locked_at.rewards.eclipastro;
                 total_beclip_reward += reward_locked_at.rewards.beclip;
                 total_eclip_reward += reward_locked_at.rewards.eclip;
-                user_staking.reward_weights = updated_reward_weights.clone();
+                user_staking.reward_weights = reward_weights.clone();
             }
             USER_STAKED.save(
                 deps.storage,
@@ -675,12 +686,13 @@ pub fn _claim_all(
         }
     }
 
-    REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
-    if reward_config.reward_end_time > current_time {
-        LAST_CLAIM_TIME.save(deps.storage, &current_time)?;
-    } else {
-        LAST_CLAIM_TIME.save(deps.storage, &reward_config.reward_end_time)?;
+    let mut last_claim_time = block_time;
+    if let Some(reward_end_time) = reward_config.reward_end_time {
+        if reward_end_time < block_time {
+            last_claim_time = reward_end_time;
+        }
     }
+    LAST_CLAIM_TIME.save(deps.storage, &last_claim_time)?;
 
     _claim(
         deps,
@@ -696,7 +708,7 @@ pub fn _claim_all(
 
 /// Claim user rewards
 pub fn claim(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     duration: u64,
@@ -704,12 +716,14 @@ pub fn claim(
     assets: Option<Vec<AssetInfo>>,
 ) -> Result<Response, ContractError> {
     let locked_at = locked_at.unwrap_or_default();
-    let (_, _, response) = _claim_single(
+    let reward_weights = update_reward_weights(deps.branch(), env.clone())?;
+    let (_, response) = _claim_single(
         deps,
         env,
         info.sender.to_string(),
         duration,
         locked_at,
+        reward_weights,
         assets,
     )?;
     Ok(response)
@@ -737,18 +751,20 @@ pub fn unstake(
 ) -> Result<Response, ContractError> {
     let locked_at = locked_at.unwrap_or_default();
     let sender = info.sender.to_string();
+    let block_time = env.block.time.seconds();
     let is_allowed_user = ALLOWED_USERS
         .load(deps.storage, &sender)
         .unwrap_or_default();
     let config = CONFIG.load(deps.storage)?;
     let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
-    let mut total_staking_by_duration = TOTAL_STAKING_BY_DURATION.load(deps.storage, duration)?;
-    let (mut user_staking, _, mut response) = _claim_single(
+    let reward_weights = update_reward_weights(deps.branch(), env.clone())?;
+    let (mut user_staking, mut response) = _claim_single(
         deps.branch(),
         env.clone(),
         sender.clone(),
         duration,
         locked_at,
+        reward_weights,
         None,
     )?;
 
@@ -767,9 +783,6 @@ pub fn unstake(
     let receiver = receiver.unwrap_or(info.sender.to_string());
 
     total_staking = total_staking.checked_sub(unlock_amount).unwrap();
-    total_staking_by_duration = total_staking_by_duration
-        .checked_sub(unlock_amount)
-        .unwrap();
 
     if unlock_amount == user_staking.staked {
         USER_STAKED.remove(deps.storage, (&sender, duration, locked_at));
@@ -778,7 +791,7 @@ pub fn unstake(
         USER_STAKED.save(deps.storage, (&sender, duration, locked_at), &user_staking)?;
     }
     TOTAL_STAKING.save(deps.storage, &total_staking)?;
-    TOTAL_STAKING_BY_DURATION.save(deps.storage, duration, &total_staking_by_duration)?;
+    TotalStakingByDuration::sub(deps.storage, unlock_amount, duration, locked_at, block_time)?;
 
     let penalty_amount = calculate_penalty(deps.as_ref(), env, unlock_amount, duration, locked_at)?;
 
@@ -805,4 +818,85 @@ pub fn unstake(
         response = response.add_attribute("locked_at", locked_at.to_string());
     }
     Ok(response.add_messages(msgs))
+}
+// update each total_staking_by_duration by now
+pub fn update_duration_total_staking(
+    storage: &mut dyn Storage,
+    duration: u64,
+    block_time: u64,
+) -> Result<(), ContractError> {
+    let last_claim_time = LAST_CLAIM_TIME.load(storage).unwrap_or(block_time);
+    let mut last_data =
+        TotalStakingByDuration::load_at_ts(storage, duration, block_time, Some(last_claim_time))
+            .unwrap_or_default();
+    let mut next_check_time = last_claim_time / ONE_DAY * ONE_DAY + ONE_DAY;
+    loop {
+        if next_check_time > block_time {
+            break;
+        }
+        let ended_lock = STAKING_DURATION_BY_END_TIME
+            .load(storage, (duration, next_check_time))
+            .unwrap_or_default();
+        last_data = TotalStakingByDuration {
+            staked: last_data.staked,
+            valid_staked: last_data.valid_staked.checked_sub(ended_lock).unwrap(),
+        };
+        TOTAL_STAKING_BY_DURATION.save(storage, duration, &last_data, next_check_time)?;
+        next_check_time += ONE_DAY;
+    }
+    Ok(())
+}
+/// update all total_staking_by_duration and reward_weights by now
+pub fn update_reward_weights(deps: DepsMut, env: Env) -> Result<RewardWeights, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let mut block_time = env.block.time.seconds();
+    // update all total_staking_by_duration by current time
+    for tl_cfg in config.timelock_config.clone().into_iter() {
+        update_duration_total_staking(deps.storage, tl_cfg.duration, block_time)?;
+    }
+    let reward_cfg = REWARD_CONFIG.load(deps.storage)?;
+    if let Some(reward_end_time) = reward_cfg.reward_end_time {
+        if reward_end_time < block_time {
+            block_time = reward_end_time;
+        }
+    }
+    // if it's first time to stake, last_claim_time is zero
+    let last_claim_time = LAST_CLAIM_TIME.load(deps.storage).unwrap_or(block_time);
+    let total_staking = TOTAL_STAKING.load(deps.storage)?;
+    // if last_claim_time is zero, no total_staking, no reward
+    let mut reward_weights =
+        RewardWeights::load_at_ts(deps.storage, block_time, Some(last_claim_time))
+            .unwrap_or_default();
+    let mut start_time = last_claim_time;
+    let mut end_time = last_claim_time / ONE_DAY * ONE_DAY + ONE_DAY;
+    // loop from last_claim_time to min(now, reward_end_time), update reward_weights
+    loop {
+        if end_time > block_time {
+            end_time = block_time;
+        }
+        let boost_sum = TotalStakingByDuration::load_boost_sum_at_ts(
+            deps.storage,
+            block_time,
+            Some(start_time),
+        )?;
+        reward_weights.eclip +=
+            Decimal256::from_ratio(reward_cfg.details.eclip.daily_reward, boost_sum)
+                .checked_mul(Decimal256::from_ratio(end_time - start_time, ONE_DAY))
+                .unwrap();
+        reward_weights.beclip +=
+            Decimal256::from_ratio(reward_cfg.details.beclip.daily_reward, boost_sum)
+                .checked_mul(Decimal256::from_ratio(end_time - start_time, ONE_DAY))
+                .unwrap();
+        let pending_eclipastro_reward =
+            calculate_eclipastro_reward(deps.as_ref(), env.clone(), start_time, end_time)?;
+        reward_weights.eclipastro +=
+            Decimal256::from_ratio(pending_eclipastro_reward, total_staking);
+        REWARD_WEIGHTS.save(deps.storage, &reward_weights, end_time)?;
+        if end_time == block_time {
+            break;
+        }
+        start_time = end_time;
+        end_time += ONE_DAY;
+    }
+    Ok(reward_weights)
 }

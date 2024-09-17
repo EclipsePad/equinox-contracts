@@ -3,10 +3,7 @@ use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
 
 use crate::{
-    config::{
-        DEFAULT_BECLIP_DAILY_REWARD, DEFAULT_ECLIP_DAILY_REWARD, DEFAULT_REWARD_PERIOD,
-        DEFAULT_TIMELOCK_CONFIG,
-    },
+    config::{DEFAULT_BECLIP_DAILY_REWARD, DEFAULT_ECLIP_DAILY_REWARD, DEFAULT_TIMELOCK_CONFIG},
     error::ContractError,
     state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER, REWARD_CONFIG},
 };
@@ -16,7 +13,7 @@ use equinox_msg::single_sided_staking::{
 
 pub fn try_instantiate(
     mut deps: DepsMut,
-    env: Env,
+    _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
@@ -47,7 +44,7 @@ pub fn try_instantiate(
                 daily_reward: Uint128::from(DEFAULT_BECLIP_DAILY_REWARD),
             },
         },
-        reward_end_time: env.block.time.seconds() + DEFAULT_REWARD_PERIOD,
+        reward_end_time: None,
     };
     REWARD_CONFIG.save(deps.storage, &reward_config)?;
     let owner = deps.api.addr_validate(msg.owner.as_str())?;

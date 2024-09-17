@@ -21,11 +21,8 @@ pub enum ContractError {
     #[error("Contract name must be same: {0}")]
     ContractNameErr(String),
 
-    #[error("Deposit window is closed")]
-    DepositWindowClosed {},
-
-    #[error("Deposit window is not started")]
-    DepositWindowNotStarted {},
+    #[error("Deposit is only allowed in Deposit window")]
+    NotDepositWindow {},
 
     #[error("Ensure list contains unique assets")]
     DuplicatedAssets {},
