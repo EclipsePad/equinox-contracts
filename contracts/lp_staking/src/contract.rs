@@ -9,8 +9,8 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            _handle_callback, claim, stake, unstake, update_config, update_owner,
-            update_reward_config,
+            _handle_callback, claim, claim_ownership, drop_ownership_proposal, propose_new_owner,
+            stake, unstake, update_config, update_reward_config,
         },
         instantiate::try_instantiate,
         query::{
@@ -43,7 +43,11 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
-        ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            propose_new_owner(deps, env, info, owner, expires_in)
+        }
+        ExecuteMsg::DropOwnershipProposal {} => drop_ownership_proposal(deps, info),
+        ExecuteMsg::ClaimOwnership {} => claim_ownership(deps, env, info),
         ExecuteMsg::Stake { recipient } => stake(deps, env, info, recipient),
         ExecuteMsg::Claim { assets } => {
             claim(deps, env, info.clone(), info.sender.to_string(), assets)

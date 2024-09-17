@@ -1,7 +1,7 @@
 use cosmwasm_std::Uint128;
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
-use equinox_msg::lp_staking::{Config, RewardConfig, RewardWeight, UserStaking};
+use equinox_msg::lp_staking::{Config, OwnershipProposal, RewardConfig, RewardWeight, UserStaking};
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = "lp staking contract";
@@ -15,3 +15,5 @@ pub const REWARD_WEIGHTS: Item<Vec<RewardWeight>> = Item::new("reward_weights");
 pub const REWARD_CONFIG: Item<RewardConfig> = Item::new("reward_config");
 
 pub const LAST_CLAIMED: Item<u64> = Item::new("last_claimed");
+/// Stores the latest contract ownership transfer proposal
+pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

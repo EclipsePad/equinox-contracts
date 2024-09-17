@@ -26,6 +26,9 @@ pub enum ContractError {
     #[error("Amount {got} exceeds your staking {expected}")]
     ExeedingUnstakeAmount { got: u128, expected: u128 },
 
+    #[error("Parameter expires_in cannot be higher than {0}")]
+    ExpiresInErr(u64),
+
     #[error("Callbacks cannot be invoked externally")]
     InvalidCallbackInvoke {},
 
@@ -38,6 +41,9 @@ pub enum ContractError {
     #[error("Staking amount is zero")]
     InvalidStakingAmount {},
 
+    #[error("Ownership proposal expired")]
+    OwnershipProposalExpired {},
+
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
 
@@ -46,6 +52,9 @@ pub enum ContractError {
 
     #[error("Total Reward point must be 10000")]
     RewardDistributionErr {},
+
+    #[error("New owner cannot be same")]
+    SameOwner {},
 
     #[error("Semver parsing error: {0}")]
     SemVer(String),

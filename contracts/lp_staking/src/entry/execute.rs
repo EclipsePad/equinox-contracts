@@ -4,25 +4,30 @@ use astroport::{
     staking::ExecuteMsg as StakingExecuteMsg,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, to_json_binary, BankMsg, CosmosMsg, Decimal256, DepsMut, Env,
+    attr, coin, coins, ensure, ensure_eq, to_json_binary, CosmosMsg, Decimal256, DepsMut, Env,
     MessageInfo, Response, Uint128, WasmMsg,
 };
 use cw_utils::one_coin;
+use eclipse_base::staking::msg::ExecuteMsg as EclipStakingExecuteMsg;
 use equinox_msg::{
     lp_staking::{
-        CallbackMsg, RewardDetails, RewardDistribution, RewardWeight, UpdateConfigMsg, UserStaking,
+        CallbackMsg, OwnershipProposal, RewardDetails, RewardDistribution, RewardWeight,
+        UpdateConfigMsg, UserStaking,
     },
     utils::has_unique_elements,
 };
 
 use crate::{
-    config::BPS_DENOMINATOR,
+    config::{BPS_DENOMINATOR, MAX_PROPOSAL_TTL},
     entry::query::{
         calculate_incentive_pending_rewards, calculate_pending_eclipse_rewards,
         calculate_updated_reward_weights, calculate_user_staking_rewards, calculate_vault_rewards,
     },
     error::ContractError,
-    state::{CONFIG, LAST_CLAIMED, OWNER, REWARD_CONFIG, REWARD_WEIGHTS, STAKING, TOTAL_STAKING},
+    state::{
+        CONFIG, LAST_CLAIMED, OWNER, OWNERSHIP_PROPOSAL, REWARD_CONFIG, REWARD_WEIGHTS, STAKING,
+        TOTAL_STAKING,
+    },
 };
 
 /// Update config
@@ -65,20 +70,76 @@ pub fn update_config(
     Ok(res)
 }
 
-/// Update owner
-/// Only owner
-pub fn update_owner(
-    mut deps: DepsMut,
-    _env: Env,
+pub fn propose_new_owner(
+    deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     new_owner: String,
+    expires_in: u64,
 ) -> Result<Response, ContractError> {
+    // only owner can propose new owner
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     let new_owner_addr = deps.api.addr_validate(&new_owner)?;
-    OWNER.set(deps.branch(), Some(new_owner_addr))?;
-    Ok(Response::new()
-        .add_attribute("action", "update owner")
-        .add_attribute("to", new_owner))
+
+    // Check that the new owner is not the same as the current one
+    ensure_eq!(
+        OWNER.is_admin(deps.as_ref(), &new_owner_addr).unwrap(),
+        false,
+        ContractError::SameOwner {}
+    );
+
+    if MAX_PROPOSAL_TTL < expires_in {
+        return Err(ContractError::ExpiresInErr(MAX_PROPOSAL_TTL));
+    }
+
+    let new_proposal = OwnershipProposal {
+        owner: new_owner_addr,
+        ttl: env.block.time.seconds() + expires_in,
+    };
+
+    OWNERSHIP_PROPOSAL.save(deps.storage, &new_proposal)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "propose_new_owner"),
+        attr("new_owner", new_owner),
+    ]))
+}
+
+pub fn drop_ownership_proposal(
+    deps: DepsMut,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    // only owner can drop ownership proposal
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+
+    OWNERSHIP_PROPOSAL.remove(deps.storage);
+
+    Ok(Response::new().add_attributes(vec![attr("action", "drop_ownership_proposal")]))
+}
+
+pub fn claim_ownership(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    // only owner can drop ownership proposal
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+
+    let proposal = OWNERSHIP_PROPOSAL.load(deps.storage)?;
+
+    ensure!(
+        env.block.time.seconds() > proposal.ttl,
+        ContractError::OwnershipProposalExpired {}
+    );
+
+    OWNER.set(deps.branch(), Some(proposal.owner.clone()))?;
+
+    OWNERSHIP_PROPOSAL.remove(deps.storage);
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "claim_ownership"),
+        attr("new_owner", proposal.owner),
+    ]))
 }
 
 /// Update reward config
@@ -236,7 +297,6 @@ pub fn _claim(
             sender.clone(),
             updated_reward_weights.clone(),
         )?;
-        let mut coins = vec![];
         let mut updated_user_reward_weights = vec![];
         for r in user_rewards {
             let claimable = assets.clone().is_none()
@@ -244,7 +304,20 @@ pub fn _claim(
                     && assets.clone().unwrap().iter().any(|a| a.equal(&r.info)));
             if !r.amount.is_zero() && claimable {
                 if r.info.is_native_token() {
-                    coins.push(coin(r.amount.u128(), r.info.to_string()));
+                    if r.info.equal(&reward_config.details.beclip.info) {
+                        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                            contract_addr: cfg.eclip_staking.to_string(),
+                            msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
+                                address_and_amount_list: vec![(sender.clone(), r.amount)],
+                            })?,
+                            funds: coins(
+                                r.amount.u128(),
+                                reward_config.details.eclip.info.to_string(),
+                            ),
+                        }));
+                    } else {
+                        msgs.push(r.info.with_balance(r.amount).into_msg(sender.clone())?);
+                    }
                     response = response
                         .add_attribute("action", "claim")
                         .add_attribute("denom", r.info.to_string())
@@ -278,12 +351,6 @@ pub fn _claim(
             }
         }
         user_staking.reward_weights = updated_user_reward_weights;
-        if !coins.is_empty() {
-            msgs.push(CosmosMsg::Bank(BankMsg::Send {
-                to_address: sender.clone(),
-                amount: coins,
-            }));
-        }
     } else {
         user_staking
             .reward_weights

@@ -70,10 +70,6 @@ pub fn query_user_reward_weights(
     user: String,
 ) -> StdResult<Vec<RewardWeight>> {
     let user_staking = STAKING.load(deps.storage, &user).unwrap_or_default();
-    // let astroport_rewards = calculate_incentive_pending_rewards(deps, env.contract.address)?;
-    // let vault_rewards = calculate_vault_rewards(deps, env.block.time.seconds())?;
-    // let updated_reward_weights =
-    //     calculate_updated_reward_weights(deps, astroport_rewards, vault_rewards)?;
     Ok(user_staking.reward_weights)
 }
 

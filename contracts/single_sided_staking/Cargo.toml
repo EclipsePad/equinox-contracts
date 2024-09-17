@@ -27,4 +27,5 @@ cw-utils        = { workspace = true }
 semver          = { workspace = true }
 thiserror       = { workspace = true }
 equinox-msg     = { workspace = true }
+eclipse-base    = { workspace = true }
 astroport       = { workspace = true }

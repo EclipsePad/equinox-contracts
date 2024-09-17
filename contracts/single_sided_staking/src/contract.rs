@@ -8,13 +8,14 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            _handle_callback, allow_users, block_users, claim, claim_all, restake, stake, unstake,
-            update_config, update_owner, update_reward_config,
+            _handle_callback, allow_users, block_users, claim, claim_all, claim_ownership,
+            drop_ownership_proposal, propose_new_owner, restake, stake, unstake, update_config,
+            update_reward_config,
         },
         instantiate::try_instantiate,
         query::{
-            calculate_penalty, query_config, query_eclipastro_rewards, query_owner, query_reward,
-            query_reward_config, query_staking, query_total_staking,
+            calculate_penalty, query_calculate_reward, query_config, query_eclipastro_rewards,
+            query_owner, query_reward, query_reward_config, query_staking, query_total_staking,
             query_total_staking_by_duration,
         },
     },
@@ -51,7 +52,11 @@ pub fn execute(
             details,
             reward_end_time,
         } => update_reward_config(deps, env, info, details, reward_end_time),
-        ExecuteMsg::UpdateOwner { owner } => update_owner(deps, env, info, owner),
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            propose_new_owner(deps, env, info, owner, expires_in)
+        }
+        ExecuteMsg::DropOwnershipProposal {} => drop_ownership_proposal(deps, info),
+        ExecuteMsg::ClaimOwnership {} => claim_ownership(deps, env, info),
         ExecuteMsg::Claim {
             duration,
             locked_at,
@@ -110,10 +115,25 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::Staking { user } => Ok(to_json_binary(&query_staking(deps, env, user)?)?),
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
-        QueryMsg::TotalStakingByDuration {} => Ok(to_json_binary(
-            &query_total_staking_by_duration(deps, env)?,
+        QueryMsg::TotalStakingByDuration { timestamp } => Ok(to_json_binary(
+            &query_total_staking_by_duration(deps, env, timestamp)?,
         )?),
-        QueryMsg::Reward { user } => Ok(to_json_binary(&query_reward(deps, env, user)?)?),
+        QueryMsg::Reward {
+            user,
+            duration,
+            locked_at,
+        } => Ok(to_json_binary(&query_reward(
+            deps, env, user, duration, locked_at,
+        )?)?),
+        QueryMsg::CalculateReward {
+            amount,
+            duration,
+            locked_at,
+            from,
+            to,
+        } => Ok(to_json_binary(&query_calculate_reward(
+            deps, env, amount, duration, locked_at, from, to,
+        )?)?),
         QueryMsg::CalculatePenalty {
             amount,
             duration,
