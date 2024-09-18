@@ -48,14 +48,14 @@ astroport-router        = { workspace = true }
 
 astroport-staking       = { workspace = true }
 astroport-vesting       = { workspace = true }
-# astroport-xastro-token  = { workspace = true }
 astroport               = { workspace = true }
 astroport-governance    = { workspace = true }
 
-astro-assembly = { workspace = true }
+astro-assembly          = { workspace = true }
 astroport-voting-escrow = { workspace = true }
 astroport-emissions-controller = { workspace = true }
-eclipsepad-staking = { workspace = true }
-# astroport-escrow-fee-distributor = { workspace = true }
+eclipsepad-staking      = { workspace = true }
+cw20-gift               = { workspace = true }
+beclip-minter           = { workspace = true }
 astroport-tokenfactory-tracker = { workspace = true }
-builder-unlock = { workspace = true }
+builder-unlock          = { workspace = true }

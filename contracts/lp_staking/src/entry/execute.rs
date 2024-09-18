@@ -5,28 +5,29 @@ use astroport::{
 };
 use cosmwasm_std::{
     attr, coin, coins, ensure, ensure_eq, to_json_binary, CosmosMsg, Decimal256, DepsMut, Env,
-    MessageInfo, Response, Uint128, WasmMsg,
+    MessageInfo, Order, Response, StdResult, Uint128, WasmMsg,
 };
+use cw_storage_plus::Bound;
 use cw_utils::one_coin;
 use eclipse_base::staking::msg::ExecuteMsg as EclipStakingExecuteMsg;
 use equinox_msg::{
     lp_staking::{
-        CallbackMsg, OwnershipProposal, RewardDetails, RewardDistribution, RewardWeight,
-        UpdateConfigMsg, UserStaking,
+        CallbackMsg, OwnershipProposal, Reward, RewardDistribution, RewardWeight, UpdateConfigMsg,
+        UserStaking,
     },
     utils::has_unique_elements,
 };
 
 use crate::{
-    config::{BPS_DENOMINATOR, MAX_PROPOSAL_TTL},
+    config::{BPS_DENOMINATOR, DEFAULT_REWARD_DISTRIBUTION_PERIOD, MAX_PROPOSAL_TTL},
     entry::query::{
         calculate_incentive_pending_rewards, calculate_pending_eclipse_rewards,
         calculate_updated_reward_weights, calculate_user_staking_rewards, calculate_vault_rewards,
     },
     error::ContractError,
     state::{
-        CONFIG, LAST_CLAIMED, OWNER, OWNERSHIP_PROPOSAL, REWARD_CONFIG, REWARD_WEIGHTS, STAKING,
-        TOTAL_STAKING,
+        CONFIG, LAST_CLAIMED, OWNER, OWNERSHIP_PROPOSAL, REWARD, REWARD_DISTRIBUTION,
+        REWARD_WEIGHTS, STAKING, TOTAL_STAKING,
     },
 };
 
@@ -55,7 +56,7 @@ pub fn update_config(
         res = res.add_attribute("astroport_incentives", astroport_incentives.to_string());
     }
     if let Some(treasury) = new_config.treasury {
-        config.treasury = treasury.clone();
+        config.treasury = deps.api.addr_validate(&treasury)?;
         res = res.add_attribute("treasury", treasury);
     }
     if let Some(stability_pool) = new_config.stability_pool {
@@ -65,6 +66,14 @@ pub fn update_config(
     if let Some(ce_reward_distributor) = new_config.ce_reward_distributor {
         config.ce_reward_distributor = deps.api.addr_validate(ce_reward_distributor.as_str())?;
         res = res.add_attribute("ce_reward_distributor", ce_reward_distributor.to_string());
+    }
+    if let Some(eclip) = new_config.eclip {
+        config.eclip = eclip.clone();
+        res = res.add_attribute("eclip", eclip);
+    }
+    if let Some(beclip) = new_config.beclip {
+        config.beclip = deps.api.addr_validate(&beclip)?;
+        res = res.add_attribute("beclip", beclip);
     }
     CONFIG.save(deps.storage, &config)?;
     Ok(res)
@@ -142,18 +151,15 @@ pub fn claim_ownership(
     ]))
 }
 
-/// Update reward config
-pub fn update_reward_config(
+/// Update reward distribution
+pub fn update_reward_distribution(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     distribution: Option<RewardDistribution>,
-    reward_end_time: Option<u64>,
-    details: Option<RewardDetails>,
 ) -> Result<Response, ContractError> {
     // only owner can executable
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
-    let mut reward_config = REWARD_CONFIG.load(deps.storage)?;
     // the sum bps should be 10000
     if let Some(distribution) = distribution {
         ensure_eq!(
@@ -164,21 +170,9 @@ pub fn update_reward_config(
             BPS_DENOMINATOR,
             ContractError::RewardDistributionErr {}
         );
-        reward_config.distribution = distribution;
+        REWARD_DISTRIBUTION.save(deps.storage, &distribution)?;
     }
-    if let Some(reward_end_time) = reward_end_time {
-        let current_time = env.block.time.seconds();
-        ensure!(
-            reward_config.reward_end_time > current_time && reward_end_time > current_time,
-            ContractError::InvalidEndTime {}
-        );
-        reward_config.reward_end_time = reward_end_time;
-    }
-    if let Some(details) = details {
-        reward_config.details = details;
-    }
-    REWARD_CONFIG.save(deps.storage, &reward_config)?;
-    Ok(Response::new().add_attribute("action", "update reward config"))
+    Ok(Response::new().add_attribute("action", "update reward distribution"))
 }
 
 pub fn _handle_callback(
@@ -255,8 +249,6 @@ pub fn _claim(
     let cfg = CONFIG.load(deps.storage)?;
     let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
     let mut user_staking = STAKING.load(deps.storage, &sender).unwrap_or_default();
-    let reward_config = REWARD_CONFIG.load(deps.storage)?;
-    let reward_end_time = reward_config.reward_end_time;
     let mut msgs = vec![];
 
     let assets_list = assets
@@ -304,16 +296,13 @@ pub fn _claim(
                     && assets.clone().unwrap().iter().any(|a| a.equal(&r.info)));
             if !r.amount.is_zero() && claimable {
                 if r.info.is_native_token() {
-                    if r.info.equal(&reward_config.details.beclip.info) {
+                    if r.info.to_string() == cfg.beclip {
                         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                             contract_addr: cfg.eclip_staking.to_string(),
                             msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
                                 address_and_amount_list: vec![(sender.clone(), r.amount)],
                             })?,
-                            funds: coins(
-                                r.amount.u128(),
-                                reward_config.details.eclip.info.to_string(),
-                            ),
+                            funds: coins(r.amount.u128(), cfg.eclip.clone()),
                         }));
                     } else {
                         msgs.push(r.info.with_balance(r.amount).into_msg(sender.clone())?);
@@ -368,11 +357,7 @@ pub fn _claim(
 
     REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
     STAKING.save(deps.storage, &sender, &user_staking)?;
-    if reward_end_time > env.block.time.seconds() {
-        LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
-    } else {
-        LAST_CLAIMED.save(deps.storage, &reward_end_time)?;
-    }
+    LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
 
     Ok((
         user_staking,
@@ -440,6 +425,70 @@ pub fn unstake(
         .add_attribute("amount", amount.to_string())
         .add_messages(msgs))
 }
+// add reweards
+pub fn add_rewards(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    from: Option<u64>,
+    duration: Option<u64>,
+    eclip: Uint128,
+    beclip: Uint128,
+) -> Result<Response, ContractError> {
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    let cfg = CONFIG.load(deps.storage)?;
+    let asset = one_coin(&info)?;
+    ensure!(cfg.eclip == asset.denom, ContractError::InvalidAsset {});
+    ensure!(
+        eclip + beclip == asset.amount,
+        ContractError::AmountNotMatch {
+            got: asset.amount.u128(),
+            expected: (eclip + beclip).u128()
+        }
+    );
+    let block_time = env.block.time.seconds();
+    // get reward start time
+    let reward_start_time = if let Some(from) = from {
+        ensure!(
+            from >= block_time,
+            ContractError::InvalidStartTime {
+                got: from,
+                expect: block_time
+            }
+        );
+        from
+    } else {
+        // fetch reward data which end time is bigger than current time
+        let last_rewards = REWARD
+            .range(
+                deps.storage,
+                Some(Bound::exclusive((block_time, 0u64))),
+                None,
+                Order::Descending,
+            )
+            .take(1)
+            .collect::<StdResult<Vec<_>>>()
+            .unwrap();
+        if last_rewards.is_empty() {
+            block_time
+        } else {
+            last_rewards[0].0 .0
+        }
+    };
+    // get reward duration
+    let duration = duration.unwrap_or(DEFAULT_REWARD_DISTRIBUTION_PERIOD);
+    REWARD.save(
+        deps.storage,
+        (reward_start_time + duration, reward_start_time),
+        &Reward { eclip, beclip },
+    )?;
+    Ok(Response::new()
+        .add_attribute("action", "add_rewards")
+        .add_attribute("from", reward_start_time.to_string())
+        .add_attribute("duration", duration.to_string())
+        .add_attribute("eclip", eclip.to_string())
+        .add_attribute("beclip", beclip.to_string()))
+}
 
 pub fn distribute_eclipse_rewards(
     deps: DepsMut,
@@ -448,17 +497,17 @@ pub fn distribute_eclipse_rewards(
     assets: Vec<Asset>,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
-    let reward_cfg = REWARD_CONFIG.load(deps.storage)?;
+    let reward_distribution = REWARD_DISTRIBUTION.load(deps.storage)?;
     let mut msgs = vec![];
     for asset in assets {
         if asset.info.to_string() == cfg.astro.clone() {
             let ce_holders_rewards = asset.amount.multiply_ratio(
-                reward_cfg.distribution.ce_holders,
-                BPS_DENOMINATOR - reward_cfg.distribution.users,
+                reward_distribution.ce_holders,
+                BPS_DENOMINATOR - reward_distribution.users,
             );
             let stability_pool_rewards = asset.amount.multiply_ratio(
-                reward_cfg.distribution.stability_pool,
-                BPS_DENOMINATOR - reward_cfg.distribution.users,
+                reward_distribution.stability_pool,
+                BPS_DENOMINATOR - reward_distribution.users,
             );
             let treasury_rewards = asset
                 .amount

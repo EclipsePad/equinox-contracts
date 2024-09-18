@@ -7,10 +7,9 @@ pub const DEFAULT_REWARD_DISTRIBUTION: RewardDistribution = RewardDistribution {
     stability_pool: 250,
 };
 
-pub const DEFAULT_ECLIP_DAILY_REWARD: u128 = 19_200_000_000u128;
-pub const DEFAULT_BECLIP_DAILY_REWARD: u128 = 12_800_000_000u128;
-
+pub const ONE_DAY: u64 = 86400u64;
 pub const BPS_DENOMINATOR: u32 = 10_000u32;
+pub const DEFAULT_REWARD_DISTRIBUTION_PERIOD: u64 = 30 * ONE_DAY;
 
 pub const DEFAULT_REWARD_PERIOD: u64 = 31_536_000; // 1 year
 pub const MAX_PROPOSAL_TTL: u64 = 1209600;

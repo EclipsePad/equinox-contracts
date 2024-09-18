@@ -46,10 +46,8 @@ pub enum ExecuteMsg {
         config: UpdateConfigMsg,
     },
     /// Change reward config
-    UpdateRewardConfig {
+    UpdateRewardDistribution {
         distribution: Option<RewardDistribution>,
-        reward_end_time: Option<u64>,
-        details: Option<RewardDetails>,
     },
     /// Claim rewards of user.
     Claim {
@@ -64,7 +62,12 @@ pub enum ExecuteMsg {
     Stake {
         recipient: Option<String>,
     },
-    // UpdateUserRewardWeight {},
+    AddRewards {
+        from: Option<u64>,
+        duration: Option<u64>,
+        eclip: Uint128,
+        beclip: Uint128,
+    },
 }
 
 #[cw_serde]
@@ -74,8 +77,8 @@ pub enum QueryMsg {
     #[returns(Config)]
     Config {},
     /// query reward config
-    #[returns(RewardConfig)]
-    RewardConfig {},
+    #[returns(Reward)]
+    RewardDistribution {},
     /// query owner
     #[returns(Addr)]
     Owner {},
@@ -124,11 +127,13 @@ impl CallbackMsg {
 #[cw_serde]
 pub struct UpdateConfigMsg {
     pub lp_token: Option<AssetInfo>,
-    pub lp_contract: Option<Addr>,
-    pub astroport_incentives: Option<Addr>,
-    pub treasury: Option<Addr>,
-    pub stability_pool: Option<Addr>,
-    pub ce_reward_distributor: Option<Addr>,
+    pub lp_contract: Option<String>,
+    pub astroport_incentives: Option<String>,
+    pub treasury: Option<String>,
+    pub stability_pool: Option<String>,
+    pub ce_reward_distributor: Option<String>,
+    pub eclip: Option<String>,
+    pub beclip: Option<String>,
 }
 
 #[cw_serde]
@@ -141,6 +146,10 @@ pub struct Config {
     pub astro: String,
     /// xASTRO token
     pub xastro: String,
+    /// ECLIP token
+    pub eclip: String,
+    /// bECLIP token
+    pub beclip: Addr,
     /// ASTRO staking contract
     pub astro_staking: Addr,
     /// ECLIP staking
@@ -165,10 +174,9 @@ pub struct RewardDistribution {
 }
 
 #[cw_serde]
-pub struct RewardConfig {
-    pub distribution: RewardDistribution,
-    pub reward_end_time: u64,
-    pub details: RewardDetails,
+pub struct Reward {
+    pub eclip: Uint128,
+    pub beclip: Uint128,
 }
 
 #[cw_serde]

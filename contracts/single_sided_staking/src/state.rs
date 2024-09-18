@@ -3,7 +3,7 @@ use cosmwasm_std::{Decimal256, StdResult, Storage, Uint128, Uint256};
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map, SnapshotItem, SnapshotMap, Strategy};
 
-use equinox_msg::single_sided_staking::{Config, OwnershipProposal, RewardConfig};
+use equinox_msg::single_sided_staking::{Config, OwnershipProposal, Reward};
 
 use crate::{config::ONE_DAY, error::ContractError};
 
@@ -36,7 +36,8 @@ pub const REWARD_WEIGHTS: SnapshotItem<RewardWeights> = SnapshotItem::new(
     Strategy::EveryBlock,
 );
 pub const PENDING_ECLIPASTRO_REWARDS: Map<u64, Uint128> = Map::new("pending_eclipastro_rewards");
-pub const REWARD_CONFIG: Item<RewardConfig> = Item::new("reward_config");
+// end time, start time, reward
+pub const REWARD: Map<(u64, u64), Reward> = Map::new("reward");
 /// Stores the latest contract ownership transfer proposal
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 

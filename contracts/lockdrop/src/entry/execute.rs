@@ -724,7 +724,7 @@ pub fn receive_cw20(
         Cw20HookMsg::IncreaseIncentives { rewards } => {
             OWNER.assert_admin(deps.as_ref(), &sender)?;
             ensure!(
-                info.sender == cfg.beclip.to_string() || info.sender == cfg.eclip.to_string(),
+                cfg.eclip.to_string() == info.sender.to_string(),
                 ContractError::InvalidAsset {}
             );
             ensure!(
@@ -738,25 +738,29 @@ pub fn receive_cw20(
                 .find(|d| d.stake_type == StakeType::SingleStaking)
                 .unwrap_or(IncentiveRewards {
                     stake_type: StakeType::SingleStaking,
-                    amount: Uint128::zero(),
+                    eclip: Uint128::zero(),
+                    beclip: Uint128::zero(),
                 });
             let lp_rewards = rewards
                 .into_iter()
                 .find(|d| d.stake_type == StakeType::LpStaking)
                 .unwrap_or(IncentiveRewards {
                     stake_type: StakeType::LpStaking,
-                    amount: Uint128::zero(),
+                    eclip: Uint128::zero(),
+                    beclip: Uint128::zero(),
                 });
             ensure!(
-                single_rewards.amount + lp_rewards.amount == amount,
+                single_rewards.eclip + single_rewards.beclip + lp_rewards.eclip + lp_rewards.beclip
+                    == amount,
                 ContractError::InvalidAmountCheck {}
             );
 
             _handle_increase_incentives(
                 deps.branch(),
-                info.sender.to_string(),
-                single_rewards.amount,
-                lp_rewards.amount,
+                single_rewards.eclip,
+                single_rewards.beclip,
+                lp_rewards.eclip,
+                lp_rewards.beclip,
             )?;
 
             Ok(Response::new().add_attribute("action", "increase Lockdrop incentives"))
@@ -771,7 +775,12 @@ pub fn try_increase_incentives(
     rewards: Vec<IncentiveRewards>,
 ) -> Result<Response, ContractError> {
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    let cfg = CONFIG.load(deps.storage)?;
     let asset = one_coin(&info)?;
+    ensure!(
+        cfg.eclip.to_string() == asset.denom,
+        ContractError::InvalidAsset {}
+    );
     ensure!(
         !check_lockdrop_ended(deps.as_ref(), env.block.time.seconds()).unwrap(),
         ContractError::LockdropFinished {}
@@ -783,25 +792,29 @@ pub fn try_increase_incentives(
         .find(|d| d.stake_type == StakeType::SingleStaking)
         .unwrap_or(IncentiveRewards {
             stake_type: StakeType::SingleStaking,
-            amount: Uint128::zero(),
+            eclip: Uint128::zero(),
+            beclip: Uint128::zero(),
         });
     let lp_rewards = rewards
         .into_iter()
         .find(|d| d.stake_type == StakeType::LpStaking)
         .unwrap_or(IncentiveRewards {
             stake_type: StakeType::LpStaking,
-            amount: Uint128::zero(),
+            eclip: Uint128::zero(),
+            beclip: Uint128::zero(),
         });
     ensure!(
-        single_rewards.amount + lp_rewards.amount == asset.amount,
+        single_rewards.eclip + single_rewards.beclip + lp_rewards.eclip + lp_rewards.beclip
+            == asset.amount,
         ContractError::InvalidAmountCheck {}
     );
 
     _handle_increase_incentives(
         deps.branch(),
-        asset.denom,
-        single_rewards.amount,
-        lp_rewards.amount,
+        single_rewards.eclip,
+        single_rewards.beclip,
+        lp_rewards.eclip,
+        lp_rewards.beclip,
     )?;
 
     Ok(Response::new().add_attribute("action", "increase Lockdrop incentives"))
@@ -809,25 +822,21 @@ pub fn try_increase_incentives(
 
 pub fn _handle_increase_incentives(
     deps: DepsMut,
-    asset: String,
-    single_reward: Uint128,
-    lp_reward: Uint128,
+    single_eclip: Uint128,
+    single_beclip: Uint128,
+    lp_eclip: Uint128,
+    lp_beclip: Uint128,
 ) -> Result<bool, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
-
     let mut single_lockdrop_incentives = SINGLE_LOCKDROP_INCENTIVES
         .load(deps.storage)
         .unwrap_or_default();
     let mut lp_lockdrop_incentives = LP_LOCKDROP_INCENTIVES
         .load(deps.storage)
         .unwrap_or_default();
-    if asset == cfg.beclip.to_string() {
-        single_lockdrop_incentives.beclip += single_reward;
-        lp_lockdrop_incentives.beclip += lp_reward;
-    } else if asset == cfg.eclip.to_string() {
-        single_lockdrop_incentives.eclip += single_reward;
-        lp_lockdrop_incentives.eclip += lp_reward;
-    }
+    single_lockdrop_incentives.eclip += single_eclip;
+    single_lockdrop_incentives.beclip += single_beclip;
+    lp_lockdrop_incentives.eclip += lp_eclip;
+    lp_lockdrop_incentives.beclip += lp_beclip;
     SINGLE_LOCKDROP_INCENTIVES.save(deps.storage, &single_lockdrop_incentives)?;
     LP_LOCKDROP_INCENTIVES.save(deps.storage, &lp_lockdrop_incentives)?;
     Ok(true)

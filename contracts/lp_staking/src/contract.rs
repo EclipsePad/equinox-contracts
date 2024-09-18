@@ -9,13 +9,13 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            _handle_callback, claim, claim_ownership, drop_ownership_proposal, propose_new_owner,
-            stake, unstake, update_config, update_reward_config,
+            _handle_callback, add_rewards, claim, claim_ownership, drop_ownership_proposal,
+            propose_new_owner, stake, unstake, update_config, update_reward_distribution,
         },
         instantiate::try_instantiate,
         query::{
-            query_config, query_owner, query_reward, query_reward_config, query_reward_weights,
-            query_staking, query_total_staking, query_user_reward_weights,
+            query_config, query_owner, query_reward, query_reward_distribution,
+            query_reward_weights, query_staking, query_total_staking, query_user_reward_weights,
         },
     },
     error::ContractError,
@@ -43,6 +43,9 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
+        ExecuteMsg::UpdateRewardDistribution { distribution } => {
+            update_reward_distribution(deps, env, info, distribution)
+        }
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             propose_new_owner(deps, env, info, owner, expires_in)
         }
@@ -54,11 +57,12 @@ pub fn execute(
         }
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
         ExecuteMsg::Unstake { amount, recipient } => unstake(deps, env, info, amount, recipient),
-        ExecuteMsg::UpdateRewardConfig {
-            distribution,
-            reward_end_time,
-            details,
-        } => update_reward_config(deps, env, info, distribution, reward_end_time, details),
+        ExecuteMsg::AddRewards {
+            from,
+            duration,
+            eclip,
+            beclip,
+        } => add_rewards(deps, env, info, from, duration, eclip, beclip),
     }
 }
 
@@ -67,7 +71,9 @@ pub fn execute(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
-        QueryMsg::RewardConfig {} => Ok(to_json_binary(&query_reward_config(deps, env)?)?),
+        QueryMsg::RewardDistribution {} => {
+            Ok(to_json_binary(&query_reward_distribution(deps, env)?)?)
+        }
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::Staking { user } => Ok(to_json_binary(&query_staking(deps, env, user)?)?),
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),

@@ -21,6 +21,7 @@ pub trait SingleSidedStakingExtension {
         beclip: &str,
         timelock_config: &Option<Vec<TimeLockConfig>>,
         voter: &Addr,
+        eclip_staking: &Addr,
         treasury: &Addr,
     );
 
@@ -41,6 +42,8 @@ pub trait SingleSidedStakingExtension {
     fn single_sided_staking_query_reward(
         &self,
         user: impl ToString,
+        duration: u64,
+        locked_at: u64
     ) -> StdResult<Vec<UserRewardByDuration>>;
 }
 
@@ -69,6 +72,7 @@ impl SingleSidedStakingExtension for ControllerHelper {
         beclip: &str,
         timelock_config: &Option<Vec<TimeLockConfig>>,
         voter: &Addr,
+        eclipsepad_staking: &Addr,
         treasury: &Addr,
     ) {
         let code_id = self.app.store_code(Box::new(
@@ -92,6 +96,7 @@ impl SingleSidedStakingExtension for ControllerHelper {
                     beclip: beclip.to_string(),
                     timelock_config: timelock_config.to_owned(),
                     voter: voter.to_string(),
+                    eclip_staking: eclipsepad_staking.to_string(),
                     treasury: treasury.to_string(),
                 },
                 &[],
@@ -143,11 +148,15 @@ impl SingleSidedStakingExtension for ControllerHelper {
     fn single_sided_staking_query_reward(
         &self,
         user: impl ToString,
+        duration: u64,
+        locked_at: u64
     ) -> StdResult<Vec<UserRewardByDuration>> {
         self.app.wrap().query_wasm_smart(
             self.single_sided_staking_contract_address(),
             &QueryMsg::Reward {
                 user: user.to_string(),
+                duration,
+                locked_at
             },
         )
     }

@@ -471,6 +471,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d965446196e3b7decd44aa7ee49e31d630118f90ef12f97900f262eb915c951d"
 
 [[package]]
+name = "beclip-minter"
+version = "1.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw2 1.1.2",
+ "cw20 1.1.2",
+ "cw20-base 1.1.2",
+ "eclipse-base",
+ "osmosis-std",
+ "semver",
+ "serde",
+]
+
+[[package]]
 name = "bigint"
 version = "4.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2036,6 +2052,7 @@ dependencies = [
  "astroport-tokenfactory-tracker",
  "astroport-vesting",
  "astroport-voting-escrow",
+ "beclip-minter",
  "builder-unlock",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -2043,6 +2060,7 @@ dependencies = [
  "cw-multi-test",
  "cw20 1.1.2",
  "cw20-base 1.1.2",
+ "cw20-gift",
  "derivative",
  "eclipse-base",
  "eclipsepad-staking",

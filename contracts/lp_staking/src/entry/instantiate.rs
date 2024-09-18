@@ -1,21 +1,17 @@
-use astroport::asset::AssetInfo::{NativeToken, Token};
-use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response, Uint128};
+use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
-use equinox_msg::lp_staking::{Config, InstantiateMsg, RewardConfig, RewardDetail, RewardDetails};
+use equinox_msg::lp_staking::{Config, InstantiateMsg};
 
 use crate::{
-    config::{
-        DEFAULT_BECLIP_DAILY_REWARD, DEFAULT_ECLIP_DAILY_REWARD, DEFAULT_REWARD_DISTRIBUTION,
-        DEFAULT_REWARD_PERIOD,
-    },
+    config::DEFAULT_REWARD_DISTRIBUTION,
     entry::query::check_native_token_denom,
     error::ContractError,
-    state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER, REWARD_CONFIG},
+    state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER, REWARD_DISTRIBUTION},
 };
 
 pub fn try_instantiate(
     mut deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
@@ -44,27 +40,11 @@ pub fn try_instantiate(
             treasury: deps.api.addr_validate(msg.treasury.as_str())?,
             stability_pool: deps.api.addr_validate(msg.stability_pool.as_str())?,
             ce_reward_distributor: deps.api.addr_validate(msg.ce_reward_distributor.as_str())?,
+            eclip: msg.eclip,
+            beclip: deps.api.addr_validate(&msg.beclip)?,
         },
     )?;
-    // update reward config
-    let reward_end_time = env.block.time.seconds() + DEFAULT_REWARD_PERIOD;
-    let reward_config = RewardConfig {
-        distribution: DEFAULT_REWARD_DISTRIBUTION,
-        reward_end_time,
-        details: RewardDetails {
-            eclip: RewardDetail {
-                info: NativeToken { denom: msg.eclip },
-                daily_reward: Uint128::from(DEFAULT_ECLIP_DAILY_REWARD),
-            },
-            beclip: RewardDetail {
-                info: Token {
-                    contract_addr: deps.api.addr_validate(&msg.beclip)?,
-                },
-                daily_reward: Uint128::from(DEFAULT_BECLIP_DAILY_REWARD),
-            },
-        },
-    };
-    REWARD_CONFIG.save(deps.storage, &reward_config)?;
+    REWARD_DISTRIBUTION.save(deps.storage, &DEFAULT_REWARD_DISTRIBUTION)?;
     // update owner
     let owner = deps
         .api

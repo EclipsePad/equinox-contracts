@@ -33,11 +33,6 @@ pub enum ExecuteMsg {
     UpdateConfig {
         config: UpdateConfigMsg,
     },
-    /// Update reward config
-    UpdateRewardConfig {
-        details: Option<RewardDetails>,
-        reward_end_time: Option<u64>,
-    },
     /// Claim rewards of user.
     Claim {
         duration: u64,
@@ -73,6 +68,12 @@ pub enum ExecuteMsg {
     BlockUsers {
         users: Vec<String>,
     },
+    AddRewards {
+        from: Option<u64>,
+        duration: Option<u64>,
+        eclip: Uint128,
+        beclip: Uint128,
+    },
 }
 
 #[cw_serde]
@@ -82,7 +83,7 @@ pub enum QueryMsg {
     #[returns(Config)]
     Config {},
     /// query reward config
-    #[returns(RewardConfig)]
+    #[returns(Reward)]
     RewardConfig {},
     /// query owner
     #[returns(Addr)]
@@ -135,6 +136,9 @@ pub struct UpdateConfigMsg {
     pub timelock_config: Option<Vec<TimeLockConfig>>,
     pub voter: Option<String>,
     pub treasury: Option<String>,
+    pub eclip: Option<String>,
+    pub beclip: Option<String>,
+    pub eclip_staking: Option<String>,
 }
 
 #[cw_serde]
@@ -167,12 +171,14 @@ pub struct Config {
     pub voter: Addr,
     pub treasury: Addr,
     pub eclip_staking: Addr,
+    pub eclip: String,
+    pub beclip: Addr,
 }
 
 #[cw_serde]
-pub struct RewardConfig {
-    pub details: RewardDetails,
-    pub reward_end_time: Option<u64>,
+pub struct Reward {
+    pub eclip: Uint128,
+    pub beclip: Uint128,
 }
 
 #[cw_serde]

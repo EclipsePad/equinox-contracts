@@ -23,6 +23,7 @@ use cw_multi_test::{
     AddressGenerator, App, AppBuilder, AppResponse, BankKeeper, ContractWrapper,
     DistributionKeeper, Executor, FailingModule, StakeKeeper, WasmKeeper,
 };
+use eclipse_base::staking::types::PaginationConfig;
 use equinox_msg::{
     lockdrop::{
         Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
@@ -181,6 +182,43 @@ fn instantiate_minter(
     .unwrap()
 }
 
+fn store_cw20_gift(app: &mut TestApp) -> u64 {
+    app.store_code(Box::new(
+        ContractWrapper::new_with_empty(cw20_gift::contract::execute, cw20_gift::contract::instantiate, cw20_gift::contract::query).with_migrate_empty(cw20_gift::contract::migrate)
+    ))
+}
+
+fn store_beclip_minter(app: &mut TestApp) -> u64 {
+    app.store_code(Box::new(
+        ContractWrapper::new_with_empty(beclip_minter::contract::execute, beclip_minter::contract::instantiate, beclip_minter::contract::query).with_reply_empty(beclip_minter::contract::reply).with_migrate_empty(beclip_minter::contract::migrate)
+    ))
+}
+
+fn instantiate_beclip_minter(
+    app: &mut TestApp,
+    code_id: u64,
+    admin: &Addr,
+    cw20_code_id: u64,
+    permissionless_token_creation: Option<bool>,
+    permissionless_token_registration: Option<bool>,
+    max_tokens_per_owner: Option<u16>
+) -> Addr {
+    app.instantiate_contract(
+        code_id,
+        admin.to_owned(),
+        &eclipse_base::minter::msg::InstantiateMsg {
+            whitelist: None,
+            cw20_code_id: Some(cw20_code_id),
+            permissionless_token_creation,
+            permissionless_token_registration,
+            max_tokens_per_owner, 
+        },
+        &[],
+        "beclip_minter",
+        Some(admin.to_string()),
+    ).unwrap()
+}
+
 fn store_voter(app: &mut TestApp) -> u64 {
     app.store_code(Box::new(
         ContractWrapper::new_with_empty(
@@ -252,6 +290,58 @@ fn instantiate_voter(
         },
         &[],
         "voter",
+        Some(admin.to_string()),
+    )
+    .unwrap()
+}
+
+fn store_eclipsepad_staking(app: &mut TestApp) -> u64 {
+    app.store_code(Box::new(
+        ContractWrapper::new_with_empty(
+            eclipsepad_staking::contract::execute,
+            eclipsepad_staking::contract::instantiate,
+            eclipsepad_staking::contract::query,
+        )
+        .with_migrate_empty(eclipsepad_staking::contract::migrate)
+    ))
+}
+
+fn instantiate_eclipsepad_staking(
+    app: &mut TestApp,
+    code_id: u64,
+    admin: &Addr,
+    equinox_voter: Option<String>,
+    staking_token: Option<String>,
+    beclip_minter: Option<String>,
+    beclip_address: Option<String>,
+    beclip_whitelist: Option<Vec<String>>,
+    lock_schedule: Option<Vec<(u64, u64)>>,
+    seconds_per_essence: Option<Uint128>,
+    dao_treasury_address: Option<String>,
+    penalty_multiplier: Option<Decimal>,
+    pagintaion_config: Option<PaginationConfig>,
+    eclip_per_second: Option<u64>,
+    eclip_per_second_multiplier: Option<Decimal>
+) -> Addr {
+    app.instantiate_contract(
+        code_id,
+        admin.to_owned(),
+        &eclipse_base::staking::msg::InstantiateMsg {
+            equinox_voter,
+            staking_token,
+            beclip_minter,
+            beclip_address,
+            beclip_whitelist,
+            lock_schedule,
+            seconds_per_essence,
+            dao_treasury_address,
+            penalty_multiplier,
+            pagintaion_config,
+            eclip_per_second,
+            eclip_per_second_multiplier, 
+        },
+        &[],
+        "eclipsepad_staking",
         Some(admin.to_string()),
     )
     .unwrap()
@@ -625,6 +715,9 @@ impl SuiteBuilder {
             EPOCH_LENGTH,
             VOTE_DELAY,
         );
+
+        let eclipsepad_staking_id = store_eclipsepad_staking(&mut app);
+        let eclipsepad_staking_contract = instantiate_
 
         let single_staking_id = store_single_staking(&mut app);
         let single_staking_contract = app
