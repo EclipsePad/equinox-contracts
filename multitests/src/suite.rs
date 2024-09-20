@@ -13,17 +13,19 @@ use astroport::{
 use cosmwasm_std::{
     coin, coins,
     testing::{MockApi, MockStorage},
-    to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Decimal, DepsMut, Empty, Env, GovMsg,
-    IbcMsg, IbcQuery, MessageInfo, RecoverPubkeyError, Response, StdError, StdResult, Storage,
-    Timestamp, Uint128, VerificationError,
+    Addr, Api, BlockInfo, CanonicalAddr, Decimal, DepsMut, Empty, Env, GovMsg, IbcMsg, IbcQuery,
+    MessageInfo, RecoverPubkeyError, Response, StdError, StdResult, Storage, Timestamp, Uint128,
+    VerificationError,
 };
-use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw20_base::msg::InstantiateMsg as Cw20InstantiateMsg;
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 use cw_multi_test::{
     AddressGenerator, App, AppBuilder, AppResponse, BankKeeper, ContractWrapper,
     DistributionKeeper, Executor, FailingModule, StakeKeeper, WasmKeeper,
 };
-use eclipse_base::staking::types::PaginationConfig;
+use eclipse_base::{
+    minter::msg::ExecuteMsg as EclipsepadMinterExecuteMsg,
+    staking::{msg::ExecuteMsg as EclipStakingExecuteMsg, types::PaginationConfig},
+};
 use equinox_msg::{
     lockdrop::{
         Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
@@ -36,15 +38,14 @@ use equinox_msg::{
     lp_staking::{
         Config as LpStakingConfig, ExecuteMsg as LpStakingExecuteMsg,
         InstantiateMsg as LpStakingInstantiateMsg, QueryMsg as LpStakingQueryMsg,
-        RewardAmount as LpStakingRewardAmount, RewardConfig as LpStakingRewardConfig,
+        RewardAmount as LpStakingRewardAmount, RewardDistribution,
         RewardWeight as LpStakingRewardWeight, UpdateConfigMsg as LpStakingUpdateConfigMsg,
         UserStaking as LpStakingUserStaking,
     },
     single_sided_staking::{
         Config as SingleStakingConfig, ExecuteMsg as SingleSidedStakingExecuteMsg,
         InstantiateMsg as SingleSidedStakingInstantiateMsg, QueryMsg as SingleStakingQueryMsg,
-        RewardDetails, TimeLockConfig, UpdateConfigMsg as SingleStakingUpdateConfigMsg,
-        UserRewardByDuration as SingleStakingUserRewardByDuration,
+        TimeLockConfig, UpdateConfigMsg as SingleStakingUpdateConfigMsg, UserReward,
         UserStaking as SingleSidedUserStaking,
     },
     voter::{
@@ -142,6 +143,17 @@ fn store_astroport_vesting(app: &mut TestApp) -> u64 {
     app.store_code(contract)
 }
 
+fn store_cw20_gift(app: &mut TestApp) -> u64 {
+    app.store_code(Box::new(
+        ContractWrapper::new_with_empty(
+            cw20_gift::contract::execute,
+            cw20_gift::contract::instantiate,
+            cw20_gift::contract::query,
+        )
+        .with_migrate_empty(cw20_gift::contract::migrate),
+    ))
+}
+
 fn store_minter(app: &mut TestApp) -> u64 {
     app.store_code(Box::new(
         ContractWrapper::new_with_empty(
@@ -149,7 +161,8 @@ fn store_minter(app: &mut TestApp) -> u64 {
             minter_mocks::contract::instantiate,
             minter_mocks::contract::query,
         )
-        .with_migrate_empty(minter_mocks::contract::migrate),
+        .with_migrate_empty(minter_mocks::contract::migrate)
+        .with_reply(minter_mocks::contract::reply),
     ))
 }
 
@@ -180,43 +193,6 @@ fn instantiate_minter(
         Some(admin.to_string()),
     )
     .unwrap()
-}
-
-fn store_cw20_gift(app: &mut TestApp) -> u64 {
-    app.store_code(Box::new(
-        ContractWrapper::new_with_empty(cw20_gift::contract::execute, cw20_gift::contract::instantiate, cw20_gift::contract::query).with_migrate_empty(cw20_gift::contract::migrate)
-    ))
-}
-
-fn store_beclip_minter(app: &mut TestApp) -> u64 {
-    app.store_code(Box::new(
-        ContractWrapper::new_with_empty(beclip_minter::contract::execute, beclip_minter::contract::instantiate, beclip_minter::contract::query).with_reply_empty(beclip_minter::contract::reply).with_migrate_empty(beclip_minter::contract::migrate)
-    ))
-}
-
-fn instantiate_beclip_minter(
-    app: &mut TestApp,
-    code_id: u64,
-    admin: &Addr,
-    cw20_code_id: u64,
-    permissionless_token_creation: Option<bool>,
-    permissionless_token_registration: Option<bool>,
-    max_tokens_per_owner: Option<u16>
-) -> Addr {
-    app.instantiate_contract(
-        code_id,
-        admin.to_owned(),
-        &eclipse_base::minter::msg::InstantiateMsg {
-            whitelist: None,
-            cw20_code_id: Some(cw20_code_id),
-            permissionless_token_creation,
-            permissionless_token_registration,
-            max_tokens_per_owner, 
-        },
-        &[],
-        "beclip_minter",
-        Some(admin.to_string()),
-    ).unwrap()
 }
 
 fn store_voter(app: &mut TestApp) -> u64 {
@@ -302,7 +278,7 @@ fn store_eclipsepad_staking(app: &mut TestApp) -> u64 {
             eclipsepad_staking::contract::instantiate,
             eclipsepad_staking::contract::query,
         )
-        .with_migrate_empty(eclipsepad_staking::contract::migrate)
+        .with_migrate_empty(eclipsepad_staking::contract::migrate),
     ))
 }
 
@@ -321,7 +297,7 @@ fn instantiate_eclipsepad_staking(
     penalty_multiplier: Option<Decimal>,
     pagintaion_config: Option<PaginationConfig>,
     eclip_per_second: Option<u64>,
-    eclip_per_second_multiplier: Option<Decimal>
+    eclip_per_second_multiplier: Option<Decimal>,
 ) -> Addr {
     app.instantiate_contract(
         code_id,
@@ -338,7 +314,7 @@ fn instantiate_eclipsepad_staking(
             penalty_multiplier,
             pagintaion_config,
             eclip_per_second,
-            eclip_per_second_multiplier, 
+            eclip_per_second_multiplier,
         },
         &[],
         "eclipsepad_staking",
@@ -512,8 +488,6 @@ pub const TREASURY: &str = "wasm1_treasury";
 pub const VXASTRO: &str = "wasm1_vxastro";
 pub const STABILITY_POOL_REWARD_HOLDER: &str = "wasm1_stability_pool_reward_holder";
 pub const CE_REWARD_HOLDER: &str = "wasm1_ce_reward_holder";
-pub const ECLIP_DENOM: &str = "factory/wasm1_admin/eclip";
-pub const ECLIP_ASTRO_DENOM: &str = "factory/wasm1_contract7/eclipAstro";
 pub const COIN_REGISTRY: &str = "wasm1_coin_registry";
 pub const CHAIN_ID: &str = "cw-multitest-1";
 
@@ -549,13 +523,6 @@ impl SuiteBuilder {
             });
 
         let tracking_code_id = store_tracking_code(&mut app);
-
-        let _ = app.sudo(cw_multi_test::SudoMsg::Bank(
-            cw_multi_test::BankSudo::Mint {
-                to_address: admin.to_string(),
-                amount: vec![coin(1, ECLIP_DENOM.to_string())],
-            },
-        ));
 
         let astro_staking_id = store_astro_staking(&mut app);
 
@@ -658,35 +625,110 @@ impl SuiteBuilder {
                 None,
             )
             .unwrap();
-        let beclip_id = store_astroport_token(&mut app);
-        let beclip = app
-            .instantiate_contract(
-                beclip_id,
-                admin.clone(),
-                &Cw20InstantiateMsg {
-                    name: "bECLIP token".to_string(),
-                    symbol: "bECLIP".to_string(),
-                    marketing: None,
-                    decimals: 6,
-                    initial_balances: vec![Cw20Coin {
-                        address: admin.to_string(),
-                        amount: Uint128::from(1_000_000_000_000u128),
-                    }],
-                    mint: Some(MinterResponse {
-                        minter: admin.to_string(),
-                        cap: None,
-                    }),
-                },
-                &[],
-                "beclip",
-                Some(admin.clone().to_string()),
-            )
-            .unwrap();
-
+        let beclip_code_id = store_cw20_gift(&mut app);
         // don't move the contract as eclipAstro denom is hardcoded
         let minter_id = store_minter(&mut app);
         let minter_contract = instantiate_minter(
-            &mut app, minter_id, &admin, &None, &None, &None, &None, &None,
+            &mut app,
+            minter_id,
+            &admin,
+            &None,
+            &Some(beclip_code_id),
+            &None,
+            &None,
+            &None,
+        );
+        // create eclip
+        app.execute_contract(
+            admin.clone(),
+            minter_contract.clone(),
+            &EclipsepadMinterExecuteMsg::CreateNative {
+                owner: None,
+                whitelist: None,
+                permissionless_burning: None,
+                subdenom: "eclip".to_string(),
+                decimals: None,
+            },
+            &coins(1u128, ASTRO_DENOM),
+        )
+        .unwrap();
+        let eclip = format!("factory/{minter_contract}/eclip");
+        // mint eclip
+        app.execute_contract(
+            admin.clone(),
+            minter_contract.clone(),
+            &EclipsepadMinterExecuteMsg::Mint {
+                denom_or_address: eclip.clone(),
+                amount: Uint128::from(2_000_000_000_000u128),
+                recipient: None,
+            },
+            &[],
+        )
+        .unwrap();
+        // create eclipastro
+        app.execute_contract(
+            admin.clone(),
+            minter_contract.clone(),
+            &EclipsepadMinterExecuteMsg::CreateNative {
+                owner: None,
+                whitelist: None,
+                permissionless_burning: None,
+                subdenom: "eclipASTRO".to_string(),
+                decimals: None,
+            },
+            &coins(1u128, ASTRO_DENOM),
+        )
+        .unwrap();
+        let eclipastro = format!("factory/{minter_contract}/eclipASTRO");
+        // create beclip
+        let result = app
+            .execute_contract(
+                admin.clone(),
+                minter_contract.clone(),
+                &EclipsepadMinterExecuteMsg::CreateCw20 {
+                    owner: Some(admin.to_string()),
+                    whitelist: None,
+                    permissionless_burning: None,
+                    cw20_code_id: Some(beclip_code_id),
+                    name: "bECLIP".to_string(),
+                    symbol: "bECLIP".to_string(),
+                    decimals: None,
+                    marketing: None,
+                },
+                &[],
+            )
+            .unwrap();
+        let mut beclip = Addr::unchecked("");
+        for event in result.events.iter() {
+            for attribute in event.attributes.iter() {
+                if attribute.key == "cw20_address".to_string() {
+                    beclip = Addr::unchecked(attribute.value.clone());
+                }
+            }
+        }
+        let eclipsepad_staking_id = store_eclipsepad_staking(&mut app);
+        let eclipsepad_staking_contract = instantiate_eclipsepad_staking(
+            &mut app,
+            eclipsepad_staking_id,
+            &admin,
+            None,
+            Some(eclip.clone()),
+            Some(minter_contract.to_string()),
+            Some(beclip.to_string()),
+            None,
+            Some(vec![
+                (2592000, 20547945),
+                (7776000, 184931507),
+                (15552000, 739726027),
+                (23328000, 1664383562),
+                (31536000, 3000000000),
+            ]),
+            None,
+            Some(TREASURY.to_string()),
+            None,
+            None,
+            Some(24500),
+            None,
         );
 
         let voter_id = store_voter(&mut app);
@@ -698,7 +740,7 @@ impl SuiteBuilder {
             &admin,
             None,
             &minter_contract,
-            &admin,
+            &eclipsepad_staking_contract,
             None,
             None,
             &astro_staking_contract,
@@ -707,17 +749,43 @@ impl SuiteBuilder {
             &admin,
             &admin,
             None,
-            ECLIP_DENOM,
+            &eclip,
             ASTRO_DENOM,
             &xastro,
-            ECLIP_ASTRO_DENOM,
+            &eclipastro,
             GENESIS_EPOCH_START_DATE,
             EPOCH_LENGTH,
             VOTE_DELAY,
         );
-
-        let eclipsepad_staking_id = store_eclipsepad_staking(&mut app);
-        let eclipsepad_staking_contract = instantiate_
+        // add voter contract to eclipastro mint whitelist
+        app.execute_contract(
+            admin.clone(),
+            minter_contract.clone(),
+            &EclipsepadMinterExecuteMsg::UpdateCurrencyInfo {
+                denom_or_address: eclipastro.clone(),
+                owner: None,
+                whitelist: Some(vec![voter_contract.to_string()]),
+                permissionless_burning: None,
+            },
+            &[],
+        )
+        .unwrap();
+        // add eclip staking contract to beclip whitelist
+        app.execute_contract(
+            admin.clone(),
+            minter_contract.clone(),
+            &EclipsepadMinterExecuteMsg::UpdateCurrencyInfo {
+                denom_or_address: beclip.to_string(),
+                owner: None,
+                whitelist: Some(vec![
+                    admin.to_string(),
+                    eclipsepad_staking_contract.to_string(),
+                ]),
+                permissionless_burning: None,
+            },
+            &vec![],
+        )
+        .unwrap();
 
         let single_staking_id = store_single_staking(&mut app);
         let single_staking_contract = app
@@ -726,9 +794,10 @@ impl SuiteBuilder {
                 admin.clone(),
                 &SingleSidedStakingInstantiateMsg {
                     owner: admin.to_string(),
-                    eclip: ECLIP_DENOM.to_string(),
+                    eclip: eclip.clone(),
+                    eclip_staking: eclipsepad_staking_contract.to_string(),
                     beclip: beclip.to_string(),
-                    token: ECLIP_ASTRO_DENOM.to_string(),
+                    token: eclipastro.clone(),
                     timelock_config: Some(vec![
                         TimeLockConfig {
                             duration: 0,
@@ -793,36 +862,18 @@ impl SuiteBuilder {
         )
         .unwrap();
 
-        // create eclipAstro
-        app.execute_contract(
-            admin.clone(),
-            minter_contract.clone(),
-            &eclipse_base::minter::msg::ExecuteMsg::CreateNative {
-                owner: None,
-                whitelist: Some(vec![
-                    voter_contract.to_string(),
-                    single_staking_contract.to_string(),
-                ]),
-                permissionless_burning: None,
-                subdenom: "eclipAstro".to_string(),
-                decimals: None,
-            },
-            &coins(1, ECLIP_DENOM),
-        )
-        .unwrap();
-
         // replenish minter balance
         app.sudo(cw_multi_test::SudoMsg::Bank(
             cw_multi_test::BankSudo::Mint {
                 to_address: minter_contract.to_string(),
-                amount: coins(INITIAL_LIQUIDITY, ECLIP_ASTRO_DENOM),
+                amount: coins(INITIAL_LIQUIDITY, eclipastro.clone()),
             },
         ))
         .unwrap();
 
         let asset_infos = vec![
             AssetInfo::NativeToken {
-                denom: ECLIP_ASTRO_DENOM.to_string(),
+                denom: eclipastro.clone(),
             },
             AssetInfo::NativeToken {
                 denom: xastro.clone(),
@@ -845,7 +896,7 @@ impl SuiteBuilder {
                 &FactoryQueryMsg::Pair {
                     asset_infos: vec![
                         AssetInfo::NativeToken {
-                            denom: ECLIP_ASTRO_DENOM.to_string(),
+                            denom: eclipastro.clone(),
                         },
                         AssetInfo::NativeToken {
                             denom: xastro.clone(),
@@ -868,7 +919,8 @@ impl SuiteBuilder {
                         denom: eclipastro_xastro_lp_token.clone(),
                     },
                     lp_contract: eclipastro_xastro_lp_contract.to_string(),
-                    eclip: ECLIP_DENOM.to_string(),
+                    eclip: eclip.clone(),
+                    eclip_staking: eclipsepad_staking_contract.to_string(),
                     beclip: beclip.to_string(),
                     astro: ASTRO_DENOM.to_string(),
                     xastro: xastro.clone(),
@@ -931,13 +983,37 @@ impl SuiteBuilder {
                     astro_staking: astro_staking_contract.to_string(),
                     owner: None,
                     beclip: beclip.to_string(),
-                    eclip: ECLIP_DENOM.to_string(),
+                    eclip: eclip.clone(),
+                    eclip_staking: eclipsepad_staking_contract.to_string(),
                 },
                 &[],
                 "Eclipsefi lockdrop",
                 None,
             )
             .unwrap();
+
+        // add voter contract to eclip staking contract and whitelist
+        app.execute_contract(
+            admin.clone(),
+            eclipsepad_staking_contract.clone(),
+            &EclipStakingExecuteMsg::UpdateConfig {
+                admin: None,
+                equinox_voter: Some(voter_contract.to_string()),
+                beclip_minter: None,
+                beclip_address: None,
+                beclip_whitelist: Some(vec![
+                    lockdrop_contract.to_string(),
+                    single_staking_contract.to_string(),
+                    lp_staking_contract.to_string(),
+                ]),
+                lock_schedule: None,
+                dao_treasury_address: None,
+                penalty_multiplier: None,
+                eclip_per_second_multiplier: None,
+            },
+            &[],
+        )
+        .unwrap();
 
         let eclipse_stability_pool = Addr::unchecked(STABILITY_POOL_REWARD_HOLDER);
         let ce_reward_distributor = Addr::unchecked(CE_REWARD_HOLDER);
@@ -949,9 +1025,9 @@ impl SuiteBuilder {
             astro: ASTRO_DENOM.to_string(),
             xastro,
             astro_staking_contract,
-            eclipastro: ECLIP_ASTRO_DENOM.to_string(),
+            eclipastro: eclipastro.clone(),
             beclip,
-            eclip: ECLIP_DENOM.to_string(),
+            eclip: eclip.clone(),
             single_staking_contract,
             lp_staking_contract,
             lockdrop_contract,
@@ -1334,10 +1410,10 @@ impl Suite {
         )?;
         Ok(config)
     }
-    pub fn query_lp_staking_reward_config(&self) -> StdResult<LpStakingRewardConfig> {
-        let config: LpStakingRewardConfig = self.app.wrap().query_wasm_smart(
+    pub fn query_lp_staking_reward_distribution(&self) -> StdResult<RewardDistribution> {
+        let config: RewardDistribution = self.app.wrap().query_wasm_smart(
             self.lp_staking_contract.clone(),
-            &LpStakingQueryMsg::RewardConfig {},
+            &LpStakingQueryMsg::RewardDistribution {},
         )?;
         Ok(config)
     }
@@ -1381,17 +1457,6 @@ impl Suite {
         )?;
         Ok(res)
     }
-    pub fn mint_beclip(&mut self, recipient: &str, amount: u128) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            self.admin.clone(),
-            self.beclip.clone(),
-            &Cw20ExecuteMsg::Mint {
-                recipient: recipient.to_string(),
-                amount: Uint128::from(amount),
-            },
-            &[],
-        )
-    }
     pub fn query_beclip_balance(&self, address: &str) -> StdResult<u128> {
         let balance: BalanceResponse = self.app.wrap().query_wasm_smart(
             self.beclip.clone(),
@@ -1412,22 +1477,6 @@ impl Suite {
             Addr::unchecked(sender),
             self.single_staking_contract.clone(),
             &SingleSidedStakingExecuteMsg::UpdateConfig { config },
-            &[],
-        )
-    }
-    pub fn update_single_sided_stake_reward_config(
-        &mut self,
-        sender: &str,
-        details: RewardDetails,
-        reward_end_time: Option<u64>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.single_staking_contract.clone(),
-            &SingleSidedStakingExecuteMsg::UpdateRewardConfig {
-                details: Some(details),
-                reward_end_time,
-            },
             &[],
         )
     }
@@ -1453,6 +1502,26 @@ impl Suite {
             &SingleStakingQueryMsg::TotalStaking {},
         )?;
         Ok(total_staking.u128())
+    }
+    pub fn add_single_sided_vault_reward(
+        &mut self,
+        sender: &str,
+        from: Option<u64>,
+        duration: Option<u64>,
+        eclip: u128,
+        beclip: u128,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::AddRewards {
+                from,
+                duration,
+                eclip: Uint128::from(eclip),
+                beclip: Uint128::from(beclip),
+            },
+            &coins(eclip + beclip, self.eclip.clone()),
+        )
     }
     pub fn single_sided_stake(
         &mut self,
@@ -1516,11 +1585,15 @@ impl Suite {
     pub fn query_single_sided_staking_reward(
         &self,
         user: &str,
-    ) -> StdResult<Vec<SingleStakingUserRewardByDuration>> {
-        let reward: Vec<SingleStakingUserRewardByDuration> = self.app.wrap().query_wasm_smart(
+        duration: u64,
+        locked_at: u64,
+    ) -> StdResult<UserReward> {
+        let reward: UserReward = self.app.wrap().query_wasm_smart(
             self.single_staking_contract.clone(),
             &SingleStakingQueryMsg::Reward {
                 user: user.to_string(),
+                duration,
+                locked_at,
             },
         )?;
         Ok(reward)
@@ -1644,6 +1717,26 @@ impl Suite {
             },
         )?;
         Ok(res)
+    }
+    pub fn add_lp_vault_reward(
+        &mut self,
+        sender: &str,
+        from: Option<u64>,
+        duration: Option<u64>,
+        eclip: u128,
+        beclip: u128,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::AddRewards {
+                from,
+                duration,
+                eclip: Uint128::from(eclip),
+                beclip: Uint128::from(beclip),
+            },
+            &coins(eclip + beclip, self.eclip.clone()),
+        )
     }
     pub fn lp_staking_increase_lockdrop(
         &mut self,
@@ -1785,23 +1878,6 @@ impl Suite {
                 stake_type: StakeType::LpStaking,
                 amount,
                 duration,
-            },
-            &[],
-        )
-    }
-    pub fn fund_beclip(
-        &mut self,
-        sender: &str,
-        amount: u128,
-        rewards: Vec<IncentiveRewards>,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            Addr::unchecked(sender),
-            self.beclip.clone(),
-            &Cw20ExecuteMsg::Send {
-                contract: self.lockdrop_contract().to_string(),
-                amount: Uint128::from(amount),
-                msg: to_json_binary(&LockdropCw20HookMsg::IncreaseIncentives { rewards })?,
             },
             &[],
         )

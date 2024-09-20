@@ -87,8 +87,8 @@ pub fn total_staking_by_duration(
     let mut next_check_time = last_claim_time / ONE_DAY * ONE_DAY + ONE_DAY;
     let mut staking_by_duration = TotalStakingByDuration::load_at_ts(
         deps.storage,
-        block_time,
         duration,
+        block_time,
         Some(min(last_claim_time, timestamp)),
     )
     .unwrap_or_default();
@@ -171,7 +171,7 @@ pub fn query_reward(
         .find(|c| c.duration == 0u64)
         .unwrap()
         .reward_multiplier;
-    if end_time >= block_time {
+    if end_time >= block_time || duration == 0u64 {
         calculate_reward_with_multiplier(
             multiplier,
             user_staking.reward_weights,
@@ -277,8 +277,8 @@ pub fn calculate_reward_weights(
                 tc.reward_multiplier,
                 TotalStakingByDuration::load_at_ts(
                     deps.storage,
-                    block_time,
                     duration,
+                    block_time,
                     Some(last_claim_time),
                 )
                 .unwrap_or_default(),
@@ -289,6 +289,9 @@ pub fn calculate_reward_weights(
         RewardWeights::load_at_ts(deps.storage, block_time, Some(last_claim_time))?;
     let mut start_time = last_claim_time;
     let mut end_time = last_claim_time / ONE_DAY * ONE_DAY + ONE_DAY;
+    if total_staking.is_zero() {
+        return Ok(reward_weights);
+    }
     loop {
         if timestamp.le(&end_time) {
             end_time = timestamp;
@@ -296,16 +299,15 @@ pub fn calculate_reward_weights(
         let boost_sum = total_staking_by_durations
             .iter()
             .fold(Uint256::zero(), |acc, cur| {
-                acc + Uint256::from_uint128(cur.2.valid_staked) * Uint256::from_u128(cur.1.into())
+                acc + (Uint256::from_uint128(cur.2.valid_staked) * Uint256::from_u128(cur.1.into())
+                    + Uint256::from_uint128(cur.2.staked - cur.2.valid_staked)
+                        * Uint256::from_u128(cur.1.into()))
+                    / Uint256::from_u128(BPS_DENOMINATOR.into())
             });
         let (eclip_reward, beclip_reward) =
             calculate_eclip_beclip_reward(deps, start_time, end_time)?;
-        reward_weights.eclip += Decimal256::from_ratio(eclip_reward, boost_sum)
-            .checked_mul(Decimal256::from_ratio(end_time - start_time, ONE_DAY))
-            .unwrap();
-        reward_weights.beclip += Decimal256::from_ratio(beclip_reward, boost_sum)
-            .checked_mul(Decimal256::from_ratio(end_time - start_time, ONE_DAY))
-            .unwrap();
+        reward_weights.eclip += Decimal256::from_ratio(eclip_reward, boost_sum);
+        reward_weights.beclip += Decimal256::from_ratio(beclip_reward, boost_sum);
         let pending_eclipastro_reward =
             calculate_eclipastro_reward(deps, env.clone(), start_time, end_time)?;
         reward_weights.eclipastro +=

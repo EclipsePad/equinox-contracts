@@ -61,17 +61,20 @@ pub fn query_single_lockup_info(deps: Deps, env: Env) -> StdResult<SingleLockupI
             } else {
                 cfg.countdown_start_at
             };
-            let single_staking_reward: UserReward = deps
-                .querier
-                .query_wasm_smart(
-                    cfg.single_sided_staking.clone().unwrap(),
-                    &SingleSidedQueryMsg::Reward {
-                        user: env.contract.address.to_string(),
-                        duration,
-                        locked_at,
-                    },
-                )
-                .unwrap();
+            let single_staking_reward: UserReward = if cfg.single_sided_staking.is_some() {
+                deps.querier
+                    .query_wasm_smart(
+                        cfg.single_sided_staking.clone().unwrap(),
+                        &SingleSidedQueryMsg::Reward {
+                            user: env.contract.address.to_string(),
+                            duration,
+                            locked_at,
+                        },
+                    )
+                    .unwrap()
+            } else {
+                UserReward::default()
+            };
             single_staking_rewards.push(SingleStakingRewardsByDuration {
                 duration,
                 rewards: single_staking_reward,
@@ -174,17 +177,25 @@ pub fn query_user_single_lockup_info(
                 } else {
                     cfg.countdown_start_at
                 };
-                let single_staking_reward: UserReward = deps
-                    .querier
-                    .query_wasm_smart(
-                        cfg.single_sided_staking.clone().unwrap(),
-                        &SingleSidedQueryMsg::Reward {
-                            user: user_address.clone(),
-                            duration,
-                            locked_at,
-                        },
-                    )
-                    .unwrap();
+                let single_staking_reward: UserReward = if cfg.single_sided_staking.is_some() {
+                    deps.querier
+                        .query_wasm_smart(
+                            cfg.single_sided_staking.clone().unwrap(),
+                            &SingleSidedQueryMsg::CalculateReward {
+                                amount: user_lockup_info.total_eclipastro_staked
+                                    - user_lockup_info.total_eclipastro_withdrawed,
+                                duration,
+                                locked_at: Some(locked_at),
+                                from: user_lockup_info
+                                    .last_claimed
+                                    .unwrap_or(cfg.countdown_start_at),
+                                to: None,
+                            },
+                        )
+                        .unwrap()
+                } else {
+                    UserReward::default()
+                };
                 if user_lockup_info.total_eclipastro_staked.is_zero() {
                     user_lockup_info.total_eclipastro_staked = user_lockup_info
                         .xastro_amount_in_lockups

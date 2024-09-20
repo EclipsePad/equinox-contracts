@@ -107,10 +107,7 @@ fn handle_lockdrop() {
     let err = suite
         .single_staking_increase_lockdrop(ALICE, suite.astro(), 100u128, 0)
         .unwrap_err();
-    assert_eq!(
-        ContractError::DepositWindowNotStarted {},
-        err.downcast().unwrap(),
-    );
+    assert_eq!(ContractError::NotDepositWindow {}, err.downcast().unwrap(),);
 
     // update time and test single stake with all duration(invalid duration check, withdraw flag is false)
     suite.update_time(86400u64 * 2);
@@ -296,18 +293,12 @@ fn handle_lockdrop() {
     let err = suite
         .single_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, ONE_MONTH)
         .unwrap_err();
-    assert_eq!(
-        ContractError::DepositWindowClosed {},
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::NotDepositWindow {}, err.downcast().unwrap());
 
     let err = suite
         .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, ONE_MONTH)
         .unwrap_err();
-    assert_eq!(
-        ContractError::DepositWindowClosed {},
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::NotDepositWindow {}, err.downcast().unwrap());
 }
 
 // extend lock is only allowed during deposit window
@@ -850,20 +841,21 @@ fn lp_withdraw() {
 #[test]
 fn fund_incentives() {
     let mut suite = instantiate();
-    suite.mint_beclip(&suite.admin(), 1_000_000_000).unwrap();
     // test increase incentives before deposit window
     suite
-        .fund_beclip(
+        .fund_eclip(
             &suite.admin(),
             1_000_000u128,
             vec![
                 IncentiveRewards {
                     stake_type: StakeType::SingleStaking,
-                    amount: Uint128::from(300_000u128),
+                    beclip: Uint128::from(300_000u128),
+                    eclip: Uint128::zero(),
                 },
                 IncentiveRewards {
                     stake_type: StakeType::LpStaking,
-                    amount: Uint128::from(700_000u128),
+                    beclip: Uint128::from(700_000u128),
+                    eclip: Uint128::zero(),
                 },
             ],
         )
@@ -872,17 +864,19 @@ fn fund_incentives() {
     // test increase incentives on deposit window
     suite.update_time(86400u64 * 2);
     suite
-        .fund_beclip(
+        .fund_eclip(
             &suite.admin(),
             1_000_000u128,
             vec![
                 IncentiveRewards {
                     stake_type: StakeType::SingleStaking,
-                    amount: Uint128::from(300_000u128),
+                    beclip: Uint128::from(300_000u128),
+                    eclip: Uint128::zero(),
                 },
                 IncentiveRewards {
                     stake_type: StakeType::LpStaking,
-                    amount: Uint128::from(700_000u128),
+                    beclip: Uint128::from(700_000u128),
+                    eclip: Uint128::zero(),
                 },
             ],
         )
@@ -954,6 +948,7 @@ fn stake_assets_to_vaults() {
                 eclipastro_token: Some(suite.eclipastro()),
                 voter: Some(suite.voter_contract()),
                 dao_treasury_address: Some(suite.treasury()),
+                eclip_staking: None,
             },
         )
         .unwrap();
@@ -1250,39 +1245,20 @@ fn single_sided_incentives_distribution() {
     suite
         .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
-
-    suite.mint_beclip(&suite.admin(), 1_000_000_000).unwrap();
-    suite
-        .mint_native(suite.admin(), suite.eclip(), 1_000_000_000)
-        .unwrap();
-    suite
-        .fund_beclip(
-            &suite.admin(),
-            1_000_000u128,
-            vec![
-                IncentiveRewards {
-                    stake_type: StakeType::SingleStaking,
-                    amount: Uint128::from(300_000u128),
-                },
-                IncentiveRewards {
-                    stake_type: StakeType::LpStaking,
-                    amount: Uint128::from(700_000u128),
-                },
-            ],
-        )
-        .unwrap();
     suite
         .fund_eclip(
             &suite.admin(),
-            1_000_000u128,
+            2_000_000u128,
             vec![
                 IncentiveRewards {
                     stake_type: StakeType::SingleStaking,
-                    amount: Uint128::from(300_000u128),
+                    beclip: Uint128::from(300_000u128),
+                    eclip: Uint128::from(300_000u128),
                 },
                 IncentiveRewards {
                     stake_type: StakeType::LpStaking,
-                    amount: Uint128::from(700_000u128),
+                    beclip: Uint128::from(700_000u128),
+                    eclip: Uint128::from(700_000u128),
                 },
             ],
         )
@@ -1302,32 +1278,32 @@ fn single_sided_incentives_distribution() {
                 eclipastro_token: Some(suite.eclipastro()),
                 voter: Some(suite.voter_contract()),
                 dao_treasury_address: Some(suite.treasury()),
+                eclip_staking: None,
             },
         )
         .unwrap();
 
     // stake assets to single sided vaults and lp vault
     suite.lockdrop_stake_to_vaults(&suite.admin()).unwrap();
-
-    // fund eclip to staking vaults daily reward is 1_000_000_000u128
+    // add funds to vault
     suite
-        .mint_beclip(&suite.single_staking_contract(), 100_000_000_000u128)
-        .unwrap();
-    suite
-        .mint_native(
-            suite.single_staking_contract(),
-            suite.eclip(),
-            100_000_000_000u128,
+        .add_single_sided_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
         )
         .unwrap();
+
+    // add funds to vault
     suite
-        .mint_beclip(&&suite.lp_staking_contract(), 100_000_000_000u128)
-        .unwrap();
-    suite
-        .mint_native(
-            suite.lp_staking_contract(),
-            suite.eclip(),
-            100_000_000_000u128,
+        .add_lp_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
         )
         .unwrap();
     // test eclip incentives
@@ -1457,48 +1433,23 @@ fn lp_incentives_distribution() {
     let eclip_incentives_lp_staking = 700_000u128;
     let beclip_incentives_single_staking = 300_000u128;
     let beclip_incentives_lp_staking = 700_000u128;
-
-    suite
-        .mint_beclip(
-            &suite.admin(),
-            beclip_incentives_single_staking + beclip_incentives_lp_staking,
-        )
-        .unwrap();
-    suite
-        .mint_native(
-            suite.admin(),
-            suite.eclip(),
-            eclip_incentives_single_staking + eclip_incentives_lp_staking,
-        )
-        .unwrap();
-    suite
-        .fund_beclip(
-            &suite.admin(),
-            beclip_incentives_single_staking + beclip_incentives_lp_staking,
-            vec![
-                IncentiveRewards {
-                    stake_type: StakeType::SingleStaking,
-                    amount: Uint128::from(beclip_incentives_single_staking),
-                },
-                IncentiveRewards {
-                    stake_type: StakeType::LpStaking,
-                    amount: Uint128::from(beclip_incentives_lp_staking),
-                },
-            ],
-        )
-        .unwrap();
     suite
         .fund_eclip(
             &suite.admin(),
-            eclip_incentives_single_staking + eclip_incentives_lp_staking,
+            beclip_incentives_single_staking
+                + beclip_incentives_lp_staking
+                + eclip_incentives_single_staking
+                + eclip_incentives_lp_staking,
             vec![
                 IncentiveRewards {
                     stake_type: StakeType::SingleStaking,
-                    amount: Uint128::from(eclip_incentives_single_staking),
+                    beclip: Uint128::from(beclip_incentives_single_staking),
+                    eclip: Uint128::from(eclip_incentives_single_staking),
                 },
                 IncentiveRewards {
                     stake_type: StakeType::LpStaking,
-                    amount: Uint128::from(eclip_incentives_lp_staking),
+                    beclip: Uint128::from(beclip_incentives_lp_staking),
+                    eclip: Uint128::from(eclip_incentives_lp_staking),
                 },
             ],
         )
@@ -1518,6 +1469,7 @@ fn lp_incentives_distribution() {
                 eclipastro_token: Some(suite.eclipastro()),
                 voter: Some(suite.voter_contract()),
                 dao_treasury_address: Some(suite.treasury()),
+                eclip_staking: None,
             },
         )
         .unwrap();
@@ -1527,23 +1479,23 @@ fn lp_incentives_distribution() {
 
     // fund eclip to staking vaults daily reward is 1_000_000_000u128
     suite
-        .mint_beclip(&suite.single_staking_contract(), 100_000_000_000u128)
-        .unwrap();
-    suite
-        .mint_native(
-            suite.single_staking_contract(),
-            suite.eclip(),
-            100_000_000_000u128,
+        .add_single_sided_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
         )
         .unwrap();
+
+    // add funds to vault
     suite
-        .mint_beclip(&suite.lp_staking_contract(), 100_000_000_000u128)
-        .unwrap();
-    suite
-        .mint_native(
-            suite.lp_staking_contract(),
-            suite.eclip(),
-            100_000_000_000u128,
+        .add_lp_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
         )
         .unwrap();
     // test eclip incentives
@@ -1762,38 +1714,20 @@ fn restake_and_unlock() {
         .lp_staking_increase_lockdrop(ALICE, suite.astro(), 1_000u128, 23328000)
         .unwrap();
 
-    suite.mint_beclip(&suite.admin(), 1_000_000_000).unwrap();
-    suite
-        .mint_native(suite.admin(), suite.eclip(), 1_000_000_000)
-        .unwrap();
-    suite
-        .fund_beclip(
-            &suite.admin(),
-            1_000_000u128,
-            vec![
-                IncentiveRewards {
-                    stake_type: StakeType::SingleStaking,
-                    amount: Uint128::from(300_000u128),
-                },
-                IncentiveRewards {
-                    stake_type: StakeType::LpStaking,
-                    amount: Uint128::from(700_000u128),
-                },
-            ],
-        )
-        .unwrap();
     suite
         .fund_eclip(
             &suite.admin(),
-            1_000_000u128,
+            2_000_000u128,
             vec![
                 IncentiveRewards {
                     stake_type: StakeType::SingleStaking,
-                    amount: Uint128::from(300_000u128),
+                    beclip: Uint128::from(300_000u128),
+                    eclip: Uint128::from(300_000u128),
                 },
                 IncentiveRewards {
                     stake_type: StakeType::LpStaking,
-                    amount: Uint128::from(700_000u128),
+                    beclip: Uint128::from(700_000u128),
+                    eclip: Uint128::from(700_000u128),
                 },
             ],
         )
@@ -1814,6 +1748,7 @@ fn restake_and_unlock() {
                 eclipastro_token: Some(suite.eclipastro()),
                 voter: Some(suite.voter_contract()),
                 dao_treasury_address: Some(suite.treasury()),
+                eclip_staking: None,
             },
         )
         .unwrap();
@@ -1823,23 +1758,23 @@ fn restake_and_unlock() {
 
     // fund eclip to staking vaults daily reward is 1_000_000_000u128
     suite
-        .mint_beclip(&suite.single_staking_contract(), 100_000_000_000u128)
-        .unwrap();
-    suite
-        .mint_native(
-            suite.single_staking_contract(),
-            suite.eclip(),
-            100_000_000_000u128,
+        .add_single_sided_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
         )
         .unwrap();
+
+    // add funds to vault
     suite
-        .mint_beclip(&suite.lp_staking_contract(), 100_000_000_000u128)
-        .unwrap();
-    suite
-        .mint_native(
-            suite.lp_staking_contract(),
-            suite.eclip(),
-            100_000_000_000u128,
+        .add_lp_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
         )
         .unwrap();
 

@@ -591,6 +591,7 @@ pub fn _claim_all(
     );
 
     let reward_weights = update_reward_weights(deps.branch(), env.clone())?;
+
     let total_user_reward = calculate_total_user_reward(deps.as_ref(), sender.clone(), block_time)?;
     let mut total_eclipastro_reward = Uint128::zero();
     let mut total_beclip_reward = Uint128::zero();
@@ -845,13 +846,15 @@ pub fn update_duration_total_staking(
         if next_check_time > block_time {
             break;
         }
-        let ended_lock = STAKING_DURATION_BY_END_TIME
-            .load(storage, (duration, next_check_time))
-            .unwrap_or_default();
-        last_data = TotalStakingByDuration {
-            staked: last_data.staked,
-            valid_staked: last_data.valid_staked.checked_sub(ended_lock).unwrap(),
-        };
+        if duration != 0 {
+            let ended_lock = STAKING_DURATION_BY_END_TIME
+                .load(storage, (duration, next_check_time))
+                .unwrap_or_default();
+            last_data = TotalStakingByDuration {
+                staked: last_data.staked,
+                valid_staked: last_data.valid_staked.checked_sub(ended_lock).unwrap(),
+            };
+        }
         TOTAL_STAKING_BY_DURATION.save(storage, duration, &last_data, next_check_time)?;
         next_check_time += ONE_DAY;
     }
@@ -867,41 +870,41 @@ pub fn update_reward_weights(deps: DepsMut, env: Env) -> Result<RewardWeights, C
     }
     // if it's first time to stake, last_claim_time is zero
     let last_claim_time = LAST_CLAIM_TIME.load(deps.storage).unwrap_or(block_time);
-    let total_staking = TOTAL_STAKING.load(deps.storage)?;
+    let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
     // if last_claim_time is zero, no total_staking, no reward
     let mut reward_weights =
         RewardWeights::load_at_ts(deps.storage, block_time, Some(last_claim_time))
             .unwrap_or_default();
-    let mut start_time = last_claim_time;
-    let mut end_time = last_claim_time / ONE_DAY * ONE_DAY + ONE_DAY;
-    // loop from last_claim_time to min(now, reward_end_time), update reward_weights
-    loop {
-        if end_time > block_time {
-            end_time = block_time;
+    if !total_staking.is_zero() {
+        let mut start_time = last_claim_time;
+        let mut end_time = last_claim_time / ONE_DAY * ONE_DAY + ONE_DAY;
+        // loop from last_claim_time to min(now, reward_end_time), update reward_weights
+        loop {
+            if end_time > block_time {
+                end_time = block_time;
+            }
+            let boost_sum = TotalStakingByDuration::load_boost_sum_at_ts(
+                deps.storage,
+                block_time,
+                Some(start_time),
+            )?;
+            if !boost_sum.is_zero() {
+                let (eclip_reward, beclip_reward) =
+                    calculate_eclip_beclip_reward(deps.as_ref(), start_time, end_time)?;
+                reward_weights.eclip += Decimal256::from_ratio(eclip_reward, boost_sum);
+                reward_weights.beclip += Decimal256::from_ratio(beclip_reward, boost_sum);
+                let pending_eclipastro_reward =
+                    calculate_eclipastro_reward(deps.as_ref(), env.clone(), start_time, end_time)?;
+                reward_weights.eclipastro +=
+                    Decimal256::from_ratio(pending_eclipastro_reward, total_staking);
+                REWARD_WEIGHTS.save(deps.storage, &reward_weights, end_time)?;
+            }
+            if end_time == block_time {
+                break;
+            }
+            start_time = end_time;
+            end_time += ONE_DAY;
         }
-        let boost_sum = TotalStakingByDuration::load_boost_sum_at_ts(
-            deps.storage,
-            block_time,
-            Some(start_time),
-        )?;
-        let (eclip_reward, beclip_reward) =
-            calculate_eclip_beclip_reward(deps.as_ref(), start_time, end_time)?;
-        reward_weights.eclip += Decimal256::from_ratio(eclip_reward, boost_sum)
-            .checked_mul(Decimal256::from_ratio(end_time - start_time, ONE_DAY))
-            .unwrap();
-        reward_weights.beclip += Decimal256::from_ratio(beclip_reward, boost_sum)
-            .checked_mul(Decimal256::from_ratio(end_time - start_time, ONE_DAY))
-            .unwrap();
-        let pending_eclipastro_reward =
-            calculate_eclipastro_reward(deps.as_ref(), env.clone(), start_time, end_time)?;
-        reward_weights.eclipastro +=
-            Decimal256::from_ratio(pending_eclipastro_reward, total_staking);
-        REWARD_WEIGHTS.save(deps.storage, &reward_weights, end_time)?;
-        if end_time == block_time {
-            break;
-        }
-        start_time = end_time;
-        end_time += ONE_DAY;
     }
     Ok(reward_weights)
 }

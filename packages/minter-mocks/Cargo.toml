@@ -26,3 +26,4 @@ cw20-base = { workspace = true }
 serde = { workspace = true }
 eclipse-base = { workspace = true }
 semver = { workspace = true }
+osmosis-std = { workspace = true }

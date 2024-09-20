@@ -43,7 +43,7 @@ pub trait SingleSidedStakingExtension {
         &self,
         user: impl ToString,
         duration: u64,
-        locked_at: u64
+        locked_at: u64,
     ) -> StdResult<Vec<UserRewardByDuration>>;
 }
 
@@ -149,14 +149,14 @@ impl SingleSidedStakingExtension for ControllerHelper {
         &self,
         user: impl ToString,
         duration: u64,
-        locked_at: u64
+        locked_at: u64,
     ) -> StdResult<Vec<UserRewardByDuration>> {
         self.app.wrap().query_wasm_smart(
             self.single_sided_staking_contract_address(),
             &QueryMsg::Reward {
                 user: user.to_string(),
                 duration,
-                locked_at
+                locked_at,
             },
         )
     }

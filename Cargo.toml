@@ -40,7 +40,6 @@ strum_macros            = "0.24.3"
 equinox-msg             = { path = "./packages/equinox_msg" }
 eclipse-base            = { path = "./packages/eclipse-base" }
 eclipsepad-staking      = { path = "./packages/eclipsepad-staking" }
-beclip-minter           = { path = "./packages/beclip-minter" }
 minter-mocks            = { path = "./packages/minter-mocks" }
 tribute-market-mocks    = { path = "./packages/tribute-market-mocks", features = ["library"] }
 voter-mocks             = { path = "./packages/voter-mocks", features = ["library"] }

@@ -296,6 +296,12 @@ pub fn _claim(
                     && assets.clone().unwrap().iter().any(|a| a.equal(&r.info)));
             if !r.amount.is_zero() && claimable {
                 if r.info.is_native_token() {
+                    msgs.push(r.info.with_balance(r.amount).into_msg(sender.clone())?);
+                    response = response
+                        .add_attribute("action", "claim")
+                        .add_attribute("denom", r.info.to_string())
+                        .add_attribute("amount", r.amount);
+                } else {
                     if r.info.to_string() == cfg.beclip {
                         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                             contract_addr: cfg.eclip_staking.to_string(),
@@ -307,12 +313,6 @@ pub fn _claim(
                     } else {
                         msgs.push(r.info.with_balance(r.amount).into_msg(sender.clone())?);
                     }
-                    response = response
-                        .add_attribute("action", "claim")
-                        .add_attribute("denom", r.info.to_string())
-                        .add_attribute("amount", r.amount);
-                } else {
-                    msgs.push(r.info.with_balance(r.amount).into_msg(sender.clone())?);
                     response = response
                         .add_attribute("action", "claim")
                         .add_attribute("address", r.info.to_string())

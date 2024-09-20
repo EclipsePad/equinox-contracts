@@ -571,7 +571,6 @@ pub fn _extend_single_lockup_after_lockdrop(
             .xastro_amount_in_lockups
             .multiply_ratio(state.total_eclipastro_lockup, state.total_xastro);
     }
-
     let existing_eclipastro_amount = user_lockup_info_from.total_eclipastro_staked
         - user_lockup_info_from.total_eclipastro_withdrawed;
     ensure!(
@@ -580,7 +579,6 @@ pub fn _extend_single_lockup_after_lockdrop(
     );
     lockup_info_from.total_withdrawed += existing_eclipastro_amount;
     user_lockup_info_from.total_eclipastro_withdrawed += existing_eclipastro_amount;
-
     SINGLE_LOCKUP_INFO.save(deps.storage, from_duration, &lockup_info_from)?;
     SINGLE_USER_LOCKUP_INFO.save(
         deps.storage,
@@ -724,7 +722,7 @@ pub fn receive_cw20(
         Cw20HookMsg::IncreaseIncentives { rewards } => {
             OWNER.assert_admin(deps.as_ref(), &sender)?;
             ensure!(
-                cfg.eclip.to_string() == info.sender.to_string(),
+                cfg.eclip.to_string() == info.sender,
                 ContractError::InvalidAsset {}
             );
             ensure!(
