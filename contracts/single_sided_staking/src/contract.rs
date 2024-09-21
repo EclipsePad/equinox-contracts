@@ -8,9 +8,9 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            _handle_callback, allow_users, block_users, claim, claim_all, claim_ownership,
-            drop_ownership_proposal, propose_new_owner, restake, stake, unstake, update_config,
-            update_reward_config,
+            _handle_callback, add_rewards, allow_users, block_users, claim, claim_all,
+            claim_ownership, drop_ownership_proposal, propose_new_owner, restake, stake, unstake,
+            update_config,
         },
         instantiate::try_instantiate,
         query::{
@@ -48,10 +48,6 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig { config } => update_config(deps, env, info, config),
-        ExecuteMsg::UpdateRewardConfig {
-            details,
-            reward_end_time,
-        } => update_reward_config(deps, env, info, details, reward_end_time),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             propose_new_owner(deps, env, info, owner, expires_in)
         }
@@ -103,6 +99,12 @@ pub fn execute(
         ExecuteMsg::AllowUsers { users } => allow_users(deps, info, users),
         ExecuteMsg::BlockUsers { users } => block_users(deps, info, users),
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
+        ExecuteMsg::AddRewards {
+            from,
+            duration,
+            eclip,
+            beclip,
+        } => add_rewards(deps, env, info, from, duration, eclip, beclip),
     }
 }
 

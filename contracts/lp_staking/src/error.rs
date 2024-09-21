@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("{0}")]
     Admin(#[from] AdminError),
 
+    #[error("Amount {got} doesn't match with arguments {expected}")]
+    AmountNotMatch { got: u128, expected: u128 },
+
     #[error("Sender's asset denom {got} does not match one from config {expected}")]
     AssetsNotMatch { got: String, expected: String },
 
@@ -29,6 +32,9 @@ pub enum ContractError {
     #[error("Parameter expires_in cannot be higher than {0}")]
     ExpiresInErr(u64),
 
+    #[error("Invalid asset")]
+    InvalidAsset {},
+
     #[error("Callbacks cannot be invoked externally")]
     InvalidCallbackInvoke {},
 
@@ -37,6 +43,9 @@ pub enum ContractError {
 
     #[error("Invalid reward end time")]
     InvalidEndTime {},
+
+    #[error("Start time must be greater thatn {expect}, but got {got}")]
+    InvalidStartTime { got: u64, expect: u64 },
 
     #[error("Staking amount is zero")]
     InvalidStakingAmount {},

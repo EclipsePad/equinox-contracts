@@ -1,7 +1,8 @@
 use cosmwasm_std::{
-    coins, to_json_binary, Addr, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Response,
-    StdResult, Storage, SubMsg, SubMsgResult, Uint128, WasmMsg,
+    coin, to_json_binary, Addr, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdResult, Storage,
+    SubMsg, SubMsgResult, Uint128, WasmMsg,
 };
+use osmosis_std::types::osmosis::tokenfactory::v1beta1 as OsmosisFactory;
 
 use cw20::Logo;
 
@@ -750,7 +751,7 @@ pub fn try_exclude_cw20(
 
 pub fn try_mint(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     denom_or_address: String,
     amount: Uint128,
@@ -774,10 +775,16 @@ pub fn try_mint(
         .to_string();
 
     if currency_info.currency.token.is_native() {
-        let msg = CosmosMsg::Bank(BankMsg::Send {
-            to_address: recipient,
-            amount: coins(amount.u128(), denom_or_address),
-        });
+        let msg: CosmosMsg = OsmosisFactory::MsgMint {
+            sender: env.contract.address.to_string(),
+            amount: Some(coin(amount.u128(), denom_or_address).into()),
+            mint_to_address: recipient,
+        }
+        .into();
+        // let msg = CosmosMsg::Bank(BankMsg::Mint {
+        //     to_address: recipient,
+        //     amount: coins(amount.u128(), denom_or_address),
+        // });
 
         response = response.add_message(msg);
     } else {

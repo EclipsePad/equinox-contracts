@@ -93,7 +93,7 @@ pub fn try_instantiate(
         eclip: AssetInfo::NativeToken { denom: msg.eclip },
         eclipastro_token: None,
         voter: None,
-        eclip_staking: None,
+        eclip_staking: Some(deps.api.addr_validate(&msg.eclip_staking)?),
         single_sided_staking: None,
         lp_staking: None,
         liquidity_pool: None,

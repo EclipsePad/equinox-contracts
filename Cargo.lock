@@ -2002,6 +2002,7 @@ dependencies = [
  "cw20 1.1.2",
  "cw20-base 1.1.2",
  "eclipse-base",
+ "osmosis-std",
  "semver",
  "serde",
 ]
@@ -2043,6 +2044,7 @@ dependencies = [
  "cw-multi-test",
  "cw20 1.1.2",
  "cw20-base 1.1.2",
+ "cw20-gift",
  "derivative",
  "eclipse-base",
  "eclipsepad-staking",

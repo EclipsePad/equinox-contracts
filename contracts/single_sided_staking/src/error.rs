@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("{0}")]
     Admin(#[from] AdminError),
 
+    #[error("Amount {got} doesn't match with arguments {expected}")]
+    AmountNotMatch { got: u128, expected: u128 },
+
     #[error("Contract name must be same: {0}")]
     ContractNameErr(String),
 
@@ -43,6 +46,9 @@ pub enum ContractError {
 
     #[error("Invalid reward end time")]
     InvalidEndTime {},
+
+    #[error("Start time must be greater thatn {expect}, but got {got}")]
+    InvalidStartTime { got: u64, expect: u64 },
 
     #[error("No locking period found: {0}")]
     NoLockingPeriodFound(u64),

@@ -27,6 +27,7 @@ pub struct InstantiateMsg {
     pub beclip: String,
     /// ECLIP denom
     pub eclip: String,
+    pub eclip_staking: String,
     /// astro staking pool
     pub astro_staking: String,
 }
@@ -543,5 +544,6 @@ pub struct RewardDistributionConfig {
 #[cw_serde]
 pub struct IncentiveRewards {
     pub stake_type: StakeType,
-    pub amount: Uint128,
+    pub eclip: Uint128,
+    pub beclip: Uint128,
 }

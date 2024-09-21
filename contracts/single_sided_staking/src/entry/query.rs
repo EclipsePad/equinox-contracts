@@ -3,17 +3,17 @@ use cw_storage_plus::Bound;
 use std::cmp::{max, min};
 
 use crate::{
-    config::{BPS_DENOMINATOR, ONE_DAY, REWARD_DISTRIBUTION_PERIOD},
+    config::{BPS_DENOMINATOR, ECLIPASTRO_REWARD_DISTRIBUTION_PERIOD, ONE_DAY},
     state::{
         RewardWeights, TotalStakingByDuration, CONFIG, LAST_CLAIM_TIME, OWNER,
-        PENDING_ECLIPASTRO_REWARDS, REWARD_CONFIG, STAKING_DURATION_BY_END_TIME, TOTAL_STAKING,
+        PENDING_ECLIPASTRO_REWARDS, REWARD, STAKING_DURATION_BY_END_TIME, TOTAL_STAKING,
         USER_STAKED,
     },
 };
 use equinox_msg::{
     single_sided_staking::{
-        Config, RewardConfig, StakingWithDuration, UserReward, UserRewardByDuration,
-        UserRewardByLockedAt, UserStaking, UserStakingByDuration, VaultRewards,
+        Config, Reward, StakingWithDuration, UserReward, UserRewardByDuration,
+        UserRewardByLockedAt, UserStaking, UserStakingByDuration,
     },
     voter::msg::{AstroStakingRewardResponse, QueryMsg as VoterQueryMsg},
 };
@@ -31,9 +31,16 @@ pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
 }
 
 /// query reward config
-pub fn query_reward_config(deps: Deps, _env: Env) -> StdResult<RewardConfig> {
-    let config = REWARD_CONFIG.load(deps.storage)?;
-    Ok(config)
+pub fn query_reward_config(deps: Deps, env: Env) -> StdResult<Vec<((u64, u64), Reward)>> {
+    let block_time = env.block.time.seconds();
+    REWARD
+        .range(
+            deps.storage,
+            Some(Bound::exclusive((block_time, 0u64))),
+            None,
+            Order::Ascending,
+        )
+        .collect::<StdResult<Vec<_>>>()
 }
 
 // query total staking
@@ -80,8 +87,8 @@ pub fn total_staking_by_duration(
     let mut next_check_time = last_claim_time / ONE_DAY * ONE_DAY + ONE_DAY;
     let mut staking_by_duration = TotalStakingByDuration::load_at_ts(
         deps.storage,
-        block_time,
         duration,
+        block_time,
         Some(min(last_claim_time, timestamp)),
     )
     .unwrap_or_default();
@@ -164,7 +171,7 @@ pub fn query_reward(
         .find(|c| c.duration == 0u64)
         .unwrap()
         .reward_multiplier;
-    if end_time >= block_time {
+    if end_time >= block_time || duration == 0u64 {
         calculate_reward_with_multiplier(
             multiplier,
             user_staking.reward_weights,
@@ -253,7 +260,6 @@ pub fn calculate_reward_weights(
 ) -> StdResult<RewardWeights> {
     let cfg = CONFIG.load(deps.storage)?;
     let last_claim_time = LAST_CLAIM_TIME.load(deps.storage).unwrap_or(block_time);
-    let reward_cfg = REWARD_CONFIG.load(deps.storage)?;
     if last_claim_time.ge(&timestamp) {
         return Ok(
             RewardWeights::load_at_ts(deps.storage, block_time, Some(timestamp))
@@ -271,8 +277,8 @@ pub fn calculate_reward_weights(
                 tc.reward_multiplier,
                 TotalStakingByDuration::load_at_ts(
                     deps.storage,
-                    block_time,
                     duration,
+                    block_time,
                     Some(last_claim_time),
                 )
                 .unwrap_or_default(),
@@ -282,54 +288,45 @@ pub fn calculate_reward_weights(
     let mut reward_weights =
         RewardWeights::load_at_ts(deps.storage, block_time, Some(last_claim_time))?;
     let mut start_time = last_claim_time;
-    let mut next_check_time = last_claim_time / ONE_DAY * ONE_DAY + ONE_DAY;
+    let mut end_time = last_claim_time / ONE_DAY * ONE_DAY + ONE_DAY;
+    if total_staking.is_zero() {
+        return Ok(reward_weights);
+    }
     loop {
-        if timestamp.le(&next_check_time) {
-            next_check_time = timestamp;
-        }
-        if let Some(reward_end_time) = reward_cfg.reward_end_time {
-            if reward_end_time.gt(&next_check_time) {
-                next_check_time = reward_end_time;
-            }
+        if timestamp.le(&end_time) {
+            end_time = timestamp;
         }
         let boost_sum = total_staking_by_durations
             .iter()
             .fold(Uint256::zero(), |acc, cur| {
-                acc + Uint256::from_uint128(cur.2.valid_staked) * Uint256::from_u128(cur.1.into())
+                acc + (Uint256::from_uint128(cur.2.valid_staked) * Uint256::from_u128(cur.1.into())
+                    + Uint256::from_uint128(cur.2.staked - cur.2.valid_staked)
+                        * Uint256::from_u128(cur.1.into()))
+                    / Uint256::from_u128(BPS_DENOMINATOR.into())
             });
-        reward_weights.eclip +=
-            Decimal256::from_ratio(reward_cfg.details.eclip.daily_reward, boost_sum)
-                .checked_mul(Decimal256::from_ratio(
-                    next_check_time - start_time,
-                    ONE_DAY,
-                ))
-                .unwrap();
-        reward_weights.beclip +=
-            Decimal256::from_ratio(reward_cfg.details.beclip.daily_reward, boost_sum)
-                .checked_mul(Decimal256::from_ratio(
-                    next_check_time - start_time,
-                    ONE_DAY,
-                ))
-                .unwrap();
+        let (eclip_reward, beclip_reward) =
+            calculate_eclip_beclip_reward(deps, start_time, end_time)?;
+        reward_weights.eclip += Decimal256::from_ratio(eclip_reward, boost_sum);
+        reward_weights.beclip += Decimal256::from_ratio(beclip_reward, boost_sum);
         let pending_eclipastro_reward =
-            calculate_eclipastro_reward(deps, env.clone(), start_time, next_check_time)?;
+            calculate_eclipastro_reward(deps, env.clone(), start_time, end_time)?;
         reward_weights.eclipastro +=
             Decimal256::from_ratio(pending_eclipastro_reward, total_staking);
-        if next_check_time.le(&timestamp) {
+        if end_time.le(&timestamp) {
             return Ok(reward_weights);
         }
         total_staking_by_durations = total_staking_by_durations
             .into_iter()
             .map(|(duration, multiplier, mut staking)| {
                 let lock_end_staking = STAKING_DURATION_BY_END_TIME
-                    .load(deps.storage, (duration, next_check_time))
+                    .load(deps.storage, (duration, end_time))
                     .unwrap_or_default();
                 staking.valid_staked -= lock_end_staking;
                 (duration, multiplier, staking)
             })
             .collect::<Vec<(u64, u64, TotalStakingByDuration)>>();
-        start_time = next_check_time;
-        next_check_time += ONE_DAY;
+        start_time = end_time;
+        end_time += ONE_DAY;
     }
 }
 
@@ -374,36 +371,14 @@ pub fn calculate_eclipastro_reward(
     let eclipastro_rewards = query_eclipastro_rewards(deps, env)?;
     for (start_time, amount) in eclipastro_rewards.into_iter() {
         let start_time = max(start_time, last_claim_time);
-        let end_time = min(start_time + REWARD_DISTRIBUTION_PERIOD, current_time);
-        pending_rewards += amount.multiply_ratio(end_time - start_time, REWARD_DISTRIBUTION_PERIOD);
+        let end_time = min(
+            start_time + ECLIPASTRO_REWARD_DISTRIBUTION_PERIOD,
+            current_time,
+        );
+        pending_rewards +=
+            amount.multiply_ratio(end_time - start_time, ECLIPASTRO_REWARD_DISTRIBUTION_PERIOD);
     }
     Ok(pending_rewards)
-}
-
-pub fn calculate_vault_rewards(
-    deps: Deps,
-    last_claim_time: u64,
-    current_time: u64,
-) -> StdResult<VaultRewards> {
-    let reward_config = REWARD_CONFIG.load(deps.storage)?;
-    let mut time_passed = current_time - last_claim_time;
-    if let Some(reward_end_time) = reward_config.reward_end_time {
-        if reward_end_time < current_time {
-            time_passed = reward_end_time - last_claim_time;
-        }
-    }
-    Ok(VaultRewards {
-        eclip: reward_config
-            .details
-            .eclip
-            .daily_reward
-            .multiply_ratio(time_passed, ONE_DAY),
-        beclip: reward_config
-            .details
-            .beclip
-            .daily_reward
-            .multiply_ratio(time_passed, ONE_DAY),
-    })
 }
 
 pub fn calculate_user_reward(
@@ -551,7 +526,7 @@ pub fn query_eclipastro_pending_rewards(deps: Deps, voter: String) -> StdResult<
 
 pub fn query_eclipastro_rewards(deps: Deps, env: Env) -> StdResult<Vec<(u64, Uint128)>> {
     let start_bound = Some(Bound::exclusive(
-        env.block.time.seconds() - REWARD_DISTRIBUTION_PERIOD,
+        env.block.time.seconds() - ECLIPASTRO_REWARD_DISTRIBUTION_PERIOD,
     ));
     let keys = PENDING_ECLIPASTRO_REWARDS
         .keys(deps.storage, start_bound, None, Order::Ascending)
@@ -569,4 +544,35 @@ pub fn query_eclipastro_rewards(deps: Deps, env: Env) -> StdResult<Vec<(u64, Uin
 
 pub fn calculate_lock_end_time(duration: u64, locked_at: u64) -> u64 {
     (duration + locked_at) / ONE_DAY * ONE_DAY + ONE_DAY
+}
+
+pub fn calculate_eclip_beclip_reward(
+    deps: Deps,
+    start_time: u64,
+    end_time: u64,
+) -> StdResult<(Uint128, Uint128)> {
+    let rewards = REWARD
+        .range(
+            deps.storage,
+            Some(Bound::exclusive((start_time, 0u64))),
+            None,
+            Order::Ascending,
+        )
+        .collect::<StdResult<Vec<_>>>()
+        .unwrap();
+    let mut eclip_reward = Uint128::zero();
+    let mut beclip_reward = Uint128::zero();
+    for ((end, start), reward) in rewards {
+        let duration = end - start;
+        if start >= end_time {
+            continue;
+        }
+        eclip_reward += reward
+            .eclip
+            .multiply_ratio(min(end_time, end) - max(start_time, start), duration);
+        beclip_reward += reward
+            .beclip
+            .multiply_ratio(min(end_time, end) - max(start_time, start), duration);
+    }
+    Ok((eclip_reward, beclip_reward))
 }
