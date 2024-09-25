@@ -9,15 +9,17 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            _handle_callback, receive_cw20, try_claim_all_rewards, try_claim_rewards,
-            try_extend_lockup, try_increase_incentives, try_increase_lockup, try_stake_to_vaults,
-            try_unlock, try_update_config, try_update_owner, try_update_reward_distribution_config,
+            _handle_callback, receive_cw20, try_claim_all_rewards, try_claim_blacklist_rewards,
+            try_claim_rewards, try_extend_lockup, try_increase_incentives, try_increase_lockup,
+            try_stake_to_vaults, try_unlock, try_update_config, try_update_owner,
+            try_update_reward_distribution_config,
         },
         instantiate::try_instantiate,
         query::{
-            query_config, query_incentives, query_lp_lockup_info, query_lp_lockup_state,
-            query_owner, query_reward_config, query_single_lockup_info, query_single_lockup_state,
-            query_user_lp_lockup_info, query_user_single_lockup_info,
+            query_blacklist, query_blacklist_rewards, query_config, query_incentives,
+            query_lp_lockup_info, query_lp_lockup_state, query_owner, query_reward_config,
+            query_single_lockup_info, query_single_lockup_state, query_user_lp_lockup_info,
+            query_user_single_lockup_info,
         },
     },
     error::ContractError,
@@ -77,6 +79,7 @@ pub fn execute(
             try_increase_incentives(deps, env, info, rewards)
         }
         ExecuteMsg::UpdateOwner { new_owner } => try_update_owner(deps, env, info, new_owner),
+        ExecuteMsg::ClaimBlacklistRewards {} => try_claim_blacklist_rewards(deps, env),
     }
 }
 
@@ -102,6 +105,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Incentives { stake_type } => {
             Ok(to_json_binary(&query_incentives(deps, stake_type)?)?)
         }
+        QueryMsg::Blacklist {} => Ok(to_json_binary(&query_blacklist(deps)?)?),
+        QueryMsg::BlacklistRewards {} => Ok(to_json_binary(&query_blacklist_rewards(deps, env)?)?),
     }
 }
 

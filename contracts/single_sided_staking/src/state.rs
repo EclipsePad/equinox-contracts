@@ -3,7 +3,7 @@ use cosmwasm_std::{Decimal256, StdResult, Storage, Uint128, Uint256};
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map, SnapshotItem, SnapshotMap, Strategy};
 
-use equinox_msg::single_sided_staking::{Config, OwnershipProposal, Reward};
+use equinox_msg::single_sided_staking::{Config, OwnershipProposal, Reward, UserReward};
 
 use crate::{
     config::{BPS_DENOMINATOR, ONE_DAY},
@@ -43,6 +43,9 @@ pub const PENDING_ECLIPASTRO_REWARDS: Map<u64, Uint128> = Map::new("pending_ecli
 pub const REWARD: Map<(u64, u64), Reward> = Map::new("reward");
 /// Stores the latest contract ownership transfer proposal
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
+/// List of users who can't claim rewards
+pub const BLACK_LIST: Item<Vec<String>> = Item::new("blacklist");
+pub const BLACK_LIST_REWARDS: Item<UserReward> = Item::new("blacklist_rewards");
 
 #[cw_serde]
 pub struct TotalStakingByDuration {

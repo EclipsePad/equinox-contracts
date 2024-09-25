@@ -1,12 +1,15 @@
 use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
-use equinox_msg::lp_staking::{Config, InstantiateMsg};
+use equinox_msg::{
+    lp_staking::{Config, InstantiateMsg},
+    utils::has_unique_elements,
+};
 
 use crate::{
     config::DEFAULT_REWARD_DISTRIBUTION,
     entry::query::check_native_token_denom,
     error::ContractError,
-    state::{CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER, REWARD_DISTRIBUTION},
+    state::{BLACK_LIST, CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER, REWARD_DISTRIBUTION},
 };
 
 pub fn try_instantiate(
@@ -50,5 +53,17 @@ pub fn try_instantiate(
         .api
         .addr_validate(msg.owner.unwrap_or(info.sender.to_string()).as_str())?;
     OWNER.set(deps.branch(), Some(owner))?;
+
+    // check and update blacklist
+    if let Some(blacklist) = msg.blacklist {
+        ensure!(
+            has_unique_elements(blacklist.clone()),
+            ContractError::DuplicatedAssets {}
+        );
+        // validate each is correct address
+        let _ = blacklist.iter().map(|b| deps.api.addr_validate(b).unwrap());
+        BLACK_LIST.save(deps.storage, &blacklist)?;
+    }
+
     Ok(Response::new())
 }

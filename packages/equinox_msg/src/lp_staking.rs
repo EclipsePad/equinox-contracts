@@ -30,6 +30,8 @@ pub struct InstantiateMsg {
     pub stability_pool: String,
     /// cosmic essence reward distributor. send 20% of 20% of incentives rewards
     pub ce_reward_distributor: String,
+    /// blacklisted wallets
+    pub blacklist: Option<Vec<String>>,
 }
 
 #[cw_serde]
@@ -68,6 +70,13 @@ pub enum ExecuteMsg {
         eclip: Uint128,
         beclip: Uint128,
     },
+    ClaimBlacklistRewards {},
+    AllowUsers {
+        users: Vec<String>,
+    },
+    BlockUsers {
+        users: Vec<String>,
+    },
 }
 
 #[cw_serde]
@@ -96,6 +105,14 @@ pub enum QueryMsg {
     RewardWeights {},
     #[returns(Vec<RewardWeight>)]
     UserRewardWeights { user: String },
+
+    #[returns(Vec<String>)]
+    Blacklist {},
+    // rewards of blacklist
+    #[returns(Vec<RewardAmount>)]
+    BlacklistRewards,
+    #[returns(bool)]
+    IsAllowed { user: String },
 }
 
 #[cw_serde]

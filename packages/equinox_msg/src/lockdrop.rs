@@ -30,6 +30,8 @@ pub struct InstantiateMsg {
     pub eclip_staking: String,
     /// astro staking pool
     pub astro_staking: String,
+    /// blacklisted wallets
+    pub blacklist: Option<Vec<String>>,
 }
 
 #[cw_serde]
@@ -81,6 +83,7 @@ pub enum ExecuteMsg {
     IncreaseIncentives {
         rewards: Vec<IncentiveRewards>,
     },
+    ClaimBlacklistRewards {},
 }
 
 #[cw_serde]
@@ -117,6 +120,12 @@ pub enum QueryMsg {
     UserLpLockupInfo { user: String },
     #[returns(IncentiveAmounts)]
     Incentives { stake_type: StakeType },
+    // list of users who can't receive rewards
+    #[returns(Vec<String>)]
+    Blacklist {},
+    // rewards of blacklist
+    #[returns(BlacklistRewards)]
+    BlacklistRewards,
 }
 
 #[cw_serde]
@@ -291,6 +300,16 @@ pub struct IncentiveAmounts {
 }
 
 #[cw_serde]
+#[derive(Default)]
+pub struct BlacklistRewards {
+    pub eclip: Uint128,
+    pub beclip: Uint128,
+    pub eclipastro: Uint128,
+    pub astro: Uint128,
+}
+
+#[cw_serde]
+#[derive(Default)]
 pub struct LockdropIncentives {
     pub beclip: LockdropIncentive,
     pub eclip: LockdropIncentive,

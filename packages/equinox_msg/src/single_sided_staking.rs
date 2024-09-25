@@ -18,6 +18,8 @@ pub struct InstantiateMsg {
     /// ASTRO/eclipASTRO converter contract
     pub voter: String,
     pub treasury: String,
+    /// blacklisted wallets
+    pub blacklist: Option<Vec<String>>,
 }
 
 #[cw_serde]
@@ -74,6 +76,8 @@ pub enum ExecuteMsg {
         eclip: Uint128,
         beclip: Uint128,
     },
+    // claim blacklist rewards
+    ClaimBlacklistRewards {},
 }
 
 #[cw_serde]
@@ -124,6 +128,12 @@ pub enum QueryMsg {
     IsAllowed { user: String },
     #[returns(Vec<(u64, Uint128)>)]
     EclipastroRewards {},
+
+    #[returns(Vec<String>)]
+    Blacklist {},
+    // rewards of blacklist
+    #[returns(UserReward)]
+    BlacklistRewards,
 }
 
 #[cw_serde]

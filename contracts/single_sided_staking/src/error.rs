@@ -12,6 +12,9 @@ pub enum ContractError {
     #[error("Amount {got} doesn't match with arguments {expected}")]
     AmountNotMatch { got: u128, expected: u128 },
 
+    #[error("User is in blacklist")]
+    Blacklisted {},
+
     #[error("Contract name must be same: {0}")]
     ContractNameErr(String),
 

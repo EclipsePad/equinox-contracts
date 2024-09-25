@@ -9,7 +9,7 @@ use cosmwasm_std::{
 };
 use equinox_msg::{
     lockdrop::{
-        Config, DetailedLpLockupInfo, DetailedSingleLockupInfo, IncentiveAmounts,
+        BlacklistRewards, Config, DetailedLpLockupInfo, DetailedSingleLockupInfo, IncentiveAmounts,
         LockdropIncentive, LockdropIncentives, LpLockupInfoResponse, LpLockupStateResponse,
         LpStakingRewardWeights, LpStakingRewards, LpUserLockupInfo, RewardDistributionConfig,
         SingleLockupInfoResponse, SingleLockupStateResponse, SingleStakingRewardsByDuration,
@@ -23,29 +23,26 @@ use crate::{
     config::BPS_DENOMINATOR,
     error::ContractError,
     state::{
-        CONFIG, LP_LOCKDROP_INCENTIVES, LP_LOCKUP_INFO, LP_LOCKUP_STATE, LP_STAKING_REWARD_WEIGHTS,
-        LP_USER_LOCKUP_INFO, OWNER, REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKDROP_INCENTIVES,
-        SINGLE_LOCKUP_INFO, SINGLE_LOCKUP_STATE, SINGLE_STAKING_REWARD_WEIGHTS,
-        SINGLE_USER_LOCKUP_INFO,
+        BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LP_LOCKDROP_INCENTIVES, LP_LOCKUP_INFO,
+        LP_LOCKUP_STATE, LP_STAKING_REWARD_WEIGHTS, LP_USER_LOCKUP_INFO, OWNER,
+        REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKDROP_INCENTIVES, SINGLE_LOCKUP_INFO,
+        SINGLE_LOCKUP_STATE, SINGLE_STAKING_REWARD_WEIGHTS, SINGLE_USER_LOCKUP_INFO,
     },
 };
 
 /// query owner
 pub fn query_owner(deps: Deps, _env: Env) -> StdResult<Addr> {
-    let owner = OWNER.get(deps)?;
-    Ok(owner.unwrap())
+    OWNER.get(deps).transpose().unwrap()
 }
 
 /// query config
 pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(config)
+    CONFIG.load(deps.storage)
 }
 
 /// query config
 pub fn query_reward_config(deps: Deps, _env: Env) -> StdResult<RewardDistributionConfig> {
-    let config = REWARD_DISTRIBUTION_CONFIG.load(deps.storage)?;
-    Ok(config)
+    REWARD_DISTRIBUTION_CONFIG.load(deps.storage)
 }
 
 /// query eclipASTRO Lockdrop info
@@ -165,6 +162,7 @@ pub fn query_user_single_lockup_info(
 ) -> StdResult<Vec<UserSingleLockupInfoResponse>> {
     let cfg = CONFIG.load(deps.storage)?;
     let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
 
     if cfg.claims_allowed {
         Ok(SINGLE_USER_LOCKUP_INFO
@@ -177,6 +175,11 @@ pub fn query_user_single_lockup_info(
                 } else {
                     cfg.countdown_start_at
                 };
+                if user_lockup_info.total_eclipastro_staked.is_zero() {
+                    user_lockup_info.total_eclipastro_staked = user_lockup_info
+                        .xastro_amount_in_lockups
+                        .multiply_ratio(state.total_eclipastro_lockup, state.total_xastro);
+                }
                 let single_staking_reward: UserReward = if cfg.single_sided_staking.is_some() {
                     deps.querier
                         .query_wasm_smart(
@@ -196,26 +199,21 @@ pub fn query_user_single_lockup_info(
                 } else {
                     UserReward::default()
                 };
-                if user_lockup_info.total_eclipastro_staked.is_zero() {
-                    user_lockup_info.total_eclipastro_staked = user_lockup_info
-                        .xastro_amount_in_lockups
-                        .multiply_ratio(state.total_eclipastro_lockup, state.total_xastro);
-                }
-                user_lockup_info.lockdrop_incentives = get_user_single_lockdrop_incentives(
-                    deps,
-                    user_lockup_info.lockdrop_incentives,
-                    user_lockup_info.xastro_amount_in_lockups,
-                    duration,
-                )
-                .unwrap();
-                UserSingleLockupInfoResponse {
-                    duration,
-                    xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
-                    eclipastro_staked: user_lockup_info.total_eclipastro_staked,
-                    eclipastro_withdrawed: user_lockup_info.total_eclipastro_withdrawed,
-                    lockdrop_incentives: user_lockup_info.lockdrop_incentives.clone(),
-                    withdrawal_flag: user_lockup_info.withdrawal_flag,
-                    staking_rewards: vec![
+                let lockdrop_incentives = if blacklist.contains(&user_address) {
+                    LockdropIncentives::default()
+                } else {
+                    get_user_single_lockdrop_incentives(
+                        deps,
+                        user_lockup_info.lockdrop_incentives,
+                        user_lockup_info.xastro_amount_in_lockups,
+                        duration,
+                    )
+                    .unwrap()
+                };
+                let staking_rewards = if blacklist.contains(&user_address) {
+                    vec![]
+                } else {
+                    vec![
                         Asset {
                             info: cfg.eclipastro_token.clone().unwrap(),
                             amount: single_staking_reward.eclipastro
@@ -231,7 +229,16 @@ pub fn query_user_single_lockup_info(
                             amount: single_staking_reward.eclip
                                 + user_lockup_info.unclaimed_rewards.eclip,
                         },
-                    ],
+                    ]
+                };
+                UserSingleLockupInfoResponse {
+                    duration,
+                    xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
+                    eclipastro_staked: user_lockup_info.total_eclipastro_staked,
+                    eclipastro_withdrawed: user_lockup_info.total_eclipastro_withdrawed,
+                    lockdrop_incentives,
+                    withdrawal_flag: user_lockup_info.withdrawal_flag,
+                    staking_rewards,
                     countdown_start_at: cfg.countdown_start_at,
                 }
             })
@@ -241,21 +248,25 @@ pub fn query_user_single_lockup_info(
             .prefix(&user_address)
             .range(deps.storage, None, None, Order::Ascending)
             .map(|r| {
-                let (duration, mut user_lockup_info) = r.unwrap();
-                user_lockup_info.lockdrop_incentives = get_user_single_lockdrop_incentives(
-                    deps,
-                    user_lockup_info.lockdrop_incentives,
-                    user_lockup_info.xastro_amount_in_lockups,
-                    duration,
-                )
-                .unwrap();
+                let (duration, user_lockup_info) = r.unwrap();
+                let lockdrop_incentives = if blacklist.contains(&user_address) {
+                    LockdropIncentives::default()
+                } else {
+                    get_user_single_lockdrop_incentives(
+                        deps,
+                        user_lockup_info.lockdrop_incentives,
+                        user_lockup_info.xastro_amount_in_lockups,
+                        duration,
+                    )
+                    .unwrap()
+                };
                 UserSingleLockupInfoResponse {
                     duration,
                     xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
                     eclipastro_staked: Uint128::zero(),
                     eclipastro_withdrawed: Uint128::zero(),
                     withdrawal_flag: user_lockup_info.withdrawal_flag,
-                    lockdrop_incentives: user_lockup_info.lockdrop_incentives,
+                    lockdrop_incentives,
                     staking_rewards: vec![],
                     countdown_start_at: cfg.countdown_start_at,
                 }
@@ -272,6 +283,7 @@ pub fn query_user_lp_lockup_info(
 ) -> StdResult<Vec<UserLpLockupInfoResponse>> {
     let cfg = CONFIG.load(deps.storage)?;
     let state = LP_LOCKUP_STATE.load(deps.storage)?;
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
 
     if cfg.claims_allowed {
         let lp_total_rewards = calculate_lp_total_rewards(deps, env.contract.address.to_string())?;
@@ -307,14 +319,15 @@ pub fn query_user_lp_lockup_info(
                     user_lockup_info.clone(),
                 )
                 .unwrap();
-                UserLpLockupInfoResponse {
-                    duration,
-                    xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
-                    lp_token_staked: user_lockup_info.total_lp_staked,
-                    lp_token_withdrawed: user_lockup_info.total_lp_withdrawed,
-                    lockdrop_incentives: user_lockup_info.lockdrop_incentives.clone(),
-                    withdrawal_flag: user_lockup_info.withdrawal_flag,
-                    staking_rewards: vec![
+                let lockdrop_incentives = if blacklist.contains(&user_address) {
+                    LockdropIncentives::default()
+                } else {
+                    user_lockup_info.lockdrop_incentives.clone()
+                };
+                let staking_rewards = if blacklist.contains(&user_address) {
+                    vec![]
+                } else {
+                    vec![
                         Asset {
                             info: AssetInfo::NativeToken {
                                 denom: cfg.astro_token.clone(),
@@ -329,7 +342,16 @@ pub fn query_user_lp_lockup_info(
                             info: cfg.eclip.clone(),
                             amount: user_rewards.eclip - pending_lockdrop_incentives.eclip,
                         },
-                    ],
+                    ]
+                };
+                UserLpLockupInfoResponse {
+                    duration,
+                    xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
+                    lp_token_staked: user_lockup_info.total_lp_staked,
+                    lp_token_withdrawed: user_lockup_info.total_lp_withdrawed,
+                    lockdrop_incentives,
+                    withdrawal_flag: user_lockup_info.withdrawal_flag,
+                    staking_rewards,
                     countdown_start_at: cfg.countdown_start_at,
                     reward_weights: user_lockup_info.reward_weights,
                 }
@@ -341,19 +363,24 @@ pub fn query_user_lp_lockup_info(
             .range(deps.storage, None, None, Order::Ascending)
             .map(|r| {
                 let (duration, user_lockup_info) = r.unwrap();
+                let lockdrop_incentives = if blacklist.contains(&user_address) {
+                    LockdropIncentives::default()
+                } else {
+                    get_user_lp_lockdrop_incentives(
+                        deps,
+                        user_lockup_info.lockdrop_incentives,
+                        user_lockup_info.xastro_amount_in_lockups,
+                        duration,
+                    )
+                    .unwrap()
+                };
                 UserLpLockupInfoResponse {
                     duration,
                     xastro_amount_in_lockups: user_lockup_info.xastro_amount_in_lockups,
                     lp_token_staked: Uint128::zero(),
                     lp_token_withdrawed: Uint128::zero(),
                     withdrawal_flag: user_lockup_info.withdrawal_flag,
-                    lockdrop_incentives: get_user_lp_lockdrop_incentives(
-                        deps,
-                        user_lockup_info.lockdrop_incentives,
-                        user_lockup_info.xastro_amount_in_lockups,
-                        duration,
-                    )
-                    .unwrap(),
+                    lockdrop_incentives,
                     staking_rewards: vec![],
                     countdown_start_at: cfg.countdown_start_at,
                     reward_weights: user_lockup_info.reward_weights,
@@ -372,6 +399,117 @@ pub fn query_incentives(deps: Deps, stake_type: StakeType) -> StdResult<Incentiv
     Ok(LP_LOCKDROP_INCENTIVES
         .load(deps.storage)
         .unwrap_or_default())
+}
+
+pub fn query_blacklist(deps: Deps) -> StdResult<Vec<String>> {
+    Ok(BLACK_LIST.load(deps.storage).unwrap_or_default())
+}
+
+pub fn query_blacklist_rewards(deps: Deps, env: Env) -> StdResult<BlacklistRewards> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    let mut blacklist_rewards = BLACK_LIST_REWARDS.load(deps.storage).unwrap_or_default();
+    let single_state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
+    let lp_state = LP_LOCKUP_STATE.load(deps.storage)?;
+    let block_time = env.block.time.seconds();
+    for user in blacklist.iter() {
+        for r in
+            SINGLE_USER_LOCKUP_INFO
+                .prefix(user)
+                .range(deps.storage, None, None, Order::Ascending)
+        {
+            let (duration, mut user_lockup_info) = r.unwrap();
+            let locked_at = if duration == 0u64 {
+                0u64
+            } else {
+                cfg.countdown_start_at
+            };
+            if user_lockup_info.total_eclipastro_staked.is_zero() {
+                user_lockup_info.total_eclipastro_staked =
+                    user_lockup_info.xastro_amount_in_lockups.multiply_ratio(
+                        single_state.total_eclipastro_lockup,
+                        single_state.total_xastro,
+                    );
+            }
+            let single_staking_reward: UserReward = if cfg.single_sided_staking.is_some() {
+                deps.querier
+                    .query_wasm_smart(
+                        cfg.single_sided_staking.clone().unwrap(),
+                        &SingleSidedQueryMsg::CalculateReward {
+                            amount: user_lockup_info.total_eclipastro_staked
+                                - user_lockup_info.total_eclipastro_withdrawed,
+                            duration,
+                            locked_at: Some(locked_at),
+                            from: user_lockup_info
+                                .last_claimed
+                                .unwrap_or(cfg.countdown_start_at),
+                            to: None,
+                        },
+                    )
+                    .unwrap()
+            } else {
+                UserReward::default()
+            };
+            let lockdrop_incentives = get_user_single_lockdrop_incentives(
+                deps,
+                user_lockup_info.lockdrop_incentives,
+                user_lockup_info.xastro_amount_in_lockups,
+                duration,
+            )
+            .unwrap();
+            let pending_lockdrop_incentives = calculate_pending_lockdrop_incentives(
+                deps,
+                block_time,
+                lockdrop_incentives.clone(),
+            )?;
+            blacklist_rewards.eclip += pending_lockdrop_incentives.eclip
+                + single_staking_reward.eclip
+                + user_lockup_info.unclaimed_rewards.eclip;
+            blacklist_rewards.beclip += pending_lockdrop_incentives.beclip
+                + single_staking_reward.beclip
+                + user_lockup_info.unclaimed_rewards.beclip;
+            blacklist_rewards.eclipastro +=
+                single_staking_reward.eclipastro + user_lockup_info.unclaimed_rewards.eclipastro;
+        }
+        let lp_total_rewards = calculate_lp_total_rewards(deps, env.contract.address.to_string())?;
+        let updated_reward_weights =
+            calculate_updated_lp_reward_weights(deps, &lp_total_rewards).unwrap();
+        for r in LP_USER_LOCKUP_INFO
+            .prefix(user)
+            .range(deps.storage, None, None, Order::Ascending)
+        {
+            let (duration, mut user_lockup_info) = r.unwrap();
+            if user_lockup_info.total_lp_staked.is_zero() {
+                user_lockup_info.total_lp_staked = user_lockup_info
+                    .xastro_amount_in_lockups
+                    .multiply_ratio(lp_state.total_lp_lockdrop, lp_state.total_xastro);
+            }
+            user_lockup_info.lockdrop_incentives = get_user_lp_lockdrop_incentives(
+                deps,
+                user_lockup_info.lockdrop_incentives,
+                user_lockup_info.xastro_amount_in_lockups,
+                duration,
+            )
+            .unwrap();
+            let pending_lockdrop_incentives = calculate_pending_lockdrop_incentives(
+                deps,
+                env.block.time.seconds(),
+                user_lockup_info.lockdrop_incentives.clone(),
+            )
+            .unwrap();
+            let user_rewards = calculate_lp_staking_user_rewards(
+                deps,
+                updated_reward_weights.clone(),
+                pending_lockdrop_incentives.clone(),
+                user_lockup_info.clone(),
+            )
+            .unwrap();
+            blacklist_rewards.astro += user_rewards.astro;
+            blacklist_rewards.beclip += user_rewards.beclip;
+            blacklist_rewards.eclip += user_rewards.eclip;
+        }
+    }
+    Ok(blacklist_rewards)
 }
 
 pub fn calculate_pending_lockdrop_incentives(

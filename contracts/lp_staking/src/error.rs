@@ -15,6 +15,9 @@ pub enum ContractError {
     #[error("Sender's asset denom {got} does not match one from config {expected}")]
     AssetsNotMatch { got: String, expected: String },
 
+    #[error("User is in blacklist")]
+    Blacklisted {},
+
     #[error("Contract name must be same: {0}")]
     ContractNameErr(String),
 
@@ -22,6 +25,9 @@ pub enum ContractError {
         "Sender's CW20 token contract address {got} does not match one from config {expected}"
     )]
     Cw20AddressesNotMatch { got: String, expected: String },
+
+    #[error("Duplicated address: {0}")]
+    DuplicatedAddress(String),
 
     #[error("Ensure list contains unique assets")]
     DuplicatedAssets {},
