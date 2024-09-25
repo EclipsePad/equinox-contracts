@@ -108,7 +108,7 @@ pub enum QueryMsg {
 
     #[returns(Vec<String>)]
     Blacklist {},
-    // rewards of blacklist
+    // rewards of blacklist users which goes to the Equinox treasury
     #[returns(Vec<RewardAmount>)]
     BlacklistRewards,
     #[returns(bool)]

@@ -78,10 +78,10 @@ pub enum ContractError {
     #[error("Time window must be greater than 86400, but got {0}")]
     InvalidTimeWindow(u64),
 
-    #[error("Lockdrop is ended")]
+    #[error("Lockdrop has ended")]
     LockdropEnded {},
 
-    #[error("Lockdrop is not ended yet")]
+    #[error("Lockdrop is ongoing")]
     LockdropNotEnded {},
 
     #[error("Tokens are not staked")]
