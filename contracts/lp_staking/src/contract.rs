@@ -9,17 +9,19 @@ use semver::Version;
 use crate::{
     entry::{
         execute::{
-            _handle_callback, add_rewards, claim, claim_ownership, drop_ownership_proposal,
-            propose_new_owner, stake, unstake, update_config, update_reward_distribution,
+            _handle_callback, add_rewards, allow_users, block_users, claim,
+            claim_blacklist_rewards, claim_ownership, drop_ownership_proposal, propose_new_owner,
+            stake, unstake, update_config, update_reward_distribution,
         },
         instantiate::try_instantiate,
         query::{
-            query_config, query_owner, query_reward, query_reward_distribution,
-            query_reward_weights, query_staking, query_total_staking, query_user_reward_weights,
+            query_blacklist, query_blacklist_rewards, query_config, query_owner, query_reward,
+            query_reward_distribution, query_reward_weights, query_staking, query_total_staking,
+            query_user_reward_weights,
         },
     },
     error::ContractError,
-    state::{CONTRACT_NAME, CONTRACT_VERSION},
+    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION},
 };
 
 // make use of the custom errors
@@ -63,6 +65,9 @@ pub fn execute(
             eclip,
             beclip,
         } => add_rewards(deps, env, info, from, duration, eclip, beclip),
+        ExecuteMsg::ClaimBlacklistRewards {} => claim_blacklist_rewards(deps, env),
+        ExecuteMsg::AllowUsers { users } => allow_users(deps, info, users),
+        ExecuteMsg::BlockUsers { users } => block_users(deps, info, users),
     }
 }
 
@@ -82,6 +87,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserRewardWeights { user } => Ok(to_json_binary(&query_user_reward_weights(
             deps, env, user,
         )?)?),
+        QueryMsg::Blacklist {} => Ok(to_json_binary(&query_blacklist(deps)?)?),
+        QueryMsg::BlacklistRewards => Ok(to_json_binary(&query_blacklist_rewards(deps, env)?)?),
+        QueryMsg::IsAllowed { user } => {
+            let is_allowed = ALLOWED_USERS.load(deps.storage, &user).unwrap_or_default();
+            Ok(to_json_binary(&is_allowed)?)
+        }
     }
 }
 

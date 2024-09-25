@@ -15,6 +15,9 @@ pub enum ContractError {
     #[error("Withdraw allowes only one time during withdraw window")]
     AlreadyWithdrawed {},
 
+    #[error("User is in blacklist")]
+    Blacklisted {},
+
     #[error("Claim reward not allowed")]
     ClaimRewardNotAllowed {},
 
@@ -75,11 +78,11 @@ pub enum ContractError {
     #[error("Time window must be greater than 86400, but got {0}")]
     InvalidTimeWindow(u64),
 
-    #[error("Lockdrop is finished")]
-    LockdropFinished {},
+    #[error("Lockdrop has ended")]
+    LockdropEnded {},
 
-    #[error("Lockdrop is not finished yet")]
-    LockdropNotFinished {},
+    #[error("Lockdrop is ongoing")]
+    LockdropNotEnded {},
 
     #[error("Tokens are not staked")]
     NotStaked {},

@@ -8,7 +8,7 @@ use equinox_msg::{
 };
 use single_sided_staking::error::ContractError;
 
-use crate::suite::{SuiteBuilder, ALICE, ATTACKER, BOB};
+use crate::suite::{SuiteBuilder, ALICE, ATTACKER, BOB, CAROL, TREASURY};
 
 const ONE_MONTH: u64 = 86400 * 30;
 const THREE_MONTH: u64 = 86400 * 30 * 3;
@@ -399,5 +399,113 @@ fn claim() {
             .query_balance_native(BOB.to_string(), suite.eclip())
             .unwrap(),
         12799999978
+    );
+}
+
+#[test]
+fn blacklist() {
+    let mut suite = SuiteBuilder::new().build();
+    suite.update_config();
+
+    // add funds to vault
+    suite
+        .add_single_sided_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
+
+    suite
+        .mint_native(CAROL.to_string(), suite.astro(), 1_000)
+        .unwrap();
+
+    // ready astro_staking_pool
+    suite.stake_astro(&suite.admin(), 1_000_000).unwrap();
+
+    // Bob converts 1_000 astro and stake it
+    suite.convert_astro(CAROL, 1_000).unwrap();
+    assert_eq!(suite.query_eclipastro_balance(CAROL).unwrap(), 1_000);
+    suite
+        .single_sided_stake(CAROL, 100, ONE_MONTH, None)
+        .unwrap();
+
+    suite.single_sided_stake(CAROL, 100, 0, None).unwrap();
+    let init_time = suite.get_time();
+
+    // check initial reward is zero
+    assert_eq!(
+        suite
+            .query_single_sided_staking_reward(CAROL, ONE_MONTH, init_time)
+            .unwrap(),
+        UserReward {
+            beclip: Uint128::zero(),
+            eclipastro: Uint128::zero(),
+            eclip: Uint128::zero()
+        }
+    );
+
+    // change astro/xastro ratio and check balances and rewards
+    suite
+        .mint_native(suite.astro_staking_contract(), suite.astro(), 100_000)
+        .unwrap();
+    assert_eq!(
+        suite
+            .query_balance_native(suite.voter_contract(), suite.xastro())
+            .unwrap(),
+        999
+    );
+
+    assert_eq!(
+        suite.query_voter_astro_staking_rewards().unwrap(),
+        AstroStakingRewardResponse {
+            users: Uint128::from(76u128),
+            treasury: Uint128::from(19u128)
+        }
+    );
+
+    // change time and check eclip rewards
+    suite.update_time(43200);
+
+    assert_eq!(
+        suite
+            .query_single_sided_staking_reward(CAROL, ONE_MONTH, init_time)
+            .unwrap(),
+        UserReward {
+            beclip: Uint128::zero(),
+            eclipastro: Uint128::zero(),
+            eclip: Uint128::zero()
+        }
+    );
+    assert_eq!(
+        suite
+            .query_single_sided_staking_reward(CAROL, 0, 0)
+            .unwrap(),
+        UserReward {
+            beclip: Uint128::zero(),
+            eclipastro: Uint128::zero(),
+            eclip: Uint128::zero()
+        }
+    );
+
+    let err = suite.single_stake_claim(CAROL, 0, 0, None).unwrap_err();
+    assert_eq!(ContractError::Blacklisted {}, err.downcast().unwrap());
+    assert_eq!(
+        suite.query_single_sided_blacklisted_reward().unwrap(),
+        UserReward {
+            beclip: Uint128::from(143333332u128),
+            eclipastro: Uint128::zero(),
+            eclip: Uint128::from(213333333u128)
+        }
+    );
+
+    suite.single_blacklist_claim().unwrap();
+    assert_eq!(
+        suite
+            .query_balance_native(TREASURY.to_string(), suite.eclip())
+            .unwrap(),
+        356666665u128
     );
 }

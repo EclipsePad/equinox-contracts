@@ -9,14 +9,14 @@ use crate::{
     entry::{
         execute::{
             _handle_callback, add_rewards, allow_users, block_users, claim, claim_all,
-            claim_ownership, drop_ownership_proposal, propose_new_owner, restake, stake, unstake,
-            update_config,
+            claim_blacklist_rewards, claim_ownership, drop_ownership_proposal, propose_new_owner,
+            restake, stake, unstake, update_config,
         },
         instantiate::try_instantiate,
         query::{
-            calculate_penalty, query_calculate_reward, query_config, query_eclipastro_rewards,
-            query_owner, query_reward, query_reward_config, query_staking, query_total_staking,
-            query_total_staking_by_duration,
+            calculate_penalty, query_blacklist, query_blacklist_rewards, query_calculate_reward,
+            query_config, query_eclipastro_rewards, query_owner, query_reward, query_reward_config,
+            query_staking, query_total_staking, query_total_staking_by_duration,
         },
     },
     error::ContractError,
@@ -105,6 +105,7 @@ pub fn execute(
             eclip,
             beclip,
         } => add_rewards(deps, env, info, from, duration, eclip, beclip),
+        ExecuteMsg::ClaimBlacklistRewards {} => claim_blacklist_rewards(deps, env),
     }
 }
 
@@ -150,6 +151,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::EclipastroRewards {} => {
             Ok(to_json_binary(&query_eclipastro_rewards(deps, env)?)?)
         }
+        QueryMsg::Blacklist {} => Ok(to_json_binary(&query_blacklist(deps)?)?),
+        QueryMsg::BlacklistRewards => Ok(to_json_binary(&query_blacklist_rewards(deps, env)?)?),
     }
 }
 

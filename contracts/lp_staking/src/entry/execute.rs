@@ -26,8 +26,8 @@ use crate::{
     },
     error::ContractError,
     state::{
-        CONFIG, LAST_CLAIMED, OWNER, OWNERSHIP_PROPOSAL, REWARD, REWARD_DISTRIBUTION,
-        REWARD_WEIGHTS, STAKING, TOTAL_STAKING,
+        ALLOWED_USERS, BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LAST_CLAIMED, OWNER,
+        OWNERSHIP_PROPOSAL, REWARD, REWARD_DISTRIBUTION, REWARD_WEIGHTS, STAKING, TOTAL_STAKING,
     },
 };
 
@@ -249,6 +249,11 @@ pub fn _claim(
     let cfg = CONFIG.load(deps.storage)?;
     let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
     let mut user_staking = STAKING.load(deps.storage, &sender).unwrap_or_default();
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    let mut blacklist_rewards = BLACK_LIST_REWARDS.load(deps.storage).unwrap_or_default();
+    let is_allowed_user = ALLOWED_USERS
+        .load(deps.storage, &sender)
+        .unwrap_or_default();
     let mut msgs = vec![];
 
     let assets_list = assets
@@ -289,11 +294,13 @@ pub fn _claim(
             sender.clone(),
             updated_reward_weights.clone(),
         )?;
+
         let mut updated_user_reward_weights = vec![];
         for r in user_rewards {
-            let claimable = assets.clone().is_none()
-                || (assets.clone().is_some()
-                    && assets.clone().unwrap().iter().any(|a| a.equal(&r.info)));
+            let claimable = !blacklist.contains(&sender)
+                && (assets.clone().is_none()
+                    || (assets.clone().is_some()
+                        && assets.clone().unwrap().iter().any(|a| a.equal(&r.info))));
             if !r.amount.is_zero() && claimable {
                 if r.info.is_native_token() {
                     msgs.push(r.info.with_balance(r.amount).into_msg(sender.clone())?);
@@ -303,13 +310,23 @@ pub fn _claim(
                         .add_attribute("amount", r.amount);
                 } else {
                     if r.info.to_string() == cfg.beclip {
-                        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                            contract_addr: cfg.eclip_staking.to_string(),
-                            msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
-                                address_and_amount_list: vec![(sender.clone(), r.amount)],
-                            })?,
-                            funds: coins(r.amount.u128(), cfg.eclip.clone()),
-                        }));
+                        if is_allowed_user {
+                            msgs.push(
+                                AssetInfo::NativeToken {
+                                    denom: cfg.eclip.clone(),
+                                }
+                                .with_balance(r.amount)
+                                .into_msg(sender.clone())?,
+                            );
+                        } else {
+                            msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                                contract_addr: cfg.eclip_staking.to_string(),
+                                msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
+                                    address_and_amount_list: vec![(sender.clone(), r.amount)],
+                                })?,
+                                funds: coins(r.amount.u128(), cfg.eclip.clone()),
+                            }));
+                        }
                     } else {
                         msgs.push(r.info.with_balance(r.amount).into_msg(sender.clone())?);
                     }
@@ -326,6 +343,17 @@ pub fn _claim(
                         .unwrap(),
                 );
             } else {
+                if blacklist.contains(&sender) {
+                    let position = blacklist_rewards.iter().position(|x| x.info.equal(&r.info));
+                    match position {
+                        Some(p) => {
+                            blacklist_rewards[p].amount += r.amount;
+                        }
+                        None => {
+                            blacklist_rewards.push(r.clone());
+                        }
+                    }
+                }
                 updated_user_reward_weights.push(
                     user_staking
                         .reward_weights
@@ -358,6 +386,7 @@ pub fn _claim(
     REWARD_WEIGHTS.save(deps.storage, &updated_reward_weights)?;
     STAKING.save(deps.storage, &sender, &user_staking)?;
     LAST_CLAIMED.save(deps.storage, &env.block.time.seconds())?;
+    BLACK_LIST_REWARDS.save(deps.storage, &blacklist_rewards)?;
 
     Ok((
         user_staking,
@@ -374,8 +403,97 @@ pub fn claim(
     sender: String,
     assets: Option<Vec<AssetInfo>>,
 ) -> Result<Response, ContractError> {
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    ensure!(!blacklist.contains(&sender), ContractError::Blacklisted {});
     let (_, _, response) = _claim(deps, env, sender, assets)?;
     Ok(response)
+}
+
+pub fn claim_blacklist_rewards(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    for user in blacklist {
+        let _ = _claim(deps.branch(), env.clone(), user, None)?;
+    }
+    let blacklist_rewards = BLACK_LIST_REWARDS.load(deps.storage)?;
+    let mut msgs = vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: cfg.astroport_incentives.to_string(),
+        msg: to_json_binary(&IncentivesExecuteMsg::ClaimRewards {
+            lp_tokens: vec![cfg.lp_token.to_string()],
+        })?,
+        funds: vec![],
+    })];
+    let mut response = Response::new();
+    for r in blacklist_rewards {
+        if !r.amount.is_zero() {
+            if r.info.is_native_token() {
+                msgs.push(
+                    r.info
+                        .with_balance(r.amount)
+                        .into_msg(cfg.treasury.to_string())?,
+                );
+                response = response
+                    .add_attribute("action", "claim")
+                    .add_attribute("denom", r.info.to_string())
+                    .add_attribute("amount", r.amount);
+            } else {
+                if r.info.to_string() == cfg.beclip {
+                    msgs.push(
+                        AssetInfo::NativeToken {
+                            denom: cfg.eclip.clone(),
+                        }
+                        .with_balance(r.amount)
+                        .into_msg(cfg.treasury.to_string())?,
+                    );
+                } else {
+                    msgs.push(
+                        r.info
+                            .with_balance(r.amount)
+                            .into_msg(cfg.treasury.to_string())?,
+                    );
+                }
+                response = response
+                    .add_attribute("action", "claim")
+                    .add_attribute("address", r.info.to_string())
+                    .add_attribute("amount", r.amount);
+            }
+        }
+    }
+    Ok(response.add_messages(msgs))
+}
+
+pub fn allow_users(
+    deps: DepsMut,
+    info: MessageInfo,
+    users: Vec<String>,
+) -> Result<Response, ContractError> {
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    for user in users {
+        ensure_eq!(
+            ALLOWED_USERS.load(deps.storage, &user).unwrap_or_default(),
+            false,
+            ContractError::DuplicatedAddress(user)
+        );
+        ALLOWED_USERS.save(deps.storage, &user, &true)?;
+    }
+    Ok(Response::new().add_attribute("action", "update allowed users"))
+}
+
+pub fn block_users(
+    deps: DepsMut,
+    info: MessageInfo,
+    users: Vec<String>,
+) -> Result<Response, ContractError> {
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    for user in users {
+        ensure_eq!(
+            ALLOWED_USERS.load(deps.storage, &user)?,
+            true,
+            ContractError::DuplicatedAddress(user)
+        );
+        ALLOWED_USERS.remove(deps.storage, &user);
+    }
+    Ok(Response::new().add_attribute("action", "update allowed users"))
 }
 
 /// Unstake amount and claim rewards of user

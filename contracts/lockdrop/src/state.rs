@@ -1,8 +1,9 @@
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
 use equinox_msg::lockdrop::{
-    Config, IncentiveAmounts, LockupInfo, LpLockupState, LpStakingRewardWeights, LpUserLockupInfo,
-    RewardDistributionConfig, SingleLockupState, SingleStakingRewardWeights, SingleUserLockupInfo,
+    BlacklistRewards, Config, IncentiveAmounts, LockupInfo, LpLockupState, LpStakingRewardWeights,
+    LpUserLockupInfo, RewardDistributionConfig, SingleLockupState, SingleStakingRewardWeights,
+    SingleUserLockupInfo,
 };
 
 /// Contract name that is used for migration.
@@ -35,3 +36,6 @@ pub const SINGLE_LOCKDROP_INCENTIVES: Item<IncentiveAmounts> =
     Item::new("single_lockdrop_incentives");
 
 pub const LP_LOCKDROP_INCENTIVES: Item<IncentiveAmounts> = Item::new("lp_lockdrop_incentives");
+/// List of users who can't claim incentives
+pub const BLACK_LIST: Item<Vec<String>> = Item::new("blacklist");
+pub const BLACK_LIST_REWARDS: Item<BlacklistRewards> = Item::new("blacklist_rewards");

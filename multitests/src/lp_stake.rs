@@ -6,8 +6,9 @@ use astroport::{
 };
 use cosmwasm_std::{Addr, Decimal256, Uint128};
 use equinox_msg::lp_staking::{RewardAmount, RewardWeight};
+use lp_staking::error::ContractError;
 
-use crate::suite::{Suite, SuiteBuilder, ALICE, BOB};
+use crate::suite::{Suite, SuiteBuilder, ALICE, BOB, CAROL, TREASURY};
 
 fn instantiate() -> Suite {
     let mut suite = SuiteBuilder::new().build();
@@ -380,4 +381,146 @@ fn lp_staking() {
     assert_eq!(bob_lp_token_staking.staked.u128(), 0u128);
     let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
     assert_eq!(total_lp_token_staking.u128(), 100u128);
+}
+
+#[test]
+fn blacklist() {
+    let mut suite = instantiate();
+    // add funds to vault
+    suite
+        .add_lp_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
+    suite
+        .mint_native(CAROL.to_string(), suite.astro(), 1_000_000_000)
+        .unwrap();
+    suite.convert_astro(CAROL, 1_000).unwrap();
+
+    let carol_eclipastro_amount = suite.query_eclipastro_balance(CAROL).unwrap();
+
+    suite.stake_astro(CAROL, 1_000u128).unwrap();
+    let carol_xastro_amount = suite
+        .query_balance_native(CAROL.to_string(), suite.xastro())
+        .unwrap();
+
+    suite
+        .provide_liquidity(
+            CAROL,
+            Addr::unchecked(suite.eclipastro_xastro_lp_contract()),
+            vec![
+                Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: suite.eclipastro(),
+                    },
+                    amount: Uint128::from(carol_eclipastro_amount),
+                },
+                Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: suite.xastro(),
+                    },
+                    amount: Uint128::from(carol_xastro_amount),
+                },
+            ],
+            None,
+            None,
+        )
+        .unwrap();
+
+    let carol_lp_token_amount = suite.query_lp_token_balance(CAROL).unwrap();
+    assert_eq!(carol_lp_token_amount.u128(), 953u128);
+
+    let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
+    assert_eq!(total_lp_token_staking.u128(), 0);
+
+    suite.stake_lp_token(CAROL, 100).unwrap();
+    let carol_lp_token_rewards = suite.query_user_lp_token_rewards(CAROL).unwrap();
+    assert_eq!(carol_lp_token_rewards, []);
+    let pending_incentives = suite
+        .query_incentive_pending_rewards(&suite.lp_staking_contract())
+        .unwrap();
+    assert_eq!(pending_incentives.len(), 1);
+    assert_eq!(pending_incentives[0].amount.u128(), 0u128);
+
+    // update time
+    suite.update_time(86400);
+
+    let incentive_deposit = suite
+        .query_incentive_deposit(
+            &suite.eclipastro_xastro_lp_token(),
+            &suite.lp_staking_contract(),
+        )
+        .unwrap();
+    assert_eq!(incentive_deposit.u128(), 100);
+    let pending_incentives = suite
+        .query_incentive_pending_rewards(&suite.lp_staking_contract())
+        .unwrap();
+    assert_eq!(pending_incentives.len(), 1);
+    assert_eq!(pending_incentives[0].amount.u128(), 864000u128);
+    let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
+    assert_eq!(total_lp_token_staking.u128(), 100);
+    let reward_weights = suite.query_reward_weights().unwrap();
+    let astro_reward_weight = Decimal256::from_ratio(864000u128 * 8_000 / 10_000, 100u128);
+    assert_eq!(
+        reward_weights,
+        [
+            RewardWeight {
+                info: AssetInfo::NativeToken {
+                    denom: suite.astro()
+                },
+                reward_weight: astro_reward_weight
+            },
+            RewardWeight {
+                info: AssetInfo::Token {
+                    contract_addr: Addr::unchecked(suite.beclip())
+                },
+                reward_weight: Decimal256::from_str("2866666.66").unwrap(),
+            },
+            RewardWeight {
+                info: AssetInfo::NativeToken {
+                    denom: suite.eclip()
+                },
+                reward_weight: Decimal256::from_str("4266666.66").unwrap()
+            }
+        ]
+    );
+    let user_rewards = suite.query_user_lp_staking_reward(CAROL).unwrap();
+    assert_eq!(user_rewards, []); // 100_000
+    let err = suite.lp_staking_claim_rewards(CAROL).unwrap_err();
+    assert_eq!(ContractError::Blacklisted {}, err.downcast().unwrap());
+    assert_eq!(
+        suite.query_lp_blacklisted_reward().unwrap(),
+        [
+            RewardAmount {
+                info: AssetInfo::NativeToken {
+                    denom: suite.astro()
+                },
+                amount: Uint128::from(691200u128)
+            },
+            RewardAmount {
+                info: AssetInfo::Token {
+                    contract_addr: Addr::unchecked(suite.beclip())
+                },
+                amount: Uint128::from(286666666u128)
+            },
+            RewardAmount {
+                info: AssetInfo::NativeToken {
+                    denom: suite.eclip()
+                },
+                amount: Uint128::from(426666666u128)
+            },
+        ]
+    );
+
+    suite.lp_blacklist_claim().unwrap();
+    assert_eq!(
+        suite
+            .query_balance_native(TREASURY.to_string(), suite.eclip())
+            .unwrap(),
+        713333332u128
+    );
 }

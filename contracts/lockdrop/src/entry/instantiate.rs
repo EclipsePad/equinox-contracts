@@ -1,7 +1,10 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
-use equinox_msg::lockdrop::{Config, InstantiateMsg, LockConfig, LpLockupState, SingleLockupState};
+use equinox_msg::{
+    lockdrop::{Config, InstantiateMsg, LockConfig, LpLockupState, SingleLockupState},
+    utils::has_unique_elements,
+};
 
 use crate::{
     config::{
@@ -11,7 +14,7 @@ use crate::{
     entry::execute::check_native_token_denom,
     error::ContractError,
     state::{
-        CONFIG, CONTRACT_NAME, CONTRACT_VERSION, LP_LOCKUP_STATE, OWNER,
+        BLACK_LIST, CONFIG, CONTRACT_NAME, CONTRACT_VERSION, LP_LOCKUP_STATE, OWNER,
         REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKUP_STATE,
     },
 };
@@ -120,5 +123,16 @@ pub fn try_instantiate(
     CONFIG.save(deps.storage, &config)?;
     SINGLE_LOCKUP_STATE.save(deps.storage, &SingleLockupState::default())?;
     LP_LOCKUP_STATE.save(deps.storage, &LpLockupState::default())?;
+
+    // check and update blacklist
+    if let Some(blacklist) = msg.blacklist {
+        ensure!(
+            has_unique_elements(blacklist.clone()),
+            ContractError::DuplicatedAssets {}
+        );
+        // validate each is correct address
+        let _ = blacklist.iter().map(|b| deps.api.addr_validate(b).unwrap());
+        BLACK_LIST.save(deps.storage, &blacklist)?;
+    }
     Ok(Response::default())
 }

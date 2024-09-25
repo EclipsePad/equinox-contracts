@@ -12,9 +12,10 @@ use crate::{
     entry::query::{calculate_penalty, calculate_total_user_reward},
     error::ContractError,
     state::{
-        RewardWeights, TotalStakingByDuration, UserStaked, ALLOWED_USERS, CONFIG, LAST_CLAIM_TIME,
-        OWNER, OWNERSHIP_PROPOSAL, PENDING_ECLIPASTRO_REWARDS, REWARD, REWARD_WEIGHTS,
-        STAKING_DURATION_BY_END_TIME, TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED,
+        RewardWeights, TotalStakingByDuration, UserStaked, ALLOWED_USERS, BLACK_LIST,
+        BLACK_LIST_REWARDS, CONFIG, LAST_CLAIM_TIME, OWNER, OWNERSHIP_PROPOSAL,
+        PENDING_ECLIPASTRO_REWARDS, REWARD, REWARD_WEIGHTS, STAKING_DURATION_BY_END_TIME,
+        TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED,
     },
 };
 
@@ -511,6 +512,20 @@ pub fn _claim(
     rewards: UserReward,
 ) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    let mut blacklist_rewards = BLACK_LIST_REWARDS.load(deps.storage).unwrap_or_default();
+    let is_allowed_user = ALLOWED_USERS
+        .load(deps.storage, &sender)
+        .unwrap_or_default();
+
+    // if user is in blacklist increase blacklist_rewards
+    if blacklist.contains(&sender) {
+        blacklist_rewards.eclip += rewards.eclip;
+        blacklist_rewards.beclip += rewards.beclip;
+        blacklist_rewards.eclipastro += rewards.eclipastro;
+        BLACK_LIST_REWARDS.save(deps.storage, &blacklist_rewards)?;
+        return Ok(Response::new());
+    }
 
     let pending_eclipastro_rewards =
         query_eclipastro_pending_rewards(deps.as_ref(), cfg.voter.to_string())?;
@@ -544,27 +559,39 @@ pub fn _claim(
             .add_attribute("amount", rewards.eclipastro.to_string());
     }
 
-    if !rewards.beclip.is_zero() {
-        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.eclip_staking.to_string(),
-            msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
-                address_and_amount_list: vec![(sender.clone(), rewards.beclip)],
-            })?,
-            funds: coins(rewards.beclip.u128(), cfg.eclip.clone()),
-        }));
-        response = response
-            .add_attribute("asset", "beclip")
-            .add_attribute("amount", rewards.beclip.to_string());
-    }
+    if is_allowed_user || sender == cfg.treasury {
+        if !(rewards.beclip + rewards.eclip).is_zero() {
+            msgs.push(CosmosMsg::Bank(BankMsg::Send {
+                to_address: sender,
+                amount: coins((rewards.eclip + rewards.beclip).u128(), cfg.eclip),
+            }));
+            response = response
+                .add_attribute("asset", "eclip")
+                .add_attribute("amount", (rewards.eclip + rewards.beclip).to_string());
+        }
+    } else {
+        if !rewards.beclip.is_zero() {
+            msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: cfg.eclip_staking.to_string(),
+                msg: to_json_binary(&EclipStakingExecuteMsg::BondFor {
+                    address_and_amount_list: vec![(sender.clone(), rewards.beclip)],
+                })?,
+                funds: coins(rewards.beclip.u128(), cfg.eclip.clone()),
+            }));
+            response = response
+                .add_attribute("asset", "beclip")
+                .add_attribute("amount", rewards.beclip.to_string());
+        }
 
-    if !rewards.eclip.is_zero() {
-        msgs.push(CosmosMsg::Bank(BankMsg::Send {
-            to_address: sender,
-            amount: coins(rewards.eclip.u128(), cfg.eclip),
-        }));
-        response = response
-            .add_attribute("asset", "eclip")
-            .add_attribute("amount", rewards.eclip.to_string());
+        if !rewards.eclip.is_zero() {
+            msgs.push(CosmosMsg::Bank(BankMsg::Send {
+                to_address: sender,
+                amount: coins(rewards.eclip.u128(), cfg.eclip),
+            }));
+            response = response
+                .add_attribute("asset", "eclip")
+                .add_attribute("amount", rewards.eclip.to_string());
+        }
     }
 
     Ok(response.add_messages(msgs))
@@ -621,7 +648,7 @@ pub fn _claim_all(
                         user_staking.reward_weights.eclip = reward_weights.eclip;
                         total_eclip_reward += reward_locked_at.rewards.eclip;
                     }
-                    if asset.to_string() == cfg.beclip.to_string() {
+                    if asset.to_string() == cfg.beclip {
                         user_staking.reward_weights.beclip = reward_weights.beclip;
                         total_beclip_reward += reward_locked_at.rewards.beclip;
                     }
@@ -663,6 +690,11 @@ pub fn claim(
     locked_at: Option<u64>,
     assets: Option<Vec<AssetInfo>>,
 ) -> Result<Response, ContractError> {
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    ensure!(
+        !blacklist.contains(&info.sender.to_string()),
+        ContractError::Blacklisted {}
+    );
     let locked_at = locked_at.unwrap_or_default();
     let reward_weights = update_reward_weights(deps.branch(), env.clone())?;
     let (_, response) = _claim_single(
@@ -684,7 +716,22 @@ pub fn claim_all(
     with_flexible: bool,
     assets: Option<Vec<AssetInfo>>,
 ) -> Result<Response, ContractError> {
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    ensure!(
+        !blacklist.contains(&info.sender.to_string()),
+        ContractError::Blacklisted {}
+    );
     _claim_all(deps, env, info.sender.to_string(), with_flexible, assets)
+}
+
+pub fn claim_blacklist_rewards(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    for user in blacklist {
+        let _ = _claim_all(deps.branch(), env.clone(), user, true, None);
+    }
+    let blacklist_rewards = BLACK_LIST_REWARDS.load(deps.storage)?;
+    _claim(deps, env, cfg.treasury.to_string(), blacklist_rewards)
 }
 
 /// Unlock amount and claim rewards of user

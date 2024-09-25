@@ -5,9 +5,9 @@ use std::cmp::{max, min};
 use crate::{
     config::{BPS_DENOMINATOR, ECLIPASTRO_REWARD_DISTRIBUTION_PERIOD, ONE_DAY},
     state::{
-        RewardWeights, TotalStakingByDuration, CONFIG, LAST_CLAIM_TIME, OWNER,
-        PENDING_ECLIPASTRO_REWARDS, REWARD, STAKING_DURATION_BY_END_TIME, TOTAL_STAKING,
-        USER_STAKED,
+        RewardWeights, TotalStakingByDuration, BLACK_LIST, BLACK_LIST_REWARDS, CONFIG,
+        LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD, STAKING_DURATION_BY_END_TIME,
+        TOTAL_STAKING, USER_STAKED,
     },
 };
 use equinox_msg::{
@@ -155,6 +155,20 @@ pub fn query_reward(
     duration: u64,
     locked_at: u64,
 ) -> StdResult<UserReward> {
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    if blacklist.contains(&user) {
+        return Ok(UserReward::default());
+    }
+    _user_reward(deps, env, user, duration, locked_at)
+}
+
+pub fn _user_reward(
+    deps: Deps,
+    env: Env,
+    user: String,
+    duration: u64,
+    locked_at: u64,
+) -> StdResult<UserReward> {
     let config = CONFIG.load(deps.storage)?;
     let user_staking = USER_STAKED.load(deps.storage, (&user, duration, locked_at))?;
     let block_time = env.block.time.seconds();
@@ -194,7 +208,7 @@ pub fn query_reward(
         Ok(UserReward {
             eclipastro: reward_during_lock.eclipastro + reward_after_lock.eclipastro,
             beclip: reward_during_lock.beclip + reward_after_lock.beclip,
-            eclip: reward_during_lock.beclip + reward_after_lock.eclip,
+            eclip: reward_during_lock.eclip + reward_after_lock.eclip,
         })
     }
 }
@@ -247,7 +261,7 @@ pub fn query_calculate_reward(
         Ok(UserReward {
             eclipastro: reward_during_lock.eclipastro + reward_after_lock.eclipastro,
             beclip: reward_during_lock.beclip + reward_after_lock.beclip,
-            eclip: reward_during_lock.beclip + reward_after_lock.eclip,
+            eclip: reward_during_lock.eclip + reward_after_lock.eclip,
         })
     }
 }
@@ -406,7 +420,6 @@ pub fn calculate_user_reward(
         .find(|c| c.duration == 0)
         .unwrap()
         .reward_multiplier;
-
     if lock_end_time < block_time {
         let reward_weights = RewardWeights::load_at_ts(deps.storage, block_time, Some(block_time))
             .unwrap_or_default();
@@ -438,7 +451,7 @@ pub fn calculate_user_reward(
         Ok(UserReward {
             eclipastro: reward_during_lock.eclipastro + reward_after_lock.eclipastro,
             beclip: reward_during_lock.beclip + reward_after_lock.beclip,
-            eclip: reward_during_lock.beclip + reward_after_lock.eclip,
+            eclip: reward_during_lock.eclip + reward_after_lock.eclip,
         })
     }
 }
@@ -484,7 +497,7 @@ pub fn calculate_reward_with_multiplier(
 pub fn calculate_total_user_reward(
     deps: Deps,
     user: String,
-    current_time: u64,
+    block_time: u64,
 ) -> StdResult<Vec<UserRewardByDuration>> {
     let config = CONFIG.load(deps.storage)?;
     let mut total_user_reward = vec![];
@@ -502,7 +515,7 @@ pub fn calculate_total_user_reward(
                         user.clone(),
                         duration,
                         locked_at,
-                        current_time,
+                        block_time,
                     )?,
                 })
             })
@@ -540,6 +553,34 @@ pub fn query_eclipastro_rewards(deps: Deps, env: Env) -> StdResult<Vec<(u64, Uin
         pending_rewards.push((k, pending_reward));
     }
     Ok(pending_rewards)
+}
+
+pub fn query_blacklist(deps: Deps) -> StdResult<Vec<String>> {
+    Ok(BLACK_LIST.load(deps.storage).unwrap_or_default())
+}
+
+pub fn query_blacklist_rewards(deps: Deps, env: Env) -> StdResult<UserReward> {
+    let config = CONFIG.load(deps.storage)?;
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    let mut blacklist_rewards = BLACK_LIST_REWARDS.load(deps.storage).unwrap_or_default();
+    for user in blacklist.iter() {
+        for timelock_config in &config.timelock_config {
+            let duration = timelock_config.duration;
+            for s in USER_STAKED.prefix((&user, duration)).range(
+                deps.storage,
+                None,
+                None,
+                Order::Ascending,
+            ) {
+                let (locked_at, _) = s.unwrap();
+                let rewards = _user_reward(deps, env.clone(), user.clone(), duration, locked_at)?;
+                blacklist_rewards.eclip += rewards.eclip;
+                blacklist_rewards.beclip += rewards.beclip;
+                blacklist_rewards.eclipastro += rewards.eclipastro;
+            }
+        }
+    }
+    Ok(blacklist_rewards)
 }
 
 pub fn calculate_lock_end_time(duration: u64, locked_at: u64) -> u64 {

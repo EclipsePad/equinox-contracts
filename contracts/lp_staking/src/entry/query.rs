@@ -14,8 +14,8 @@ use equinox_msg::lp_staking::{
 };
 
 use crate::state::{
-    CONFIG, LAST_CLAIMED, OWNER, REWARD, REWARD_DISTRIBUTION, REWARD_WEIGHTS, STAKING,
-    TOTAL_STAKING,
+    BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LAST_CLAIMED, OWNER, REWARD, REWARD_DISTRIBUTION,
+    REWARD_WEIGHTS, STAKING, TOTAL_STAKING,
 };
 
 /// query owner
@@ -51,7 +51,8 @@ pub fn query_total_staking(deps: Deps, _env: Env) -> StdResult<Uint128> {
 /// query user reward
 pub fn query_reward(deps: Deps, env: Env, user: String) -> StdResult<Vec<RewardAmount>> {
     let user_staking = STAKING.load(deps.storage, &user).unwrap_or_default();
-    if user_staking.staked.is_zero() {
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    if user_staking.staked.is_zero() || blacklist.contains(&user) {
         Ok(vec![])
     } else {
         let astroport_rewards = calculate_incentive_pending_rewards(deps, env.contract.address)?;
@@ -78,6 +79,38 @@ pub fn query_user_reward_weights(
 ) -> StdResult<Vec<RewardWeight>> {
     let user_staking = STAKING.load(deps.storage, &user).unwrap_or_default();
     Ok(user_staking.reward_weights)
+}
+
+pub fn query_blacklist(deps: Deps) -> StdResult<Vec<String>> {
+    Ok(BLACK_LIST.load(deps.storage).unwrap_or_default())
+}
+
+pub fn query_blacklist_rewards(deps: Deps, env: Env) -> StdResult<Vec<RewardAmount>> {
+    let blacklist = BLACK_LIST.load(deps.storage).unwrap_or_default();
+    let block_time = env.block.time.seconds();
+    let mut blacklist_rewards = BLACK_LIST_REWARDS.load(deps.storage).unwrap_or_default();
+    let astroport_rewards = calculate_incentive_pending_rewards(deps, env.contract.address)?;
+    let vault_rewards = calculate_vault_rewards(deps, block_time)?;
+    let updated_reward_weights =
+        calculate_updated_reward_weights(deps, astroport_rewards, vault_rewards)?;
+    for user in blacklist.iter() {
+        let user_rewards =
+            calculate_user_staking_rewards(deps, user.to_string(), updated_reward_weights.clone())?;
+        for user_reward in user_rewards {
+            let position = blacklist_rewards
+                .iter()
+                .position(|x| x.info.equal(&user_reward.info));
+            match position {
+                Some(p) => {
+                    blacklist_rewards[p].amount += user_reward.amount;
+                }
+                None => {
+                    blacklist_rewards.push(user_reward);
+                }
+            }
+        }
+    }
+    Ok(blacklist_rewards)
 }
 
 pub fn calculate_user_staking_rewards(

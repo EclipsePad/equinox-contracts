@@ -28,7 +28,7 @@ use eclipse_base::{
 };
 use equinox_msg::{
     lockdrop::{
-        Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
+        BlacklistRewards, Config as LockdropConfig, Cw20HookMsg as LockdropCw20HookMsg,
         ExecuteMsg as LockdropExecuteMsg, IncentiveAmounts, IncentiveRewards,
         InstantiateMsg as LockdropInstantiateMsg, LockConfig, LpLockupInfoResponse,
         LpLockupStateResponse, QueryMsg as LockdropQueryMsg, SingleLockupInfoResponse,
@@ -493,8 +493,8 @@ pub const CHAIN_ID: &str = "cw-multitest-1";
 
 pub const ALICE: &str = "wasm1_alice";
 pub const BOB: &str = "wasm1_bob";
-// const CAROL: &str = "carol";
-pub const ATTACKER: &str = "attacker";
+pub const CAROL: &str = "wasm1_carol";
+pub const ATTACKER: &str = "wasm1_attacker";
 // const VICTIM: &str = "victim";
 
 impl SuiteBuilder {
@@ -832,6 +832,7 @@ impl SuiteBuilder {
                     ]),
                     voter: voter_contract.to_string(),
                     treasury: TREASURY.to_string(),
+                    blacklist: Some(vec![CAROL.to_string()]),
                 },
                 &[],
                 "Single Sided Staking",
@@ -929,6 +930,7 @@ impl SuiteBuilder {
                     treasury: TREASURY.to_string(),
                     stability_pool: STABILITY_POOL_REWARD_HOLDER.to_string(),
                     ce_reward_distributor: CE_REWARD_HOLDER.to_string(),
+                    blacklist: Some(vec![CAROL.to_string()]),
                 },
                 &[],
                 "Eclipsefi lp staking",
@@ -985,6 +987,7 @@ impl SuiteBuilder {
                     beclip: beclip.to_string(),
                     eclip: eclip.clone(),
                     eclip_staking: eclipsepad_staking_contract.to_string(),
+                    blacklist: Some(vec![CAROL.to_string()]),
                 },
                 &[],
                 "Eclipsefi lockdrop",
@@ -1169,6 +1172,16 @@ impl Suite {
                 self.admin.clone(),
                 self.single_staking_contract.clone(),
                 &SingleSidedStakingExecuteMsg::AllowUsers {
+                    users: vec![self.lockdrop_contract.to_string()],
+                },
+                &[],
+            )
+            .unwrap();
+        self.app
+            .execute_contract(
+                self.admin.clone(),
+                self.lp_staking_contract.clone(),
+                &LpStakingExecuteMsg::AllowUsers {
                     users: vec![self.lockdrop_contract.to_string()],
                 },
                 &[],
@@ -1598,6 +1611,13 @@ impl Suite {
         )?;
         Ok(reward)
     }
+    pub fn query_single_sided_blacklisted_reward(&self) -> StdResult<UserReward> {
+        let reward: UserReward = self.app.wrap().query_wasm_smart(
+            self.single_staking_contract.clone(),
+            &SingleStakingQueryMsg::BlacklistRewards {},
+        )?;
+        Ok(reward)
+    }
     pub fn query_single_sided_staking_eclipastro_rewards(&self) -> StdResult<Vec<(u64, Uint128)>> {
         let reward: Vec<(u64, Uint128)> = self.app.wrap().query_wasm_smart(
             self.single_staking_contract.clone(),
@@ -1620,6 +1640,14 @@ impl Suite {
                 locked_at: Some(locked_at),
                 assets,
             },
+            &[],
+        )
+    }
+    pub fn single_blacklist_claim(&mut self) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(self.admin()),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::ClaimBlacklistRewards {},
             &[],
         )
     }
@@ -1706,6 +1734,13 @@ impl Suite {
         )?;
         Ok(res)
     }
+    pub fn query_lockdrop_blacklist_rewards(&self) -> StdResult<BlacklistRewards> {
+        let res: BlacklistRewards = self.app.wrap().query_wasm_smart(
+            self.lockdrop_contract.clone(),
+            &LockdropQueryMsg::BlacklistRewards {},
+        )?;
+        Ok(res)
+    }
     pub fn query_user_single_lockup_info(
         &self,
         user: &str,
@@ -1788,6 +1823,14 @@ impl Suite {
                 from: from_duration,
                 to: to_duration,
             },
+            &[],
+        )
+    }
+    pub fn lockdrop_blacklist_rewards_claim(&mut self) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(self.admin()),
+            self.lockdrop_contract.clone(),
+            &LockdropExecuteMsg::ClaimBlacklistRewards {},
             &[],
         )
     }
@@ -2127,11 +2170,26 @@ impl Suite {
         )?;
         Ok(res)
     }
+    pub fn query_lp_blacklisted_reward(&self) -> StdResult<Vec<LpStakingRewardAmount>> {
+        let reward: Vec<LpStakingRewardAmount> = self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::BlacklistRewards {},
+        )?;
+        Ok(reward)
+    }
     pub fn lp_staking_claim_rewards(&mut self, sender: &str) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lp_staking_contract.clone(),
             &LpStakingExecuteMsg::Claim { assets: None },
+            &[],
+        )
+    }
+    pub fn lp_blacklist_claim(&mut self) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(self.admin()),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::ClaimBlacklistRewards {},
             &[],
         )
     }

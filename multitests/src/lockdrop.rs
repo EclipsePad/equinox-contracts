@@ -5,12 +5,12 @@ use astroport::{
 use cosmwasm_std::{Addr, Uint128};
 use cw_controllers::AdminError;
 use equinox_msg::lockdrop::{
-    IncentiveRewards, StakeType, UpdateConfigMsg as LockdropUpdateConfigMsg,
+    BlacklistRewards, IncentiveRewards, StakeType, UpdateConfigMsg as LockdropUpdateConfigMsg,
 };
 // use equinox_msg::lockdrop::UpdateConfigMsg;
 use lockdrop::error::ContractError;
 
-use crate::suite::{Suite, SuiteBuilder, ALICE};
+use crate::suite::{Suite, SuiteBuilder, ALICE, CAROL, TREASURY};
 
 const ONE_MONTH: u64 = 86400 * 30;
 const THREE_MONTH: u64 = 86400 * 30 * 3;
@@ -922,18 +922,12 @@ fn stake_assets_to_vaults() {
         err.downcast().unwrap()
     );
     let err = suite.lockdrop_stake_to_vaults(&suite.admin()).unwrap_err();
-    assert_eq!(
-        ContractError::LockdropNotFinished {},
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::LockdropNotEnded {}, err.downcast().unwrap());
 
     // test on withdraw window
     suite.update_time(86400u64 * 5);
     let err = suite.lockdrop_stake_to_vaults(&suite.admin()).unwrap_err();
-    assert_eq!(
-        ContractError::LockdropNotFinished {},
-        err.downcast().unwrap()
-    );
+    assert_eq!(ContractError::LockdropNotEnded {}, err.downcast().unwrap());
 
     // test after lockdrop finished
     suite.update_time(86400u64 * 2);
@@ -1915,7 +1909,7 @@ fn restake_and_unlock() {
         .lp_lockdrop_claim_rewards(ALICE, 2592000, None)
         .unwrap();
     let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 51851);
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 71718517);
 
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(
@@ -2028,4 +2022,130 @@ fn restake_and_unlock() {
         )
         .unwrap_err();
     assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
+}
+
+#[test]
+fn blacklist() {
+    let mut suite = instantiate();
+    suite.update_time(86400u64 * 2);
+
+    suite
+        .mint_native(CAROL.to_string(), suite.astro(), 1_000_000_000)
+        .unwrap();
+
+    suite
+        .single_staking_increase_lockdrop(CAROL, suite.astro(), 1_000u128, 0)
+        .unwrap();
+    suite
+        .single_staking_increase_lockdrop(CAROL, suite.astro(), 1_000u128, 2592000)
+        .unwrap();
+    suite
+        .single_staking_increase_lockdrop(CAROL, suite.astro(), 1_000u128, 7776000)
+        .unwrap();
+    suite
+        .single_staking_increase_lockdrop(CAROL, suite.astro(), 1_000u128, 23328000)
+        .unwrap();
+
+    suite
+        .lp_staking_increase_lockdrop(CAROL, suite.astro(), 1_000u128, 0)
+        .unwrap();
+    suite
+        .lp_staking_increase_lockdrop(CAROL, suite.astro(), 1_000u128, 2592000)
+        .unwrap();
+    suite
+        .lp_staking_increase_lockdrop(CAROL, suite.astro(), 1_000u128, 7776000)
+        .unwrap();
+    suite
+        .lp_staking_increase_lockdrop(CAROL, suite.astro(), 1_000u128, 23328000)
+        .unwrap();
+
+    suite
+        .fund_eclip(
+            &suite.admin(),
+            2_000_000u128,
+            vec![
+                IncentiveRewards {
+                    stake_type: StakeType::SingleStaking,
+                    beclip: Uint128::from(300_000u128),
+                    eclip: Uint128::from(300_000u128),
+                },
+                IncentiveRewards {
+                    stake_type: StakeType::LpStaking,
+                    beclip: Uint128::from(700_000u128),
+                    eclip: Uint128::from(700_000u128),
+                },
+            ],
+        )
+        .unwrap();
+    // withdraw window finished
+    suite.update_time(86400u64 * 7);
+
+    suite
+        .update_lockdrop_config(
+            &suite.admin(),
+            LockdropUpdateConfigMsg {
+                single_sided_staking: Some(suite.single_staking_contract()),
+                lp_staking: Some(suite.lp_staking_contract()),
+                liquidity_pool: Some(suite.eclipastro_xastro_lp_contract()),
+                eclipastro_token: Some(suite.eclipastro()),
+                voter: Some(suite.voter_contract()),
+                dao_treasury_address: Some(suite.treasury()),
+                eclip_staking: None,
+            },
+        )
+        .unwrap();
+
+    // stake assets to single sided vaults and lp vault
+    suite.lockdrop_stake_to_vaults(&suite.admin()).unwrap();
+
+    // fund eclip to staking vaults daily reward is 1_000_000_000u128
+    suite
+        .add_single_sided_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
+
+    // add funds to vault
+    suite
+        .add_lp_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
+
+    suite.update_time(86400u64 * 7);
+
+    let err = suite
+        .single_lockdrop_claim_rewards(CAROL, 0, None)
+        .unwrap_err();
+    assert_eq!(ContractError::Blacklisted {}, err.downcast().unwrap());
+    assert_eq!(
+        suite.query_lockdrop_blacklist_rewards().unwrap(),
+        BlacklistRewards {
+            eclipastro: Uint128::zero(),
+            eclip: Uint128::from(3412358016u128),
+            astro: Uint128::from(11059196u128),
+            beclip: Uint128::from(2293006164u128),
+        }
+    );
+    suite.lockdrop_blacklist_rewards_claim().unwrap();
+    assert_eq!(
+        suite
+            .query_balance_native(TREASURY.to_string(), suite.eclip())
+            .unwrap(),
+        5705364180u128
+    );
+    assert_eq!(
+        suite
+            .query_beclip_balance(&suite.lockdrop_contract())
+            .unwrap(),
+        0
+    );
 }
