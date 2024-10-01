@@ -30,19 +30,6 @@ pub fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
     Ok(config)
 }
 
-/// query reward config
-pub fn query_reward_config(deps: Deps, env: Env) -> StdResult<Vec<((u64, u64), Reward)>> {
-    let block_time = env.block.time.seconds();
-    REWARD
-        .range(
-            deps.storage,
-            Some(Bound::exclusive((block_time, 0u64))),
-            None,
-            Order::Ascending,
-        )
-        .collect::<StdResult<Vec<_>>>()
-}
-
 // query total staking
 pub fn query_total_staking(deps: Deps, _env: Env) -> StdResult<Uint128> {
     let total_staking = TOTAL_STAKING.load(deps.storage).unwrap_or_default();
@@ -67,7 +54,7 @@ pub fn query_total_staking_by_duration(
                 timestamp.unwrap_or(block_time),
                 c.duration,
             )
-            .unwrap())
+            .unwrap_or_default())
         })
         .collect::<StdResult<Vec<StakingWithDuration>>>()
         .unwrap_or(vec![]);
@@ -160,6 +147,41 @@ pub fn query_reward(
         return Ok(UserReward::default());
     }
     _user_reward(deps, env, user, duration, locked_at)
+}
+
+pub fn query_reward_schedule(
+    deps: Deps,
+    env: Env,
+    from: Option<u64>,
+) -> StdResult<Vec<((u64, u64), Reward)>> {
+    REWARD
+        .range(
+            deps.storage,
+            Some(Bound::exclusive((
+                from.unwrap_or(env.block.time.seconds()),
+                0u64,
+            ))),
+            None,
+            Order::Ascending,
+        )
+        .collect::<StdResult<Vec<_>>>()
+}
+
+pub fn query_reward_list(
+    deps: Deps,
+    env: Env,
+    user: String,
+) -> StdResult<Vec<(u64, u64, UserReward)>> {
+    USER_STAKED
+        .sub_prefix(&user)
+        .range(deps.storage, None, None, Order::Ascending)
+        .map(|s| {
+            let ((duration, locked_at), _) = s.unwrap();
+            let user_reward =
+                _user_reward(deps, env.clone(), user.clone(), duration, locked_at).unwrap();
+            Ok((duration, locked_at, user_reward))
+        })
+        .collect()
 }
 
 pub fn _user_reward(

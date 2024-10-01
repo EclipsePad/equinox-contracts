@@ -10,7 +10,7 @@ use cosmwasm_std::{
 };
 use cw_storage_plus::Bound;
 use equinox_msg::lp_staking::{
-    Config, RewardAmount, RewardDistribution, RewardWeight, UserStaking, VaultRewards,
+    Config, Reward, RewardAmount, RewardDistribution, RewardWeight, UserStaking, VaultRewards,
 };
 
 use crate::state::{
@@ -300,6 +300,24 @@ pub fn check_native_token_denom(querier: &QuerierWrapper, denom: String) -> StdR
 pub fn query_native_token_supply(querier: &QuerierWrapper, denom: String) -> StdResult<Coin> {
     let supply: SupplyResponse = querier.query(&QueryRequest::Bank(BankQuery::Supply { denom }))?;
     Ok(supply.amount)
+}
+
+pub fn query_reward_schedule(
+    deps: Deps,
+    env: Env,
+    from: Option<u64>,
+) -> StdResult<Vec<((u64, u64), Reward)>> {
+    REWARD
+        .range(
+            deps.storage,
+            Some(Bound::exclusive((
+                from.unwrap_or(env.block.time.seconds()),
+                0u64,
+            ))),
+            None,
+            Order::Ascending,
+        )
+        .collect::<StdResult<Vec<_>>>()
 }
 
 pub fn calculate_eclip_beclip_reward(
