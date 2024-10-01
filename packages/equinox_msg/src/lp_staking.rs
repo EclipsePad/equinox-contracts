@@ -103,6 +103,7 @@ pub enum QueryMsg {
 
     #[returns(Vec<RewardWeight>)]
     RewardWeights {},
+
     #[returns(Vec<RewardWeight>)]
     UserRewardWeights { user: String },
 
@@ -111,8 +112,12 @@ pub enum QueryMsg {
     // rewards of blacklist users which goes to the Equinox treasury
     #[returns(Vec<RewardAmount>)]
     BlacklistRewards,
+
     #[returns(bool)]
     IsAllowed { user: String },
+
+    #[returns(Vec<((u64, u64), Reward)>)]
+    RewardSchedule { from: Option<u64> },
 }
 
 #[cw_serde]

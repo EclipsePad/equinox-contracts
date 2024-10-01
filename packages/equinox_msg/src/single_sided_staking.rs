@@ -86,9 +86,6 @@ pub enum QueryMsg {
     /// query config
     #[returns(Config)]
     Config {},
-    /// query reward config
-    #[returns(Reward)]
-    RewardConfig {},
     /// query owner
     #[returns(Addr)]
     Owner {},
@@ -126,6 +123,7 @@ pub enum QueryMsg {
     },
     #[returns(bool)]
     IsAllowed { user: String },
+
     #[returns(Vec<(u64, Uint128)>)]
     EclipastroRewards {},
 
@@ -134,6 +132,12 @@ pub enum QueryMsg {
     // rewards of blacklist
     #[returns(UserReward)]
     BlacklistRewards,
+
+    #[returns(Vec<((u64, u64), Reward)>)]
+    RewardSchedule { from: Option<u64> },
+
+    #[returns(Vec<(u64, u64, UserReward)>)]
+    RewardList { user: String },
 }
 
 #[cw_serde]
@@ -258,6 +262,7 @@ pub struct RestakeData {
 }
 
 #[cw_serde]
+#[derive(Default)]
 pub struct StakingWithDuration {
     pub staked: Uint128,
     pub valid_staked: Uint128,

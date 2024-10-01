@@ -16,8 +16,8 @@ use crate::{
         instantiate::try_instantiate,
         query::{
             query_blacklist, query_blacklist_rewards, query_config, query_owner, query_reward,
-            query_reward_distribution, query_reward_weights, query_staking, query_total_staking,
-            query_user_reward_weights,
+            query_reward_distribution, query_reward_schedule, query_reward_weights, query_staking,
+            query_total_staking, query_user_reward_weights,
         },
     },
     error::ContractError,
@@ -92,6 +92,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::IsAllowed { user } => {
             let is_allowed = ALLOWED_USERS.load(deps.storage, &user).unwrap_or_default();
             Ok(to_json_binary(&is_allowed)?)
+        }
+        QueryMsg::RewardSchedule { from } => {
+            Ok(to_json_binary(&query_reward_schedule(deps, env, from)?)?)
         }
     }
 }

@@ -574,9 +574,15 @@ pub fn _extend_single_lockup_after_lockdrop(
         None,
     )?;
     let cfg = CONFIG.load(deps.storage)?;
+    let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
     let mut lockup_info_from = SINGLE_LOCKUP_INFO.load(deps.storage, from_duration)?;
     let mut user_lockup_info_from =
         SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, from_duration))?;
+    if user_lockup_info_from.total_eclipastro_staked.is_zero() {
+        user_lockup_info_from.total_eclipastro_staked = user_lockup_info_from
+            .xastro_amount_in_lockups
+            .multiply_ratio(state.total_eclipastro_lockup, state.total_xastro);
+    }
     let existing_eclipastro_amount = user_lockup_info_from.total_eclipastro_staked
         - user_lockup_info_from.total_eclipastro_withdrawed;
     ensure!(
@@ -2128,6 +2134,11 @@ pub fn calculate_single_user_rewards(
     let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO
         .load(deps.storage, (&sender, duration))
         .unwrap_or_default();
+    if user_lockup_info.total_eclipastro_staked.is_zero() {
+        user_lockup_info.total_eclipastro_staked = user_lockup_info
+            .xastro_amount_in_lockups
+            .multiply_ratio(state.total_eclipastro_lockup, state.total_xastro);
+    }
     user_lockup_info.lockdrop_incentives = get_user_single_lockdrop_incentives(
         deps.as_ref(),
         user_lockup_info.lockdrop_incentives,

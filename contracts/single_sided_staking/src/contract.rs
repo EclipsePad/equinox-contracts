@@ -15,8 +15,9 @@ use crate::{
         instantiate::try_instantiate,
         query::{
             calculate_penalty, query_blacklist, query_blacklist_rewards, query_calculate_reward,
-            query_config, query_eclipastro_rewards, query_owner, query_reward, query_reward_config,
-            query_staking, query_total_staking, query_total_staking_by_duration,
+            query_config, query_eclipastro_rewards, query_owner, query_reward, query_reward_list,
+            query_reward_schedule, query_staking, query_total_staking,
+            query_total_staking_by_duration,
         },
     },
     error::ContractError,
@@ -114,7 +115,6 @@ pub fn execute(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
-        QueryMsg::RewardConfig {} => Ok(to_json_binary(&query_reward_config(deps, env)?)?),
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::Staking { user } => Ok(to_json_binary(&query_staking(deps, env, user)?)?),
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
@@ -153,6 +153,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::Blacklist {} => Ok(to_json_binary(&query_blacklist(deps)?)?),
         QueryMsg::BlacklistRewards => Ok(to_json_binary(&query_blacklist_rewards(deps, env)?)?),
+        QueryMsg::RewardSchedule { from } => {
+            Ok(to_json_binary(&query_reward_schedule(deps, env, from)?)?)
+        }
+        QueryMsg::RewardList { user } => Ok(to_json_binary(&query_reward_list(deps, env, user)?)?),
     }
 }
 
