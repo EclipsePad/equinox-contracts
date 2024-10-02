@@ -215,15 +215,19 @@ pub fn _user_reward(
             user_staking.staked,
         )
     } else {
+        let mut end_reward_weights = calculate_reward_weights(deps, env.clone(), block_time, end_time)?;
+        if end_reward_weights.eclip < user_staking.reward_weights.eclip {
+            end_reward_weights = user_staking.reward_weights.clone();
+        }
         let reward_during_lock = calculate_reward_with_multiplier(
             multiplier,
             user_staking.reward_weights.clone(),
-            calculate_reward_weights(deps, env.clone(), block_time, end_time)?,
+            end_reward_weights.clone(),
             user_staking.staked,
         )?;
         let reward_after_lock = calculate_reward_with_multiplier(
             flexible_multiplier,
-            calculate_reward_weights(deps, env.clone(), block_time, end_time)?,
+            end_reward_weights,
             calculate_reward_weights(deps, env.clone(), block_time, block_time)?,
             user_staking.staked,
         )?;
@@ -264,19 +268,19 @@ pub fn query_calculate_reward(
         calculate_reward_with_multiplier(
             multiplier,
             RewardWeights::load_at_ts(deps.storage, block_time, Some(from))?,
-            calculate_reward_weights(deps, env, block_time, block_time)?,
+            calculate_reward_weights(deps, env, block_time, to)?,
             amount,
         )
     } else {
         let reward_during_lock = calculate_reward_with_multiplier(
             multiplier,
             RewardWeights::load_at_ts(deps.storage, block_time, Some(from))?,
-            calculate_reward_weights(deps, env.clone(), block_time, end_time)?,
+            calculate_reward_weights(deps, env.clone(), block_time, max(from, end_time))?,
             amount,
         )?;
         let reward_after_lock = calculate_reward_with_multiplier(
             flexible_multiplier,
-            calculate_reward_weights(deps, env.clone(), block_time, end_time)?,
+            calculate_reward_weights(deps, env.clone(), block_time, max(from, end_time))?,
             calculate_reward_weights(deps, env.clone(), block_time, to)?,
             amount,
         )?;
@@ -442,7 +446,7 @@ pub fn calculate_user_reward(
         .find(|c| c.duration == 0)
         .unwrap()
         .reward_multiplier;
-    if lock_end_time < block_time {
+    if lock_end_time > block_time {
         let reward_weights = RewardWeights::load_at_ts(deps.storage, block_time, Some(block_time))
             .unwrap_or_default();
         calculate_reward_with_multiplier(
@@ -452,9 +456,12 @@ pub fn calculate_user_reward(
             user_staking.staked,
         )
     } else {
-        let reward_weights =
+        let mut reward_weights =
             RewardWeights::load_at_ts(deps.storage, block_time, Some(lock_end_time))
                 .unwrap_or_default();
+        if reward_weights.eclip < user_staking.reward_weights.eclip {
+            reward_weights = user_staking.reward_weights.clone();
+        }
         let reward_during_lock = calculate_reward_with_multiplier(
             multiplier,
             user_staking.reward_weights.clone(),
