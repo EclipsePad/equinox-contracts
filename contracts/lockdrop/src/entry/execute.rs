@@ -1877,8 +1877,8 @@ pub fn _unlock_single_lockup(
     let block_time = env.block.time.seconds();
     let cfg = CONFIG.load(deps.storage)?;
     let mut lockup_info = SINGLE_LOCKUP_INFO.load(deps.storage, duration)?;
-    let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
     if !check_lockdrop_ended(deps.as_ref(), block_time).unwrap() {
+        let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             block_time,
             &cfg,
@@ -1919,6 +1919,7 @@ pub fn _unlock_single_lockup(
         let response =
             _claim_single_sided_rewards(deps.branch(), env, sender.clone(), duration, None)?;
         let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
+        let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
         if user_lockup_info.total_eclipastro_staked.is_zero() {
             user_lockup_info.total_eclipastro_staked = user_lockup_info
                 .xastro_amount_in_lockups
@@ -1983,8 +1984,8 @@ pub fn _unlock_lp_lockup(
     let current_time = env.block.time.seconds();
     let cfg = CONFIG.load(deps.storage)?;
     let mut lockup_info = LP_LOCKUP_INFO.load(deps.storage, duration)?;
-    let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
     if !check_lockdrop_ended(deps.as_ref(), current_time).unwrap() {
+        let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             current_time,
             &cfg,
@@ -2023,6 +2024,7 @@ pub fn _unlock_lp_lockup(
     } else {
         ensure!(cfg.claims_allowed, ContractError::ClaimRewardNotAllowed {});
         let response = _claim_lp_rewards(deps.branch(), env, sender.clone(), duration, None)?;
+        let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
         let state = LP_LOCKUP_STATE.load(deps.storage)?;
         if user_lockup_info.total_lp_staked.is_zero() {
             user_lockup_info.total_lp_staked = user_lockup_info
