@@ -23,13 +23,8 @@ use equinox_msg::{
 };
 
 use crate::{
-    config::BPS_DENOMINATOR,
     entry::query::{
-        calculate_lp_staking_user_rewards, calculate_lp_total_rewards,
-        calculate_pending_lockdrop_incentives, calculate_updated_lp_reward_weights,
-        check_deposit_window, check_lockdrop_ended, get_user_lp_lockdrop_incentives,
-        get_user_single_lockdrop_incentives, query_astro_staking_total_deposit,
-        query_astro_staking_total_shares, query_lp_pool_assets, query_user_single_rewards,
+        calculate_lp_staking_user_rewards, calculate_lp_total_rewards, calculate_penalty_amount, calculate_pending_lockdrop_incentives, calculate_updated_lp_reward_weights, check_deposit_window, check_lockdrop_ended, get_user_lp_lockdrop_incentives, get_user_single_lockdrop_incentives, query_astro_staking_total_deposit, query_astro_staking_total_shares, query_lp_pool_assets, query_user_single_rewards
     },
     error::ContractError,
     math::{calculate_max_withdrawal_amount_allowed, calculate_weight},
@@ -97,6 +92,11 @@ pub fn try_update_config(
     if let Some(dao_treasury_address) = new_cfg.dao_treasury_address {
         cfg.dao_treasury_address = Some(deps.api.addr_validate(&dao_treasury_address)?);
         attributes.push(attr("new_dao_treasury_address", &dao_treasury_address));
+    };
+
+    if let Some(init_early_unlock_penalty) = new_cfg.init_early_unlock_penalty {
+        cfg.init_early_unlock_penalty = init_early_unlock_penalty;
+        attributes.push(attr("new_init_early_unlock_penalty", init_early_unlock_penalty.to_string()));
     };
     CONFIG.save(deps.storage, &cfg)?;
     Ok(Response::new().add_attributes(attributes))
@@ -2043,17 +2043,8 @@ pub fn _unlock_lp_lockup(
         user_lockup_info.total_lp_withdrawed += withdraw_amount;
         lockup_info.total_withdrawed += withdraw_amount;
 
-        let mut penalty_amount = Uint128::zero();
+        let penalty_amount = calculate_penalty_amount(deps.as_ref(), withdraw_amount, duration, current_time)?;
 
-        if current_time < cfg.countdown_start_at + duration {
-            let lock_config = cfg
-                .lock_configs
-                .iter()
-                .find(|c| c.duration == duration)
-                .unwrap();
-            penalty_amount = withdraw_amount
-                .multiply_ratio(lock_config.early_unlock_penalty_bps, BPS_DENOMINATOR);
-        }
         let lp_token = cfg.lp_token.unwrap();
         let mut msgs = vec![
             CosmosMsg::Wasm(WasmMsg::Execute {

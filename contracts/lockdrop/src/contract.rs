@@ -16,10 +16,7 @@ use crate::{
         },
         instantiate::try_instantiate,
         query::{
-            query_blacklist, query_blacklist_rewards, query_config, query_incentives,
-            query_lp_lockup_info, query_lp_lockup_state, query_owner, query_reward_config,
-            query_single_lockup_info, query_single_lockup_state, query_user_lp_lockup_info,
-            query_user_single_lockup_info,
+            query_blacklist, query_blacklist_rewards, query_calculate_penalty_amount, query_config, query_incentives, query_lp_lockup_info, query_lp_lockup_state, query_owner, query_reward_config, query_single_lockup_info, query_single_lockup_state, query_user_lp_lockup_info, query_user_single_lockup_info
         },
     },
     error::ContractError,
@@ -107,6 +104,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::Blacklist {} => Ok(to_json_binary(&query_blacklist(deps)?)?),
         QueryMsg::BlacklistRewards {} => Ok(to_json_binary(&query_blacklist_rewards(deps, env)?)?),
+        QueryMsg::CalculatePenaltyAmount {amount, duration} => Ok(to_json_binary(&query_calculate_penalty_amount(deps, env, amount, duration)?)?),
     }
 }
 

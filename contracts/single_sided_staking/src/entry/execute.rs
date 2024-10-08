@@ -69,6 +69,12 @@ pub fn update_config(
             .clone_from(&deps.api.addr_validate(&eclip_staking)?);
         res = res.add_attribute("eclip_staking", "update eclip_staking")
     }
+    if let Some(init_early_unlock_penalty) = new_config.init_early_unlock_penalty {
+        config
+            .init_early_unlock_penalty
+            .clone_from(&init_early_unlock_penalty);
+        res = res.add_attribute("init_early_unlock_penalty", "update init_early_unlock_penalty")
+    }
     CONFIG.save(deps.storage, &config)?;
     Ok(res)
 }

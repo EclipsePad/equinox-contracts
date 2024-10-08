@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version    = "0.1.9"
+version    = "0.1.11"
 edition    = "2021"
 repository = "https://github.com/EclipsePad/equinox-contracts"
 authors    = ["Tadao Fukuda", "M. Daeva"]

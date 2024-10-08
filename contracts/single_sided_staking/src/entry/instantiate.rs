@@ -1,8 +1,10 @@
-use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response};
+use std::str::FromStr;
+
+use cosmwasm_std::{ensure, Decimal, DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
 
 use crate::{
-    config::DEFAULT_TIMELOCK_CONFIG,
+    config::{DEFAULT_INIT_EARLY_UNLOCK_PENALTY, DEFAULT_TIMELOCK_CONFIG},
     error::ContractError,
     state::{BLACK_LIST, CONFIG, CONTRACT_NAME, CONTRACT_VERSION, OWNER},
 };
@@ -31,6 +33,7 @@ pub fn try_instantiate(
             eclip_staking: deps.api.addr_validate(&msg.eclip_staking)?,
             eclip: msg.eclip,
             beclip: deps.api.addr_validate(&msg.beclip)?,
+            init_early_unlock_penalty: msg.init_early_unlock_penalty.unwrap_or(Decimal::from_str(&DEFAULT_INIT_EARLY_UNLOCK_PENALTY).unwrap_or_default())
         },
     )?;
 

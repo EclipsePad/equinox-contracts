@@ -1,6 +1,6 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Env, StdResult, Uint128, WasmMsg};
+use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal, Env, StdResult, Uint128, WasmMsg};
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
@@ -20,6 +20,7 @@ pub struct InstantiateMsg {
     pub treasury: String,
     /// blacklisted wallets
     pub blacklist: Option<Vec<String>>,
+    pub init_early_unlock_penalty: Option<Decimal>
 }
 
 #[cw_serde]
@@ -138,6 +139,9 @@ pub enum QueryMsg {
 
     #[returns(Vec<(u64, u64, UserReward)>)]
     RewardList { user: String },
+
+    #[returns(Uint128)]
+    CalculatePenaltyAmount {amount: Uint128, duration: u64, locked_at: Option<u64>}
 }
 
 #[cw_serde]
@@ -153,6 +157,7 @@ pub struct UpdateConfigMsg {
     pub eclip: Option<String>,
     pub beclip: Option<String>,
     pub eclip_staking: Option<String>,
+    pub init_early_unlock_penalty: Option<Decimal>
 }
 
 #[cw_serde]
@@ -187,6 +192,7 @@ pub struct Config {
     pub eclip_staking: Addr,
     pub eclip: String,
     pub beclip: Addr,
+    pub init_early_unlock_penalty: Decimal
 }
 
 #[cw_serde]
@@ -216,7 +222,6 @@ pub struct VaultRewards {
 #[cw_serde]
 pub struct TimeLockConfig {
     pub duration: u64,
-    pub early_unlock_penalty_bps: u64,
     pub reward_multiplier: u64,
 }
 #[cw_serde]

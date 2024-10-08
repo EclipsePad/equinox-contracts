@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Decimal256, Deps, Env, Order, StdResult, Uint128, Uint256};
+use cosmwasm_std::{Addr, Decimal, Decimal256, Deps, Env, Order, StdResult, Uint128, Uint256};
 use cw_storage_plus::Bound;
 use std::cmp::{max, min};
 
@@ -88,7 +88,7 @@ pub fn total_staking_by_duration(
     } else {
         loop {
             let staking_by_endtime =
-                STAKING_DURATION_BY_END_TIME.load(deps.storage, (duration, next_check_time))?;
+                STAKING_DURATION_BY_END_TIME.load(deps.storage, (duration, next_check_time)).unwrap_or_default();
             if !staking_by_endtime.is_zero() {
                 staking_by_duration.valid_staked -= staking_by_endtime;
             }
@@ -292,6 +292,10 @@ pub fn query_calculate_reward(
     }
 }
 
+pub fn query_calculate_penalty_amount(deps: Deps, env: Env, amount: Uint128, duration: u64, locked_at: Option<u64>) -> StdResult<Uint128> {
+    calculate_penalty(deps, env, amount, duration, locked_at.unwrap_or_default())
+}
+
 pub fn calculate_reward_weights(
     deps: Deps,
     env: Env,
@@ -370,33 +374,15 @@ pub fn calculate_reward_weights(
     }
 }
 
-/// calculate penalty amount
-// penalty bps will be only affected to staking amount, not reward amount
-pub fn calculate_penalty(
-    deps: Deps,
-    env: Env,
-    amount: Uint128,
-    duration: u64,
-    locked_at: u64,
-) -> StdResult<Uint128> {
-    let config = CONFIG.load(deps.storage)?;
-    let current_time = env.block.time.seconds();
-    if locked_at + duration <= current_time {
-        return Ok(Uint128::zero());
-    };
-    // config is removed by owner so users can unlock immediately
-    if let Some(timelock_config) = config
-        .timelock_config
-        .into_iter()
-        .find(|c| c.duration == duration)
-    {
-        let penalty_amount =
-            amount.multiply_ratio(timelock_config.early_unlock_penalty_bps, BPS_DENOMINATOR);
-        Ok(penalty_amount)
-    } else {
-        Ok(Uint128::zero())
-    }
+pub fn calculate_penalty(deps: Deps, env: Env, amount: Uint128, duration: u64, locked_at: u64) -> StdResult<Uint128> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let block_time = env.block.time.seconds();
+    let lock_end_time = calculate_lock_end_time(duration, locked_at);
+    let remain_time = min(max(lock_end_time, block_time) - block_time, duration);
+    let penalty_amount = Decimal::from_ratio(amount, 1u128) * Decimal::from_ratio(remain_time, duration) * cfg.init_early_unlock_penalty;
+    Ok(penalty_amount.to_uint_floor())
 }
+
 /// calculate total eclipastro reward during period
 pub fn calculate_eclipastro_reward(
     deps: Deps,

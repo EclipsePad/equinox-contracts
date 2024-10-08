@@ -801,38 +801,33 @@ impl SuiteBuilder {
                     timelock_config: Some(vec![
                         TimeLockConfig {
                             duration: 0,
-                            early_unlock_penalty_bps: 0,
                             reward_multiplier: 10000,
                         },
                         TimeLockConfig {
                             duration: 86400 * 30,
-                            early_unlock_penalty_bps: 5000,
                             reward_multiplier: 20000,
                         },
                         TimeLockConfig {
                             duration: 86400 * 30 * 3,
-                            early_unlock_penalty_bps: 5000,
                             reward_multiplier: 60000,
                         },
                         TimeLockConfig {
                             duration: 86400 * 30 * 6,
-                            early_unlock_penalty_bps: 5000,
                             reward_multiplier: 120000,
                         },
                         TimeLockConfig {
                             duration: 86400 * 30 * 9,
-                            early_unlock_penalty_bps: 5000,
                             reward_multiplier: 180000,
                         },
                         TimeLockConfig {
                             duration: 86400 * 365,
-                            early_unlock_penalty_bps: 5000,
                             reward_multiplier: 240000,
                         },
                     ]),
                     voter: voter_contract.to_string(),
                     treasury: TREASURY.to_string(),
                     blacklist: Some(vec![CAROL.to_string()]),
+                    init_early_unlock_penalty: None
                 },
                 &[],
                 "Single Sided Staking",
@@ -951,32 +946,26 @@ impl SuiteBuilder {
                     lock_configs: Some(vec![
                         LockConfig {
                             duration: 0,
-                            early_unlock_penalty_bps: 5000,
                             multiplier: 10000,
                         },
                         LockConfig {
                             duration: 86400 * 30,
-                            early_unlock_penalty_bps: 5000,
                             multiplier: 20000,
                         },
                         LockConfig {
                             duration: 86400 * 30 * 3,
-                            early_unlock_penalty_bps: 5000,
                             multiplier: 60000,
                         },
                         LockConfig {
                             duration: 86400 * 30 * 6,
-                            early_unlock_penalty_bps: 5000,
                             multiplier: 120000,
                         },
                         LockConfig {
                             duration: 86400 * 30 * 9,
-                            early_unlock_penalty_bps: 5000,
                             multiplier: 180000,
                         },
                         LockConfig {
                             duration: 86400 * 365,
-                            early_unlock_penalty_bps: 5000,
                             multiplier: 240000,
                         },
                     ]),
@@ -988,6 +977,7 @@ impl SuiteBuilder {
                     eclip: eclip.clone(),
                     eclip_staking: eclipsepad_staking_contract.to_string(),
                     blacklist: Some(vec![CAROL.to_string()]),
+                    init_early_unlock_penalty: None
                 },
                 &[],
                 "Eclipsefi lockdrop",

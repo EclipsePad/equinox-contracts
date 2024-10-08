@@ -1,4 +1,6 @@
-use cosmwasm_std::{Addr, Uint128};
+use std::str::FromStr;
+
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_controllers::AdminError;
 use equinox_msg::{
     single_sided_staking::{
@@ -38,7 +40,6 @@ fn update_config() {
     let test_config = UpdateConfigMsg {
         timelock_config: Some(vec![TimeLockConfig {
             duration: ONE_MONTH,
-            early_unlock_penalty_bps: 200,
             reward_multiplier: 1,
         }]),
         voter: Some("wasm1_voter".to_string()),
@@ -46,6 +47,7 @@ fn update_config() {
         eclip: None,
         beclip: None,
         eclip_staking: None,
+        init_early_unlock_penalty: Some(Decimal::from_str("0.8"))
     };
 
     // attacker
@@ -66,12 +68,12 @@ fn update_config() {
         new_config.timelock_config,
         vec![TimeLockConfig {
             duration: ONE_MONTH,
-            early_unlock_penalty_bps: 200,
             reward_multiplier: 1,
         }]
     );
     assert_eq!(new_config.treasury, Addr::unchecked("wasm1_treasury"));
     assert_eq!(new_config.voter, Addr::unchecked("wasm1_voter"));
+    assert_eq!(new_config.init_early_unlock_penalty, Decimal::from_str("0.8").unwrap());
 }
 
 #[test]
