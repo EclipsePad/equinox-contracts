@@ -10,12 +10,14 @@ use equinox_msg::{
 
 use crate::{
     config::{
-        DEFAULT_DEPOSIT_WINDOW, DEFAULT_INIT_EARLY_UNLOCK_PENALTY, DEFAULT_LOCK_CONFIGS, DEFAULT_REWARD_DISTRIBUTION_CONFIG, DEFAULT_WITHDRAW_WINDOW, MINIMUM_WINDOW
+        DEFAULT_DEPOSIT_WINDOW, DEFAULT_INIT_EARLY_UNLOCK_PENALTY, DEFAULT_LOCK_CONFIGS,
+        DEFAULT_REWARD_DISTRIBUTION_CONFIG, DEFAULT_WITHDRAW_WINDOW, MINIMUM_WINDOW,
     },
     entry::execute::check_native_token_denom,
     error::ContractError,
     state::{
-        BLACK_LIST, CONFIG, CONTRACT_NAME, CONTRACT_VERSION, LP_LOCKUP_STATE, OWNER, REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKUP_STATE
+        BLACK_LIST, CONFIG, CONTRACT_NAME, CONTRACT_VERSION, LP_LOCKUP_STATE, OWNER,
+        REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKUP_STATE,
     },
 };
 
@@ -105,7 +107,9 @@ pub fn try_instantiate(
         astro_staking: deps.api.addr_validate(&msg.astro_staking)?,
         claims_allowed: false,
         countdown_start_at: 0u64,
-        init_early_unlock_penalty: msg.init_early_unlock_penalty.unwrap_or(Decimal::from_str(&DEFAULT_INIT_EARLY_UNLOCK_PENALTY).unwrap_or_default())
+        init_early_unlock_penalty: msg
+            .init_early_unlock_penalty
+            .unwrap_or(Decimal::from_str(&DEFAULT_INIT_EARLY_UNLOCK_PENALTY).unwrap_or_default()),
     };
 
     REWARD_DISTRIBUTION_CONFIG.save(deps.storage, &DEFAULT_REWARD_DISTRIBUTION_CONFIG)?;

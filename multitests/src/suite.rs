@@ -827,7 +827,7 @@ impl SuiteBuilder {
                     voter: voter_contract.to_string(),
                     treasury: TREASURY.to_string(),
                     blacklist: Some(vec![CAROL.to_string()]),
-                    init_early_unlock_penalty: None
+                    init_early_unlock_penalty: None,
                 },
                 &[],
                 "Single Sided Staking",
@@ -977,7 +977,7 @@ impl SuiteBuilder {
                     eclip: eclip.clone(),
                     eclip_staking: eclipsepad_staking_contract.to_string(),
                     blacklist: Some(vec![CAROL.to_string()]),
-                    init_early_unlock_penalty: None
+                    init_early_unlock_penalty: None,
                 },
                 &[],
                 "Eclipsefi lockdrop",

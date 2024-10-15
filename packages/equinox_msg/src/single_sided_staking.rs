@@ -20,7 +20,7 @@ pub struct InstantiateMsg {
     pub treasury: String,
     /// blacklisted wallets
     pub blacklist: Option<Vec<String>>,
-    pub init_early_unlock_penalty: Option<Decimal>
+    pub init_early_unlock_penalty: Option<Decimal>,
 }
 
 #[cw_serde]
@@ -141,7 +141,11 @@ pub enum QueryMsg {
     RewardList { user: String },
 
     #[returns(Uint128)]
-    CalculatePenaltyAmount {amount: Uint128, duration: u64, locked_at: Option<u64>}
+    CalculatePenaltyAmount {
+        amount: Uint128,
+        duration: u64,
+        locked_at: Option<u64>,
+    },
 }
 
 #[cw_serde]
@@ -157,7 +161,7 @@ pub struct UpdateConfigMsg {
     pub eclip: Option<String>,
     pub beclip: Option<String>,
     pub eclip_staking: Option<String>,
-    pub init_early_unlock_penalty: Option<Decimal>
+    pub init_early_unlock_penalty: Option<Decimal>,
 }
 
 #[cw_serde]
@@ -192,7 +196,7 @@ pub struct Config {
     pub eclip_staking: Addr,
     pub eclip: String,
     pub beclip: Addr,
-    pub init_early_unlock_penalty: Decimal
+    pub init_early_unlock_penalty: Decimal,
 }
 
 #[cw_serde]

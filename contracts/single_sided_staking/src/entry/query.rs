@@ -87,8 +87,9 @@ pub fn total_staking_by_duration(
         })
     } else {
         loop {
-            let staking_by_endtime =
-                STAKING_DURATION_BY_END_TIME.load(deps.storage, (duration, next_check_time)).unwrap_or_default();
+            let staking_by_endtime = STAKING_DURATION_BY_END_TIME
+                .load(deps.storage, (duration, next_check_time))
+                .unwrap_or_default();
             if !staking_by_endtime.is_zero() {
                 staking_by_duration.valid_staked -= staking_by_endtime;
             }
@@ -215,7 +216,8 @@ pub fn _user_reward(
             user_staking.staked,
         )
     } else {
-        let mut end_reward_weights = calculate_reward_weights(deps, env.clone(), block_time, end_time)?;
+        let mut end_reward_weights =
+            calculate_reward_weights(deps, env.clone(), block_time, end_time)?;
         if end_reward_weights.eclip < user_staking.reward_weights.eclip {
             end_reward_weights = user_staking.reward_weights.clone();
         }
@@ -292,7 +294,13 @@ pub fn query_calculate_reward(
     }
 }
 
-pub fn query_calculate_penalty_amount(deps: Deps, env: Env, amount: Uint128, duration: u64, locked_at: Option<u64>) -> StdResult<Uint128> {
+pub fn query_calculate_penalty_amount(
+    deps: Deps,
+    env: Env,
+    amount: Uint128,
+    duration: u64,
+    locked_at: Option<u64>,
+) -> StdResult<Uint128> {
     calculate_penalty(deps, env, amount, duration, locked_at.unwrap_or_default())
 }
 
@@ -374,12 +382,20 @@ pub fn calculate_reward_weights(
     }
 }
 
-pub fn calculate_penalty(deps: Deps, env: Env, amount: Uint128, duration: u64, locked_at: u64) -> StdResult<Uint128> {
+pub fn calculate_penalty(
+    deps: Deps,
+    env: Env,
+    amount: Uint128,
+    duration: u64,
+    locked_at: u64,
+) -> StdResult<Uint128> {
     let cfg = CONFIG.load(deps.storage)?;
     let block_time = env.block.time.seconds();
     let lock_end_time = calculate_lock_end_time(duration, locked_at);
     let remain_time = min(max(lock_end_time, block_time) - block_time, duration);
-    let penalty_amount = Decimal::from_ratio(amount, 1u128) * Decimal::from_ratio(remain_time, duration) * cfg.init_early_unlock_penalty;
+    let penalty_amount = Decimal::from_ratio(amount, 1u128)
+        * Decimal::from_ratio(remain_time, duration)
+        * cfg.init_early_unlock_penalty;
     Ok(penalty_amount.to_uint_floor())
 }
 

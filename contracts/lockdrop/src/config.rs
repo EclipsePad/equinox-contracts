@@ -1,5 +1,5 @@
-use std::str;
 use equinox_msg::lockdrop::{LockConfig, RewardDistributionConfig};
+use std::str;
 
 pub const DEFAULT_DEPOSIT_WINDOW: u64 = 86400 * 5;
 pub const DEFAULT_WITHDRAW_WINDOW: u64 = 86400 * 2;

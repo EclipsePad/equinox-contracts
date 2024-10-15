@@ -73,7 +73,10 @@ pub fn update_config(
         config
             .init_early_unlock_penalty
             .clone_from(&init_early_unlock_penalty);
-        res = res.add_attribute("init_early_unlock_penalty", "update init_early_unlock_penalty")
+        res = res.add_attribute(
+            "init_early_unlock_penalty",
+            "update init_early_unlock_penalty",
+        )
     }
     CONFIG.save(deps.storage, &config)?;
     Ok(res)

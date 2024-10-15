@@ -6,7 +6,8 @@ use astroport::{
     staking::QueryMsg as AstroportStakingQueryMsg,
 };
 use cosmwasm_std::{
-    Addr, BankQuery, Coin, Decimal, Decimal256, Deps, Env, Order, QuerierWrapper, QueryRequest, StdResult, SupplyResponse, Uint128, Uint256
+    Addr, BankQuery, Coin, Decimal, Decimal256, Deps, Env, Order, QuerierWrapper, QueryRequest,
+    StdResult, SupplyResponse, Uint128, Uint256,
 };
 use equinox_msg::{
     lockdrop::{
@@ -24,7 +25,10 @@ use crate::{
     config::BPS_DENOMINATOR,
     error::ContractError,
     state::{
-        BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LP_LOCKDROP_INCENTIVES, LP_LOCKUP_INFO, LP_LOCKUP_STATE, LP_STAKING_REWARD_WEIGHTS, LP_USER_LOCKUP_INFO, OWNER, REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKDROP_INCENTIVES, SINGLE_LOCKUP_INFO, SINGLE_LOCKUP_STATE, SINGLE_STAKING_REWARD_WEIGHTS, SINGLE_USER_LOCKUP_INFO
+        BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LP_LOCKDROP_INCENTIVES, LP_LOCKUP_INFO,
+        LP_LOCKUP_STATE, LP_STAKING_REWARD_WEIGHTS, LP_USER_LOCKUP_INFO, OWNER,
+        REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKDROP_INCENTIVES, SINGLE_LOCKUP_INFO,
+        SINGLE_LOCKUP_STATE, SINGLE_STAKING_REWARD_WEIGHTS, SINGLE_USER_LOCKUP_INFO,
     },
 };
 
@@ -510,7 +514,12 @@ pub fn query_blacklist_rewards(deps: Deps, env: Env) -> StdResult<BlacklistRewar
     Ok(blacklist_rewards)
 }
 
-pub fn query_calculate_penalty_amount(deps: Deps, env: Env, amount: Uint128, duration: u64) -> StdResult<Uint128> {
+pub fn query_calculate_penalty_amount(
+    deps: Deps,
+    env: Env,
+    amount: Uint128,
+    duration: u64,
+) -> StdResult<Uint128> {
     let block_time = env.block.time.seconds();
     calculate_penalty_amount(deps, amount, duration, block_time)
 }
@@ -906,7 +915,12 @@ pub fn query_user_single_rewards(
     )
 }
 
-pub fn calculate_penalty_amount(deps: Deps, amount: Uint128, duration: u64, block_time: u64) -> StdResult<Uint128> {
+pub fn calculate_penalty_amount(
+    deps: Deps,
+    amount: Uint128,
+    duration: u64,
+    block_time: u64,
+) -> StdResult<Uint128> {
     let cfg = CONFIG.load(deps.storage)?;
     let locked_at = if cfg.claims_allowed {
         cfg.countdown_start_at
@@ -916,6 +930,8 @@ pub fn calculate_penalty_amount(deps: Deps, amount: Uint128, duration: u64, bloc
     let one_day = 86400u64;
     let lock_end_time = (duration + locked_at) / one_day * one_day + one_day;
     let remain_time = min(max(lock_end_time, block_time) - block_time, duration);
-    let penalty_amount = Decimal::from_ratio(amount, 1u128) * Decimal::from_ratio(remain_time, duration) * cfg.init_early_unlock_penalty;
+    let penalty_amount = Decimal::from_ratio(amount, 1u128)
+        * Decimal::from_ratio(remain_time, duration)
+        * cfg.init_early_unlock_penalty;
     Ok(penalty_amount.to_uint_floor())
 }

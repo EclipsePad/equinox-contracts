@@ -47,7 +47,7 @@ fn update_config() {
         eclip: None,
         beclip: None,
         eclip_staking: None,
-        init_early_unlock_penalty: Some(Decimal::from_str("0.8"))
+        init_early_unlock_penalty: Some(Decimal::from_str("0.8")),
     };
 
     // attacker
@@ -73,7 +73,10 @@ fn update_config() {
     );
     assert_eq!(new_config.treasury, Addr::unchecked("wasm1_treasury"));
     assert_eq!(new_config.voter, Addr::unchecked("wasm1_voter"));
-    assert_eq!(new_config.init_early_unlock_penalty, Decimal::from_str("0.8").unwrap());
+    assert_eq!(
+        new_config.init_early_unlock_penalty,
+        Decimal::from_str("0.8").unwrap()
+    );
 }
 
 #[test]

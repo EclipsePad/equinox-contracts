@@ -33,7 +33,9 @@ pub fn try_instantiate(
             eclip_staking: deps.api.addr_validate(&msg.eclip_staking)?,
             eclip: msg.eclip,
             beclip: deps.api.addr_validate(&msg.beclip)?,
-            init_early_unlock_penalty: msg.init_early_unlock_penalty.unwrap_or(Decimal::from_str(&DEFAULT_INIT_EARLY_UNLOCK_PENALTY).unwrap_or_default())
+            init_early_unlock_penalty: msg.init_early_unlock_penalty.unwrap_or(
+                Decimal::from_str(&DEFAULT_INIT_EARLY_UNLOCK_PENALTY).unwrap_or_default(),
+            ),
         },
     )?;
 

@@ -945,7 +945,7 @@ fn stake_assets_to_vaults() {
                 voter: Some(suite.voter_contract()),
                 dao_treasury_address: Some(suite.treasury()),
                 eclip_staking: None,
-                init_early_unlock_penalty: Some(Decimal::from_str("0.8"))
+                init_early_unlock_penalty: Some(Decimal::from_str("0.8")),
             },
         )
         .unwrap();

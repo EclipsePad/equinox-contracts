@@ -27,6 +27,18 @@ pub enum ContractError {
     #[error("Deposit is only allowed in Deposit window")]
     NotDepositWindow {},
 
+    #[error("Can't update deposit period after the deposit window ended")]
+    DepositWindowUpdateDisabled {},
+
+    #[error("Can't update deposit period to a past point")]
+    DepositWindowUpdateErr {},
+
+    #[error("Can't update withdraw period after the first half of withdrawal window ended")]
+    WithdrawalWindowUpdateDisabled {},
+
+    #[error("Can't update withdraw period to a past point")]
+    WithdrawalWindowUpdateErr {},
+
     #[error("Ensure list contains unique assets")]
     DuplicatedAssets {},
 
