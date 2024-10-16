@@ -1,11 +1,13 @@
+use std::cmp::{max, min};
+
 use astroport::{
     asset::{Asset, AssetInfo},
     pair::{PoolResponse, QueryMsg as PoolQueryMsg},
     staking::QueryMsg as AstroportStakingQueryMsg,
 };
 use cosmwasm_std::{
-    Addr, BankQuery, Coin, Decimal256, Deps, Env, Order, QuerierWrapper, QueryRequest, StdResult,
-    SupplyResponse, Uint128, Uint256,
+    Addr, BankQuery, Coin, Decimal, Decimal256, Deps, Env, Order, QuerierWrapper, QueryRequest,
+    StdResult, SupplyResponse, Uint128, Uint256,
 };
 use equinox_msg::{
     lockdrop::{
@@ -512,6 +514,16 @@ pub fn query_blacklist_rewards(deps: Deps, env: Env) -> StdResult<BlacklistRewar
     Ok(blacklist_rewards)
 }
 
+pub fn query_calculate_penalty_amount(
+    deps: Deps,
+    env: Env,
+    amount: Uint128,
+    duration: u64,
+) -> StdResult<Uint128> {
+    let block_time = env.block.time.seconds();
+    calculate_penalty_amount(deps, amount, duration, block_time)
+}
+
 pub fn calculate_pending_lockdrop_incentives(
     deps: Deps,
     current_time: u64,
@@ -901,4 +913,25 @@ pub fn query_user_single_rewards(
             to: None,
         },
     )
+}
+
+pub fn calculate_penalty_amount(
+    deps: Deps,
+    amount: Uint128,
+    duration: u64,
+    block_time: u64,
+) -> StdResult<Uint128> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let locked_at = if cfg.claims_allowed {
+        cfg.countdown_start_at
+    } else {
+        block_time
+    };
+    let one_day = 86400u64;
+    let lock_end_time = (duration + locked_at) / one_day * one_day + one_day;
+    let remain_time = min(max(lock_end_time, block_time) - block_time, duration);
+    let penalty_amount = Decimal::from_ratio(amount, 1u128)
+        * Decimal::from_ratio(remain_time, duration)
+        * cfg.init_early_unlock_penalty;
+    Ok(penalty_amount.to_uint_floor())
 }

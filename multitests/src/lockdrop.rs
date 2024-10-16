@@ -1,8 +1,10 @@
+use std::str::FromStr;
+
 use astroport::{
     asset::{Asset, AssetInfo},
     vesting::{VestingAccount, VestingSchedule, VestingSchedulePoint},
 };
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_controllers::AdminError;
 use equinox_msg::lockdrop::{
     BlacklistRewards, IncentiveRewards, StakeType, UpdateConfigMsg as LockdropUpdateConfigMsg,
@@ -943,6 +945,7 @@ fn stake_assets_to_vaults() {
                 voter: Some(suite.voter_contract()),
                 dao_treasury_address: Some(suite.treasury()),
                 eclip_staking: None,
+                init_early_unlock_penalty: Some(Decimal::from_str("0.8")),
             },
         )
         .unwrap();
@@ -1273,6 +1276,7 @@ fn single_sided_incentives_distribution() {
                 voter: Some(suite.voter_contract()),
                 dao_treasury_address: Some(suite.treasury()),
                 eclip_staking: None,
+                init_early_unlock_penalty: None,
             },
         )
         .unwrap();
@@ -1464,6 +1468,7 @@ fn lp_incentives_distribution() {
                 voter: Some(suite.voter_contract()),
                 dao_treasury_address: Some(suite.treasury()),
                 eclip_staking: None,
+                init_early_unlock_penalty: None,
             },
         )
         .unwrap();
@@ -1743,6 +1748,7 @@ fn restake_and_unlock() {
                 voter: Some(suite.voter_contract()),
                 dao_treasury_address: Some(suite.treasury()),
                 eclip_staking: None,
+                init_early_unlock_penalty: None,
             },
         )
         .unwrap();
@@ -2091,6 +2097,7 @@ fn blacklist() {
                 voter: Some(suite.voter_contract()),
                 dao_treasury_address: Some(suite.treasury()),
                 eclip_staking: None,
+                init_early_unlock_penalty: None,
             },
         )
         .unwrap();

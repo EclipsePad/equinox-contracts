@@ -14,8 +14,9 @@ use crate::{
         },
         instantiate::try_instantiate,
         query::{
-            calculate_penalty, query_blacklist, query_blacklist_rewards, query_calculate_reward,
-            query_config, query_eclipastro_rewards, query_owner, query_reward, query_reward_list,
+            calculate_penalty, query_blacklist, query_blacklist_rewards,
+            query_calculate_penalty_amount, query_calculate_reward, query_config,
+            query_eclipastro_rewards, query_owner, query_reward, query_reward_list,
             query_reward_schedule, query_staking, query_total_staking,
             query_total_staking_by_duration,
         },
@@ -157,6 +158,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             Ok(to_json_binary(&query_reward_schedule(deps, env, from)?)?)
         }
         QueryMsg::RewardList { user } => Ok(to_json_binary(&query_reward_list(deps, env, user)?)?),
+        QueryMsg::CalculatePenaltyAmount {
+            amount,
+            duration,
+            locked_at,
+        } => Ok(to_json_binary(&query_calculate_penalty_amount(
+            deps, env, amount, duration, locked_at,
+        )?)?),
     }
 }
 

@@ -23,9 +23,9 @@ use equinox_msg::{
 };
 
 use crate::{
-    config::BPS_DENOMINATOR,
+    config::MINIMUM_WINDOW,
     entry::query::{
-        calculate_lp_staking_user_rewards, calculate_lp_total_rewards,
+        calculate_lp_staking_user_rewards, calculate_lp_total_rewards, calculate_penalty_amount,
         calculate_pending_lockdrop_incentives, calculate_updated_lp_reward_weights,
         check_deposit_window, check_lockdrop_ended, get_user_lp_lockdrop_incentives,
         get_user_single_lockdrop_incentives, query_astro_staking_total_deposit,
@@ -97,6 +97,14 @@ pub fn try_update_config(
     if let Some(dao_treasury_address) = new_cfg.dao_treasury_address {
         cfg.dao_treasury_address = Some(deps.api.addr_validate(&dao_treasury_address)?);
         attributes.push(attr("new_dao_treasury_address", &dao_treasury_address));
+    };
+
+    if let Some(init_early_unlock_penalty) = new_cfg.init_early_unlock_penalty {
+        cfg.init_early_unlock_penalty = init_early_unlock_penalty;
+        attributes.push(attr(
+            "new_init_early_unlock_penalty",
+            init_early_unlock_penalty.to_string(),
+        ));
     };
     CONFIG.save(deps.storage, &cfg)?;
     Ok(Response::new().add_attributes(attributes))
@@ -398,6 +406,57 @@ pub fn try_claim_all_rewards(
             _claim_all_lp_rewards(deps, env, sender, None, with_flexible, assets)
         }
     }
+}
+
+pub fn try_update_lockdrop_periods(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    deposit: Option<u64>,
+    withdraw: Option<u64>,
+) -> Result<Response, ContractError> {
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    let mut cfg = CONFIG.load(deps.storage)?;
+    let block_time = env.block.time.seconds();
+    let mut res = Response::new();
+    if let Some(deposit) = deposit {
+        ensure!(
+            cfg.init_timestamp + cfg.deposit_window > block_time,
+            ContractError::DepositWindowUpdateDisabled {}
+        );
+        ensure!(
+            cfg.init_timestamp + deposit > block_time,
+            ContractError::DepositWindowUpdateErr {}
+        );
+        ensure!(
+            deposit.ge(&MINIMUM_WINDOW),
+            ContractError::InvalidTimeWindow(deposit)
+        );
+        cfg.deposit_window = deposit;
+        res = res
+            .add_attribute("action", "update_deposit_window")
+            .add_attribute("deposit_window", deposit.to_string());
+    }
+    if let Some(withdraw) = withdraw {
+        ensure!(
+            cfg.init_timestamp + cfg.deposit_window + cfg.withdrawal_window / 2 > block_time,
+            ContractError::WithdrawalWindowUpdateDisabled {}
+        );
+        ensure!(
+            withdraw.ge(&MINIMUM_WINDOW),
+            ContractError::InvalidTimeWindow(withdraw)
+        );
+        ensure!(
+            cfg.init_timestamp + cfg.deposit_window + withdraw / 2 > block_time,
+            ContractError::WithdrawalWindowUpdateErr {}
+        );
+        cfg.withdrawal_window = withdraw;
+        res = res
+            .add_attribute("action", "update_withdrawal_window")
+            .add_attribute("withdrawal_window", withdraw.to_string());
+    }
+    CONFIG.save(deps.storage, &cfg)?;
+    Ok(res)
 }
 
 pub fn _increase_single_lockup(
@@ -1877,8 +1936,9 @@ pub fn _unlock_single_lockup(
     let block_time = env.block.time.seconds();
     let cfg = CONFIG.load(deps.storage)?;
     let mut lockup_info = SINGLE_LOCKUP_INFO.load(deps.storage, duration)?;
-    let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
     if !check_lockdrop_ended(deps.as_ref(), block_time).unwrap() {
+        let mut user_lockup_info =
+            SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             block_time,
             &cfg,
@@ -1919,6 +1979,8 @@ pub fn _unlock_single_lockup(
         let response =
             _claim_single_sided_rewards(deps.branch(), env, sender.clone(), duration, None)?;
         let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
+        let mut user_lockup_info =
+            SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
         if user_lockup_info.total_eclipastro_staked.is_zero() {
             user_lockup_info.total_eclipastro_staked = user_lockup_info
                 .xastro_amount_in_lockups
@@ -1983,8 +2045,8 @@ pub fn _unlock_lp_lockup(
     let current_time = env.block.time.seconds();
     let cfg = CONFIG.load(deps.storage)?;
     let mut lockup_info = LP_LOCKUP_INFO.load(deps.storage, duration)?;
-    let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
     if !check_lockdrop_ended(deps.as_ref(), current_time).unwrap() {
+        let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
         let mut withdraw_amount = calculate_max_withdrawal_amount_allowed(
             current_time,
             &cfg,
@@ -2023,6 +2085,7 @@ pub fn _unlock_lp_lockup(
     } else {
         ensure!(cfg.claims_allowed, ContractError::ClaimRewardNotAllowed {});
         let response = _claim_lp_rewards(deps.branch(), env, sender.clone(), duration, None)?;
+        let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
         let state = LP_LOCKUP_STATE.load(deps.storage)?;
         if user_lockup_info.total_lp_staked.is_zero() {
             user_lockup_info.total_lp_staked = user_lockup_info
@@ -2041,17 +2104,9 @@ pub fn _unlock_lp_lockup(
         user_lockup_info.total_lp_withdrawed += withdraw_amount;
         lockup_info.total_withdrawed += withdraw_amount;
 
-        let mut penalty_amount = Uint128::zero();
+        let penalty_amount =
+            calculate_penalty_amount(deps.as_ref(), withdraw_amount, duration, current_time)?;
 
-        if current_time < cfg.countdown_start_at + duration {
-            let lock_config = cfg
-                .lock_configs
-                .iter()
-                .find(|c| c.duration == duration)
-                .unwrap();
-            penalty_amount = withdraw_amount
-                .multiply_ratio(lock_config.early_unlock_penalty_bps, BPS_DENOMINATOR);
-        }
         let lp_token = cfg.lp_token.unwrap();
         let mut msgs = vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
