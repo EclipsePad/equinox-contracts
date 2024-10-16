@@ -1,22 +1,23 @@
 use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, StdResult, Uint128};
 use cw2::set_contract_version;
 
-use equinox_msg::voter::{
-    msg::InstantiateMsg,
-    state::{
-        ADDRESS_CONFIG, ASTRO_STAKING_REWARD_CONFIG, CONTRACT_NAME, DAO_ESSENCE_ACC,
-        DAO_WEIGHTS_ACC, DATE_CONFIG, ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ESSENCE_ACC,
-        ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE, SLACKER_ESSENCE_ACC,
-        SWAP_REWARDS_REPLY_ID_CNT, TEMPORARY_REWARDS, TOKEN_CONFIG, TRANSFER_ADMIN_STATE,
-        VOTE_RESULTS,
-    },
-    types::{
-        AddressConfig, AstroStakingRewardConfig, DateConfig, EpochInfo, EssenceInfo,
-        RewardsClaimStage, TokenConfig, TransferAdminState,
+use eclipse_base::{
+    error::ContractError,
+    voter::{
+        msg::InstantiateMsg,
+        state::{
+            ADDRESS_CONFIG, ASTRO_STAKING_REWARD_CONFIG, CONTRACT_NAME, DAO_ESSENCE_ACC,
+            DAO_WEIGHTS_ACC, DATE_CONFIG, ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ESSENCE_ACC,
+            ELECTOR_WEIGHTS_ACC, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
+            SLACKER_ESSENCE_ACC, SWAP_REWARDS_REPLY_ID_CNT, TEMPORARY_REWARDS, TOKEN_CONFIG,
+            TRANSFER_ADMIN_STATE, VOTE_RESULTS,
+        },
+        types::{
+            AddressConfig, AstroStakingRewardConfig, DateConfig, EpochInfo, EssenceInfo,
+            RewardsClaimStage, TokenConfig, TransferAdminState,
+        },
     },
 };
-
-use crate::error::ContractError;
 
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 

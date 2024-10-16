@@ -5,7 +5,9 @@ use cosmwasm_std::{
 };
 use cw_storage_plus::Bound;
 use cw_utils::one_coin;
-use eclipse_base::staking::msg::ExecuteMsg as EclipStakingExecuteMsg;
+use eclipse_base::{
+    staking::msg::ExecuteMsg as EclipStakingExecuteMsg, voter::msg::ExecuteMsg as VoterExecuteMsg,
+};
 
 use crate::{
     config::{DEFAULT_REWARD_DISTRIBUTION_PERIOD, MAX_PROPOSAL_TTL, ONE_DAY},
@@ -24,7 +26,6 @@ use equinox_msg::{
         CallbackMsg, OwnershipProposal, RestakeData, Reward, UpdateConfigMsg, UserReward,
     },
     utils::has_unique_elements,
-    voter::msg::ExecuteMsg as VoterExecuteMsg,
 };
 
 use super::query::{

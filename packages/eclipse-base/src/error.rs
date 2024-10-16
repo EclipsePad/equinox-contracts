@@ -76,9 +76,12 @@ pub enum ContractError {
     #[error("Wrong funds combination!")]
     WrongFundsCombination,
 
+    #[error("Error reading SubMsgResult")]
+    SubMsgResultError,
+
     // ------------------------------ faucet ----------------------------------------
-    #[error("Come back later!")]
-    ClaimCooldown,
+    #[error("Come back in {remaining_time_in_mins:?} minutes!")]
+    ClaimCooldown { remaining_time_in_mins: u64 },
 
     // ------------------------------ lottery ----------------------------------------
     #[error("Job ID is too long!")]
@@ -148,6 +151,9 @@ pub enum ContractError {
 
     #[error("Multiple vaults with same creation date are not allowed!")]
     MultipleVaultsWithSameCreationDate,
+
+    #[error("Improper token amount!")]
+    ImproperTokenAmount,
 
     #[error("Improper amount sum!")]
     ImproperAmountSum,
@@ -263,6 +269,9 @@ pub enum ContractError {
     #[error("Exceeded tokens per owner limit!")]
     TokenLimit,
 
+    #[error("Faucet is disabled!")]
+    FaucetIsDisabled,
+
     // ------------------------------  ----------------------------------------
     #[error("Denom already exists!")]
     DenomExists,
@@ -272,4 +281,84 @@ pub enum ContractError {
 
     #[error("Multiple positions with same creation date are not allowed!")]
     SameCreationDate,
+
+    // ------------------------------ voter ----------------------------------------
+    #[error("Can't handle this message")]
+    UnknownMessage,
+
+    #[error("Error staking astro")]
+    StakeError,
+
+    #[error("Unknown reply id: {0}")]
+    UnknownReplyId(u64),
+
+    #[error("It's too early to claim rewards")]
+    ClaimRewardsEarly,
+
+    #[error("Wrong rewards claim stage")]
+    WrongRewardsClaimStage,
+
+    #[error("Await completing rewards claim stage")]
+    AwaitSwappedStage,
+
+    #[error("Unequal pools")]
+    UnequalPools,
+
+    #[error("Last vote results aren't found")]
+    LastVoteResultsAreNotFound,
+
+    #[error("Rewards aren't found")]
+    RewardsAreNotFound,
+
+    #[error("Event isn't found")]
+    EventIsNotFound,
+
+    #[error("Attribute isn't found")]
+    AttributeIsNotFound,
+
+    #[error("Reply ID counter overflow")]
+    ReplyIdCounterOverflow,
+
+    #[error("Delegator is not found")]
+    DelegatorIsNotFound,
+
+    #[error("Pool isn't whitelisted")]
+    PoolIsNotWhitelisted,
+
+    #[error("Voting period isn't started")]
+    VotingDelay,
+
+    #[error("Epoch is completed")]
+    EpochEnd,
+
+    #[error("New epoch isn't started yet")]
+    EpochIsNotStarted,
+
+    #[error("It's impossible to delegate twice")]
+    DelegateTwice,
+
+    #[error("Delegator can't place vote")]
+    DelegatorCanNotVote,
+
+    #[error("Max amount is exceeded")]
+    ExceededMaxAmount,
+
+    #[error("Empty voting list!")]
+    EmptyVotingList,
+
+    #[error("Voting list has pool addresses duplicaion!")]
+    VotingListDuplication,
+
+    #[error("Sum of weights is not equal one!")]
+    WeightsAreUnbalanced,
+
+    #[error("Weight is out of range!")]
+    WeightIsOutOfRange,
+
+    #[error("No astro staking rewards claimable")]
+    NoAstroStakingRewards,
+
+    #[error("Invalid reward config")]
+    InvalidRewardConfig,
+    // ------------------------------ splitter ----------------------------------------
 }

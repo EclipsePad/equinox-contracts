@@ -1,8 +1,7 @@
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
-use equinox_msg::voter::types::BribesAllocationItem;
 
-use crate::types::Config;
+use crate::{tribute_market::types::Config, voter::types::BribesAllocationItem};
 
 pub const CONTRACT_NAME: &str = "tribute-market-mocks";
 

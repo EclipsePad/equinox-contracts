@@ -2,12 +2,9 @@ use std::str::FromStr;
 
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_controllers::AdminError;
-use eclipse_base::converters::str_to_dec;
-use equinox_msg::{
-    single_sided_staking::{
-        TimeLockConfig, UpdateConfigMsg, UserReward, UserStaking, UserStakingByDuration,
-    },
-    voter::msg::AstroStakingRewardResponse,
+use eclipse_base::{converters::str_to_dec, voter::msg::AstroStakingRewardResponse};
+use equinox_msg::single_sided_staking::{
+    TimeLockConfig, UpdateConfigMsg, UserReward, UserStaking, UserStakingByDuration,
 };
 use single_sided_staking::error::ContractError;
 

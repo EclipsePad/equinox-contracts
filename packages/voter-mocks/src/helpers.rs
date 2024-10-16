@@ -3,32 +3,32 @@ use cosmwasm_std::{Addr, Decimal, Deps, StdError, StdResult, Storage, Uint128};
 
 use eclipse_base::{
     converters::{str_to_dec, u128_to_dec},
+    error::ContractError,
     utils::unwrap_field,
-};
-use equinox_msg::voter::{
-    state::{
-        ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DELEGATOR_ESSENCE_FRACTIONS,
-        ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS,
-        ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE,
-        ROUTE_CONFIG, SLACKER_ESSENCE_ACC, TOKEN_CONFIG, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
-    },
-    types::{
-        AddressConfig, BribesAllocationItem, EssenceInfo, RewardsClaimStage, RewardsInfo,
-        RouteItem, TokenConfig, TotalEssenceAndWeightAllocation, UserType, WeightAllocationItem,
+    voter::{
+        state::{
+            ADDRESS_CONFIG, DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DELEGATOR_ESSENCE_FRACTIONS,
+            ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_BASE_ESSENCE_FRACTION,
+            ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS, ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF,
+            EPOCH_COUNTER, IS_PAUSED, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC,
+            TOKEN_CONFIG, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
+        },
+        types::{
+            AddressConfig, BribesAllocationItem, EssenceInfo, RewardsClaimStage, RewardsInfo,
+            RouteItem, TokenConfig, TotalEssenceAndWeightAllocation, UserType,
+            WeightAllocationItem,
+        },
     },
 };
 
-use crate::{
-    error::ContractError,
-    math::{
-        calc_delegator_rewards, calc_merged_rewards, calc_personal_elector_rewards,
-        calc_scaled_essence_allocation, calc_splitted_user_essence_info,
-        calc_updated_essence_allocation,
-    },
+use crate::math::{
+    calc_delegator_rewards, calc_merged_rewards, calc_personal_elector_rewards,
+    calc_scaled_essence_allocation, calc_splitted_user_essence_info,
+    calc_updated_essence_allocation,
 };
 
 pub fn verify_weight_allocation(
-    _deps: Deps,
+    deps: Deps,
     weight_allocation: &[WeightAllocationItem],
 ) -> Result<(), ContractError> {
     // check weights:
@@ -66,20 +66,24 @@ pub fn verify_weight_allocation(
         Err(ContractError::WeightsAreUnbalanced)?;
     }
 
-    // // 5) whitelist
-    // let whitelisted_pools: Vec<String> = deps.querier.query_wasm_smart(
-    //     ADDRESS_CONFIG
-    //         .load(deps.storage)?
-    //         .astroport_emission_controller,
-    //     &astroport_governance::emissions_controller::hub::QueryMsg::QueryWhitelist {},
-    // )?;
+    // TODO: change logic if 50 pools will not be enough
+    // 5) whitelist
+    let whitelisted_pools: Vec<String> = deps.querier.query_wasm_smart(
+        ADDRESS_CONFIG
+            .load(deps.storage)?
+            .astroport_emission_controller,
+        &astroport_governance::emissions_controller::hub::QueryMsg::QueryWhitelist {
+            limit: None,
+            start_after: None,
+        },
+    )?;
 
-    // if weight_allocation
-    //     .iter()
-    //     .any(|x| !whitelisted_pools.contains(&x.lp_token))
-    // {
-    //     Err(ContractError::PoolIsNotWhitelisted)?;
-    // }
+    if weight_allocation
+        .iter()
+        .any(|x| !whitelisted_pools.contains(&x.lp_token))
+    {
+        Err(ContractError::PoolIsNotWhitelisted)?;
+    }
 
     Ok(())
 }
@@ -199,24 +203,27 @@ pub fn get_total_votes(
 ) -> StdResult<TotalEssenceAndWeightAllocation> {
     // get slackers essence
     let slacker_essence = SLACKER_ESSENCE_ACC.load(storage)?;
+    let elector_base_essence_fraction = str_to_dec(ELECTOR_BASE_ESSENCE_FRACTION);
     let elector_additional_essence_fraction = str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION);
-    // 80 % of slackers essence goes to electors
+    // 85 % of electors essence and 68 % of slackers essence goes to electors
     let elector_essence_acc_before = ELECTOR_ESSENCE_ACC.load(storage)?;
     let elector_weights_acc_before = ELECTOR_WEIGHTS_ACC.load(storage)?;
     let elector_essence_allocation_acc_after = calc_scaled_essence_allocation(
-        &elector_essence_acc_before,
+        &elector_essence_acc_before.scale(elector_base_essence_fraction),
         &elector_weights_acc_before,
         &slacker_essence,
         elector_additional_essence_fraction,
     );
-    // 20 % of slackers essence goes to dao
+    // 32 % of slackers essence and 15 % of electors essence goes to dao
     let dao_essence_acc_before = DAO_ESSENCE_ACC.load(storage)?;
     let dao_weights_acc_before = DAO_WEIGHTS_ACC.load(storage)?;
     let dao_essence_allocation_acc_after = calc_scaled_essence_allocation(
         &dao_essence_acc_before,
         &dao_weights_acc_before,
-        &slacker_essence,
-        Decimal::one() - elector_additional_essence_fraction,
+        &elector_essence_acc_before
+            .scale(Decimal::one() - elector_base_essence_fraction)
+            .add(&slacker_essence.scale(Decimal::one() - elector_additional_essence_fraction)),
+        Decimal::one(),
     );
     // final votes
     let full_elector_essence = elector_essence_allocation_acc_after
@@ -294,6 +301,7 @@ pub fn get_accumulated_rewards(
                                 cur.slacker_essence,
                                 cur.dao_essence,
                                 delegator_essence_info.capture(cur.end_date),
+                                cur.elector_essence,
                             );
 
                             acc + delegator_rewards
@@ -374,7 +382,7 @@ pub fn query_astroport_rewards(deps: Deps, sender: &Addr) -> StdResult<Vec<(Uint
         .querier
         .query_wasm_smart::<Vec<(Uint128, String)>>(
             astroport_tribute_market,
-            &tribute_market_mocks::msg::QueryMsg::Rewards {
+            &eclipse_base::tribute_market::msg::QueryMsg::Rewards {
                 user: sender.to_string(),
             },
         )
@@ -389,7 +397,7 @@ pub fn query_eclipsepad_rewards(deps: Deps, sender: &Addr) -> StdResult<Vec<(Uin
             .querier
             .query_wasm_smart::<Vec<(Uint128, String)>>(
                 eclipsepad_tribute_market,
-                &tribute_market_mocks::msg::QueryMsg::Rewards {
+                &eclipse_base::tribute_market::msg::QueryMsg::Rewards {
                     user: sender.to_string(),
                 },
             )
@@ -409,7 +417,7 @@ pub fn query_astroport_bribe_allocation(deps: Deps) -> StdResult<Vec<BribesAlloc
         .querier
         .query_wasm_smart::<Vec<BribesAllocationItem>>(
             astroport_tribute_market,
-            &tribute_market_mocks::msg::QueryMsg::BribesAllocation {},
+            &eclipse_base::tribute_market::msg::QueryMsg::BribesAllocation {},
         )
         .unwrap_or_default())
 }
@@ -422,7 +430,7 @@ pub fn query_eclipsepad_bribe_allocation(deps: Deps) -> StdResult<Vec<BribesAllo
             .querier
             .query_wasm_smart::<Vec<BribesAllocationItem>>(
                 eclipsepad_tribute_market,
-                &tribute_market_mocks::msg::QueryMsg::BribesAllocation {},
+                &eclipse_base::tribute_market::msg::QueryMsg::BribesAllocation {},
             )
             .unwrap_or_default());
     }

@@ -8,7 +8,8 @@ use cosmwasm_std::{
     Uint128, WasmMsg,
 };
 use cw_utils::one_coin;
-use equinox_msg::{lp_depositor::CallbackMsg, voter::msg::ExecuteMsg as VoterExecuteMsg};
+use eclipse_base::voter::msg::ExecuteMsg as VoterExecuteMsg;
+use equinox_msg::lp_depositor::CallbackMsg;
 
 use crate::{entry::query::get_asset_amount_to_convert_eclipastro, state::CONFIG, ContractError};
 

@@ -133,7 +133,7 @@ pub enum ExecuteMsg {
     },
 
     UpdateEssenceAllocation {
-        user_and_essence_list: Vec<(String, EssenceInfo)>,
+        address_list: Vec<String>,
     },
 
     /// a user can lock xASTRO to get eclipASTRO and boost voting power for essence holders

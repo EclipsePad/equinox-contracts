@@ -7,14 +7,12 @@ use cosmwasm_std::{
 use eclipse_base::{
     error::ContractError,
     minter::{
-        msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
+        msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
         state::SAVE_CW20_ADDRESS_REPLY,
     },
 };
 
-use crate::actions::{
-    execute as e, instantiate::try_instantiate, other::migrate_contract, query as q,
-};
+use crate::actions::{execute as e, instantiate::try_instantiate, query as q};
 
 /// Creates a new contract with the specified parameters packed in the "msg" variable
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -186,6 +184,8 @@ pub fn execute(
         } => e::try_mint(deps, env, info, denom_or_address, amount, recipient),
 
         ExecuteMsg::Burn {} => e::try_burn(deps, env, info, None, None),
+
+        _ => unimplemented!(),
     }
 }
 
@@ -214,13 +214,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::TokenCountList { amount, start_from } => {
             to_json_binary(&q::query_token_count_list(deps, env, amount, start_from)?)
         }
-    }
-}
 
-/// Used for contract migration
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    migrate_contract(deps, env, msg)
+        _ => unimplemented!(),
+    }
 }
 
 /// Exposes all reply functions available in the contract

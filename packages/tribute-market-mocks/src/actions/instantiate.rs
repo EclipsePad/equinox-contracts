@@ -1,12 +1,13 @@
 use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
 
-use eclipse_base::error::ContractError;
-
-use crate::{
-    msg::InstantiateMsg,
-    state::{CONFIG, CONTRACT_NAME, INSTANTIATION_DATE},
-    types::Config,
+use eclipse_base::{
+    error::ContractError,
+    tribute_market::{
+        msg::InstantiateMsg,
+        state::{CONFIG, CONTRACT_NAME, INSTANTIATION_DATE},
+        types::Config,
+    },
 };
 
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -31,8 +31,10 @@ pub const VOTE_DELAY: u64 = DAY * 10;
 /// historical data vector max length
 pub const MAX_EPOCH_AMOUNT: u16 = 26;
 
-/// electors will get 80 % of slacker essence
-pub const ELECTOR_ADDITIONAL_ESSENCE_FRACTION: &str = "0.8";
+/// electors can use only 85 % of their essence
+pub const ELECTOR_BASE_ESSENCE_FRACTION: &str = "0.85";
+/// electors will get 68 % of slacker essence
+pub const ELECTOR_ADDITIONAL_ESSENCE_FRACTION: &str = "0.68";
 // dao treasury will get 20 % of all dao rewards
 pub const DAO_TREASURY_REWARDS_FRACTION: &str = "0.2";
 
@@ -81,7 +83,7 @@ pub const SLACKER_ESSENCE_ACC: Item<EssenceInfo> = Item::new("slacker_essence_ac
 
 /// historical data, 26 epochs max
 pub const VOTE_RESULTS: Item<Vec<VoteResults>> = Item::new("vote_results");
-/// temporary storage fro eclip bribe rewards
+/// temporary storage for eclip bribe rewards
 pub const TEMPORARY_REWARDS: Item<Uint128> = Item::new("temporary_rewards");
 /// current epoch id and start date
 pub const EPOCH_COUNTER: Item<EpochInfo> = Item::new("epoch_counter");

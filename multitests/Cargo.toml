@@ -54,6 +54,5 @@ astro-assembly          = { workspace = true }
 astroport-voting-escrow = { workspace = true }
 astroport-emissions-controller = { workspace = true }
 eclipsepad-staking      = { workspace = true }
-cw20-gift               = { workspace = true }
 astroport-tokenfactory-tracker = { workspace = true }
 builder-unlock          = { workspace = true }

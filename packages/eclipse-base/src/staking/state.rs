@@ -23,24 +23,16 @@ pub const PERIOD_TIER_2: u64 = 180 * DAY_IN_SECONDS; // 180 days
 pub const PERIOD_TIER_3: u64 = 270 * DAY_IN_SECONDS; // 270 days
 pub const PERIOD_TIER_4: u64 = 365 * DAY_IN_SECONDS; // 365 days
 
-pub const REWARDS_TIER_0: u64 = 50_400_000_000; // 30 days, $ECLIP in micro units
-pub const REWARDS_TIER_1: u64 = 201_600_000_000; // 90 days, $ECLIP in micro units
-pub const REWARDS_TIER_2: u64 = 403_200_000_000; // 180 days, $ECLIP in micro units
-pub const REWARDS_TIER_3: u64 = 1_360_800_000_000; // 270 days, $ECLIP in micro units
-pub const REWARDS_TIER_4: u64 = 3_024_000_000_000; // 365 days, $ECLIP in micro units
-
-pub const MAX_REWARDS_TIER_0: u64 = 12_600_000_000; // 30 days, $ECLIP in micro units
-pub const MAX_REWARDS_TIER_1: u64 = 50_400_000_000; // 90 days, $ECLIP in micro units
-pub const MAX_REWARDS_TIER_2: u64 = 201_600_000_000; // 180 days, $ECLIP in micro units
-pub const MAX_REWARDS_TIER_3: u64 = 1_012_200_000_000; // 270 days, $ECLIP in micro units
-pub const MAX_REWARDS_TIER_4: u64 = 3_024_000_000_000; // 365 days, $ECLIP in micro units
-
 pub const TIER_4: usize = 4;
 
-// TODO: set on migration
-pub const ECLIP_PER_SECOND: u64 = 136_889; // calc for mainnet
+// TODO: calc for mainnet contract and set on migration
+// pub const ECLIP_PER_SECOND: u64 = 105_000;
 
-// pub const ECLIP_PER_SECOND: u64 = 245; // testnet
+// for unit tests
+pub const ECLIP_PER_SECOND: u64 = 136_889;
+
+// for testnet contract
+// pub const ECLIP_PER_SECOND: u64 = 24_500;
 
 pub const ECLIP_PER_SECOND_MULTIPLIER: &str = "0.99";
 pub const DECREASING_REWARDS_PERIOD: u64 = 7 * DAY_IN_SECONDS;

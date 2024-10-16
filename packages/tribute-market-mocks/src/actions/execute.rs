@@ -4,12 +4,16 @@ use cosmwasm_std::{
     StdResult, Uint128,
 };
 
-use eclipse_base::{converters::u128_to_dec, error::ContractError};
-use equinox_msg::voter::types::{BribesAllocationItem, PoolInfoItem};
-
-use crate::{
-    state::{BRIBES_ALLOCATION, CONFIG, INSTANTIATION_DATE, REWARDS, REWARDS_DISTRIBUTION_DELAY},
-    types::Config,
+use eclipse_base::{
+    converters::u128_to_dec,
+    error::ContractError,
+    tribute_market::{
+        state::{
+            BRIBES_ALLOCATION, CONFIG, INSTANTIATION_DATE, REWARDS, REWARDS_DISTRIBUTION_DELAY,
+        },
+        types::Config,
+    },
+    voter::types::{BribesAllocationItem, PoolInfoItem},
 };
 
 pub fn try_set_bribes_allocation(

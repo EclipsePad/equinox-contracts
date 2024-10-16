@@ -3,12 +3,15 @@ use cosmwasm_std::{Addr, Decimal, Uint128};
 use eclipse_base::{
     converters::{str_to_dec, u128_to_dec},
     staking::state::SECONDS_PER_ESSENCE,
-};
-use equinox_msg::voter::{
-    state::{DAO_TREASURY_REWARDS_FRACTION, ELECTOR_ADDITIONAL_ESSENCE_FRACTION},
-    types::{
-        BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem,
-        WeightAllocationItem,
+    voter::{
+        state::{
+            DAO_TREASURY_REWARDS_FRACTION, ELECTOR_ADDITIONAL_ESSENCE_FRACTION,
+            ELECTOR_BASE_ESSENCE_FRACTION,
+        },
+        types::{
+            BribesAllocationItem, EssenceAllocationItem, EssenceInfo, PoolInfoItem,
+            WeightAllocationItem,
+        },
     },
 };
 
@@ -31,7 +34,7 @@ pub fn calc_eclip_astro_for_xastro(
         return Uint128::zero();
     }
 
-    xastro_amount * astro_supply / xastro_supply
+    xastro_amount.multiply_ratio(astro_supply, xastro_supply)
 }
 
 /// voter_to_tribute_voting_power_ratio = voter_voting_power_decimal * applied_votes_weights_item / tribute_market_voting_power
@@ -257,7 +260,7 @@ pub fn split_rewards(
                     let dao_amount = (u128_to_dec(amount) * rewards_ratio).to_uint_floor();
                     dao_rewards_raw.push((dao_amount, denom.clone()));
 
-                    (amount - dao_amount, denom)
+                    (amount - std::cmp::min(dao_amount, amount), denom)
                 })
                 .collect();
 
@@ -272,7 +275,7 @@ pub fn split_rewards(
 }
 
 /// personal_rewards = elector_rewards * (personal_elector_essence * personal_weight) / (elector_self_essence * elector_weight)     \
-/// elector_self_essence = elector_essence - ELECTOR_ADDITIONAL_ESSENCE_FRACTION * slacker_essence
+/// elector_self_essence = (elector_essence - ELECTOR_ADDITIONAL_ESSENCE_FRACTION * slacker_essence) / ELECTOR_BASE_ESSENCE_FRACTION
 pub fn calc_personal_elector_rewards(
     pool_info_list: &[PoolInfoItem],
     elector_weight_list: &[WeightAllocationItem],
@@ -282,6 +285,7 @@ pub fn calc_personal_elector_rewards(
     personal_elector_essence: Uint128,
 ) -> Vec<(Uint128, String)> {
     let essence_ratio = u128_to_dec(personal_elector_essence)
+        * str_to_dec(ELECTOR_BASE_ESSENCE_FRACTION)
         / (u128_to_dec(elector_essence)
             - str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION) * u128_to_dec(slacker_essence));
 
@@ -331,17 +335,28 @@ pub fn split_dao_eclip_rewards(dao_eclip_rewards: Uint128) -> (Uint128, Uint128)
 }
 
 /// delegator_rewards = dao_delegator_eclip_rewards * delegator_essence / dao_self_essence                    \
-/// dao_self_essence = dao_essence - (1 - ELECTOR_ADDITIONAL_ESSENCE_FRACTION) * slacker_essence
+///
+/// dao_self_essence = dao_essence - (1 - ELECTOR_ADDITIONAL_ESSENCE_FRACTION) * slacker_essence -              
+/// (1 - ELECTOR_BASE_ESSENCE_FRACTION) * elector_self_essence                                                \
+///
+/// elector_self_essence = (elector_essence - ELECTOR_ADDITIONAL_ESSENCE_FRACTION * slacker_essence) / ELECTOR_BASE_ESSENCE_FRACTION
 pub fn calc_delegator_rewards(
     dao_delegators_eclip_rewards: Uint128,
     slacker_essence: Uint128,
     dao_essence: Uint128,
     delegator_essence: Uint128,
+    elector_essence: Uint128,
 ) -> Uint128 {
+    let elector_self_essence = (u128_to_dec(elector_essence)
+        - str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION) * u128_to_dec(slacker_essence))
+        / str_to_dec(ELECTOR_BASE_ESSENCE_FRACTION);
+
     let dao_self_essence = dao_essence
         - ((Decimal::one() - str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION))
             * u128_to_dec(slacker_essence))
-        .to_uint_floor();
+        .to_uint_floor()
+        - ((Decimal::one() - str_to_dec(ELECTOR_BASE_ESSENCE_FRACTION)) * elector_self_essence)
+            .to_uint_floor();
 
     dao_delegators_eclip_rewards * delegator_essence / dao_self_essence
 }

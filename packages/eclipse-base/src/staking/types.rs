@@ -38,12 +38,42 @@ pub struct State {
 }
 
 #[cw_serde]
-#[derive(Default)]
 pub struct Vault {
     pub amount: Uint128,
     pub creation_date: u64, // for essence rewards
     pub claim_date: u64,    // for locking rewards
     pub accumulated_rewards: Uint128,
+}
+
+impl Vault {
+    pub fn new(
+        amount: u128,
+        creation_date: u64,
+        claim_date: u64,
+        accumulated_rewards: u128,
+    ) -> Self {
+        Self {
+            amount: Uint128::new(amount),
+            creation_date,
+            claim_date,
+            accumulated_rewards: Uint128::new(accumulated_rewards),
+        }
+    }
+}
+
+pub trait WithNewEmpty {
+    fn new_empty(block_time: u64) -> Self;
+}
+
+impl WithNewEmpty for Vault {
+    fn new_empty(block_time: u64) -> Self {
+        Self {
+            amount: Uint128::zero(),
+            creation_date: block_time,
+            claim_date: block_time,
+            accumulated_rewards: Uint128::zero(),
+        }
+    }
 }
 
 #[cw_serde]

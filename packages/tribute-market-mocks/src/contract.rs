@@ -1,12 +1,11 @@
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
-use eclipse_base::error::ContractError;
-
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
-
-use crate::actions::{
-    execute as e, instantiate::try_instantiate, other::migrate_contract, query as q,
+use eclipse_base::{
+    error::ContractError,
+    tribute_market::msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
 };
+
+use crate::actions::{execute as e, instantiate::try_instantiate, query as q};
 
 /// Creates a new contract with the specified parameters packed in the "msg" variable
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -46,10 +45,4 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         QueryMsg::BribesAllocation {} => to_json_binary(&q::query_bribes_allocation(deps, env)?),
     }
-}
-
-/// Used for contract migration
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    migrate_contract(deps, env, msg)
 }

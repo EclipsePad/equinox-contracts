@@ -3,7 +3,7 @@ use std::cmp::min;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
-use eclipse_base::converters::{str_to_dec, u128_to_dec};
+use crate::converters::{str_to_dec, u128_to_dec};
 
 #[cw_serde]
 pub enum UserType {
@@ -185,9 +185,9 @@ pub struct VoteResults {
     pub epoch_id: u16,
     pub end_date: u64,
 
-    /// full_elector_essence = elector_essence + 0.8 * slacker_essence
+    /// full_elector_essence = 0.85 * elector_essence + 0.68 * slacker_essence
     pub elector_essence: Uint128,
-    /// full_dao_essence = delegated_essence + 0.2 * slacker_essence
+    /// full_dao_essence = delegated_essence + 0.32 * slacker_essence + 0.15 * elector_essence
     pub dao_essence: Uint128,
     /// slacker_essence
     pub slacker_essence: Uint128,
