@@ -47,7 +47,6 @@ astroport-router        = { workspace = true }
 astroport-staking       = { workspace = true }
 astroport-vesting       = { workspace = true }
 astroport               = { workspace = true }
-astroport-governance    = { workspace = true }
 
 eclipsepad-staking      = { workspace = true }
 astroport-tokenfactory-tracker = { workspace = true }

@@ -97,26 +97,26 @@ pub fn query_bribes_allocation(deps: Deps, _env: Env) -> StdResult<Vec<BribesAll
 /// query voting power
 pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
     let block_time = env.block.time.seconds();
-    let voter_address = &env.contract.address;
+    let _voter_address = &env.contract.address;
     let address = &deps.api.addr_validate(&address)?;
     let AddressConfig {
-        astroport_voting_escrow,
+        astroport_voting_escrow: _,
         ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
 
-    // query total vxASTRO owned by voter contract
-    let vxastro_amount: Uint128 = deps.querier.query_wasm_smart(
-        astroport_voting_escrow,
-        &astroport_governance::voting_escrow::QueryMsg::UserVotingPower {
-            user: voter_address.to_string(),
-            timestamp: None,
-        },
-    )?;
+    // // query total vxASTRO owned by voter contract
+    // let vxastro_amount: Uint128 = deps.querier.query_wasm_smart(
+    //     astroport_voting_escrow,
+    //     &astroport_governance::voting_escrow::QueryMsg::UserVotingPower {
+    //         user: voter_address.to_string(),
+    //         timestamp: None,
+    //     },
+    // )?;
 
-    // voter contract has full voting power
-    if address == voter_address {
-        return Ok(vxastro_amount);
-    }
+    // // voter contract has full voting power
+    // if address == voter_address {
+    //     return Ok(vxastro_amount);
+    // }
 
     let user_essence = USER_ESSENCE
         .load(deps.storage, address)
@@ -136,7 +136,7 @@ pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Ui
         .capture(block_time);
 
     Ok(calc_voting_power(
-        vxastro_amount,
+        Uint128::zero(),
         user_essence,
         elector_essence_acc,
         dao_essence_acc,

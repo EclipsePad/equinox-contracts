@@ -1172,7 +1172,6 @@ name = "equinox-msg"
 version = "0.1.11"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
- "astroport-governance",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -1871,7 +1870,6 @@ dependencies = [
  "anyhow",
  "astroport 5.1.0-vxastro-rc.1",
  "astroport-factory",
- "astroport-governance",
  "astroport-incentives",
  "astroport-pair",
  "astroport-pair-stable",
@@ -3451,7 +3449,6 @@ name = "voter-mocks"
 version = "0.1.11"
 dependencies = [
  "astroport 5.1.0-vxastro-rc.1",
- "astroport-governance",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-controllers",

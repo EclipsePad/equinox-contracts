@@ -28,7 +28,7 @@ use crate::math::{
 };
 
 pub fn verify_weight_allocation(
-    deps: Deps,
+    _deps: Deps,
     weight_allocation: &[WeightAllocationItem],
 ) -> Result<(), ContractError> {
     // check weights:
@@ -66,24 +66,23 @@ pub fn verify_weight_allocation(
         Err(ContractError::WeightsAreUnbalanced)?;
     }
 
-    // TODO: change logic if 50 pools will not be enough
-    // 5) whitelist
-    let whitelisted_pools: Vec<String> = deps.querier.query_wasm_smart(
-        ADDRESS_CONFIG
-            .load(deps.storage)?
-            .astroport_emission_controller,
-        &astroport_governance::emissions_controller::hub::QueryMsg::QueryWhitelist {
-            limit: None,
-            start_after: None,
-        },
-    )?;
+    // // 5) whitelist
+    // let whitelisted_pools: Vec<String> = deps.querier.query_wasm_smart(
+    //     ADDRESS_CONFIG
+    //         .load(deps.storage)?
+    //         .astroport_emission_controller,
+    //     &astroport_governance::emissions_controller::hub::QueryMsg::QueryWhitelist {
+    //         limit: None,
+    //         start_after: None,
+    //     },
+    // )?;
 
-    if weight_allocation
-        .iter()
-        .any(|x| !whitelisted_pools.contains(&x.lp_token))
-    {
-        Err(ContractError::PoolIsNotWhitelisted)?;
-    }
+    // if weight_allocation
+    //     .iter()
+    //     .any(|x| !whitelisted_pools.contains(&x.lp_token))
+    // {
+    //     Err(ContractError::PoolIsNotWhitelisted)?;
+    // }
 
     Ok(())
 }

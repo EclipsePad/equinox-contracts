@@ -67,12 +67,6 @@ astroport-xastro-token  = { path = "./packages/xastro_token" }
 astroport-tokenfactory-tracker = { path = "./packages/tokenfactory_tracker" }
 astroport-whitelist     = { path = "./packages/whitelist" }
 
-# astroport governance
-# https://github.com/astroport-fi/astroport-governance/commit/bb078616ad1d18950b70fb39ecbb7f98e35d6f21
-#
-# packages
-astroport-governance    = { path = "./packages/astroport-governance" }
-
 
 [profile.release]
 opt-level = "z"
@@ -84,4 +78,3 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
-
