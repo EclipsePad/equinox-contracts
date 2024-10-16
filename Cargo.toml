@@ -72,13 +72,6 @@ astroport-whitelist     = { path = "./packages/whitelist" }
 #
 # packages
 astroport-governance    = { path = "./packages/astroport-governance" }
-#
-# contracts
-astro-assembly          = { path = "./packages/assembly" }
-builder-unlock          = { path = "./packages/builder_unlock" }
-astroport-emissions-controller = { path = "./packages/emissions_controller" }
-astroport-emissions-controller-outpost = { path = "./packages/emissions_controller_outpost" }
-astroport-voting-escrow = { path = "./packages/voting_escrow" }
 
 
 [profile.release]

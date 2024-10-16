@@ -49,9 +49,5 @@ astroport-vesting       = { workspace = true }
 astroport               = { workspace = true }
 astroport-governance    = { workspace = true }
 
-astro-assembly          = { workspace = true }
-astroport-voting-escrow = { workspace = true }
-astroport-emissions-controller = { workspace = true }
 eclipsepad-staking      = { workspace = true }
 astroport-tokenfactory-tracker = { workspace = true }
-builder-unlock          = { workspace = true }
