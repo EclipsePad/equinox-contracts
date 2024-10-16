@@ -455,6 +455,7 @@ pub fn try_update_lockdrop_periods(
             .add_attribute("action", "update_withdrawal_window")
             .add_attribute("withdrawal_window", withdraw.to_string());
     }
+    CONFIG.save(deps.storage, &cfg)?;
     Ok(res)
 }
 
