@@ -98,6 +98,9 @@ impl SingleSidedStakingExtension for ControllerHelper {
                     voter: voter.to_string(),
                     eclip_staking: eclipsepad_staking.to_string(),
                     treasury: treasury.to_string(),
+                    // TODO
+                    blacklist: None,
+                    init_early_unlock_penalty: None,
                 },
                 &[],
                 NAME,

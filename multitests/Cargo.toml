@@ -37,7 +37,6 @@ minter-mocks            = { workspace = true }
 tribute-market-mocks    = { workspace = true }
 voter-mocks             = { workspace = true }
 single-sided-staking    = { workspace = true }
-voter                   = { workspace = true }
 lp-staking              = { workspace = true }
 lockdrop                = { workspace = true }
 astroport-incentives    = { workspace = true }

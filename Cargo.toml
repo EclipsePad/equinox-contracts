@@ -48,7 +48,6 @@ cw20-gift               = { path = "./packages/cw20-gift" }
 single-sided-staking    = { path = "./contracts/single_sided_staking" }
 lp-staking              = { path = "./contracts/lp_staking" }
 lockdrop                = { path = "./contracts/lockdrop" }
-voter                   = { path = "./contracts/voter" }
 astro-generator         = { path = "./contracts/astro_generator_test_purpose" }
 
 # astroport-core

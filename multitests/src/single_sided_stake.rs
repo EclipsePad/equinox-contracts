@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_controllers::AdminError;
+use eclipse_base::converters::str_to_dec;
 use equinox_msg::{
     single_sided_staking::{
         TimeLockConfig, UpdateConfigMsg, UserReward, UserStaking, UserStakingByDuration,
@@ -47,7 +48,7 @@ fn update_config() {
         eclip: None,
         beclip: None,
         eclip_staking: None,
-        init_early_unlock_penalty: Some(Decimal::from_str("0.8")),
+        init_early_unlock_penalty: Some(str_to_dec("0.8")),
     };
 
     // attacker
