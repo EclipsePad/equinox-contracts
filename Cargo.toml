@@ -41,7 +41,7 @@ equinox-msg             = { path = "./packages/equinox_msg" }
 eclipse-base            = { path = "./packages/eclipse-base" }
 eclipsepad-staking      = { path = "./packages/eclipsepad-staking" }
 minter-mocks            = { path = "./packages/minter-mocks" }
-voter-mocks             = { path = "./packages/voter-mocks", features = ["library"] }
+voter-mocks             = { path = "./packages/voter-mocks" }
 
 single-sided-staking    = { path = "./contracts/single_sided_staking" }
 lp-staking              = { path = "./contracts/lp_staking" }
@@ -59,13 +59,9 @@ astroport-circular-buffer = { path = "./packages/circular_buffer" }
 astroport-factory       = { path = "./packages/factory" }
 astroport-incentives    = { path = "./packages/incentives" } # formerly Generator
 astroport-pair          = { path = "./packages/pair" }
-astroport-pair-stable   = { path = "./packages/pair_stable" }
-astroport-router        = { path = "./packages/router" }
 astroport-staking       = { path = "./packages/staking" }
 astroport-vesting       = { path = "./packages/vesting" }
-astroport-xastro-token  = { path = "./packages/xastro_token" }
 astroport-tokenfactory-tracker = { path = "./packages/tokenfactory_tracker" }
-astroport-whitelist     = { path = "./packages/whitelist" }
 
 
 [profile.release]

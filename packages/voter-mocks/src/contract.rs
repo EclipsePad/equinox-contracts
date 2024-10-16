@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
+    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response,
+    StdResult,
 };
 
 use eclipse_base::{
