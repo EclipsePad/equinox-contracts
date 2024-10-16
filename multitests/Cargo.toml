@@ -34,7 +34,6 @@ strum_macros            = { workspace = true }
 equinox-msg             = { workspace = true }
 eclipse-base            = { workspace = true }
 minter-mocks            = { workspace = true }
-tribute-market-mocks    = { workspace = true }
 voter-mocks             = { workspace = true }
 single-sided-staking    = { workspace = true }
 lp-staking              = { workspace = true }

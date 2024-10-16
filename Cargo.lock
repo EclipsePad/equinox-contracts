@@ -2043,7 +2043,6 @@ dependencies = [
  "speculoos",
  "strum 0.24.1",
  "strum_macros 0.24.3",
- "tribute-market-mocks",
  "voter-mocks",
 ]
 
@@ -3506,22 +3505,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tribute-market-mocks"
-version = "1.0.0"
-dependencies = [
- "astroport-governance 4.1.0",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 1.2.0",
- "cw-utils 1.0.3",
- "cw2 1.1.2",
- "eclipse-base",
- "equinox-msg",
- "semver",
- "serde",
-]
-
-[[package]]
 name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3623,7 +3606,6 @@ dependencies = [
  "equinox-msg",
  "semver",
  "thiserror",
- "tribute-market-mocks",
 ]
 
 [[package]]
