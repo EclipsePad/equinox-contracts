@@ -7,7 +7,7 @@ use eclipse_base::{
         msg::{
             EssenceAndRewardsInfo, QueryAprInfoResponse, QueryBalancesResponse,
             QueryEssenceListResponseItem, QueryEssenceResponse, QueryRewardsReductionInfoResponse,
-            QueryStorageVolumesResponse, StakerInfoResponse, StateResponse, UsersAmountResponse,
+            StakerInfoResponse, StateResponse, UsersAmountResponse,
         },
         state::{
             BECLIP_SUPPLY, BONDED_VAULT_CREATION_DATE, CONFIG, DECREASING_REWARDS_DATE, IS_PAUSED,
@@ -19,6 +19,7 @@ use eclipse_base::{
             AprInfoItem, Config, LockerInfo, LockingAprItem, PaginationConfig, StakerInfo, Vault,
         },
     },
+    voter::types::EssenceInfo,
 };
 
 use crate::{helpers, math};
@@ -71,15 +72,14 @@ pub fn query_aggregated_vault(
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
             block_time,
         )?;
 
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     let aggregated_vault = match tier {
         Some(lock_tier) => {
@@ -101,7 +101,7 @@ pub fn query_aggregated_vault(
                 .filter(|vault| vault_creation_date_list.contains(&vault.creation_date))
                 .collect();
 
-            math::v3::calc_aggregated_vault(
+            math::calc_aggregated_vault(
                 &vaults_target,
                 locking_period,
                 decreasing_rewards_date,
@@ -121,7 +121,7 @@ pub fn query_aggregated_vault(
                 .filter(|vault| vault_creation_date_list.contains(&vault.creation_date))
                 .collect();
 
-            math::v3::calc_aggregated_vault(
+            math::calc_aggregated_vault(
                 &vaults_target,
                 0,
                 decreasing_rewards_date,
@@ -191,7 +191,7 @@ pub fn query_staker_info(deps: Deps, env: Env, staker: String) -> StdResult<Stak
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -206,14 +206,13 @@ pub fn query_staker_info(deps: Deps, env: Env, staker: String) -> StdResult<Stak
         .unwrap_or_default();
     let (a, b) = staking_essence_components;
     let staking_essence =
-        math::v3::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
+        math::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
 
     let locking_essence = LOCKING_ESSENCE
         .load(deps.storage, &staker)
         .unwrap_or_default();
 
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     let mut staking_rewards = Uint128::zero();
     let mut funds_to_unstake = Uint128::zero();
@@ -224,14 +223,14 @@ pub fn query_staker_info(deps: Deps, env: Env, staker: String) -> StdResult<Stak
         .map(|vault| {
             funds_to_unstake += vault.amount;
 
-            let staking_essence_per_vault = math::v3::calc_staking_essence_per_vault(
+            let staking_essence_per_vault = math::calc_staking_essence_per_vault(
                 vault.amount,
                 vault.creation_date,
                 block_time,
                 seconds_per_essence,
             );
 
-            let staking_rewards_per_vault = math::v3::calc_staking_rewards_per_vault(
+            let staking_rewards_per_vault = math::calc_staking_rewards_per_vault(
                 vault.accumulated_rewards,
                 staking_essence_per_vault,
                 vault.claim_date,
@@ -272,13 +271,13 @@ pub fn query_staker_info(deps: Deps, env: Env, staker: String) -> StdResult<Stak
                 .map(|vault| {
                     funds_to_unlock += vault.amount;
 
-                    let locking_essence_per_vault = math::v3::calc_locking_essence_per_vault(
+                    let locking_essence_per_vault = math::calc_locking_essence_per_vault(
                         vault.amount,
                         locking_period,
                         seconds_per_essence,
                     );
 
-                    let penalty_per_vault = math::v3::calc_penalty_per_tier(
+                    let penalty_per_vault = math::calc_penalty_per_tier(
                         &[vault.clone()],
                         locking_period,
                         block_time,
@@ -287,7 +286,7 @@ pub fn query_staker_info(deps: Deps, env: Env, staker: String) -> StdResult<Stak
 
                     unlock_penalty += penalty_per_vault;
 
-                    let locking_rewards_per_vault = math::v3::calc_locking_rewards_per_vault(
+                    let locking_rewards_per_vault = math::calc_locking_rewards_per_vault(
                         vault.accumulated_rewards,
                         locking_essence_per_vault,
                         vault.claim_date,
@@ -339,6 +338,27 @@ pub fn query_staker_info(deps: Deps, env: Env, staker: String) -> StdResult<Stak
     })
 }
 
+pub fn query_gov_essence_reduced(
+    deps: Deps,
+    _env: Env,
+    address_list: Vec<String>,
+) -> StdResult<Vec<(Addr, EssenceInfo)>> {
+    Ok(address_list
+        .iter()
+        .map(|address| {
+            let user = Addr::unchecked(address);
+            let (a, b) = STAKING_ESSENCE_COMPONENTS
+                .load(deps.storage, &user)
+                .unwrap_or_default();
+            let le = LOCKING_ESSENCE
+                .load(deps.storage, &user)
+                .unwrap_or_default();
+
+            (user, EssenceInfo::new(a, b, le))
+        })
+        .collect())
+}
+
 pub fn query_essence(deps: Deps, env: Env, user: String) -> StdResult<QueryEssenceResponse> {
     let block_time = env.block.time.seconds();
     let user = &deps.api.addr_validate(&user)?;
@@ -351,7 +371,7 @@ pub fn query_essence(deps: Deps, env: Env, user: String) -> StdResult<QueryEssen
         .unwrap_or_default();
     let (a, b) = staking_essence_components;
     let staking_essence =
-        math::v3::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
+        math::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
     let locking_essence = LOCKING_ESSENCE.load(deps.storage, user).unwrap_or_default();
     let essence = staking_essence + locking_essence;
 
@@ -374,7 +394,7 @@ pub fn query_total_essence(deps: Deps, env: Env) -> StdResult<QueryEssenceRespon
         .unwrap_or_default();
     let (a, b) = staking_essence_components;
     let staking_essence =
-        math::v3::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
+        math::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
     let locking_essence = TOTAL_LOCKING_ESSENCE.load(deps.storage).unwrap_or_default();
     let essence = staking_essence + locking_essence;
 
@@ -485,11 +505,8 @@ pub fn query_staking_essence_list(
         .map(|x| {
             let (user, staker_info) = x.unwrap();
 
-            let essence = math::v3::calc_staking_essence(
-                &staker_info.vaults,
-                block_time,
-                seconds_per_essence,
-            );
+            let essence =
+                math::calc_staking_essence(&staker_info.vaults, block_time, seconds_per_essence);
 
             QueryEssenceListResponseItem { user, essence }
         })
@@ -524,28 +541,11 @@ pub fn query_locking_essence_list(
             let (user, locker_infos) = x.unwrap();
 
             let essence =
-                math::v3::calc_locking_essence(&locker_infos, &lock_schedule, seconds_per_essence);
+                math::calc_locking_essence(&locker_infos, &lock_schedule, seconds_per_essence);
 
             QueryEssenceListResponseItem { user, essence }
         })
         .collect())
-}
-
-pub fn query_storage_volumes(deps: Deps, _env: Env) -> StdResult<QueryStorageVolumesResponse> {
-    let staker_info = STAKER_INFO
-        .range(deps.storage, None, None, Order::Ascending)
-        .collect::<Vec<StdResult<(Addr, StakerInfo)>>>()
-        .len() as u16;
-
-    let locker_info = LOCKER_INFO
-        .range(deps.storage, None, None, Order::Ascending)
-        .collect::<Vec<StdResult<(Addr, Vec<LockerInfo>)>>>()
-        .len() as u16;
-
-    Ok(QueryStorageVolumesResponse {
-        staker_info,
-        locker_info,
-    })
 }
 
 pub fn query_apr_info(
@@ -568,8 +568,8 @@ pub fn query_apr_info(
         .unwrap_or_default();
     let (a, b) = staking_essence_components;
     let current_staking_essence =
-        math::v3::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
-    let expected_staking_essence = math::v3::calc_staking_essence_from_components(
+        math::calc_staking_essence_from_components(a, b, block_time, seconds_per_essence);
+    let expected_staking_essence = math::calc_staking_essence_from_components(
         a,
         b,
         block_time + YEAR_IN_SECONDS,
@@ -589,7 +589,7 @@ pub fn query_apr_info(
         .transpose()?
         .unwrap_or_default();
 
-    let current_staking_apr = math::v3::calc_current_staking_apr(
+    let current_staking_apr = math::calc_current_staking_apr(
         &staking_vaults,
         block_time,
         eclip_per_second,
@@ -597,7 +597,7 @@ pub fn query_apr_info(
         seconds_per_essence,
     );
 
-    let expected_staking_apr = math::v3::calc_expected_staking_apr(
+    let expected_staking_apr = math::calc_expected_staking_apr(
         amount_to_add,
         eclip_per_second,
         eclip_per_second_multiplier,
@@ -609,7 +609,7 @@ pub fn query_apr_info(
     let mut expected_locking_apr_list: Vec<LockingAprItem> = vec![];
 
     for (tier, (locking_period, _global_rewards_per_tier)) in lock_schedule.iter().enumerate() {
-        let current_locking_apr = math::v3::calc_current_locking_apr_per_tier(
+        let current_locking_apr = math::calc_current_locking_apr_per_tier(
             amount_to_add,
             eclip_per_second,
             current_total_essence,
@@ -617,7 +617,7 @@ pub fn query_apr_info(
             seconds_per_essence,
         );
 
-        let expected_locking_apr = math::v3::calc_expected_locking_apr_per_tier(
+        let expected_locking_apr = math::calc_expected_locking_apr_per_tier(
             amount_to_add,
             eclip_per_second,
             eclip_per_second_multiplier,

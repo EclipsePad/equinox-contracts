@@ -9,18 +9,7 @@ pub mod minter {
     pub mod types;
 }
 
-pub mod faucet {
-    pub mod msg;
-    pub mod state;
-}
-
-pub mod lottery {
-    pub mod msg;
-    pub mod state;
-    pub mod types;
-}
-
-pub mod presale {
+pub mod splitter {
     pub mod msg;
     pub mod state;
     pub mod types;
@@ -30,15 +19,16 @@ pub mod staking {
     pub mod msg;
     pub mod state;
     pub mod types;
+    pub mod types_prev;
 }
 
-pub mod vesting {
+pub mod tribute_market {
     pub mod msg;
     pub mod state;
     pub mod types;
 }
 
-pub mod whitelist {
+pub mod voter {
     pub mod msg;
     pub mod state;
     pub mod types;

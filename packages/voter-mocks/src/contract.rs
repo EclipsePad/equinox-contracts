@@ -1,20 +1,21 @@
 use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
+    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response,
+    StdResult,
 };
 
-use equinox_msg::voter::{
-    msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SudoMsg},
-    state::{
-        REWARDS_CLAIM_STAGE, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_MAX,
-        SWAP_REWARDS_REPLY_ID_MIN,
-    },
-    types::RewardsClaimStage,
-};
-
-use crate::{
-    entry::{execute as e, instantiate::try_instantiate, migrate::migrate_contract, query as q},
+use eclipse_base::{
     error::ContractError,
+    voter::{
+        msg::{ExecuteMsg, InstantiateMsg, QueryMsg, SudoMsg},
+        state::{
+            REWARDS_CLAIM_STAGE, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_MAX,
+            SWAP_REWARDS_REPLY_ID_MIN,
+        },
+        types::RewardsClaimStage,
+    },
 };
+
+use crate::entry::{execute as e, instantiate::try_instantiate, query as q};
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -97,9 +98,9 @@ pub fn execute(
             vote_delay,
         ),
 
-        ExecuteMsg::UpdateEssenceAllocation {
-            user_and_essence_list,
-        } => e::try_update_essence_allocation(deps, env, info, user_and_essence_list),
+        ExecuteMsg::UpdateEssenceAllocation { address_list } => {
+            e::try_update_essence_allocation(deps, env, info, address_list)
+        }
 
         ExecuteMsg::SwapToEclipAstro {} => e::try_swap_to_eclip_astro(deps, env, info),
 
@@ -197,12 +198,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&q::query_astro_staking_treasury_rewards(deps, env)?)
         }
     }
-}
-
-/// Manages contract migration.
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    migrate_contract(deps, env, msg)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

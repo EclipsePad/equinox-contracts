@@ -12,8 +12,7 @@ use eclipse_base::{
             DECREASING_REWARDS_PERIOD, ECLIP_MAINNET, ECLIP_PER_SECOND,
             ECLIP_PER_SECOND_MULTIPLIER, IS_PAUSED, LOCK_STATES, PAGINATION_AMOUNT,
             PAGINATION_CONFIG, PAGINATION_INDEX, PENALTY_MULTIPLIER, PERIOD_TIER_0, PERIOD_TIER_1,
-            PERIOD_TIER_2, PERIOD_TIER_3, PERIOD_TIER_4, REWARDS_TIER_0, REWARDS_TIER_1,
-            REWARDS_TIER_2, REWARDS_TIER_3, REWARDS_TIER_4, SECONDS_PER_ESSENCE, STAKE_STATE,
+            PERIOD_TIER_2, PERIOD_TIER_3, PERIOD_TIER_4, SECONDS_PER_ESSENCE, STAKE_STATE,
             TOTAL_LOCKING_ESSENCE, TOTAL_STAKING_ESSENCE_COMPONENTS, TRANSFER_ADMIN_STATE,
         },
         types::{Config, PaginationConfig, State, TransferAdminState},
@@ -35,11 +34,11 @@ pub fn try_instantiate(
     let default_staking_token = ECLIP_MAINNET.to_string();
 
     let default_lock_schedule = &vec![
-        (PERIOD_TIER_0, REWARDS_TIER_0),
-        (PERIOD_TIER_1, REWARDS_TIER_1),
-        (PERIOD_TIER_2, REWARDS_TIER_2),
-        (PERIOD_TIER_3, REWARDS_TIER_3),
-        (PERIOD_TIER_4, REWARDS_TIER_4),
+        (PERIOD_TIER_0, 0),
+        (PERIOD_TIER_1, 0),
+        (PERIOD_TIER_2, 0),
+        (PERIOD_TIER_3, 0),
+        (PERIOD_TIER_4, 0),
     ];
 
     let default_seconds_per_essence = Uint128::from(SECONDS_PER_ESSENCE);

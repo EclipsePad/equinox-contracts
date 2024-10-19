@@ -1,7 +1,7 @@
 use cosmwasm_std::{Decimal, Deps, Env, Order, StdResult, Uint128};
 use cw_storage_plus::Bound;
 
-use equinox_msg::voter::{
+use eclipse_base::voter::{
     msg::{
         AstroStakingRewardResponse, DaoResponse, OperationStatusResponse, UserListResponse,
         UserListResponseItem, UserResponse, VoterInfoResponse,
@@ -53,7 +53,7 @@ pub fn query_rewards(deps: Deps, env: Env) -> StdResult<Vec<(Uint128, String)>> 
     Ok(calc_merged_rewards(&astroport_rewards, &eclipsepad_rewards))
 }
 
-pub fn query_voter_xastro(deps: Deps, env: Env) -> StdResult<Uint128> {
+pub fn query_voter_xastro(deps: Deps, _env: Env) -> StdResult<Uint128> {
     // let voter = env.contract.address;
     // let AddressConfig {
     //     astroport_voting_escrow,
@@ -62,7 +62,7 @@ pub fn query_voter_xastro(deps: Deps, env: Env) -> StdResult<Uint128> {
 
     // let astroport_governance::voting_escrow::LockInfoResponse { amount, .. } =
     //     deps.querier.query_wasm_smart(
-    //         &astroport_voting_escrow,
+    //         astroport_voting_escrow,
     //         &astroport_governance::voting_escrow::QueryMsg::LockInfo {
     //             user: voter.to_string(),
     //         },
@@ -97,26 +97,26 @@ pub fn query_bribes_allocation(deps: Deps, _env: Env) -> StdResult<Vec<BribesAll
 /// query voting power
 pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Uint128> {
     let block_time = env.block.time.seconds();
-    let voter_address = &env.contract.address;
+    let _voter_address = &env.contract.address;
     let address = &deps.api.addr_validate(&address)?;
     let AddressConfig {
-        astroport_voting_escrow,
+        astroport_voting_escrow: _,
         ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
 
-    // query total vxASTRO owned by voter contract
-    let vxastro_amount: Uint128 = deps.querier.query_wasm_smart(
-        astroport_voting_escrow,
-        &astroport_governance::voting_escrow::QueryMsg::UserVotingPower {
-            user: voter_address.to_string(),
-            timestamp: None,
-        },
-    )?;
+    // // query total vxASTRO owned by voter contract
+    // let vxastro_amount: Uint128 = deps.querier.query_wasm_smart(
+    //     astroport_voting_escrow,
+    //     &astroport_governance::voting_escrow::QueryMsg::UserVotingPower {
+    //         user: voter_address.to_string(),
+    //         timestamp: None,
+    //     },
+    // )?;
 
-    // voter contract has full voting power
-    if address == voter_address {
-        return Ok(vxastro_amount);
-    }
+    // // voter contract has full voting power
+    // if address == voter_address {
+    //     return Ok(vxastro_amount);
+    // }
 
     let user_essence = USER_ESSENCE
         .load(deps.storage, address)
@@ -136,7 +136,7 @@ pub fn query_voting_power(deps: Deps, env: Env, address: String) -> StdResult<Ui
         .capture(block_time);
 
     Ok(calc_voting_power(
-        vxastro_amount,
+        Uint128::zero(),
         user_essence,
         elector_essence_acc,
         dao_essence_acc,
@@ -280,17 +280,10 @@ pub fn query_route_list(
     amount: u32,
     start_from: Option<String>,
 ) -> StdResult<Vec<RouteListItem>> {
-    let denom;
-    let start_bound = match start_from {
-        None => None,
-        Some(x) => {
-            denom = x;
-            Some(Bound::exclusive(&*denom))
-        }
-    };
+    let start_bound = start_from.as_ref().map(|x| Bound::exclusive(x.as_str()));
 
     ROUTE_CONFIG
-        .range(deps.storage, start_bound.clone(), None, Order::Ascending)
+        .range(deps.storage, start_bound, None, Order::Ascending)
         .take(amount as usize)
         .map(|x| {
             let (denom, route) = x.unwrap();

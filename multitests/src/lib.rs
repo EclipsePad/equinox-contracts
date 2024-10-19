@@ -10,24 +10,3 @@ pub mod suite;
 pub mod common {
     pub mod stargate;
 }
-
-// #[cfg(test)]
-// pub mod voter;
-
-// // https://github.com/astroport-fi/hidden_astroport_governance/tree/feat/revamped_vxastro/contracts/emissions_controller/tests/common
-// pub mod suite_astro {
-//     pub mod contracts;
-//     pub mod helper;
-//     pub mod ibc_module;
-//     pub mod neutron_module;
-//     pub mod stargate;
-
-//     pub mod extensions {
-//         pub mod astroport_router;
-//         pub mod eclipsepad_staking;
-//         pub mod minter;
-//         pub mod single_sided_staking;
-//         pub mod tribute_market_mocks;
-//         pub mod voter;
-//     }
-// }

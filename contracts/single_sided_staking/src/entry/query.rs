@@ -10,12 +10,10 @@ use crate::{
         TOTAL_STAKING, USER_STAKED,
     },
 };
-use equinox_msg::{
-    single_sided_staking::{
-        Config, Reward, StakingWithDuration, UserReward, UserRewardByDuration,
-        UserRewardByLockedAt, UserStaking, UserStakingByDuration,
-    },
-    voter::msg::{AstroStakingRewardResponse, QueryMsg as VoterQueryMsg},
+use eclipse_base::voter::msg::{AstroStakingRewardResponse, QueryMsg as VoterQueryMsg};
+use equinox_msg::single_sided_staking::{
+    Config, Reward, StakingWithDuration, UserReward, UserRewardByDuration, UserRewardByLockedAt,
+    UserStaking, UserStakingByDuration,
 };
 
 /// query owner

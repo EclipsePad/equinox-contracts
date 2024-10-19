@@ -67,6 +67,12 @@ pub enum ExecuteMsg {
 
     Unbond {},
 
+    Rebond {
+        amount: Uint128,
+        from: String,
+        to: String,
+    },
+
     Claim {},
 
     AggregateVaults {
@@ -99,27 +105,6 @@ pub enum ExecuteMsg {
     Pause {},
 
     Unpause {},
-
-    // temporary
-    UpdateStakingEssenceStorages {
-        amount: u32,
-        start_from: Option<String>,
-    },
-
-    UpdateLockingEssenceStorages {
-        amount: u32,
-        start_from: Option<String>,
-    },
-
-    FilterStakers {
-        amount: u32,
-        start_from: Option<String>,
-    },
-
-    FilterLockers {
-        amount: u32,
-        start_from: Option<String>,
-    },
 }
 
 #[cw_serde]
@@ -150,6 +135,9 @@ pub enum QueryMsg {
     #[returns(QueryBalancesResponse)]
     QueryBalances {},
 
+    #[returns(Vec<(Addr, crate::voter::types::EssenceInfo)>)]
+    QueryGovEssenceReduced { address_list: Vec<String> },
+
     #[returns(QueryEssenceResponse)]
     QueryEssence { user: String },
 
@@ -171,9 +159,6 @@ pub enum QueryMsg {
         amount: u32,
         start_from: Option<String>,
     },
-
-    #[returns(QueryStorageVolumesResponse)]
-    QueryStorageVolumes {},
 
     #[returns(QueryAprInfoResponse)]
     QueryAprInfo {
@@ -267,12 +252,6 @@ pub struct QueryEssenceResponse {
 pub struct QueryEssenceListResponseItem {
     pub user: Addr,
     pub essence: Uint128,
-}
-
-#[cw_serde]
-pub struct QueryStorageVolumesResponse {
-    pub staker_info: u16,
-    pub locker_info: u16,
 }
 
 #[cw_serde]

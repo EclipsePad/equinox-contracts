@@ -41,14 +41,11 @@ equinox-msg             = { path = "./packages/equinox_msg" }
 eclipse-base            = { path = "./packages/eclipse-base" }
 eclipsepad-staking      = { path = "./packages/eclipsepad-staking" }
 minter-mocks            = { path = "./packages/minter-mocks" }
-tribute-market-mocks    = { path = "./packages/tribute-market-mocks", features = ["library"] }
-voter-mocks             = { path = "./packages/voter-mocks", features = ["library"] }
-cw20-gift               = { path = "./packages/cw20-gift" }
+voter-mocks             = { path = "./packages/voter-mocks" }
 
 single-sided-staking    = { path = "./contracts/single_sided_staking" }
 lp-staking              = { path = "./contracts/lp_staking" }
 lockdrop                = { path = "./contracts/lockdrop" }
-voter                   = { path = "./contracts/voter" }
 astro-generator         = { path = "./contracts/astro_generator_test_purpose" }
 
 # astroport-core
@@ -62,26 +59,9 @@ astroport-circular-buffer = { path = "./packages/circular_buffer" }
 astroport-factory       = { path = "./packages/factory" }
 astroport-incentives    = { path = "./packages/incentives" } # formerly Generator
 astroport-pair          = { path = "./packages/pair" }
-astroport-pair-stable   = { path = "./packages/pair_stable" }
-astroport-router        = { path = "./packages/router" }
 astroport-staking       = { path = "./packages/staking" }
 astroport-vesting       = { path = "./packages/vesting" }
-astroport-xastro-token  = { path = "./packages/xastro_token" }
 astroport-tokenfactory-tracker = { path = "./packages/tokenfactory_tracker" }
-astroport-whitelist     = { path = "./packages/whitelist" }
-
-# astroport governance
-# https://github.com/astroport-fi/astroport-governance/commit/bb078616ad1d18950b70fb39ecbb7f98e35d6f21
-#
-# packages
-astroport-governance    = { path = "./packages/astroport-governance" }
-#
-# contracts
-astro-assembly          = { path = "./packages/assembly" }
-builder-unlock          = { path = "./packages/builder_unlock" }
-astroport-emissions-controller = { path = "./packages/emissions_controller" }
-astroport-emissions-controller-outpost = { path = "./packages/emissions_controller_outpost" }
-astroport-voting-escrow = { path = "./packages/voting_escrow" }
 
 
 [profile.release]
@@ -94,4 +74,3 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
-

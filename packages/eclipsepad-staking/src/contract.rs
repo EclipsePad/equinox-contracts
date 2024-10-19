@@ -8,12 +8,10 @@ use cw20::Cw20ReceiveMsg;
 
 use eclipse_base::{
     error::ContractError,
-    staking::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
+    staking::msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
 };
 
-use crate::actions::{
-    execute as e, instantiate::try_instantiate, migrate::migrate_contract, query as q,
-};
+use crate::actions::{execute as e, instantiate::try_instantiate, query as q};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -69,6 +67,8 @@ pub fn execute(
             address_and_amount_list,
         } => e::try_bond_for(deps, env, info, address_and_amount_list),
 
+        ExecuteMsg::Rebond { amount, from, to } => e::try_rebond(deps, env, info, amount, from, to),
+
         ExecuteMsg::Claim {} => e::try_claim(deps, env, info),
 
         ExecuteMsg::AggregateVaults {
@@ -108,22 +108,6 @@ pub fn execute(
         }
 
         ExecuteMsg::DecreaseBalance { amount } => e::try_decrease_balance(deps, env, info, amount),
-
-        ExecuteMsg::UpdateStakingEssenceStorages { amount, start_from } => {
-            e::try_update_staking_essence_storages(deps, env, info, amount, start_from)
-        }
-
-        ExecuteMsg::UpdateLockingEssenceStorages { amount, start_from } => {
-            e::try_update_locking_essence_storages(deps, env, info, amount, start_from)
-        }
-
-        ExecuteMsg::FilterStakers { amount, start_from } => {
-            e::try_filter_stakers(deps, env, info, amount, start_from)
-        }
-
-        ExecuteMsg::FilterLockers { amount, start_from } => {
-            e::try_filter_lockers(deps, env, info, amount, start_from)
-        }
 
         ExecuteMsg::Pause {} => e::try_pause(deps, env, info),
 
@@ -168,6 +152,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         QueryMsg::QueryBalances {} => to_json_binary(&q::query_balances(deps, env)?),
 
+        QueryMsg::QueryGovEssenceReduced { address_list } => {
+            to_json_binary(&q::query_gov_essence_reduced(deps, env, address_list)?)
+        }
+
         QueryMsg::QueryEssence { user } => to_json_binary(&q::query_essence(deps, env, user)?),
 
         QueryMsg::QueryTotalEssence {} => to_json_binary(&q::query_total_essence(deps, env)?),
@@ -185,8 +173,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::QueryLockingEssenceList { amount, start_from } => to_json_binary(
             &q::query_locking_essence_list(deps, env, amount, start_from)?,
         ),
-
-        QueryMsg::QueryStorageVolumes {} => to_json_binary(&q::query_storage_volumes(deps, env)?),
 
         QueryMsg::QueryAprInfo {
             amount_to_add,
@@ -218,9 +204,4 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
         QueryMsg::QueryBeclipSupply {} => to_json_binary(&q::query_beclip_supply(deps, env)?),
     }
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    migrate_contract(deps, env, msg)
 }

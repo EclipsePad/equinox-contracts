@@ -25,6 +25,10 @@ use cw_multi_test::{
 use eclipse_base::{
     minter::msg::ExecuteMsg as EclipsepadMinterExecuteMsg,
     staking::{msg::ExecuteMsg as EclipStakingExecuteMsg, types::PaginationConfig},
+    voter::{
+        msg::AstroStakingRewardResponse,
+        state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
+    },
 };
 use equinox_msg::{
     lockdrop::{
@@ -47,10 +51,6 @@ use equinox_msg::{
         InstantiateMsg as SingleSidedStakingInstantiateMsg, QueryMsg as SingleStakingQueryMsg,
         TimeLockConfig, UpdateConfigMsg as SingleStakingUpdateConfigMsg, UserReward,
         UserStaking as SingleSidedUserStaking,
-    },
-    voter::{
-        msg::AstroStakingRewardResponse,
-        state::{EPOCH_LENGTH, GENESIS_EPOCH_START_DATE, VOTE_DELAY},
     },
 };
 
@@ -143,15 +143,13 @@ fn store_astroport_vesting(app: &mut TestApp) -> u64 {
     app.store_code(contract)
 }
 
+// it's actually cw20-base as we don't need to test cw20-gift features here
 fn store_cw20_gift(app: &mut TestApp) -> u64 {
-    app.store_code(Box::new(
-        ContractWrapper::new_with_empty(
-            cw20_gift::contract::execute,
-            cw20_gift::contract::instantiate,
-            cw20_gift::contract::query,
-        )
-        .with_migrate_empty(cw20_gift::contract::migrate),
-    ))
+    app.store_code(Box::new(ContractWrapper::new_with_empty(
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
+    )))
 }
 
 fn store_minter(app: &mut TestApp) -> u64 {
@@ -161,7 +159,6 @@ fn store_minter(app: &mut TestApp) -> u64 {
             minter_mocks::contract::instantiate,
             minter_mocks::contract::query,
         )
-        .with_migrate_empty(minter_mocks::contract::migrate)
         .with_reply(minter_mocks::contract::reply),
     ))
 }
@@ -203,7 +200,6 @@ fn store_voter(app: &mut TestApp) -> u64 {
             voter_mocks::contract::query,
         )
         .with_reply_empty(voter_mocks::contract::reply)
-        .with_migrate_empty(voter_mocks::contract::migrate)
         .with_sudo_empty(voter_mocks::contract::sudo),
     ))
 }
@@ -239,7 +235,7 @@ fn instantiate_voter(
     app.instantiate_contract(
         code_id,
         admin.to_owned(),
-        &equinox_msg::voter::msg::InstantiateMsg {
+        &eclipse_base::voter::msg::InstantiateMsg {
             worker_list: worker_list.map(|x| x.into_iter().map(|y| y.to_string()).collect()),
 
             eclipse_dao: eclipse_dao.to_string(),
@@ -272,14 +268,11 @@ fn instantiate_voter(
 }
 
 fn store_eclipsepad_staking(app: &mut TestApp) -> u64 {
-    app.store_code(Box::new(
-        ContractWrapper::new_with_empty(
-            eclipsepad_staking::contract::execute,
-            eclipsepad_staking::contract::instantiate,
-            eclipsepad_staking::contract::query,
-        )
-        .with_migrate_empty(eclipsepad_staking::contract::migrate),
-    ))
+    app.store_code(Box::new(ContractWrapper::new_with_empty(
+        eclipsepad_staking::contract::execute,
+        eclipsepad_staking::contract::instantiate,
+        eclipsepad_staking::contract::query,
+    )))
 }
 
 fn instantiate_eclipsepad_staking(
@@ -838,7 +831,7 @@ impl SuiteBuilder {
         app.execute_contract(
             admin.clone(),
             voter_contract.clone(),
-            &equinox_msg::voter::msg::ExecuteMsg::UpdateAddressConfig {
+            &eclipse_base::voter::msg::ExecuteMsg::UpdateAddressConfig {
                 admin: None,
                 worker_list: None,
                 eclipse_dao: None,
@@ -1137,7 +1130,7 @@ impl Suite {
             .execute_contract(
                 self.admin.clone(),
                 self.voter_contract.clone(),
-                &equinox_msg::voter::msg::ExecuteMsg::UpdateAddressConfig {
+                &eclipse_base::voter::msg::ExecuteMsg::UpdateAddressConfig {
                     admin: None,
                     worker_list: None,
                     eclipse_dao: None,
@@ -1237,7 +1230,7 @@ impl Suite {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.voter_contract.clone(),
-            &equinox_msg::voter::msg::ExecuteMsg::SwapToEclipAstro {},
+            &eclipse_base::voter::msg::ExecuteMsg::SwapToEclipAstro {},
             &[coin(amount, self.astro())],
         )
     }
@@ -1246,7 +1239,7 @@ impl Suite {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.voter_contract.clone(),
-            &equinox_msg::voter::msg::ExecuteMsg::SwapToEclipAstro {},
+            &eclipse_base::voter::msg::ExecuteMsg::SwapToEclipAstro {},
             &[coin(amount, self.xastro())],
         )
     }
@@ -1255,7 +1248,7 @@ impl Suite {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.voter_contract.clone(),
-            &equinox_msg::voter::msg::ExecuteMsg::ClaimAstroRewards {},
+            &eclipse_base::voter::msg::ExecuteMsg::ClaimAstroRewards {},
             &[],
         )
     }
@@ -1264,7 +1257,7 @@ impl Suite {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.voter_contract.clone(),
-            &equinox_msg::voter::msg::ExecuteMsg::ClaimTreasuryRewards {},
+            &eclipse_base::voter::msg::ExecuteMsg::ClaimTreasuryRewards {},
             &[],
         )
     }
@@ -1289,7 +1282,7 @@ impl Suite {
     pub fn query_voter_astro_staking_rewards(&self) -> StdResult<AstroStakingRewardResponse> {
         let rewards: AstroStakingRewardResponse = self.app.wrap().query_wasm_smart(
             self.voter_contract.clone(),
-            &equinox_msg::voter::msg::QueryMsg::AstroStakingRewards {},
+            &eclipse_base::voter::msg::QueryMsg::AstroStakingRewards {},
         )?;
         Ok(rewards)
     }
@@ -1312,14 +1305,14 @@ impl Suite {
     pub fn query_astro_staking_rewards(&self) -> StdResult<AstroStakingRewardResponse> {
         self.app.wrap().query_wasm_smart(
             self.voter_contract.clone(),
-            &equinox_msg::voter::msg::QueryMsg::AstroStakingRewards {},
+            &eclipse_base::voter::msg::QueryMsg::AstroStakingRewards {},
         )
     }
 
     pub fn query_astro_staking_treasury_rewards(&self) -> StdResult<Uint128> {
         self.app.wrap().query_wasm_smart(
             self.voter_contract.clone(),
-            &equinox_msg::voter::msg::QueryMsg::AstroStakingTreasuryRewards {},
+            &eclipse_base::voter::msg::QueryMsg::AstroStakingTreasuryRewards {},
         )
     }
 

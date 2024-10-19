@@ -10,7 +10,9 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
-use eclipse_base::staking::msg::ExecuteMsg as EclipStakingExecuteMsg;
+use eclipse_base::{
+    staking::msg::ExecuteMsg as EclipStakingExecuteMsg, voter::msg::ExecuteMsg as VoterExecuteMsg,
+};
 use equinox_msg::{
     lockdrop::{
         CallbackMsg, Cw20HookMsg, IncentiveRewards, RewardDistributionConfig, StakeType,
@@ -19,7 +21,6 @@ use equinox_msg::{
     lp_staking::{Cw20HookMsg as LpStakingCw20HookMsg, ExecuteMsg as LpExecuteMsg},
     single_sided_staking::{ExecuteMsg as SingleSidedExecuteMsg, UserReward},
     utils::has_unique_elements,
-    voter::msg::ExecuteMsg as VoterExecuteMsg,
 };
 
 use crate::{

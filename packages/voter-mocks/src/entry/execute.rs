@@ -1,53 +1,49 @@
 use std::str::FromStr;
 
-use astroport_governance::emissions_controller::hub::{UserInfoResponse, VotedPoolInfo};
 use cosmwasm_std::{
     coin, coins, ensure_eq, ensure_ne, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, DepsMut,
     Env, MessageInfo, ReplyOn, Response, StdResult, SubMsg, SubMsgResult, Uint128, WasmMsg,
 };
 
 use eclipse_base::{
-    converters::{str_to_dec, u128_to_dec},
+    converters::str_to_dec,
+    error::ContractError,
     utils::{check_funds, unwrap_field, FundsType},
-};
-use equinox_msg::voter::{
-    msg::AstroStakingRewardResponse,
-    state::{
-        ADDRESS_CONFIG, ASTRO_PENDING_TREASURY_REWARD, ASTRO_STAKING_REWARD_CONFIG,
-        DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ESSENCE_FRACTIONS,
-        ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ADDITIONAL_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC,
-        ELECTOR_WEIGHTS, ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED,
-        MAX_EPOCH_AMOUNT, RECIPIENT_AND_AMOUNT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG,
-        SLACKER_ESSENCE_ACC, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT,
-        SWAP_REWARDS_REPLY_ID_MIN, TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_CONVERT_INFO,
-        TRANSFER_ADMIN_STATE, TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
-    },
-    types::{
-        AddressConfig, AstroStakingRewardConfig, ConvertInfo, DateConfig, EssenceInfo,
-        PoolInfoItem, RewardsClaimStage, RouteListItem, TokenConfig, TransferAdminState, UserType,
-        VoteResults, WeightAllocationItem,
+    voter::{
+        msg::AstroStakingRewardResponse,
+        state::{
+            ADDRESS_CONFIG, ASTRO_PENDING_TREASURY_REWARD, ASTRO_STAKING_REWARD_CONFIG,
+            DAO_ESSENCE_ACC, DAO_WEIGHTS_ACC, DATE_CONFIG, DELEGATOR_ESSENCE_FRACTIONS,
+            ECLIP_ASTRO_MINTED_BY_VOTER, ELECTOR_ADDITIONAL_ESSENCE_FRACTION,
+            ELECTOR_BASE_ESSENCE_FRACTION, ELECTOR_ESSENCE_ACC, ELECTOR_WEIGHTS,
+            ELECTOR_WEIGHTS_ACC, ELECTOR_WEIGHTS_REF, EPOCH_COUNTER, IS_PAUSED, MAX_EPOCH_AMOUNT,
+            RECIPIENT_AND_AMOUNT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC,
+            STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT, SWAP_REWARDS_REPLY_ID_MIN,
+            TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_CONVERT_INFO, TRANSFER_ADMIN_STATE,
+            TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
+        },
+        types::{
+            AddressConfig, AstroStakingRewardConfig, ConvertInfo, DateConfig, EssenceInfo,
+            PoolInfoItem, RewardsClaimStage, RouteListItem, TokenConfig, TransferAdminState,
+            UserType, VoteResults, WeightAllocationItem,
+        },
     },
 };
 
 use crate::{
-    error::ContractError,
+    entry::query::{_query_astro_staking_rewards, query_voter_xastro},
     helpers::{
         check_pause_state, check_rewards_claim_stage, get_accumulated_rewards,
         get_astro_and_xastro_supply, get_route, get_total_votes, get_user_types, get_user_weights,
-        query_astroport_bribe_allocation, query_astroport_rewards,
-        query_eclipsepad_bribe_allocation, query_eclipsepad_rewards, split_user_essence_info,
+        query_astroport_rewards, query_eclipsepad_rewards, split_user_essence_info,
         verify_weight_allocation,
     },
     math::{
-        calc_eclip_astro_for_xastro, calc_essence_allocation,
-        calc_merged_pool_info_list_with_rewards, calc_pool_info_list_with_rewards,
-        calc_splitted_user_essence_info, calc_updated_essence_allocation,
-        calc_voter_to_tribute_voting_power_ratio, calc_weights_from_essence_allocation,
+        calc_eclip_astro_for_xastro, calc_essence_allocation, calc_splitted_user_essence_info,
+        calc_updated_essence_allocation, calc_weights_from_essence_allocation,
         split_dao_eclip_rewards, split_rewards,
     },
 };
-
-use super::query::{_query_astro_staking_rewards, query_voter_xastro};
 
 pub fn try_pause(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = &info.sender;
@@ -280,7 +276,7 @@ pub fn try_update_essence_allocation(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    user_and_essence_list: Vec<(String, EssenceInfo)>,
+    address_list: Vec<String>,
 ) -> Result<Response, ContractError> {
     check_rewards_claim_stage(deps.storage)?;
     let sender = &info.sender;
@@ -288,18 +284,38 @@ pub fn try_update_essence_allocation(
     let AddressConfig {
         admin,
         eclipsepad_staking,
+        eclipsepad_foundry,
         ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
+    let whitelist = match &eclipsepad_foundry {
+        Some(eclipsepad_foundry) => vec![
+            admin,
+            eclipsepad_staking.to_owned(),
+            eclipsepad_foundry.to_owned(),
+        ],
+        None => vec![admin, eclipsepad_staking.to_owned()],
+    };
 
-    if sender != eclipsepad_staking && sender != admin {
+    if !whitelist.contains(sender) {
         Err(ContractError::Unauthorized)?;
     }
 
-    for (user_address, user_essence_after) in user_and_essence_list {
-        let user = &Addr::unchecked(user_address);
-        let user_essence_before = USER_ESSENCE.load(deps.storage, user).unwrap_or_default();
+    // query full gov essence from splitter or reduced gov essence from staking
+    let user_and_essence_list: Vec<(Addr, EssenceInfo)> = match &eclipsepad_foundry {
+        Some(x) => deps.querier.query_wasm_smart(
+            x,
+            &eclipse_base::splitter::msg::QueryMsg::GovEssence { address_list },
+        )?,
+        None => deps.querier.query_wasm_smart(
+            eclipsepad_staking,
+            &eclipse_base::staking::msg::QueryMsg::QueryGovEssenceReduced { address_list },
+        )?,
+    };
+
+    for (user, user_essence_after) in user_and_essence_list {
+        let user_essence_before = USER_ESSENCE.load(deps.storage, &user).unwrap_or_default();
         let delegator_essence_fraction = DELEGATOR_ESSENCE_FRACTIONS
-            .load(deps.storage, user)
+            .load(deps.storage, &user)
             .unwrap_or_default();
 
         let (delegator_essence_info_before, elector_or_slacker_essence_info_before) =
@@ -308,16 +324,16 @@ pub fn try_update_essence_allocation(
             calc_splitted_user_essence_info(&user_essence_after, delegator_essence_fraction);
 
         // collect rewards
-        let (is_updated, user_rewards) = get_accumulated_rewards(deps.storage, user, block_time)?;
+        let (is_updated, user_rewards) = get_accumulated_rewards(deps.storage, &user, block_time)?;
         if is_updated {
-            USER_REWARDS.save(deps.storage, user, &user_rewards)?;
-            ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
+            USER_REWARDS.save(deps.storage, &user, &user_rewards)?;
+            ELECTOR_WEIGHTS_REF.remove(deps.storage, &user);
         }
 
-        for user_type in get_user_types(deps.storage, user).unwrap_or(vec![UserType::Slacker]) {
+        for user_type in get_user_types(deps.storage, &user).unwrap_or(vec![UserType::Slacker]) {
             match user_type {
                 UserType::Elector => {
-                    let user_weights = get_user_weights(deps.storage, user, &user_type);
+                    let user_weights = get_user_weights(deps.storage, &user, &user_type);
                     let user_essence_allocation_before = calc_essence_allocation(
                         &elector_or_slacker_essence_info_before,
                         &user_weights,
@@ -363,22 +379,22 @@ pub fn try_update_essence_allocation(
 
             // update user essence
             if user_essence_after.is_zero() {
-                USER_ESSENCE.remove(deps.storage, user);
+                USER_ESSENCE.remove(deps.storage, &user);
                 // rewards must be claimed before decreasing essence to zero
-                USER_REWARDS.remove(deps.storage, user);
+                USER_REWARDS.remove(deps.storage, &user);
 
                 match user_type {
                     UserType::Elector => {
-                        ELECTOR_WEIGHTS.remove(deps.storage, user);
-                        ELECTOR_WEIGHTS_REF.remove(deps.storage, user);
+                        ELECTOR_WEIGHTS.remove(deps.storage, &user);
+                        ELECTOR_WEIGHTS_REF.remove(deps.storage, &user);
                     }
                     UserType::Delegator => {
-                        DELEGATOR_ESSENCE_FRACTIONS.remove(deps.storage, user);
+                        DELEGATOR_ESSENCE_FRACTIONS.remove(deps.storage, &user);
                     }
                     UserType::Slacker => {}
                 }
             } else {
-                USER_ESSENCE.save(deps.storage, user, &user_essence_after)?;
+                USER_ESSENCE.save(deps.storage, &user, &user_essence_after)?;
             }
         }
     }
@@ -468,12 +484,12 @@ fn lock_xastro(
     recipient: &Addr,
 ) -> Result<Response, ContractError> {
     let AddressConfig {
-        astroport_voting_escrow,
+        astroport_voting_escrow: _,
         eclipsepad_minter,
         ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
     let TokenConfig {
-        xastro,
+        xastro: _,
         eclip_astro,
         ..
     } = TOKEN_CONFIG.load(deps.storage)?;
@@ -847,6 +863,7 @@ pub fn try_vote(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let dao_essence_acc_before = DAO_ESSENCE_ACC.load(deps.storage)?;
     let dao_weights_acc_before = DAO_WEIGHTS_ACC.load(deps.storage)?;
     let slacker_essence = SLACKER_ESSENCE_ACC.load(deps.storage)?;
+    let elector_base_essence_fraction = str_to_dec(ELECTOR_BASE_ESSENCE_FRACTION);
     let elector_additional_essence_fraction = str_to_dec(ELECTOR_ADDITIONAL_ESSENCE_FRACTION);
     let total_weights_allocation = get_total_votes(deps.storage, block_time)?.weight;
 
@@ -857,10 +874,15 @@ pub fn try_vote(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
             end_date: current_epoch.start_date + epoch_length,
 
             elector_essence: elector_essence_acc_before
+                .scale(elector_base_essence_fraction)
                 .add(&slacker_essence.scale(elector_additional_essence_fraction))
                 .capture(block_time),
             dao_essence: dao_essence_acc_before
                 .add(&slacker_essence.scale(Decimal::one() - elector_additional_essence_fraction))
+                .add(
+                    &elector_essence_acc_before
+                        .scale(Decimal::one() - elector_base_essence_fraction),
+                )
                 .capture(block_time),
             slacker_essence: slacker_essence.capture(block_time),
 
@@ -910,19 +932,19 @@ pub fn try_vote(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     // });
 
     Ok(Response::new()
-        //      .add_message(msg)
+        // .add_message(msg)
         .add_attribute("action", "try_vote"))
 }
 
 pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let sender = &env.contract.address;
-    let epoch = EPOCH_COUNTER.load(deps.storage)?;
+    let _epoch = EPOCH_COUNTER.load(deps.storage)?;
     let rewards_claim_stage = REWARDS_CLAIM_STAGE.load(deps.storage)?;
     let AddressConfig {
         astroport_tribute_market,
         eclipsepad_tribute_market,
-        astroport_emission_controller,
-        astroport_voting_escrow,
+        astroport_emission_controller: _,
+        astroport_voting_escrow: _,
         ..
     } = ADDRESS_CONFIG.load(deps.storage)?;
     let astroport_tribute_market =
@@ -942,116 +964,116 @@ pub fn try_claim(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         Err(ContractError::RewardsAreNotFound)?;
     }
 
-    // get voter bribes allocation:
-    // 1) query tribute market bribes allocation
-    let astroport_bribe_allocation = query_astroport_bribe_allocation(deps.as_ref())?;
-    let eclipsepad_bribe_allocation = query_eclipsepad_bribe_allocation(deps.as_ref())?;
+    // // get voter bribes allocation:
+    // // 1) query tribute market bribes allocation
+    // let astroport_bribe_allocation = query_astroport_bribe_allocation(deps.as_ref())?;
+    // let eclipsepad_bribe_allocation = query_eclipsepad_bribe_allocation(deps.as_ref())?;
 
-    // 2) query voter voting power
-    let voter_voting_power = deps.querier.query_wasm_smart::<Uint128>(
-        astroport_voting_escrow,
-        &astroport_governance::voting_escrow::QueryMsg::UserVotingPower {
-            user: env.contract.address.to_string(),
-            timestamp: Some(epoch.start_date),
-        },
-    )?;
-    let voter_voting_power_decimal = u128_to_dec(voter_voting_power);
+    // // 2) query voter voting power
+    // let voter_voting_power = deps.querier.query_wasm_smart::<Uint128>(
+    //     astroport_voting_escrow,
+    //     &astroport_governance::voting_escrow::QueryMsg::UserVotingPower {
+    //         user: env.contract.address.to_string(),
+    //         timestamp: Some(epoch.start_date),
+    //     },
+    // )?;
+    // let voter_voting_power_decimal = u128_to_dec(voter_voting_power);
 
-    // 3) get voter to tribute market voting power ratio allocation
-    let voter_to_tribute_voting_power_ratio_allocation = deps
-        .querier
-        .query_wasm_smart::<UserInfoResponse>(
-            astroport_emission_controller.clone(),
-            &astroport_governance::emissions_controller::hub::QueryMsg::UserInfo {
-                user: env.contract.address.to_string(),
-                timestamp: Some(epoch.start_date),
-            },
-        )?
-        .applied_votes
-        .iter()
-        .map(|(lp_token, weight)| -> StdResult<(String, Decimal)> {
-            let tribute_market_voting_power = deps
-                .querier
-                .query_wasm_smart::<VotedPoolInfo>(
-                    astroport_emission_controller.clone(),
-                    &astroport_governance::emissions_controller::hub::QueryMsg::VotedPool {
-                        pool: lp_token.to_owned(),
-                        timestamp: Some(epoch.start_date),
-                    },
-                )?
-                .voting_power;
+    // // 3) get voter to tribute market voting power ratio allocation
+    // let voter_to_tribute_voting_power_ratio_allocation = deps
+    //     .querier
+    //     .query_wasm_smart::<UserInfoResponse>(
+    //         astroport_emission_controller.clone(),
+    //         &astroport_governance::emissions_controller::hub::QueryMsg::UserInfo {
+    //             user: env.contract.address.to_string(),
+    //             timestamp: Some(epoch.start_date),
+    //         },
+    //     )?
+    //     .applied_votes
+    //     .iter()
+    //     .map(|(lp_token, weight)| -> StdResult<(String, Decimal)> {
+    //         let tribute_market_voting_power = deps
+    //             .querier
+    //             .query_wasm_smart::<VotedPoolInfo>(
+    //                 astroport_emission_controller.clone(),
+    //                 &astroport_governance::emissions_controller::hub::QueryMsg::VotedPool {
+    //                     pool: lp_token.to_owned(),
+    //                     timestamp: Some(epoch.start_date),
+    //                 },
+    //             )?
+    //             .voting_power;
 
-            let ratio = calc_voter_to_tribute_voting_power_ratio(
-                weight,
-                voter_voting_power_decimal,
-                tribute_market_voting_power,
-            );
+    //         let ratio = calc_voter_to_tribute_voting_power_ratio(
+    //             weight,
+    //             voter_voting_power_decimal,
+    //             tribute_market_voting_power,
+    //         );
 
-            Ok((lp_token.to_owned(), ratio))
-        })
-        .collect::<StdResult<Vec<(String, Decimal)>>>()?;
+    //         Ok((lp_token.to_owned(), ratio))
+    //     })
+    //     .collect::<StdResult<Vec<(String, Decimal)>>>()?;
 
-    // 4) update vote results
-    let mut vote_results = VOTE_RESULTS.load(deps.storage)?;
+    // // 4) update vote results
+    // let mut vote_results = VOTE_RESULTS.load(deps.storage)?;
 
-    // compare pools from vote results and applied votes
-    let last_vote_results = &vote_results
-        .iter()
-        .last()
-        .ok_or(ContractError::LastVoteResultsAreNotFound)?
-        .pool_info_list;
+    // // compare pools from vote results and applied votes
+    // let last_vote_results = &vote_results
+    //     .iter()
+    //     .last()
+    //     .ok_or(ContractError::LastVoteResultsAreNotFound)?
+    //     .pool_info_list;
 
-    let applied_votes_pool_list: Vec<String> = voter_to_tribute_voting_power_ratio_allocation
-        .iter()
-        .map(|(lp_token, _ratio)| lp_token.to_owned())
-        .collect();
+    // let applied_votes_pool_list: Vec<String> = voter_to_tribute_voting_power_ratio_allocation
+    //     .iter()
+    //     .map(|(lp_token, _ratio)| lp_token.to_owned())
+    //     .collect();
 
-    if !(last_vote_results.len() == applied_votes_pool_list.len()
-        && last_vote_results
-            .iter()
-            .all(|x| applied_votes_pool_list.contains(&x.lp_token)))
-    {
-        Err(ContractError::UnequalPools)?;
-    }
+    // if !(last_vote_results.len() == applied_votes_pool_list.len()
+    //     && last_vote_results
+    //         .iter()
+    //         .all(|x| applied_votes_pool_list.contains(&x.lp_token)))
+    // {
+    //     Err(ContractError::UnequalPools)?;
+    // }
 
-    vote_results = vote_results
-        .into_iter()
-        .map(|mut x| {
-            if x.epoch_id + 1 == epoch.id {
-                let astroport_pool_info_list_with_rewards = calc_pool_info_list_with_rewards(
-                    &x.pool_info_list,
-                    &astroport_bribe_allocation,
-                    &voter_to_tribute_voting_power_ratio_allocation,
-                );
+    // vote_results = vote_results
+    //     .into_iter()
+    //     .map(|mut x| {
+    //         if x.epoch_id + 1 == epoch.id {
+    //             let astroport_pool_info_list_with_rewards = calc_pool_info_list_with_rewards(
+    //                 &x.pool_info_list,
+    //                 &astroport_bribe_allocation,
+    //                 &voter_to_tribute_voting_power_ratio_allocation,
+    //             );
 
-                let eclipsepad_pool_info_list_with_rewards = calc_pool_info_list_with_rewards(
-                    &x.pool_info_list,
-                    &eclipsepad_bribe_allocation,
-                    &voter_to_tribute_voting_power_ratio_allocation,
-                );
+    //             let eclipsepad_pool_info_list_with_rewards = calc_pool_info_list_with_rewards(
+    //                 &x.pool_info_list,
+    //                 &eclipsepad_bribe_allocation,
+    //                 &voter_to_tribute_voting_power_ratio_allocation,
+    //             );
 
-                x.pool_info_list = calc_merged_pool_info_list_with_rewards(
-                    &astroport_pool_info_list_with_rewards,
-                    &eclipsepad_pool_info_list_with_rewards,
-                );
-            }
+    //             x.pool_info_list = calc_merged_pool_info_list_with_rewards(
+    //                 &astroport_pool_info_list_with_rewards,
+    //                 &eclipsepad_pool_info_list_with_rewards,
+    //             );
+    //         }
 
-            x
-        })
-        .collect();
-    VOTE_RESULTS.save(deps.storage, &vote_results)?;
+    //         x
+    //     })
+    //     .collect();
+    // VOTE_RESULTS.save(deps.storage, &vote_results)?;
 
     // claim rewards
     let mut msg_list: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: astroport_tribute_market.to_string(),
-        msg: to_json_binary(&tribute_market_mocks::msg::ExecuteMsg::ClaimRewards {})?,
+        msg: to_json_binary(&eclipse_base::tribute_market::msg::ExecuteMsg::ClaimRewards {})?,
         funds: vec![],
     })];
 
     if !eclipsepad_rewards.is_empty() {
         msg_list.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: eclipsepad_tribute_market.unwrap().to_string(),
-            msg: to_json_binary(&tribute_market_mocks::msg::ExecuteMsg::ClaimRewards {})?,
+            msg: to_json_binary(&eclipse_base::tribute_market::msg::ExecuteMsg::ClaimRewards {})?,
             funds: vec![],
         }));
     }
@@ -1143,7 +1165,7 @@ pub fn handle_swap_reply(
     let res = result
         .to_owned()
         .into_result()
-        .map_err(|_| ContractError::StakeError)?;
+        .map_err(|_| ContractError::SubMsgResultError)?;
 
     let eclip_amount = res
         .events
@@ -1227,13 +1249,24 @@ pub fn try_claim_rewards(
         Err(ContractError::RewardsAreNotFound)?;
     }
 
+    let balance_list = deps.querier.query_all_balances(env.contract.address)?;
+
     // send rewards to user
     let msg = CosmosMsg::Bank(BankMsg::Send {
         to_address: user.to_string(),
         amount: user_rewards
             .value
             .into_iter()
-            .map(|(amount, denom)| coin(amount.u128(), denom))
+            .map(|(amount, denom)| {
+                let balance = balance_list
+                    .iter()
+                    .find(|x| x.denom == denom)
+                    .map(|x| x.amount)
+                    .unwrap_or_default();
+
+                coin(std::cmp::min(amount, balance).u128(), denom)
+            })
+            .filter(|x| !x.amount.is_zero())
             .collect(),
     });
 
@@ -1279,7 +1312,7 @@ pub fn try_unlock_xastro(
     check_rewards_claim_stage(deps.storage)?;
     let (sender_address, ..) = check_funds(deps.as_ref(), &info, FundsType::Empty)?;
     let AddressConfig {
-        astroport_voting_escrow,
+        astroport_voting_escrow: _,
         worker_list,
         ..
     } = ADDRESS_CONFIG.load(deps.storage)?;

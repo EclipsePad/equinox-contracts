@@ -1,8 +1,7 @@
 use cosmwasm_std::{
-    coins, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Order,
-    Response, StdResult, Uint128, WasmMsg,
+    coins, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
+    StdResult, Uint128, WasmMsg,
 };
-use cw_storage_plus::Bound;
 
 use eclipse_base::{
     error::ContractError,
@@ -19,7 +18,6 @@ use eclipse_base::{
     },
     utils::{add_funds_to_exec_msg, check_funds, unwrap_field, FundsType},
 };
-use equinox_msg::voter::types::EssenceInfo;
 
 use crate::{helpers, math};
 
@@ -50,11 +48,11 @@ pub fn try_stake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     }
 
     // don't allow too much vaults
-    helpers::v3::check_vaults_amount(deps.storage, &sender_address)?;
+    helpers::check_vaults_amount(deps.storage, &sender_address)?;
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -62,7 +60,7 @@ pub fn try_stake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         )?;
 
     // accumulate rewards
-    helpers::v3::accumulate_rewards(
+    helpers::accumulate_rewards(
         deps.storage,
         &lock_schedule,
         block_time,
@@ -71,8 +69,7 @@ pub fn try_stake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         eclip_per_second_after,
     )?;
 
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     // core logic
     STAKER_INFO.update(
@@ -95,7 +92,7 @@ pub fn try_stake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
                 accumulated_rewards: Uint128::zero(),
             });
 
-            staker.vaults = vec![math::v3::calc_aggregated_vault(
+            staker.vaults = vec![math::calc_aggregated_vault(
                 &staker.vaults,
                 0,
                 decreasing_rewards_date,
@@ -124,7 +121,7 @@ pub fn try_stake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     let (a1, b1) = STAKING_ESSENCE_COMPONENTS
         .load(deps.storage, &sender_address)
         .unwrap_or_default();
-    let (a2, b2) = math::v3::calc_components_from_staking_vaults(staking_vaults);
+    let (a2, b2) = math::calc_components_from_staking_vaults(staking_vaults);
 
     STAKING_ESSENCE_COMPONENTS.save(deps.storage, &sender_address, &(a2, b2))?;
     TOTAL_STAKING_ESSENCE_COMPONENTS
@@ -132,9 +129,9 @@ pub fn try_stake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
             Ok((a + a2 - a1, b + b2 - b1))
         })?;
 
-    helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
-    // send essence snapshot to equinox voter
+    // send essence snapshot request to equinox voter
     let mut response = Response::new().add_attributes(vec![
         ("action", "try_stake"),
         ("amount", &asset_amount.to_string()),
@@ -144,11 +141,8 @@ pub fn try_stake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
-                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list: helpers::get_essence_snapshot(
-                        deps.storage,
-                        &sender_address,
-                    ),
+                &eclipse_base::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    address_list: vec![sender_address.to_string()],
                 },
             )?,
             funds: vec![],
@@ -203,7 +197,7 @@ pub fn try_lock(
     }
 
     // don't allow too much vaults
-    helpers::v3::check_vaults_amount(deps.storage, sender)?;
+    helpers::check_vaults_amount(deps.storage, sender)?;
 
     // don't allow multiple vaults with same creation date
     if LOCKER_INFO
@@ -217,7 +211,7 @@ pub fn try_lock(
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -225,7 +219,7 @@ pub fn try_lock(
         )?;
 
     // accumulate rewards
-    helpers::v3::accumulate_rewards(
+    helpers::accumulate_rewards(
         deps.storage,
         &lock_schedule,
         block_time,
@@ -235,8 +229,7 @@ pub fn try_lock(
     )?;
 
     // core logic
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     let mut new_locking_vaults_amount = Uint128::zero();
     let mut new_accumulated_rewards = Uint128::zero();
@@ -251,14 +244,14 @@ pub fn try_lock(
     } in staker.vaults
     {
         // claim staking rewards
-        let staking_essence_per_vault = math::v3::calc_staking_essence_per_vault(
+        let staking_essence_per_vault = math::calc_staking_essence_per_vault(
             amount,
             creation_date,
             block_time,
             seconds_per_essence,
         );
 
-        let staking_rewards = math::v3::calc_staking_rewards_per_vault(
+        let staking_rewards = math::calc_staking_rewards_per_vault(
             accumulated_rewards,
             staking_essence_per_vault,
             claim_date,
@@ -340,7 +333,7 @@ pub fn try_lock(
     let (a1, b1) = STAKING_ESSENCE_COMPONENTS
         .load(deps.storage, sender)
         .unwrap_or_default();
-    let (a2, b2) = math::v3::calc_components_from_staking_vaults(&new_staking_vaults);
+    let (a2, b2) = math::calc_components_from_staking_vaults(&new_staking_vaults);
 
     TOTAL_STAKING_ESSENCE_COMPONENTS
         .update(deps.storage, |(a, b)| -> StdResult<(Uint128, Uint128)> {
@@ -356,7 +349,7 @@ pub fn try_lock(
     let locking_essence_before = LOCKING_ESSENCE
         .load(deps.storage, sender)
         .unwrap_or_default();
-    let locking_essence_after = math::v3::calc_locking_essence(
+    let locking_essence_after = math::calc_locking_essence(
         &LOCKER_INFO.load(deps.storage, sender)?,
         &lock_schedule,
         seconds_per_essence,
@@ -367,9 +360,9 @@ pub fn try_lock(
         Ok(x + locking_essence_after - locking_essence_before)
     })?;
 
-    helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
-    // send essence snapshot to equinox voter
+    // send essence snapshot request to equinox voter
     let mut response = Response::new().add_attributes(vec![
         ("action", "try_lock"),
         ("amount", &amount.to_string()),
@@ -379,8 +372,8 @@ pub fn try_lock(
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
-                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
+                &eclipse_base::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    address_list: vec![sender.to_string()],
                 },
             )?,
             funds: vec![],
@@ -410,7 +403,7 @@ pub fn try_unstake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respons
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -418,7 +411,7 @@ pub fn try_unstake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respons
         )?;
 
     // accumulate rewards
-    helpers::v3::accumulate_rewards(
+    helpers::accumulate_rewards(
         deps.storage,
         &lock_schedule,
         block_time,
@@ -432,10 +425,9 @@ pub fn try_unstake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respons
         .load(deps.storage, sender)
         .map_err(|_| ContractError::StakerIsNotFound)?;
 
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
-    let staking_rewards = math::v3::calc_staking_rewards(
+    let staking_rewards = math::calc_staking_rewards(
         &staker.vaults,
         decreasing_rewards_date,
         block_time,
@@ -471,14 +463,14 @@ pub fn try_unstake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respons
             Ok((a - a1, b - b1))
         })?;
 
-    helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
     let msg = BankMsg::Send {
         to_address: sender.to_string(),
         amount: coins((amount_to_withdraw + staking_rewards).u128(), staking_token),
     };
 
-    // send essence snapshot to equinox voter
+    // send essence snapshot request to equinox voter
     let mut response = Response::new().add_message(msg).add_attributes(vec![
         ("action", "try_unstake"),
         ("amount", &amount_to_withdraw.to_string()),
@@ -489,8 +481,8 @@ pub fn try_unstake(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respons
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
-                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
+                &eclipse_base::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    address_list: vec![sender.to_string()],
                 },
             )?,
             funds: vec![],
@@ -524,7 +516,7 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -532,7 +524,7 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
         )?;
 
     // accumulate rewards
-    helpers::v3::accumulate_rewards(
+    helpers::accumulate_rewards(
         deps.storage,
         &lock_schedule,
         block_time,
@@ -546,8 +538,7 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
         .load(deps.storage, sender)
         .map_err(|_| ContractError::LockerIsNotFound)?;
 
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     let mut lock_tier_and_funds_and_rewards_list: Vec<(usize, Uint128, Uint128)> = vec![];
     let mut rewards_to_send = Uint128::zero();
@@ -568,7 +559,7 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
             vaults.retain(|x| x.creation_date != bonded_vault_creation_date);
         }
 
-        let locking_rewards_per_tier = math::v3::calc_locking_rewards_per_tier(
+        let locking_rewards_per_tier = math::calc_locking_rewards_per_tier(
             &locker_info.vaults,
             locking_period,
             decreasing_rewards_date,
@@ -583,12 +574,8 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
             .iter()
             .fold(Uint128::zero(), |acc, vault| acc + vault.amount);
 
-        let penalty = math::v3::calc_penalty_per_tier(
-            &vaults,
-            locking_period,
-            block_time,
-            penalty_multiplier,
-        );
+        let penalty =
+            math::calc_penalty_per_tier(&vaults, locking_period, block_time, penalty_multiplier);
 
         // penalty will be sent to DAO treasury
         penalty_to_send += penalty;
@@ -644,7 +631,7 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
         Ok(x - locking_essence_before)
     })?;
 
-    helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
     let mut msgs: Vec<CosmosMsg> = vec![CosmosMsg::Bank(BankMsg::Send {
         to_address: sender.to_string(),
@@ -658,7 +645,7 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
         }));
     }
 
-    // send essence snapshot to equinox voter
+    // send essence snapshot request to equinox voter
     let mut response = Response::new().add_messages(msgs).add_attributes(vec![
         ("action", "try_unlock"),
         ("amount_to_withdraw", &amount_to_withdraw.to_string()),
@@ -669,8 +656,8 @@ pub fn try_unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
-                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
+                &eclipse_base::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    address_list: vec![sender.to_string()],
                 },
             )?,
             funds: vec![],
@@ -713,7 +700,7 @@ pub fn try_relock(
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -721,7 +708,7 @@ pub fn try_relock(
         )?;
 
     // accumulate rewards
-    helpers::v3::accumulate_rewards(
+    helpers::accumulate_rewards(
         deps.storage,
         &lock_schedule,
         block_time,
@@ -731,8 +718,7 @@ pub fn try_relock(
     )?;
 
     // core logic
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     let mut vault_amount = Uint128::zero();
 
@@ -773,13 +759,13 @@ pub fn try_relock(
                 // accumulate rewards and update claim date
                 let (locking_period, _global_rewards_per_tier) = lock_schedule[from_tier as usize];
 
-                let locking_essence_per_vault = math::v3::calc_locking_essence_per_vault(
+                let locking_essence_per_vault = math::calc_locking_essence_per_vault(
                     vault.amount,
                     locking_period,
                     seconds_per_essence,
                 );
 
-                let accumulated_rewards = math::v3::calc_locking_rewards_per_vault(
+                let accumulated_rewards = math::calc_locking_rewards_per_vault(
                     vault.accumulated_rewards,
                     locking_essence_per_vault,
                     vault.claim_date,
@@ -818,7 +804,7 @@ pub fn try_relock(
     let locking_essence_before = LOCKING_ESSENCE
         .load(deps.storage, sender)
         .unwrap_or_default();
-    let locking_essence_after = math::v3::calc_locking_essence(
+    let locking_essence_after = math::calc_locking_essence(
         &LOCKER_INFO.load(deps.storage, sender)?,
         &lock_schedule,
         seconds_per_essence,
@@ -829,17 +815,17 @@ pub fn try_relock(
         Ok(x + locking_essence_after - locking_essence_before)
     })?;
 
-    helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
-    // send essence snapshot to equinox voter
+    // send essence snapshot request to equinox voter
     let mut response = Response::new().add_attributes(vec![("action", "try_relock")]);
 
     if let Some(x) = equinox_voter {
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
-                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
+                &eclipse_base::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    address_list: vec![sender.to_string()],
                 },
             )?,
             funds: vec![],
@@ -878,7 +864,7 @@ pub fn try_withdraw(
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -886,7 +872,7 @@ pub fn try_withdraw(
         )?;
 
     // accumulate rewards
-    helpers::v3::accumulate_rewards(
+    helpers::accumulate_rewards(
         deps.storage,
         &lock_schedule,
         block_time,
@@ -896,8 +882,7 @@ pub fn try_withdraw(
     )?;
 
     // core logic
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     let mut lock_tier_and_funds_and_rewards_list: Vec<(u64, Uint128, Uint128)> = vec![];
     let mut amount_to_withdraw = Uint128::zero();
@@ -930,13 +915,13 @@ pub fn try_withdraw(
             Err(ContractError::BondedVault)?;
         }
 
-        let locking_essence_per_vault = math::v3::calc_locking_essence_per_vault(
+        let locking_essence_per_vault = math::calc_locking_essence_per_vault(
             current_vault.amount,
             locking_period,
             seconds_per_essence,
         );
 
-        let locking_rewards_per_vault = math::v3::calc_locking_rewards_per_vault(
+        let locking_rewards_per_vault = math::calc_locking_rewards_per_vault(
             current_vault.accumulated_rewards,
             locking_essence_per_vault,
             current_vault.claim_date,
@@ -949,7 +934,7 @@ pub fn try_withdraw(
 
         let locked_funds_to_withdraw = current_vault.amount;
 
-        let penalty = math::v3::calc_penalty_per_tier(
+        let penalty = math::calc_penalty_per_tier(
             &[current_vault.to_owned()],
             locking_period,
             block_time,
@@ -1002,7 +987,7 @@ pub fn try_withdraw(
         .load(deps.storage, sender)
         .unwrap_or_default();
     let locking_essence_after =
-        math::v3::calc_locking_essence(&locker_infos_new, &lock_schedule, seconds_per_essence);
+        math::calc_locking_essence(&locker_infos_new, &lock_schedule, seconds_per_essence);
 
     TOTAL_LOCKING_ESSENCE.update(deps.storage, |x| -> StdResult<Uint128> {
         Ok(x + locking_essence_after - locking_essence_before)
@@ -1014,7 +999,7 @@ pub fn try_withdraw(
         LOCKING_ESSENCE.save(deps.storage, sender, &locking_essence_after)?;
     }
 
-    helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
     let mut msgs: Vec<CosmosMsg> = vec![CosmosMsg::Bank(BankMsg::Send {
         to_address: sender.to_string(),
@@ -1028,7 +1013,7 @@ pub fn try_withdraw(
         }));
     }
 
-    // send essence snapshot to equinox voter
+    // send essence snapshot request to equinox voter
     let mut response = Response::new().add_messages(msgs).add_attributes(vec![
         ("action", "try_withdraw"),
         ("amount_to_withdraw", &amount_to_withdraw.to_string()),
@@ -1039,8 +1024,8 @@ pub fn try_withdraw(
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
-                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
+                &eclipse_base::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    address_list: vec![sender.to_string()],
                 },
             )?,
             funds: vec![],
@@ -1052,7 +1037,6 @@ pub fn try_withdraw(
     Ok(response)
 }
 
-// block actions with bonded vault
 pub fn try_bond(
     deps: DepsMut,
     env: Env,
@@ -1060,11 +1044,6 @@ pub fn try_bond(
     mut vault_creation_date_list: Vec<u64>,
 ) -> Result<Response, ContractError> {
     helpers::check_pause_state(deps.as_ref())?;
-
-    // TODO: remove this block in v3
-    if env.block.chain_id == "neutron-1" {
-        Err(ContractError::WrongMessageType)?;
-    }
 
     let sender = &info.sender;
     let block_time = env.block.time.seconds();
@@ -1083,7 +1062,7 @@ pub fn try_bond(
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -1091,7 +1070,7 @@ pub fn try_bond(
         )?;
 
     // accumulate rewards
-    helpers::v3::accumulate_rewards(
+    helpers::accumulate_rewards(
         deps.storage,
         &lock_schedule,
         block_time,
@@ -1101,8 +1080,7 @@ pub fn try_bond(
     )?;
 
     // core logic
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     let mut locker_infos = LOCKER_INFO
         .load(deps.storage, sender)
@@ -1135,7 +1113,7 @@ pub fn try_bond(
         }
     }
 
-    let bonded_vault = math::v3::calc_bonded_vault(
+    let bonded_vault = math::calc_bonded_vault(
         &new_tier_4_vaults,
         &lock_schedule,
         decreasing_rewards_date,
@@ -1163,7 +1141,7 @@ pub fn try_bond(
         .load(deps.storage, sender)
         .unwrap_or_default();
     let locking_essence_after =
-        math::v3::calc_locking_essence(&locker_infos, &lock_schedule, seconds_per_essence);
+        math::calc_locking_essence(&locker_infos, &lock_schedule, seconds_per_essence);
 
     TOTAL_LOCKING_ESSENCE.update(deps.storage, |x| -> StdResult<Uint128> {
         Ok(x + locking_essence_after - locking_essence_before)
@@ -1171,7 +1149,7 @@ pub fn try_bond(
 
     LOCKING_ESSENCE.save(deps.storage, sender, &locking_essence_after)?;
 
-    helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
     // mint beclip to sender
     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -1184,7 +1162,7 @@ pub fn try_bond(
         funds: vec![],
     });
 
-    // send essence snapshot to equinox voter
+    // send essence snapshot request to equinox voter
     let mut response = Response::new().add_message(msg).add_attributes(vec![
         ("action", "try_bond"),
         ("amount", &amount_to_mint.to_string()),
@@ -1194,8 +1172,8 @@ pub fn try_bond(
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
-                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
+                &eclipse_base::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    address_list: vec![sender.to_string()],
                 },
             )?,
             funds: vec![],
@@ -1223,11 +1201,6 @@ pub fn try_bond_for(
             amount: None,
         },
     )?;
-
-    // TODO: remove this block in v3
-    if env.block.chain_id == "neutron-1" {
-        Err(ContractError::WrongMessageType)?;
-    }
 
     let block_time = env.block.time.seconds();
     let Config {
@@ -1271,7 +1244,7 @@ pub fn try_bond_for(
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -1279,7 +1252,7 @@ pub fn try_bond_for(
         )?;
 
     // accumulate rewards
-    helpers::v3::accumulate_rewards(
+    helpers::accumulate_rewards(
         deps.storage,
         &lock_schedule,
         block_time,
@@ -1289,8 +1262,7 @@ pub fn try_bond_for(
     )?;
 
     // core logic
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     for (user, beclip_to_mint) in &address_and_amount_list {
         let user = deps.api.addr_validate(user)?;
@@ -1320,7 +1292,7 @@ pub fn try_bond_for(
                         if y.creation_date != x {
                             y
                         } else {
-                            math::v3::calc_bonded_vault(
+                            math::calc_bonded_vault(
                                 &[y, new_tier_4_vault.clone()],
                                 &lock_schedule,
                                 decreasing_rewards_date,
@@ -1360,7 +1332,7 @@ pub fn try_bond_for(
             .load(deps.storage, &user)
             .unwrap_or_default();
         let locking_essence_after =
-            math::v3::calc_locking_essence(&locker_infos, &lock_schedule, seconds_per_essence);
+            math::calc_locking_essence(&locker_infos, &lock_schedule, seconds_per_essence);
 
         LOCKING_ESSENCE.save(deps.storage, &user, &locking_essence_after)?;
         TOTAL_LOCKING_ESSENCE.update(deps.storage, |x| -> StdResult<Uint128> {
@@ -1378,7 +1350,7 @@ pub fn try_bond_for(
         Ok(lock_states)
     })?;
 
-    helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
     // mint beclip to specified addresses
     let msg_list = address_and_amount_list
@@ -1397,28 +1369,21 @@ pub fn try_bond_for(
         })
         .collect::<StdResult<Vec<CosmosMsg>>>()?;
 
-    // send essence snapshot to equinox voter
+    // send essence snapshot request to equinox voter
     let mut response = Response::new().add_messages(msg_list).add_attributes(vec![
         ("action", "try_bond_for"),
         ("amount", &asset_amount.to_string()),
     ]);
 
     if let Some(x) = equinox_voter {
-        let mut user_and_essence_list: Vec<(String, EssenceInfo)> = vec![];
-
-        for (sender, _) in address_and_amount_list {
-            user_and_essence_list = [
-                user_and_essence_list,
-                helpers::get_essence_snapshot(deps.storage, &Addr::unchecked(sender)),
-            ]
-            .concat();
-        }
-
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
-                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list,
+                &eclipse_base::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    address_list: address_and_amount_list
+                        .iter()
+                        .map(|(address, _)| address.to_string())
+                        .collect(),
                 },
             )?,
             funds: vec![],
@@ -1428,6 +1393,256 @@ pub fn try_bond_for(
     }
 
     Ok(response)
+}
+
+// rebond doesn't affect on any user essence as it provides
+// 1:1 beclip <-> darkeclip + darkess exchange
+pub fn try_rebond(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    amount: Uint128,
+    from: String,
+    to: String,
+) -> Result<Response, ContractError> {
+    helpers::check_pause_state(deps.as_ref())?;
+
+    let address_from = &deps.api.addr_validate(&from)?;
+    let address_to = &deps.api.addr_validate(&to)?;
+    let sender = &info.sender;
+    let block_time = env.block.time.seconds();
+    let Config {
+        beclip_whitelist,
+        lock_schedule,
+        seconds_per_essence,
+        eclip_per_second,
+        eclip_per_second_multiplier,
+        ..
+    } = CONFIG.load(deps.storage)?;
+    let (locking_period, _global_rewards_per_tier) = lock_schedule[TIER_4];
+
+    if !beclip_whitelist.contains(sender) {
+        Err(ContractError::Unauthorized)?;
+    }
+
+    if amount.is_zero() {
+        Err(ContractError::ZeroAmount)?;
+    }
+
+    // get eclip_per_second values
+    let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
+        helpers::split_eclip_per_second(
+            deps.storage,
+            eclip_per_second_multiplier,
+            eclip_per_second,
+            block_time,
+        )?;
+
+    // accumulate rewards
+    helpers::accumulate_rewards(
+        deps.storage,
+        &lock_schedule,
+        block_time,
+        decreasing_rewards_date,
+        eclip_per_second_before,
+        eclip_per_second_after,
+    )?;
+
+    // core logic
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+
+    let mut locker_info_from = LOCKER_INFO
+        .load(deps.storage, address_from)
+        .map_err(|_| ContractError::LockerIsNotFound)?;
+
+    let mut locker_info_to = LOCKER_INFO
+        .load(deps.storage, address_to)
+        .unwrap_or_default();
+
+    let mut tier_4_vaults_from = locker_info_from
+        .get(TIER_4)
+        .ok_or(ContractError::TierIsNotFound)?
+        .vaults
+        .clone();
+
+    let mut tier_4_vaults_to = locker_info_to
+        .get(TIER_4)
+        .map(|x| x.vaults.to_owned())
+        .unwrap_or_default();
+
+    let bonded_vault_creation_date_from =
+        BONDED_VAULT_CREATION_DATE.load(deps.storage, address_from)?;
+    let bonded_vault_creation_date_to = BONDED_VAULT_CREATION_DATE
+        .load(deps.storage, address_to)
+        .unwrap_or(block_time);
+
+    // update current owner
+    let mut bonded_vault_rewards_from = Uint128::zero();
+
+    tier_4_vaults_from = tier_4_vaults_from.iter().cloned().fold(
+        Ok(vec![]),
+        |acc, vault| -> StdResult<Vec<Vault>> {
+            let mut acc: Vec<Vault> = acc?;
+
+            if vault.creation_date != bonded_vault_creation_date_from {
+                acc.push(vault);
+                return Ok(acc);
+            }
+
+            if vault.amount < amount {
+                Err(ContractError::ExceedingBondedAmount)?;
+            }
+
+            // accumulate rewards before splitting
+            let locking_essence_per_vault = math::calc_locking_essence_per_vault(
+                vault.amount,
+                locking_period,
+                seconds_per_essence,
+            );
+
+            bonded_vault_rewards_from = math::calc_locking_rewards_per_vault(
+                vault.accumulated_rewards,
+                locking_essence_per_vault,
+                vault.claim_date,
+                decreasing_rewards_date,
+                block_time,
+                eclip_per_second_before,
+                eclip_per_second_after,
+                total_essence,
+            );
+
+            let vault = Vault {
+                amount: vault.amount - amount,
+                creation_date: block_time,
+                claim_date: block_time,
+                accumulated_rewards: Uint128::zero(),
+            };
+
+            if !vault.amount.is_zero() {
+                acc.push(vault);
+                BONDED_VAULT_CREATION_DATE.save(deps.storage, address_from, &block_time)?;
+            } else {
+                BONDED_VAULT_CREATION_DATE.remove(deps.storage, address_from);
+            }
+
+            Ok(acc)
+        },
+    )?;
+
+    locker_info_from[TIER_4].vaults = tier_4_vaults_from;
+
+    let vaults_amount = locker_info_from
+        .iter()
+        .fold(0, |acc, cur| acc + cur.vaults.len());
+
+    if vaults_amount == 0 {
+        LOCKER_INFO.remove(deps.storage, address_from);
+    } else {
+        LOCKER_INFO.save(deps.storage, address_from, &locker_info_from)?;
+    }
+
+    // update new owner
+    let mut bonded_vaults_to_merge: Vec<Vault> = vec![];
+
+    // try to add current bonded vault
+    if let Some(current_bonded_vault) = tier_4_vaults_to
+        .iter()
+        .find(|x| x.creation_date == bonded_vault_creation_date_to)
+    {
+        // don't allow multiple vaults with same creation date
+        if current_bonded_vault.creation_date == block_time {
+            Err(ContractError::MultipleVaultsWithSameCreationDate)?;
+        }
+
+        bonded_vaults_to_merge.push(current_bonded_vault.clone());
+    }
+
+    // add new bonded vault
+    bonded_vaults_to_merge.push(Vault {
+        amount,
+        creation_date: block_time,
+        claim_date: block_time,
+        accumulated_rewards: bonded_vault_rewards_from,
+    });
+
+    // merge bonded vaults
+    let bonded_vault = math::calc_bonded_vault(
+        &bonded_vaults_to_merge,
+        &lock_schedule,
+        decreasing_rewards_date,
+        block_time,
+        seconds_per_essence,
+        eclip_per_second_before,
+        eclip_per_second_after,
+        total_essence,
+    );
+
+    // we don't need to limit vaults amount as splitter has single vault
+    if tier_4_vaults_to
+        .iter()
+        .all(|x| x.creation_date != bonded_vault_creation_date_to)
+    {
+        tier_4_vaults_to.push(Vault {
+            amount: Uint128::zero(),
+            creation_date: bonded_vault_creation_date_to,
+            claim_date: bonded_vault_creation_date_to,
+            accumulated_rewards: Uint128::zero(),
+        });
+    }
+
+    tier_4_vaults_to = tier_4_vaults_to
+        .iter()
+        .cloned()
+        .map(|vault| {
+            if vault.creation_date != bonded_vault_creation_date_to {
+                vault
+            } else {
+                bonded_vault.clone()
+            }
+        })
+        .collect();
+
+    while TIER_4 >= locker_info_to.len() {
+        locker_info_to.push(LockerInfo {
+            lock_tier: locker_info_to.len() as u64,
+            vaults: vec![],
+        })
+    }
+
+    locker_info_to[TIER_4].vaults = tier_4_vaults_to;
+    LOCKER_INFO.save(deps.storage, address_to, &locker_info_to)?;
+    BONDED_VAULT_CREATION_DATE.save(deps.storage, address_to, &block_time)?;
+
+    // update essence storages
+    let mut total_locking_essence = TOTAL_LOCKING_ESSENCE.load(deps.storage)?;
+
+    for address in [address_from, address_to] {
+        let locker_info = if address == address_from {
+            locker_info_from.clone()
+        } else {
+            locker_info_to.clone()
+        };
+
+        let locking_essence_before = LOCKING_ESSENCE
+            .load(deps.storage, address)
+            .unwrap_or_default();
+        let locking_essence_after =
+            math::calc_locking_essence(&locker_info, &lock_schedule, seconds_per_essence);
+        total_locking_essence =
+            total_locking_essence + locking_essence_after - locking_essence_before;
+
+        if locking_essence_after.is_zero() {
+            LOCKING_ESSENCE.remove(deps.storage, address);
+        } else {
+            LOCKING_ESSENCE.save(deps.storage, address, &locking_essence_after)?;
+        }
+    }
+
+    TOTAL_LOCKING_ESSENCE.save(deps.storage, &total_locking_essence)?;
+
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+
+    Ok(Response::new().add_attribute("action", "try_rebond"))
 }
 
 /// burns bECLIP and creates tier 4 vault
@@ -1441,11 +1656,6 @@ pub fn try_unbond(
     helpers::check_pause_state(deps.as_ref())?;
     let (sender_address, asset_amount, asset_info) =
         check_funds(deps.as_ref(), &info, FundsType::Single { sender, amount })?;
-
-    // TODO: remove this block in v3
-    if env.block.chain_id == "neutron-1" {
-        Err(ContractError::WrongMessageType)?;
-    }
 
     let block_time = env.block.time.seconds();
     let bonded_vault_creation_date =
@@ -1473,7 +1683,7 @@ pub fn try_unbond(
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -1481,7 +1691,7 @@ pub fn try_unbond(
         )?;
 
     // accumulate rewards
-    helpers::v3::accumulate_rewards(
+    helpers::accumulate_rewards(
         deps.storage,
         &lock_schedule,
         block_time,
@@ -1491,8 +1701,7 @@ pub fn try_unbond(
     )?;
 
     // core logic
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     let mut locker_infos = LOCKER_INFO
         .load(deps.storage, &sender_address)
@@ -1522,7 +1731,7 @@ pub fn try_unbond(
             Err(ContractError::ExceedingBondedAmount)?;
         }
 
-        let (bonded_vault, tier_4_vault) = math::v3::split_bonded_vault(
+        let (bonded_vault, tier_4_vault) = math::split_bonded_vault(
             &vault,
             asset_amount,
             &lock_schedule,
@@ -1551,7 +1760,7 @@ pub fn try_unbond(
     new_tier_4_vaults.sort_unstable_by_key(|x| x.creation_date);
 
     // don't allow too much vaults
-    helpers::v3::check_vaults_amount(deps.storage, &sender_address)?;
+    helpers::check_vaults_amount(deps.storage, &sender_address)?;
 
     // update locker info storage
     locker_infos[TIER_4].vaults = new_tier_4_vaults;
@@ -1565,7 +1774,7 @@ pub fn try_unbond(
     let locking_essence_before = LOCKING_ESSENCE
         .load(deps.storage, &sender_address)
         .unwrap_or_default();
-    let locking_essence_after = math::v3::calc_locking_essence(
+    let locking_essence_after = math::calc_locking_essence(
         &LOCKER_INFO.load(deps.storage, &sender_address)?,
         &lock_schedule,
         seconds_per_essence,
@@ -1576,7 +1785,7 @@ pub fn try_unbond(
         Ok(x + locking_essence_after - locking_essence_before)
     })?;
 
-    helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
     // burn beclip
     let msg = add_funds_to_exec_msg(
@@ -1588,7 +1797,7 @@ pub fn try_unbond(
         &[(asset_amount, asset_info)],
     )?;
 
-    // send essence snapshot to equinox voter
+    // send essence snapshot request to equinox voter
     let mut response = Response::new().add_message(msg).add_attributes(vec![
         ("action", "try_unbond"),
         ("amount", &asset_amount.to_string()),
@@ -1598,11 +1807,8 @@ pub fn try_unbond(
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
-                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list: helpers::get_essence_snapshot(
-                        deps.storage,
-                        &sender_address,
-                    ),
+                &eclipse_base::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    address_list: vec![sender_address.to_string()],
                 },
             )?,
             funds: vec![],
@@ -1631,7 +1837,7 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -1639,7 +1845,7 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         )?;
 
     // accumulate rewards
-    helpers::v3::accumulate_rewards(
+    helpers::accumulate_rewards(
         deps.storage,
         &lock_schedule,
         block_time,
@@ -1649,15 +1855,14 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     )?;
 
     // core logic
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     let mut lock_tier_and_rewards_list: Vec<(u64, Uint128)> = vec![];
     let mut amount_to_withdraw = Uint128::zero();
 
     // try claim staking rewards
     if let Ok(mut staker) = STAKER_INFO.load(deps.storage, sender) {
-        amount_to_withdraw += math::v3::calc_staking_rewards(
+        amount_to_withdraw += math::calc_staking_rewards(
             &staker.vaults,
             decreasing_rewards_date,
             block_time,
@@ -1695,7 +1900,7 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
                 let LockerInfo { lock_tier, .. } = locker_info.to_owned();
                 let (locking_period, _global_rewards_per_tier) = lock_schedule[lock_tier as usize];
 
-                let locking_rewards_per_tier = math::v3::calc_locking_rewards_per_tier(
+                let locking_rewards_per_tier = math::calc_locking_rewards_per_tier(
                     &locker_info.vaults,
                     locking_period,
                     decreasing_rewards_date,
@@ -1735,7 +1940,7 @@ pub fn try_claim(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         Ok(lock_states)
     })?;
 
-    helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
     let msg = BankMsg::Send {
         to_address: sender.to_string(),
@@ -1773,7 +1978,7 @@ pub fn try_aggregate_vaults(
 
     // get eclip_per_second values
     let (decreasing_rewards_date, eclip_per_second_before, eclip_per_second_after) =
-        helpers::v3::split_eclip_per_second(
+        helpers::split_eclip_per_second(
             deps.storage,
             eclip_per_second_multiplier,
             eclip_per_second,
@@ -1782,8 +1987,7 @@ pub fn try_aggregate_vaults(
 
     // don't accumulate rewards to make this action cheap and attractive for users
 
-    let total_essence =
-        helpers::v3::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
+    let total_essence = helpers::get_total_essence(deps.storage, block_time, seconds_per_essence)?;
 
     let mut vaults_new: Vec<Vault> = vec![];
     let mut vaults_target: Vec<Vault> = vec![];
@@ -1822,7 +2026,7 @@ pub fn try_aggregate_vaults(
                             }
                         }
 
-                        let vault_aggregated = math::v3::calc_aggregated_vault(
+                        let vault_aggregated = math::calc_aggregated_vault(
                             &vaults_target,
                             locking_period,
                             decreasing_rewards_date,
@@ -1858,11 +2062,8 @@ pub fn try_aggregate_vaults(
             let locking_essence_before = LOCKING_ESSENCE
                 .load(deps.storage, sender)
                 .unwrap_or_default();
-            let locking_essence_after = math::v3::calc_locking_essence(
-                &locker_infos_new,
-                &lock_schedule,
-                seconds_per_essence,
-            );
+            let locking_essence_after =
+                math::calc_locking_essence(&locker_infos_new, &lock_schedule, seconds_per_essence);
 
             LOCKING_ESSENCE.save(deps.storage, sender, &locking_essence_after)?;
             TOTAL_LOCKING_ESSENCE.update(deps.storage, |x| -> StdResult<Uint128> {
@@ -1881,7 +2082,7 @@ pub fn try_aggregate_vaults(
                 }
             }
 
-            let vault_aggregated = math::v3::calc_aggregated_vault(
+            let vault_aggregated = math::calc_aggregated_vault(
                 &vaults_target,
                 0,
                 decreasing_rewards_date,
@@ -1913,7 +2114,7 @@ pub fn try_aggregate_vaults(
             let (a1, b1) = STAKING_ESSENCE_COMPONENTS
                 .load(deps.storage, sender)
                 .unwrap_or_default();
-            let (a2, b2) = math::v3::calc_components_from_staking_vaults(staking_vaults);
+            let (a2, b2) = math::calc_components_from_staking_vaults(staking_vaults);
 
             STAKING_ESSENCE_COMPONENTS.save(deps.storage, sender, &(a2, b2))?;
             TOTAL_STAKING_ESSENCE_COMPONENTS
@@ -1923,17 +2124,17 @@ pub fn try_aggregate_vaults(
         }
     }
 
-    helpers::v3::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
+    helpers::update_eclip_per_second(deps.storage, block_time, decreasing_rewards_date)?;
 
-    // send essence snapshot to equinox voter
+    // send essence snapshot request to equinox voter
     let mut response = Response::new().add_attributes(vec![("action", "try_aggregate_vaults")]);
 
     if let Some(x) = equinox_voter {
         let msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: x.to_string(),
             msg: to_json_binary(
-                &equinox_msg::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
-                    user_and_essence_list: helpers::get_essence_snapshot(deps.storage, sender),
+                &eclipse_base::voter::msg::ExecuteMsg::UpdateEssenceAllocation {
+                    address_list: vec![sender.to_string()],
                 },
             )?,
             funds: vec![],
@@ -2117,239 +2318,6 @@ pub fn try_decrease_balance(
     Ok(Response::new()
         .add_message(msg)
         .add_attributes(vec![("action", "try_decrease_balance")]))
-}
-
-pub fn try_update_staking_essence_storages(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    amount: u32,
-    start_from: Option<String>,
-) -> Result<Response, ContractError> {
-    let sender = &info.sender;
-    let Config { admin, .. } = CONFIG.load(deps.storage)?;
-
-    if sender != admin {
-        Err(ContractError::Unauthorized)?;
-    }
-
-    let address;
-    let start_bound = match start_from {
-        None => None,
-        Some(x) => {
-            address = deps.api.addr_validate(&x)?;
-            Some(Bound::exclusive(&address))
-        }
-    };
-
-    let mut td_a = Uint128::zero();
-    let mut td_b = Uint128::zero();
-
-    let stakers_info = &STAKER_INFO
-        .range(deps.storage, start_bound, None, Order::Ascending)
-        .take(amount as usize)
-        .flatten()
-        .collect::<Vec<(Addr, StakerInfo)>>();
-
-    for (sender, staker_info) in stakers_info {
-        let (a1, b1) = STAKING_ESSENCE_COMPONENTS
-            .load(deps.storage, sender)
-            .unwrap_or_default();
-
-        // skip if storage is updated
-        if !a1.is_zero() || !b1.is_zero() {
-            continue;
-        }
-
-        let (a2, b2) = math::v3::calc_components_from_staking_vaults(&staker_info.vaults);
-
-        STAKING_ESSENCE_COMPONENTS.save(deps.storage, sender, &(a2, b2))?;
-
-        td_a += a2;
-        td_b += b2;
-    }
-
-    TOTAL_STAKING_ESSENCE_COMPONENTS
-        .update(deps.storage, |(a, b)| -> StdResult<(Uint128, Uint128)> {
-            Ok((a + td_a, b + td_b))
-        })?;
-
-    let last_address = &stakers_info
-        .last()
-        .map(|(a, _)| a.to_string())
-        .unwrap_or_default();
-
-    Ok(Response::new().add_attributes(vec![
-        ("action", "try_update_staking_essence_storages"),
-        ("last_address", last_address),
-    ]))
-}
-
-pub fn try_update_locking_essence_storages(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    amount: u32,
-    start_from: Option<String>,
-) -> Result<Response, ContractError> {
-    let sender = &info.sender;
-    let Config {
-        admin,
-        lock_schedule,
-        seconds_per_essence,
-        ..
-    } = CONFIG.load(deps.storage)?;
-
-    if sender != admin {
-        Err(ContractError::Unauthorized)?;
-    }
-
-    let address;
-    let start_bound = match start_from {
-        None => None,
-        Some(x) => {
-            address = deps.api.addr_validate(&x)?;
-            Some(Bound::exclusive(&address))
-        }
-    };
-
-    let mut total_locking_essence_difference = Uint128::zero();
-
-    let locker_infos = &LOCKER_INFO
-        .range(deps.storage, start_bound, None, Order::Ascending)
-        .take(amount as usize)
-        .flatten()
-        .collect::<Vec<(Addr, Vec<LockerInfo>)>>();
-
-    for (sender, locker_info) in locker_infos {
-        let locking_essence_before = LOCKING_ESSENCE
-            .load(deps.storage, sender)
-            .unwrap_or_default();
-
-        // skip if storage is updated
-        if !locking_essence_before.is_zero() {
-            continue;
-        }
-
-        let locking_essence_after =
-            math::v3::calc_locking_essence(locker_info, &lock_schedule, seconds_per_essence);
-
-        LOCKING_ESSENCE.save(deps.storage, sender, &locking_essence_after)?;
-
-        total_locking_essence_difference += locking_essence_after;
-    }
-
-    TOTAL_LOCKING_ESSENCE.update(deps.storage, |x| -> StdResult<Uint128> {
-        Ok(x + total_locking_essence_difference)
-    })?;
-
-    let last_address = &locker_infos
-        .last()
-        .map(|(a, _)| a.to_string())
-        .unwrap_or_default();
-
-    Ok(Response::new().add_attributes(vec![
-        ("action", "try_update_locking_essence_storages"),
-        ("last_address", last_address),
-    ]))
-}
-
-pub fn try_filter_stakers(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    amount: u32,
-    start_from: Option<String>,
-) -> Result<Response, ContractError> {
-    let sender = &info.sender;
-    let Config { admin, .. } = CONFIG.load(deps.storage)?;
-
-    if sender != admin {
-        Err(ContractError::Unauthorized)?;
-    }
-
-    let address;
-    let start_bound = match start_from {
-        None => None,
-        Some(x) => {
-            address = deps.api.addr_validate(&x)?;
-            Some(Bound::exclusive(&address))
-        }
-    };
-
-    let stakers_info = &STAKER_INFO
-        .range(deps.storage, start_bound, None, Order::Ascending)
-        .take(amount as usize)
-        .flatten()
-        .collect::<Vec<(Addr, StakerInfo)>>();
-
-    for (user, StakerInfo { vaults }) in stakers_info {
-        if vaults.is_empty() {
-            STAKER_INFO.remove(deps.storage, user);
-        }
-    }
-
-    let last_address = &stakers_info
-        .last()
-        .map(|(a, _)| a.to_owned())
-        .unwrap_or(Addr::unchecked("default"))
-        .to_string();
-
-    Ok(Response::new().add_attributes(vec![
-        ("action", "try_filter_stakers"),
-        ("last_address", last_address),
-    ]))
-}
-
-pub fn try_filter_lockers(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    amount: u32,
-    start_from: Option<String>,
-) -> Result<Response, ContractError> {
-    let sender = &info.sender;
-    let Config { admin, .. } = CONFIG.load(deps.storage)?;
-
-    if sender != admin {
-        Err(ContractError::Unauthorized)?;
-    }
-
-    let address;
-    let start_bound = match start_from {
-        None => None,
-        Some(x) => {
-            address = deps.api.addr_validate(&x)?;
-            Some(Bound::exclusive(&address))
-        }
-    };
-
-    let locker_infos = &LOCKER_INFO
-        .range(deps.storage, start_bound, None, Order::Ascending)
-        .take(amount as usize)
-        .flatten()
-        .collect::<Vec<(Addr, Vec<LockerInfo>)>>();
-
-    for (user, locker_info) in locker_infos {
-        let vaults_amount = locker_info
-            .iter()
-            .fold(0, |acc, cur| acc + cur.vaults.len());
-
-        if vaults_amount == 0 {
-            LOCKER_INFO.remove(deps.storage, user);
-        }
-    }
-
-    let last_address = &locker_infos
-        .last()
-        .map(|(a, _)| a.to_owned())
-        .unwrap_or(Addr::unchecked("default"))
-        .to_string();
-
-    Ok(Response::new().add_attributes(vec![
-        ("action", "try_filter_lockers"),
-        ("last_address", last_address),
-    ]))
 }
 
 pub fn try_pause(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
