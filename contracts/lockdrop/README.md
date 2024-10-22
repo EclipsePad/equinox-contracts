@@ -51,7 +51,10 @@ Optional parameters:
   "xastro_token": "factory/...",
   "eclip": "factory/...",
   "beclip": "neutron...",
-  "astro_staking": "neutron..."
+  "eclip_staking": "neutron...",
+  "astro_staking": "neutron...",
+  "blacklist": [],
+  "init_early_unlock_penalty": "0.7"
 }
 ```
 
@@ -69,8 +72,10 @@ Updates several equinox contracts' addresses for after Equinox is live.
       "lp_staking": "neutron...",
       "liquidity_pool": "neutron...",
       "eclipastro_token": "factory/...",
-      "converter": "neutron...",
-      "dao_treasury_address": "neutron..."
+      "voter": "neutron...",
+      "eclip_staking": "neutron...",
+      "dao_treasury_address": "neutron...",
+      "init_early_unlock_penalty": "0.7"
     }
   }
 }
@@ -204,27 +209,38 @@ Increases lockdrop incentives. Incentive apr is same for each lock duration. Onl
     "rewards":[
       {
         "stake_type":"single_staking",
-        "amount":"1000..."
+        "eclip":"1000...",
+        "beclip":"1000..."
       },
       {
         "stake_type":"lp_staking",
-        "amount":"1000..."
+        "eclip":"1000...",
+        "beclip":"1000..."
       }
     ]
   }
 }
 ```
 
-### `receive`
+### `claim_blacklist_rewards`
 
-Extends single sided lockup duration after Equinox live or increases lockdrop incentives with bECLIP.
+Send blacklist rewards to treasury wallet. Only owner.
 
 ```json
 {
-  "receive": {
-    "sender": "neutron...",
-    "amount": "123",
-    "msg": "<base64_encoded_json_string>"
+  "claim_blacklist_rewards": {}
+}
+```
+
+### `update_lockdrop_periods`
+
+Update deposit/withdrawal periods. Only owner.
+
+```json
+{
+  "update_lockdrop_periods": {
+    "deposit": 123,
+    "withdraw": 123
   }
 }
 ```
@@ -335,6 +351,39 @@ Returns ECLIP bECLIP incentives.
 {
   "incentives": {
     "stake_type": "single_staking"
+  }
+}
+```
+
+### `blacklist`
+
+Returns blacklist array.
+
+```json
+{
+  "blacklist": {}
+}
+```
+
+### `blacklist_rewards`
+
+Returns blacklist rewards.
+
+```json
+{
+  "blacklist_rewards": {}
+}
+```
+
+### `calculate_penalty_amount`
+
+Calculates penalty amount.
+
+```json
+{
+  "calculate_penalty_amount": {
+    "amount": "123",
+    "duration": 123
   }
 }
 ```

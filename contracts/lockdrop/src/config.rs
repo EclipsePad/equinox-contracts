@@ -6,6 +6,7 @@ pub const DEFAULT_WITHDRAW_WINDOW: u64 = 86400 * 2;
 pub const MINIMUM_WINDOW: u64 = 86400;
 pub const BPS_DENOMINATOR: u64 = 10000;
 pub const DEFAULT_INIT_EARLY_UNLOCK_PENALTY: &str = "0.7";
+pub const DEFAULT_LAST_EARLY_UNLOCK_PENALTY: &str = "0.5";
 
 pub const DEFAULT_LOCK_CONFIGS: &[LockConfig] = &[
     LockConfig {

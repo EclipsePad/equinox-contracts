@@ -42,8 +42,11 @@
       "early_unlock_penalty_bps": 5000
     }
   ],
-  "token_converter": "neutron...",
-  "treasury": "neutron..."
+  "eclip_staking": "neutron...",
+  "voter": "neutron...",
+  "treasury": "neutron...",
+  "blacklist": [],
+  "init_early_unlock_penalty": "0.1"
 }
 ```
 
@@ -60,52 +63,47 @@ Updates contract config
       "timelock_config": [
           "..."
       ],
-      "token_converter": "neutron...",
-      "treasury": "neutron..."
+      "voter": "neutron...",
+      "treasury": "neutron...",
+      "eclip": "neutron...",
+      "beclip": "neutron...",
+      "eclip_staking": "neutron...",
+      "init_early_unlock_penalty": "0.1"
     }
   }
 }
 ```
 
-### `update_reward_config`
-
-Updates contract reward config
-
-```json
-{
-  "update_reward_config": {
-    "details": {
-      "eclip": {
-        "info": {
-          "native_token": {
-            "denom": "native..."
-          }
-        },
-        "daily_reward": "123"
-      },
-      "beclip": {
-        "info": {
-          "token": {
-            "contract_addr": "neutron..."
-          }
-        },
-        "daily_reward": "123"
-      }
-    },
-    "reward_end_time": 123
-  }
-}
-```
-
-### `update_owner`
+### `propose_new_owner`
 
 Updates contract owner
 
 ```json
 {
-  "update_owner": {
-    "new_owner": "neutron..."
+  "propose_new_owner": {
+    "owner": "neutron...",
+    "expires_in": 123
   }
+}
+```
+
+### `drop_ownership_proposal`
+
+Don't update contract owner
+
+```json
+{
+  "drop_ownership_proposal": {}
+}
+```
+
+### `claim_ownership`
+
+Update contract owner
+
+```json
+{
+  "claim_ownership": {}
 }
 ```
 
@@ -138,6 +136,19 @@ Claims all rewards of user deposits. Has with flexible option.
 }
 ```
 
+### `stake`
+
+Stakes eclipASTRO.
+
+```json
+{
+  "stake": {
+    "duration": 123,
+    "recipient": "neutron..."
+  }
+}
+```
+
 ### `unstake`
 
 Unstakes user position. Early unstake has penalty. Recipient is optional. For flexible position, remove locked_at or set as 0.
@@ -162,6 +173,7 @@ Extends user position. Recipient is optional.
   "restake": {
     "from_duration": 123,
     "locked_at": 123,
+    "amount": "123",
     "to_duration": 123,
     "recipient": "neutron..."
   }
@@ -192,6 +204,31 @@ Blocks accounts to set relock amount. Normal users can't select amounts to resta
 }
 ```
 
+### `add_rewards`
+
+Add rewards every month.
+
+```json
+{
+  "add_rewards": {
+    "from": 123,
+    "duration": 123,
+    "eclip": "123",
+    "beclip": "123"
+  }
+}
+```
+
+### `claim_blacklist_rewards`
+
+Send blacklist rewards to treasury.
+
+```json
+{
+  "claim_blacklist_rewards": {}
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.
@@ -203,16 +240,6 @@ Returns the vault config.
 ```json
 {
   "config": {}
-}
-```
-
-### `reward_config`
-
-Returns the vault reward config.
-
-```json
-{
-  "reward_config": {}
 }
 ```
 
@@ -265,7 +292,25 @@ Returns user's rewards.
 ```json
 {
   "reward": {
-    "user": "neutron..."
+    "user": "neutron...",
+    "duration": 123,
+    "locked_at": 123
+  }
+}
+```
+
+### `calculate_reward`
+
+Calculates user reward.
+
+```json
+{
+  "calculate_reward": {
+    "amount": "123",
+    "duration": 123,
+    "locked_at": 123,
+    "from": 123,
+    "to": 123
   }
 }
 ```
@@ -302,6 +347,50 @@ Returns all eclipASTRO rewards which is vesting now.
 
 ```json
 {
-  "total_incentives": {}
+  "eclipastro_rewards": {}
+}
+```
+
+### `blacklist`
+
+Returns blacklist.
+
+```json
+{
+  "blacklist": {}
+}
+```
+
+### `blacklist_rewards`
+
+Returns blacklist rewards.
+
+```json
+{
+  "blacklist_rewards": {}
+}
+```
+
+### `reward_schedule`
+
+Returns reward schedule.
+
+```json
+{
+  "reward_schedule": {
+    "from": 123
+  }
+}
+```
+
+### `reward_list`
+
+Returns all rewards of user.
+
+```json
+{
+  "reward_list": {
+    "user": "neutron..."
+  }
 }
 ```
