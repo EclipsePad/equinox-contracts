@@ -7,6 +7,7 @@ pub const REWARD_DISTRIBUTION_TIME_DIFF: u64 = 6 * 3_600; // 6 hours
 pub const BPS_DENOMINATOR: u64 = 10000;
 pub const MAX_PROPOSAL_TTL: u64 = 1209600;
 pub const DEFAULT_INIT_EARLY_UNLOCK_PENALTY: &str = "0.7";
+pub const DEFAULT_LAST_EARLY_UNLOCK_PENALTY: &str = "0.5";
 
 pub const DEFAULT_TIMELOCK_CONFIG: &[TimeLockConfig] = &[
     TimeLockConfig {

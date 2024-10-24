@@ -14,11 +14,12 @@
   "astro": "native...",
   "xastro": "native...",
   "astro_staking": "neutron...",
-  "converter": "neutron...",
-  "astroport_incentives": "neutron...",
+  "eclip_staking": "neutron...",
   "stability_pool": "neutron...",
+  "astroport_incentives": "neutron...",
   "ce_reward_distributor": "neutron...",
-  "treasury": "neutron..."
+  "treasury": "neutron...",
+  "blacklist": []
 }
 ```
 
@@ -34,61 +35,64 @@ Updates contract config
     "config": {
         "lp_token": "neutron...",
         "lp_contract": "neutron...",
-        "converter": "neutron...",
-        "astroport_generator": "neutron...",
         "treasury": "neutron...",
         "stability_pool": "neutron...",
-        "ce_reward_distributor": "neutron..."
+        "ce_reward_distributor": "neutron...",
+        "astroport_incentives": "neutron...",
+        "eclip": "native...",
+        "beclip": "neutron..."
     }
   }
 }
 ```
 
-### `update_reward_config`
+### `update_reward_distribution`
 
 Updates contract reward config
 
 ```json
 {
-  "update_reward_config": {
+  "update_reward_distribution": {
     "distribution": {
       "users": 123,
       "treasury": 123,
       "ce_holders": 123,
       "stability_pool": 123
-    },
-    "reward_end_time": 123,
-    "details": {
-      "eclip": {
-        "info": {
-          "native_token": {
-            "denom": "native..."
-          }
-        },
-        "daily_reward": "123"
-      },
-      "beclip": {
-        "info": {
-          "token": {
-            "contract_addr": "neutron..."
-          }
-        },
-        "daily_reward": "123"
-      }
     }
   }
 }
 ```
 
-### `update_owner`
+### `propose_new_owner`
 
 Updates contract owner
 
 ```json
 {
-  "update_owner": {
-    "new_owner": "neutron..."
+  "propose_new_owner": {
+    "owner": "neutron...",
+    "expires_in": 123
   }
+}
+```
+
+### `drop_ownership_proposal`
+
+Don't update contract owner
+
+```json
+{
+  "drop_ownership_proposal": {}
+}
+```
+
+### `claim_ownership`
+
+Update contract owner
+
+```json
+{
+  "claim_ownership": {}
 }
 ```
 
@@ -116,6 +120,17 @@ Optionally, user can set assets to claim
 }
 ```
 
+### `stake`
+
+Stakes user deposits.
+
+```json
+{
+  "Stake": {
+    "recipient": "neutron..."
+  }
+}
+
 ### `unstake`
 
 Unstakes user deposits.
@@ -126,6 +141,55 @@ Unstakes user deposits.
     "amount": "123",
     "recipient": "neutron..."
   }
+}
+```
+
+### `allow_users`
+
+Allows accounts to set relock amount. Normal users can't select amounts to restake.
+
+```json
+{
+  "allow_users": {
+    "users": ["neutron..."]
+  }
+}
+```
+
+### `block_users`
+
+Blocks accounts to set relock amount. Normal users can't select amounts to restake.
+
+```json
+{
+  "block_users": {
+    "users": ["neutron..."]
+  }
+}
+```
+
+### `add_rewards`
+
+Add rewards every month.
+
+```json
+{
+  "add_rewards": {
+    "from": 123,
+    "duration": 123,
+    "eclip": "123",
+    "beclip": "123"
+  }
+}
+```
+
+### `claim_blacklist_rewards`
+
+Send blacklist rewards to treasury.
+
+```json
+{
+  "claim_blacklist_rewards": {}
 }
 ```
 
@@ -143,13 +207,13 @@ Returns the vault config.
 }
 ```
 
-### `reward_config`
+### `reward_distribution`
 
 Returns the vault reward config.
 
 ```json
 {
-  "reward_config": {}
+  "reward_distribution": {}
 }
 ```
 
@@ -215,6 +279,50 @@ Returns user's reward weights.
 {
   "user_reward_weights": {
     "user": "neutron..."
+  }
+}
+```
+
+### `is_allowed`
+
+Returns if user is in the allowed list.
+
+```json
+{
+  "is_allowed": {
+    "user": "neutron..."
+  }
+}
+```
+
+### `blacklist`
+
+Returns blacklist.
+
+```json
+{
+  "blacklist": {}
+}
+```
+
+### `blacklist_rewards`
+
+Returns blacklist rewards.
+
+```json
+{
+  "blacklist_rewards": {}
+}
+```
+
+### `reward_schedule`
+
+Returns reward schedule.
+
+```json
+{
+  "reward_schedule": {
+    "from": 123
   }
 }
 ```

@@ -1,9 +1,15 @@
 use cosmwasm_std::{Addr, Decimal, Decimal256, Deps, Env, Order, StdResult, Uint128, Uint256};
 use cw_storage_plus::Bound;
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    str::FromStr,
+};
 
 use crate::{
-    config::{BPS_DENOMINATOR, ECLIPASTRO_REWARD_DISTRIBUTION_PERIOD, ONE_DAY},
+    config::{
+        BPS_DENOMINATOR, DEFAULT_LAST_EARLY_UNLOCK_PENALTY, ECLIPASTRO_REWARD_DISTRIBUTION_PERIOD,
+        ONE_DAY,
+    },
     state::{
         RewardWeights, TotalStakingByDuration, BLACK_LIST, BLACK_LIST_REWARDS, CONFIG,
         LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD, STAKING_DURATION_BY_END_TIME,
@@ -390,10 +396,15 @@ pub fn calculate_penalty(
     let cfg = CONFIG.load(deps.storage)?;
     let block_time = env.block.time.seconds();
     let lock_end_time = calculate_lock_end_time(duration, locked_at);
-    let remain_time = min(max(lock_end_time, block_time) - block_time, duration);
+    if lock_end_time < block_time {
+        return Ok(Uint128::zero());
+    }
+    let remain_time = min(lock_end_time - block_time, duration);
+    let last_early_unlock_penalty = Decimal::from_str(DEFAULT_LAST_EARLY_UNLOCK_PENALTY).unwrap();
     let penalty_amount = Decimal::from_ratio(amount, 1u128)
-        * Decimal::from_ratio(remain_time, duration)
-        * cfg.init_early_unlock_penalty;
+        * ((cfg.init_early_unlock_penalty - last_early_unlock_penalty)
+            * Decimal::from_ratio(remain_time, duration)
+            + last_early_unlock_penalty);
     Ok(penalty_amount.to_uint_floor())
 }
 

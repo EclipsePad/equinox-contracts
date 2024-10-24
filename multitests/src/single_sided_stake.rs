@@ -249,7 +249,7 @@ fn stake() {
     ];
     assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
     assert_eq!(suite.query_single_sided_total_staking().unwrap(), 400);
-    assert_eq!(suite.query_eclipastro_balance(BOB).unwrap(), 600);
+    assert_eq!(suite.query_eclipastro_balance(BOB).unwrap(), 550); // 50 sent as penalty
     suite
         .single_sided_restake(BOB, ONE_MONTH, time - THREE_MONTH, SIX_MONTH, None, None)
         .unwrap();

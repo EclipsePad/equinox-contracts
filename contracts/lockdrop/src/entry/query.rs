@@ -1,4 +1,4 @@
-use std::cmp::{max, min};
+use std::{cmp::min, str::FromStr};
 
 use astroport::{
     asset::{Asset, AssetInfo},
@@ -22,7 +22,7 @@ use equinox_msg::{
 };
 
 use crate::{
-    config::BPS_DENOMINATOR,
+    config::{BPS_DENOMINATOR, DEFAULT_LAST_EARLY_UNLOCK_PENALTY},
     error::ContractError,
     state::{
         BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LP_LOCKDROP_INCENTIVES, LP_LOCKUP_INFO,
@@ -929,9 +929,14 @@ pub fn calculate_penalty_amount(
     };
     let one_day = 86400u64;
     let lock_end_time = (duration + locked_at) / one_day * one_day + one_day;
-    let remain_time = min(max(lock_end_time, block_time) - block_time, duration);
+    if lock_end_time < block_time {
+        return Ok(Uint128::zero());
+    }
+    let remain_time = min(lock_end_time - block_time, duration);
+    let last_early_unlock_penalty = Decimal::from_str(DEFAULT_LAST_EARLY_UNLOCK_PENALTY).unwrap();
     let penalty_amount = Decimal::from_ratio(amount, 1u128)
-        * Decimal::from_ratio(remain_time, duration)
-        * cfg.init_early_unlock_penalty;
+        * ((cfg.init_early_unlock_penalty - last_early_unlock_penalty)
+            * Decimal::from_ratio(remain_time, duration)
+            + last_early_unlock_penalty);
     Ok(penalty_amount.to_uint_floor())
 }
