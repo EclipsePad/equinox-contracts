@@ -23,7 +23,7 @@ use crate::{
 
 use equinox_msg::{
     single_sided_staking::{
-        CallbackMsg, OwnershipProposal, RestakeData, Reward, UpdateConfigMsg, UserReward,
+        CallbackMsg, OwnershipProposal, RestakeData, UpdateConfigMsg, UserReward,
     },
     utils::has_unique_elements,
 };
@@ -876,10 +876,13 @@ pub fn add_rewards(
     };
     // get reward duration
     let duration = duration.unwrap_or(DEFAULT_REWARD_DISTRIBUTION_PERIOD);
+    let mut reward = REWARD.load(deps.storage, (reward_start_time + duration, reward_start_time))?;
+    reward.eclip += eclip;
+    reward.beclip += beclip;
     REWARD.save(
         deps.storage,
         (reward_start_time + duration, reward_start_time),
-        &Reward { eclip, beclip },
+        &reward,
     )?;
     Ok(Response::new()
         .add_attribute("action", "add_rewards")
