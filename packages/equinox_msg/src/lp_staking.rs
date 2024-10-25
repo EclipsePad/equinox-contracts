@@ -49,7 +49,7 @@ pub enum ExecuteMsg {
     },
     /// Change reward config
     UpdateRewardDistribution {
-        distribution: Option<RewardDistribution>,
+        distribution: RewardDistribution,
     },
     /// Claim rewards of user.
     Claim {
