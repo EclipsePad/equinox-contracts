@@ -156,22 +156,20 @@ pub fn update_reward_distribution(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    distribution: Option<RewardDistribution>,
+    distribution: RewardDistribution,
 ) -> Result<Response, ContractError> {
     // only owner can executable
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     // the sum bps should be 10000
-    if let Some(distribution) = distribution {
-        ensure_eq!(
-            distribution.users
-                + distribution.treasury
-                + distribution.ce_holders
-                + distribution.stability_pool,
-            BPS_DENOMINATOR,
-            ContractError::RewardDistributionErr {}
-        );
-        REWARD_DISTRIBUTION.save(deps.storage, &distribution)?;
-    }
+    ensure_eq!(
+        distribution.users
+            + distribution.treasury
+            + distribution.ce_holders
+            + distribution.stability_pool,
+        BPS_DENOMINATOR,
+        ContractError::RewardDistributionErr {}
+    );
+    REWARD_DISTRIBUTION.save(deps.storage, &distribution)?;
     Ok(Response::new().add_attribute("action", "update reward distribution"))
 }
 
