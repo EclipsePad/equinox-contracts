@@ -99,6 +99,9 @@ pub enum ContractError {
     #[error("Tokens are not staked")]
     NotStaked {},
 
+    #[error("Early Unlock is not allowed")]
+    EarlyUnlockDisabled {},
+
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
 

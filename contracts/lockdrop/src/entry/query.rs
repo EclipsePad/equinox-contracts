@@ -915,6 +915,21 @@ pub fn query_user_single_rewards(
     )
 }
 
+pub fn check_lock_ended(deps: Deps, duration: u64, block_time: u64) -> StdResult<bool> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let locked_at = if cfg.claims_allowed {
+        cfg.countdown_start_at
+    } else {
+        block_time
+    };
+    let one_day = 86400u64;
+    let lock_end_time = (duration + locked_at) / one_day * one_day + one_day;
+    if lock_end_time < block_time {
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 pub fn calculate_penalty_amount(
     deps: Deps,
     amount: Uint128,

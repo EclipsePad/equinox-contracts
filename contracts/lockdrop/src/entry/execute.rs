@@ -26,11 +26,12 @@ use equinox_msg::{
 use crate::{
     config::MINIMUM_WINDOW,
     entry::query::{
-        calculate_lp_staking_user_rewards, calculate_lp_total_rewards, calculate_penalty_amount,
+        calculate_lp_staking_user_rewards, calculate_lp_total_rewards,
         calculate_pending_lockdrop_incentives, calculate_updated_lp_reward_weights,
-        check_deposit_window, check_lockdrop_ended, get_user_lp_lockdrop_incentives,
-        get_user_single_lockdrop_incentives, query_astro_staking_total_deposit,
-        query_astro_staking_total_shares, query_lp_pool_assets, query_user_single_rewards,
+        check_deposit_window, check_lock_ended, check_lockdrop_ended,
+        get_user_lp_lockdrop_incentives, get_user_single_lockdrop_incentives,
+        query_astro_staking_total_deposit, query_astro_staking_total_shares, query_lp_pool_assets,
+        query_user_single_rewards,
     },
     error::ContractError,
     math::{calculate_max_withdrawal_amount_allowed, calculate_weight},
@@ -2085,6 +2086,11 @@ pub fn _unlock_lp_lockup(
             .add_attribute("withdraw_amount", withdraw_amount.to_string()))
     } else {
         ensure!(cfg.claims_allowed, ContractError::ClaimRewardNotAllowed {});
+        let lock_ended = check_lock_ended(deps.as_ref(), duration, current_time);
+        ensure!(
+            lock_ended.unwrap().eq(&true),
+            ContractError::EarlyUnlockDisabled {}
+        );
         let response = _claim_lp_rewards(deps.branch(), env, sender.clone(), duration, None)?;
         let mut user_lockup_info = LP_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
         let state = LP_LOCKUP_STATE.load(deps.storage)?;
@@ -2105,30 +2111,14 @@ pub fn _unlock_lp_lockup(
         user_lockup_info.total_lp_withdrawed += withdraw_amount;
         lockup_info.total_withdrawed += withdraw_amount;
 
-        let penalty_amount =
-            calculate_penalty_amount(deps.as_ref(), withdraw_amount, duration, current_time)?;
-
-        let lp_token = cfg.lp_token.unwrap();
-        let mut msgs = vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.lp_staking.unwrap().to_string(),
-                msg: to_json_binary(&LpExecuteMsg::Unstake {
-                    amount: withdraw_amount,
-                    recipient: None,
-                })?,
-                funds: vec![],
-            }),
-            lp_token
-                .with_balance(withdraw_amount - penalty_amount)
-                .into_msg(sender.clone())?,
-        ];
-        if !penalty_amount.is_zero() {
-            msgs.push(
-                lp_token
-                    .with_balance(penalty_amount)
-                    .into_msg(cfg.dao_treasury_address.unwrap().to_string())?,
-            );
-        }
+        let msgs = vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.lp_staking.unwrap().to_string(),
+            msg: to_json_binary(&LpExecuteMsg::Unstake {
+                amount: withdraw_amount,
+                recipient: Some(sender.clone()),
+            })?,
+            funds: vec![],
+        })];
 
         LP_LOCKUP_INFO.save(deps.storage, duration, &lockup_info)?;
         LP_USER_LOCKUP_INFO.save(deps.storage, (&sender, duration), &user_lockup_info)?;
@@ -2136,10 +2126,7 @@ pub fn _unlock_lp_lockup(
         Ok(response
             .add_messages(msgs)
             .add_attribute("action", "withdraw")
-            .add_attribute(
-                "withdraw_amount",
-                (withdraw_amount - penalty_amount).to_string(),
-            ))
+            .add_attribute("withdraw_amount", withdraw_amount.to_string()))
     }
 }
 
