@@ -386,6 +386,15 @@ pub fn calculate_reward_weights(
     }
 }
 
+pub fn check_lock_ended(env: Env, duration: u64, locked_at: u64) -> StdResult<bool> {
+    let block_time = env.block.time.seconds();
+    let lock_end_time = calculate_lock_end_time(duration, locked_at);
+    if lock_end_time < block_time {
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 pub fn calculate_penalty(
     deps: Deps,
     env: Env,

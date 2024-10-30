@@ -11,7 +11,7 @@ use eclipse_base::{
 
 use crate::{
     config::{DEFAULT_REWARD_DISTRIBUTION_PERIOD, MAX_PROPOSAL_TTL, ONE_DAY},
-    entry::query::{calculate_penalty, calculate_total_user_reward},
+    entry::query::{calculate_total_user_reward, check_lock_ended},
     error::ContractError,
     state::{
         RewardWeights, TotalStakingByDuration, UserStaked, ALLOWED_USERS, BLACK_LIST,
@@ -757,6 +757,11 @@ pub fn unstake(
     let locked_at = locked_at.unwrap_or_default();
     let sender = info.sender.to_string();
     let block_time = env.block.time.seconds();
+    let lock_ended = check_lock_ended(env.clone(), duration, locked_at);
+    ensure!(
+        lock_ended.unwrap().eq(&true),
+        ContractError::EarlyUnlockDisabled {}
+    );
     let is_allowed_user = ALLOWED_USERS
         .load(deps.storage, &sender)
         .unwrap_or_default();
@@ -798,25 +803,13 @@ pub fn unstake(
     TOTAL_STAKING.save(deps.storage, &total_staking)?;
     TotalStakingByDuration::sub(deps.storage, unlock_amount, duration, locked_at, block_time)?;
 
-    let penalty_amount = calculate_penalty(deps.as_ref(), env, unlock_amount, duration, locked_at)?;
-
-    let mut msgs = vec![BankMsg::Send {
+    let msgs = vec![BankMsg::Send {
         to_address: receiver,
-        amount: coins(
-            unlock_amount.checked_sub(penalty_amount).unwrap().u128(),
-            config.token.clone(),
-        ),
+        amount: coins(unlock_amount.u128(), config.token.clone()),
     }];
-    if !penalty_amount.is_zero() {
-        msgs.push(BankMsg::Send {
-            to_address: config.treasury.to_string(),
-            amount: coins(penalty_amount.u128(), config.token),
-        });
-    }
     response = response
         .add_attribute("action", "unstake")
         .add_attribute("amount", unlock_amount.to_string())
-        .add_attribute("penalty", penalty_amount.to_string())
         .add_attribute("duration", duration.to_string());
 
     if duration > 0u64 {

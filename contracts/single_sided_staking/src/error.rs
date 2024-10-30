@@ -29,6 +29,9 @@ pub enum ContractError {
     #[error("Ensure list contains unique assets")]
     DuplicatedAssets {},
 
+    #[error("Early Unlock is not allowed")]
+    EarlyUnlockDisabled {},
+
     #[error("Amount {got} exceeds your staking {expected}")]
     ExeedingUnstakeAmount { got: u128, expected: u128 },
 

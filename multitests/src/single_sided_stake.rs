@@ -221,9 +221,13 @@ fn stake() {
     assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
     assert_eq!(suite.query_single_sided_total_staking().unwrap(), 500);
     let time = suite.get_time();
-    suite
+    let err = suite
         .single_sided_unstake(BOB, THREE_MONTH, time - THREE_MONTH, None, None)
-        .unwrap();
+        .unwrap_err();
+    assert_eq!(
+        ContractError::EarlyUnlockDisabled {},
+        err.downcast().unwrap()
+    );
     bob_staking = vec![
         UserStaking {
             duration: 0,
@@ -241,15 +245,21 @@ fn stake() {
         },
         UserStaking {
             duration: THREE_MONTH,
-            staking: vec![UserStakingByDuration {
-                amount: Uint128::from(100u128),
-                locked_at: suite.get_time(),
-            }],
+            staking: vec![
+                UserStakingByDuration {
+                    amount: Uint128::from(100u128),
+                    locked_at: suite.get_time() - THREE_MONTH,
+                },
+                UserStakingByDuration {
+                    amount: Uint128::from(100u128),
+                    locked_at: suite.get_time(),
+                },
+            ],
         },
     ];
     assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
-    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 400);
-    assert_eq!(suite.query_eclipastro_balance(BOB).unwrap(), 550); // 50 sent as penalty
+    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 500);
+    assert_eq!(suite.query_eclipastro_balance(BOB).unwrap(), 500);
     suite
         .single_sided_restake(BOB, ONE_MONTH, time - THREE_MONTH, SIX_MONTH, None, None)
         .unwrap();
@@ -263,10 +273,16 @@ fn stake() {
         },
         UserStaking {
             duration: THREE_MONTH,
-            staking: vec![UserStakingByDuration {
-                amount: Uint128::from(100u128),
-                locked_at: suite.get_time(),
-            }],
+            staking: vec![
+                UserStakingByDuration {
+                    amount: Uint128::from(100u128),
+                    locked_at: suite.get_time() - THREE_MONTH,
+                },
+                UserStakingByDuration {
+                    amount: Uint128::from(100u128),
+                    locked_at: suite.get_time(),
+                },
+            ],
         },
         UserStaking {
             duration: SIX_MONTH,

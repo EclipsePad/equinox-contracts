@@ -509,7 +509,8 @@ pub fn unstake(
     let receiver = recipient.unwrap_or(info.sender.to_string());
     let mut msgs = vec![];
 
-    let (mut user_staking, _, response) = _claim(deps.branch(), env, receiver.clone(), None)?;
+    let (mut user_staking, _, response) =
+        _claim(deps.branch(), env, info.sender.to_string(), None)?;
 
     ensure!(
         amount.le(&user_staking.staked),

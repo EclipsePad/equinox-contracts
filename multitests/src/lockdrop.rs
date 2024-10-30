@@ -10,6 +10,7 @@ use equinox_msg::lockdrop::{
 };
 // use equinox_msg::lockdrop::UpdateConfigMsg;
 use lockdrop::error::ContractError;
+use single_sided_staking::error::ContractError as SingleSidedStakingError;
 
 use crate::suite::{Suite, SuiteBuilder, ALICE, CAROL, TREASURY};
 
@@ -1856,28 +1857,37 @@ fn restake_and_unlock() {
     let user_eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
     assert_eq!(user_eclipastro_balance, 0);
 
-    suite
+    let err = suite
         .single_lockup_unlock(ALICE, 7776000, Some(Uint128::from(100u128)))
-        .unwrap();
+        .unwrap_err();
+    assert_eq!(
+        SingleSidedStakingError::EarlyUnlockDisabled {},
+        err.downcast().unwrap()
+    );
 
     let user_eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
     // TODO: check if 31 instead of 50 is correct
-    assert_eq!(user_eclipastro_balance, 31); // 50% penalty
+    assert_eq!(user_eclipastro_balance, 0);
 
     let prev_user_lp_token_balance = suite.query_lp_token_balance(ALICE).unwrap();
     suite
         .lp_lockdrop_claim_rewards(ALICE, 7776000, None)
         .unwrap();
-    suite
+    let err = suite
         .lp_lockup_unlock(ALICE, 7776000, Some(Uint128::from(400u128)))
-        .unwrap();
+        .unwrap_err();
+
+    assert_eq!(
+        ContractError::EarlyUnlockDisabled {},
+        err.downcast().unwrap()
+    );
 
     let user_lp_token_balance = suite.query_lp_token_balance(ALICE).unwrap();
     // TODO: check if 121 instead of 200 is correct
     assert_eq!(
         user_lp_token_balance.u128() - prev_user_lp_token_balance.u128(),
-        121
-    ); // 50% penalty
+        0
+    );
 
     assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 0);
 
@@ -1928,9 +1938,13 @@ fn restake_and_unlock() {
             .u128(),
         476
     );
-    suite
+    let err = suite
         .lp_lockup_unlock(ALICE, 2592000, Some(Uint128::from(476u128)))
-        .unwrap();
+        .unwrap_err();
+    assert_eq!(
+        ContractError::EarlyUnlockDisabled {},
+        err.downcast().unwrap()
+    );
     let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
     assert_eq!(
         user_info
@@ -1948,20 +1962,21 @@ fn restake_and_unlock() {
             .unwrap()
             .lp_token_withdrawed
             .u128(),
-        476
+        0
     );
 
     let err = suite
         .lp_lockup_unlock(ALICE, 2592000, Some(Uint128::from(100u128)))
         .unwrap_err();
     assert_eq!(
-        ContractError::WithdrawLimitExceed("0".to_string()),
+        ContractError::EarlyUnlockDisabled {},
         err.downcast().unwrap()
     );
     // TODO: Denominator must not be zero
-    // suite
-    //     .lp_lockup_unlock(ALICE, 0, Some(Uint128::from(100u128)))
-    //     .unwrap();
+    suite.update_time(SIX_MONTH + 86400 * 3);
+    suite
+        .lp_lockup_unlock(ALICE, THREE_MONTH, Some(Uint128::from(100u128)))
+        .unwrap();
     // // let prev_eclip_balance = suite.query_balance_native(ALICE.to_string(), suite.eclip()).unwrap();
     // // suite.lp_lockdrop_claim_all_rewards(ALICE).unwrap();
     // // let eclip_balance = suite.query_balance_native(ALICE.to_string(), suite.eclip()).unwrap();

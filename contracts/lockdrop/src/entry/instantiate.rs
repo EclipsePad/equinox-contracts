@@ -109,7 +109,7 @@ pub fn try_instantiate(
         countdown_start_at: 0u64,
         init_early_unlock_penalty: msg
             .init_early_unlock_penalty
-            .unwrap_or(Decimal::from_str(&DEFAULT_INIT_EARLY_UNLOCK_PENALTY).unwrap_or_default()),
+            .unwrap_or(Decimal::from_str(DEFAULT_INIT_EARLY_UNLOCK_PENALTY).unwrap_or_default()),
     };
 
     REWARD_DISTRIBUTION_CONFIG.save(deps.storage, &DEFAULT_REWARD_DISTRIBUTION_CONFIG)?;
