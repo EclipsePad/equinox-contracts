@@ -2,9 +2,8 @@ use equinox_msg::lp_staking::RewardDistribution;
 
 pub const DEFAULT_REWARD_DISTRIBUTION: RewardDistribution = RewardDistribution {
     users: 8000,
-    treasury: 1350,
-    ce_holders: 400,
-    stability_pool: 250,
+    treasury: 1750,
+    funding_dao: 250,
 };
 
 pub const ONE_DAY: u64 = 86400u64;
