@@ -59,13 +59,9 @@ pub fn update_config(
         config.treasury = deps.api.addr_validate(&treasury)?;
         res = res.add_attribute("treasury", treasury);
     }
-    if let Some(stability_pool) = new_config.stability_pool {
-        config.stability_pool = deps.api.addr_validate(stability_pool.as_str())?;
-        res = res.add_attribute("stability_pool", stability_pool.to_string());
-    }
-    if let Some(ce_reward_distributor) = new_config.ce_reward_distributor {
-        config.ce_reward_distributor = deps.api.addr_validate(ce_reward_distributor.as_str())?;
-        res = res.add_attribute("ce_reward_distributor", ce_reward_distributor.to_string());
+    if let Some(funding_dao) = new_config.funding_dao {
+        config.funding_dao = deps.api.addr_validate(funding_dao.as_str())?;
+        res = res.add_attribute("funding_dao", funding_dao.to_string());
     }
     if let Some(eclip) = new_config.eclip {
         config.eclip = eclip.clone();
@@ -162,10 +158,7 @@ pub fn update_reward_distribution(
     OWNER.assert_admin(deps.as_ref(), &info.sender)?;
     // the sum bps should be 10000
     ensure_eq!(
-        distribution.users
-            + distribution.treasury
-            + distribution.ce_holders
-            + distribution.stability_pool,
+        distribution.users + distribution.treasury + distribution.funding_dao,
         BPS_DENOMINATOR,
         ContractError::RewardDistributionErr {}
     );
@@ -618,36 +611,21 @@ pub fn distribute_eclipse_rewards(
     let mut msgs = vec![];
     for asset in assets {
         if asset.info.to_string() == cfg.astro.clone() {
-            let ce_holders_rewards = asset.amount.multiply_ratio(
-                reward_distribution.ce_holders,
-                BPS_DENOMINATOR - reward_distribution.users,
-            );
-            let stability_pool_rewards = asset.amount.multiply_ratio(
-                reward_distribution.stability_pool,
+            let funding_dao_rewards = asset.amount.multiply_ratio(
+                reward_distribution.funding_dao,
                 BPS_DENOMINATOR - reward_distribution.users,
             );
             let treasury_rewards = asset
                 .amount
-                .checked_sub(ce_holders_rewards)
-                .unwrap_or_default()
-                .checked_sub(stability_pool_rewards)
+                .checked_sub(funding_dao_rewards)
                 .unwrap_or_default();
-            if ce_holders_rewards.gt(&Uint128::zero()) {
+            if funding_dao_rewards.gt(&Uint128::zero()) {
                 msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: cfg.astro_staking.to_string(),
                     msg: to_json_binary(&StakingExecuteMsg::Enter {
-                        receiver: Some(cfg.ce_reward_distributor.to_string()),
+                        receiver: Some(cfg.funding_dao.to_string()),
                     })?,
-                    funds: vec![coin(ce_holders_rewards.u128(), cfg.astro.clone())],
-                }));
-            }
-            if stability_pool_rewards.gt(&Uint128::zero()) {
-                msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: cfg.astro_staking.to_string(),
-                    msg: to_json_binary(&StakingExecuteMsg::Enter {
-                        receiver: Some(cfg.stability_pool.to_string()),
-                    })?,
-                    funds: vec![coin(stability_pool_rewards.u128(), cfg.astro.clone())],
+                    funds: vec![coin(funding_dao_rewards.u128(), cfg.astro.clone())],
                 }));
             }
             if treasury_rewards.gt(&Uint128::zero()) {

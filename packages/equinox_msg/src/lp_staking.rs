@@ -24,12 +24,10 @@ pub struct InstantiateMsg {
     pub eclip_staking: String,
     /// Astroport incentives
     pub astroport_incentives: String,
-    /// Eclipse treasury. send 67.5% of 20% of incentives rewards
+    /// Eclipse treasury
     pub treasury: String,
-    /// eclipASTRO / xASTRO stability pool. send xastro converted from 12.5% of 20% of incentives rewards
-    pub stability_pool: String,
-    /// cosmic essence reward distributor. send 20% of 20% of incentives rewards
-    pub ce_reward_distributor: String,
+    /// funding DAO
+    pub funding_dao: String,
     /// blacklisted wallets
     pub blacklist: Option<Vec<String>>,
 }
@@ -152,8 +150,7 @@ pub struct UpdateConfigMsg {
     pub lp_contract: Option<String>,
     pub astroport_incentives: Option<String>,
     pub treasury: Option<String>,
-    pub stability_pool: Option<String>,
-    pub ce_reward_distributor: Option<String>,
+    pub funding_dao: Option<String>,
     pub eclip: Option<String>,
     pub beclip: Option<String>,
 }
@@ -179,8 +176,7 @@ pub struct Config {
     /// Astroport incentives
     pub astroport_incentives: Addr,
     pub treasury: Addr,
-    pub stability_pool: Addr,
-    pub ce_reward_distributor: Addr,
+    pub funding_dao: Addr,
 }
 
 #[cw_serde]
@@ -189,10 +185,8 @@ pub struct RewardDistribution {
     pub users: u32,
     /// treasury reward in basis point
     pub treasury: u32,
-    /// cosmic essence holders' reward in basis point
-    pub ce_holders: u32,
-    /// stability pool reward in basis point
-    pub stability_pool: u32,
+    /// funding dao
+    pub funding_dao: u32,
 }
 
 #[cw_serde]

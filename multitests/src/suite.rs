@@ -479,7 +479,7 @@ pub const ASTRO_DENOM: &str = "factory/wasm1_admin/astro";
 pub const ADMIN: &str = "wasm1_admin";
 pub const TREASURY: &str = "wasm1_treasury";
 pub const VXASTRO: &str = "wasm1_vxastro";
-pub const STABILITY_POOL_REWARD_HOLDER: &str = "wasm1_stability_pool_reward_holder";
+pub const FUNDING_DAO: &str = "wasm1_funding_dao";
 pub const CE_REWARD_HOLDER: &str = "wasm1_ce_reward_holder";
 pub const COIN_REGISTRY: &str = "wasm1_coin_registry";
 pub const CHAIN_ID: &str = "cw-multitest-1";
@@ -916,8 +916,7 @@ impl SuiteBuilder {
                     astro_staking: astro_staking_contract.to_string(),
                     astroport_incentives: astroport_incentives.to_string(),
                     treasury: TREASURY.to_string(),
-                    stability_pool: STABILITY_POOL_REWARD_HOLDER.to_string(),
-                    ce_reward_distributor: CE_REWARD_HOLDER.to_string(),
+                    funding_dao: FUNDING_DAO.to_string(),
                     blacklist: Some(vec![CAROL.to_string()]),
                 },
                 &[],
@@ -1001,8 +1000,7 @@ impl SuiteBuilder {
         )
         .unwrap();
 
-        let eclipse_stability_pool = Addr::unchecked(STABILITY_POOL_REWARD_HOLDER);
-        let ce_reward_distributor = Addr::unchecked(CE_REWARD_HOLDER);
+        let funding_dao = Addr::unchecked(FUNDING_DAO);
         let treasury = Addr::unchecked(TREASURY);
 
         Suite {
@@ -1019,8 +1017,7 @@ impl SuiteBuilder {
             lockdrop_contract,
             minter_contract,
             voter_contract,
-            eclipse_stability_pool,
-            ce_reward_distributor,
+            funding_dao,
             eclipastro_xastro_lp_contract,
             eclipastro_xastro_lp_token,
             astroport_incentives,
@@ -1044,8 +1041,7 @@ pub struct Suite {
     lockdrop_contract: Addr,
     minter_contract: Addr,
     voter_contract: Addr,
-    eclipse_stability_pool: Addr,
-    ce_reward_distributor: Addr,
+    funding_dao: Addr,
     eclipastro_xastro_lp_contract: Addr,
     eclipastro_xastro_lp_token: String,
     astroport_incentives: Addr,
@@ -1102,11 +1098,8 @@ impl Suite {
     pub fn astroport_vesting(&self) -> String {
         self.astroport_vesting.to_string()
     }
-    pub fn ce_reward_distributor(&self) -> String {
-        self.ce_reward_distributor.to_string()
-    }
-    pub fn eclipse_stability_pool(&self) -> String {
-        self.eclipse_stability_pool.to_string()
+    pub fn funding_dao(&self) -> String {
+        self.funding_dao.to_string()
     }
     pub fn treasury(&self) -> String {
         self.treasury.to_string()
