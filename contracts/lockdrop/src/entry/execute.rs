@@ -2279,7 +2279,7 @@ pub fn try_unbond(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
         }),
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.eclip_staking.unwrap().to_string(),
-            msg: to_json_binary(&EclipStakingExecuteMsg::Unstake {})?,
+            msg: to_json_binary(&EclipStakingExecuteMsg::Unlock {})?,
             funds: vec![],
         }),
     ];
