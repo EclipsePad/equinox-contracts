@@ -8,7 +8,7 @@ use cosmwasm_std::{
     CosmosMsg, DepsMut, Env, MessageInfo, Order, QuerierWrapper, Response, StdError, StdResult,
     Uint128, Uint256, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use cw_utils::one_coin;
 use eclipse_base::{
     staking::msg::ExecuteMsg as EclipStakingExecuteMsg, voter::msg::ExecuteMsg as VoterExecuteMsg,
@@ -2253,4 +2253,35 @@ pub fn calculate_single_user_rewards(
         beclip: beclip_rewards,
         eclip: eclip_rewards,
     })
+}
+
+pub fn try_unbond(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+    let cfg = CONFIG.load(deps.storage)?;
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    let beclip_balance: BalanceResponse = deps.querier.query_wasm_smart(
+        cfg.beclip.to_string(),
+        &Cw20QueryMsg::Balance {
+            address: env.contract.address.to_string(),
+        },
+    )?;
+    if beclip_balance.balance.is_zero() {
+        return Ok(Response::new());
+    }
+    let msgs = vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.beclip.to_string(),
+            msg: to_json_binary(&Cw20ExecuteMsg::Send {
+                contract: cfg.eclip_staking.clone().unwrap().to_string(),
+                amount: beclip_balance.balance,
+                msg: to_json_binary(&EclipStakingExecuteMsg::Unbond {})?,
+            })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: cfg.eclip_staking.unwrap().to_string(),
+            msg: to_json_binary(&EclipStakingExecuteMsg::Unstake {})?,
+            funds: vec![],
+        }),
+    ];
+    Ok(Response::new().add_messages(msgs))
 }

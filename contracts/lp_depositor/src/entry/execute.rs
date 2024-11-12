@@ -1,5 +1,7 @@
 use astroport::{
-    asset::{Asset, AssetInfo}, pair::ExecuteMsg as PairExecuteMsg, staking::ExecuteMsg as AstroportStakingExecuteMsg
+    asset::{Asset, AssetInfo},
+    pair::ExecuteMsg as PairExecuteMsg,
+    staking::ExecuteMsg as AstroportStakingExecuteMsg,
 };
 use cosmwasm_std::{
     coin, ensure, ensure_eq, to_json_binary, CosmosMsg, DepsMut, Env, MessageInfo, Response,
@@ -136,7 +138,7 @@ fn try_deposit_into_pool(
             slippage_tolerance: None,
             auto_stake: Some(false),
             receiver: Some(recipient),
-            min_lp_to_receive: None
+            min_lp_to_receive: None,
         })?,
         funds,
     })];

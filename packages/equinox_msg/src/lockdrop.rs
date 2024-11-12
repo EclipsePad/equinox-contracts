@@ -90,6 +90,7 @@ pub enum ExecuteMsg {
         deposit: Option<u64>,
         withdraw: Option<u64>,
     },
+    Unbond {},
 }
 
 #[cw_serde]
