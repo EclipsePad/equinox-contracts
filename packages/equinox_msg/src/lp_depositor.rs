@@ -48,6 +48,9 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
+pub enum MigrateMsg {}
+
+#[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     /// query config
