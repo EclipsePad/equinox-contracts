@@ -1,7 +1,7 @@
 use cosmwasm_std::{
     entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
-use equinox_msg::lp_depositor::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use equinox_msg::lp_depositor::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 use crate::{
     entry::{
@@ -44,4 +44,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps)?)?),
         QueryMsg::Simulate { asset } => Ok(to_json_binary(&query_simulate(deps, asset)?)?),
     }
+}
+/// Manages contract migration.
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::new())
 }
