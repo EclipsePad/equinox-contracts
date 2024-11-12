@@ -11,8 +11,8 @@ use crate::{
         execute::{
             _handle_callback, receive_cw20, try_claim_all_rewards, try_claim_blacklist_rewards,
             try_claim_rewards, try_extend_lockup, try_increase_incentives, try_increase_lockup,
-            try_stake_to_vaults, try_unlock, try_update_config, try_update_lockdrop_periods,
-            try_update_owner, try_update_reward_distribution_config,
+            try_stake_to_vaults, try_unbond, try_unlock, try_update_config,
+            try_update_lockdrop_periods, try_update_owner, try_update_reward_distribution_config,
         },
         instantiate::try_instantiate,
         query::{
@@ -83,6 +83,7 @@ pub fn execute(
         ExecuteMsg::UpdateLockdropPeriods { deposit, withdraw } => {
             try_update_lockdrop_periods(deps, env, info, deposit, withdraw)
         }
+        ExecuteMsg::Unbond {} => try_unbond(deps, env, info),
     }
 }
 
