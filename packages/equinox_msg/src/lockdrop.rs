@@ -99,6 +99,12 @@ pub struct MigrateMsg {
 }
 
 #[cw_serde]
+pub struct UserAdjustRewards {
+    pub user: String,
+    pub amount: Uint128,
+}
+
+#[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     /// query config

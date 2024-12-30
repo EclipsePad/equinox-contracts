@@ -25,8 +25,8 @@ use crate::{
     config::{BPS_DENOMINATOR, DEFAULT_LAST_EARLY_UNLOCK_PENALTY},
     error::ContractError,
     state::{
-        BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LP_LOCKDROP_INCENTIVES, LP_LOCKUP_INFO,
-        LP_LOCKUP_STATE, LP_STAKING_REWARD_WEIGHTS, LP_USER_LOCKUP_INFO, OWNER,
+        ADJUST_REWARDS, BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LP_LOCKDROP_INCENTIVES,
+        LP_LOCKUP_INFO, LP_LOCKUP_STATE, LP_STAKING_REWARD_WEIGHTS, LP_USER_LOCKUP_INFO, OWNER,
         REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKDROP_INCENTIVES, SINGLE_LOCKUP_INFO,
         SINGLE_LOCKUP_STATE, SINGLE_STAKING_REWARD_WEIGHTS, SINGLE_USER_LOCKUP_INFO,
     },
@@ -177,12 +177,15 @@ pub fn query_user_single_lockup_info(
                 } else {
                     cfg.countdown_start_at
                 };
+                let adjust_reward = ADJUST_REWARDS
+                    .load(deps.storage, &(user_address.clone(), duration))
+                    .unwrap_or_default();
                 if user_lockup_info.total_eclipastro_staked.is_zero() {
                     user_lockup_info.total_eclipastro_staked = user_lockup_info
                         .xastro_amount_in_lockups
                         .multiply_ratio(state.total_eclipastro_lockup, state.total_xastro);
                 }
-                let single_staking_reward: UserReward = if cfg.single_sided_staking.is_some() {
+                let mut single_staking_reward: UserReward = if cfg.single_sided_staking.is_some() {
                     deps.querier
                         .query_wasm_smart(
                             cfg.single_sided_staking.clone().unwrap(),
@@ -201,6 +204,13 @@ pub fn query_user_single_lockup_info(
                 } else {
                     UserReward::default()
                 };
+                if !adjust_reward.is_zero() {
+                    if adjust_reward.gt(&single_staking_reward.eclipastro) {
+                        single_staking_reward.eclipastro = Uint128::zero();
+                    } else {
+                        single_staking_reward.eclipastro -= adjust_reward;
+                    }
+                }
                 let lockdrop_incentives = if blacklist.contains(&user_address) {
                     LockdropIncentives::default()
                 } else {

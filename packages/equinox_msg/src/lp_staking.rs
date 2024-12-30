@@ -121,6 +121,7 @@ pub enum QueryMsg {
 #[cw_serde]
 pub struct MigrateMsg {
     pub update_contract_name: Option<bool>,
+    pub update_rewards: Option<((u64, u64), Reward)>,
 }
 
 #[cw_serde]
