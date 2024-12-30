@@ -36,8 +36,8 @@ use crate::{
     error::ContractError,
     math::{calculate_max_withdrawal_amount_allowed, calculate_weight},
     state::{
-        BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LP_LOCKDROP_INCENTIVES, LP_LOCKUP_INFO,
-        LP_LOCKUP_STATE, LP_STAKING_REWARD_WEIGHTS, LP_USER_LOCKUP_INFO, OWNER,
+        ADJUST_REWARDS, BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LP_LOCKDROP_INCENTIVES,
+        LP_LOCKUP_INFO, LP_LOCKUP_STATE, LP_STAKING_REWARD_WEIGHTS, LP_USER_LOCKUP_INFO, OWNER,
         REWARD_DISTRIBUTION_CONFIG, SINGLE_LOCKDROP_INCENTIVES, SINGLE_LOCKUP_INFO,
         SINGLE_LOCKUP_STATE, SINGLE_USER_LOCKUP_INFO,
     },
@@ -2177,6 +2177,9 @@ pub fn calculate_single_user_rewards(
     let mut user_lockup_info = SINGLE_USER_LOCKUP_INFO
         .load(deps.storage, (&sender, duration))
         .unwrap_or_default();
+    let adjust_reward = ADJUST_REWARDS
+        .load(deps.storage, &(sender.clone(), duration))
+        .unwrap_or_default();
     if user_lockup_info.total_eclipastro_staked.is_zero() {
         user_lockup_info.total_eclipastro_staked = user_lockup_info
             .xastro_amount_in_lockups
@@ -2210,13 +2213,15 @@ pub fn calculate_single_user_rewards(
             .unwrap_or(cfg.countdown_start_at),
     )?;
 
-    let eclipastro_rewards = if assets.is_none()
+    let mut eclipastro_rewards = if assets.is_none()
         || assets
             .clone()
             .unwrap()
             .contains(&cfg.eclipastro_token.unwrap())
     {
-        user_rewards.eclipastro + user_lockup_info.unclaimed_rewards.eclipastro
+        let amount = user_rewards.eclipastro + user_lockup_info.unclaimed_rewards.eclipastro;
+        user_lockup_info.unclaimed_rewards.eclipastro = Uint128::zero();
+        amount
     } else {
         user_lockup_info.unclaimed_rewards.eclipastro += user_rewards.eclipastro;
         Uint128::zero()
@@ -2246,6 +2251,20 @@ pub fn calculate_single_user_rewards(
         Uint128::zero()
     };
     user_lockup_info.last_claimed = Some(block_time);
+
+    if !adjust_reward.is_zero() && !eclipastro_rewards.is_zero() {
+        if eclipastro_rewards.gt(&adjust_reward) {
+            eclipastro_rewards -= adjust_reward;
+            ADJUST_REWARDS.save(deps.storage, &(sender.clone(), duration), &Uint128::zero())?;
+        } else {
+            ADJUST_REWARDS.save(
+                deps.storage,
+                &(sender.clone(), duration),
+                &(adjust_reward - eclipastro_rewards),
+            )?;
+            eclipastro_rewards = Uint128::zero();
+        }
+    }
 
     SINGLE_USER_LOCKUP_INFO.save(deps.storage, (&sender, duration), &user_lockup_info)?;
     Ok(UserReward {
@@ -2279,7 +2298,7 @@ pub fn try_unbond(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response
         }),
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.eclip_staking.unwrap().to_string(),
-            msg: to_json_binary(&EclipStakingExecuteMsg::Unstake {})?,
+            msg: to_json_binary(&EclipStakingExecuteMsg::Unlock {})?,
             funds: vec![],
         }),
     ];

@@ -102,6 +102,9 @@ pub enum ContractError {
     #[error("Early Unlock is not allowed")]
     EarlyUnlockDisabled {},
 
+    #[error("Contract is undergoing")]
+    Migrating {},
+
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
 

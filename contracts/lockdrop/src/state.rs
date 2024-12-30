@@ -1,3 +1,4 @@
+use cosmwasm_std::Uint128;
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
 use equinox_msg::lockdrop::{
@@ -39,3 +40,4 @@ pub const LP_LOCKDROP_INCENTIVES: Item<IncentiveAmounts> = Item::new("lp_lockdro
 /// List of users who can't claim incentives
 pub const BLACK_LIST: Item<Vec<String>> = Item::new("blacklist");
 pub const BLACK_LIST_REWARDS: Item<BlacklistRewards> = Item::new("blacklist_rewards");
+pub const ADJUST_REWARDS: Map<&(String, u64), Uint128> = Map::new("adjust_rewards");

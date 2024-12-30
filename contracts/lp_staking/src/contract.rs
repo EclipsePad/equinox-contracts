@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult,
+    StdError, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use equinox_msg::lp_staking::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -21,7 +21,7 @@ use crate::{
         },
     },
     error::ContractError,
-    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION},
+    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION, REWARD},
 };
 
 // make use of the custom errors
@@ -125,6 +125,18 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
     if version > storage_version {
         set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    }
+
+    if let Some(update_rewards) = msg.update_rewards {
+        let (time_config, new_reward) = update_rewards;
+        REWARD.update(deps.storage, time_config, |reward| -> StdResult<_> {
+            if let Some(old_reward) = reward {
+                if old_reward.eclip + old_reward.beclip == new_reward.eclip + new_reward.beclip {
+                    return Ok(new_reward);
+                }
+            }
+            Err(StdError::generic_err("Update Rewards error"))
+        })?;
     }
 
     Ok(Response::new().add_attribute("new_contract_version", CONTRACT_VERSION))
