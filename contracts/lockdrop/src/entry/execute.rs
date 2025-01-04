@@ -1937,6 +1937,7 @@ pub fn _unlock_single_lockup(
 ) -> Result<Response, ContractError> {
     let block_time = env.block.time.seconds();
     let cfg = CONFIG.load(deps.storage)?;
+    let contract_address = env.contract.address.to_string();
     let mut lockup_info = SINGLE_LOCKUP_INFO.load(deps.storage, duration)?;
     if !check_lockdrop_ended(deps.as_ref(), block_time).unwrap() {
         let mut user_lockup_info =
@@ -1983,6 +1984,9 @@ pub fn _unlock_single_lockup(
         let state = SINGLE_LOCKUP_STATE.load(deps.storage)?;
         let mut user_lockup_info =
             SINGLE_USER_LOCKUP_INFO.load(deps.storage, (&sender, duration))?;
+        let adjust_reward = ADJUST_REWARDS
+            .load(deps.storage, &(sender.clone(), duration))
+            .unwrap_or_default();
         if user_lockup_info.total_eclipastro_staked.is_zero() {
             user_lockup_info.total_eclipastro_staked = user_lockup_info
                 .xastro_amount_in_lockups
@@ -2000,30 +2004,66 @@ pub fn _unlock_single_lockup(
         user_lockup_info.total_eclipastro_withdrawed += withdraw_amount;
         lockup_info.total_withdrawed += withdraw_amount;
 
+        if !adjust_reward.is_zero() {
+            if adjust_reward < withdraw_amount {
+                withdraw_amount -= adjust_reward;
+            } else {
+                withdraw_amount = Uint128::zero();
+            }
+        }
+
         let mut msgs = vec![];
 
         if duration == 0 {
-            msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.single_sided_staking.unwrap().to_string(),
-                msg: to_json_binary(&SingleSidedExecuteMsg::Unstake {
-                    duration,
-                    locked_at: None,
-                    amount: Some(withdraw_amount),
-                    recipient: Some(sender.clone()),
-                })?,
-                funds: vec![],
-            }));
+            if !adjust_reward.is_zero() {
+                msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: cfg.single_sided_staking.clone().unwrap().to_string(),
+                    msg: to_json_binary(&SingleSidedExecuteMsg::Unstake {
+                        duration,
+                        locked_at: None,
+                        amount: Some(adjust_reward),
+                        recipient: Some(contract_address.clone()),
+                    })?,
+                    funds: vec![],
+                }));
+            }
+            if !withdraw_amount.is_zero() {
+                msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: cfg.single_sided_staking.unwrap().to_string(),
+                    msg: to_json_binary(&SingleSidedExecuteMsg::Unstake {
+                        duration,
+                        locked_at: None,
+                        amount: Some(withdraw_amount),
+                        recipient: Some(sender.clone()),
+                    })?,
+                    funds: vec![],
+                }));
+            }
         } else {
-            msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: cfg.single_sided_staking.unwrap().to_string(),
-                msg: to_json_binary(&SingleSidedExecuteMsg::Unstake {
-                    duration,
-                    locked_at: Some(cfg.countdown_start_at),
-                    amount: Some(withdraw_amount),
-                    recipient: Some(sender.clone()),
-                })?,
-                funds: vec![],
-            }));
+            if !adjust_reward.is_zero() {
+                msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: cfg.single_sided_staking.clone().unwrap().to_string(),
+                    msg: to_json_binary(&SingleSidedExecuteMsg::Unstake {
+                        duration,
+                        locked_at: Some(cfg.countdown_start_at),
+                        amount: Some(adjust_reward),
+                        recipient: Some(contract_address.clone()),
+                    })?,
+                    funds: vec![],
+                }));
+            }
+            if !withdraw_amount.is_zero() {
+                msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: cfg.single_sided_staking.unwrap().to_string(),
+                    msg: to_json_binary(&SingleSidedExecuteMsg::Unstake {
+                        duration,
+                        locked_at: Some(cfg.countdown_start_at),
+                        amount: Some(withdraw_amount),
+                        recipient: Some(sender.clone()),
+                    })?,
+                    funds: vec![],
+                }));
+            }
         }
 
         SINGLE_LOCKUP_INFO.save(deps.storage, duration, &lockup_info)?;
