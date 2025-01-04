@@ -150,12 +150,38 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
     let more_claimed_rewards: Vec<UserAdjustRewards> = vec![
         UserAdjustRewards {
-            user: "neutron1ktaqdmlchv065tlt49c50ecmhqejw8ugdtp6pv".to_string(),
-            amount: Uint128::from_str("285064690").unwrap(),
+            user: "neutron17zxc4ypxz57pu8z7t9e3wv9f7dd52qsgykee4n".to_string(),
+            amount: Uint128::from_str("53043742976").unwrap(),
         },
         UserAdjustRewards {
-            user: "neutron17zxc4ypxz57pu8z7t9e3wv9f7dd52qsgykee4n".to_string(),
-            amount: Uint128::from_str("55334115356").unwrap(),
+            user: "neutron1ez4ev32pznjc6lp7yakdc7yj2quqhjrf3y9dhx".to_string(),
+            amount: Uint128::from_str("11902418").unwrap(),
+        },
+        UserAdjustRewards {
+            user: "neutron15hy7ky6hs7aeg2wpxhkwqs7tzzvjt4qnpn8m3g".to_string(),
+            amount: Uint128::from_str("657891429").unwrap(),
+        },
+        UserAdjustRewards {
+            user: "neutron1up4w90c0zm672mh0euch77avtygun0yfq0vffx".to_string(),
+            amount: Uint128::from_str("14253409").unwrap(),
+        },
+        UserAdjustRewards {
+            user: "neutron12uq952unhc2m5l58lrvm9nnu7a3ag873cmunuq".to_string(),
+            amount: Uint128::from_str("9090").unwrap(),
+        },
+        UserAdjustRewards {
+            user: "neutron15u4qt7vp53h8jsm3caenyxskmp3ma3cg2mpddr".to_string(),
+            amount: Uint128::from_str("3384797428").unwrap(),
+        },
+        UserAdjustRewards {
+            user: "neutron1pr8sqns2srqktd0cq35tn8pvup9vaf5vrcpmlc".to_string(),
+            amount: Uint128::from_str("743389284").unwrap(),
+        },
+    ];
+    let need_to_claim: Vec<UserAdjustRewards> = vec![
+        UserAdjustRewards {
+            user: "neutron1ktaqdmlchv065tlt49c50ecmhqejw8ugdtp6pv".to_string(),
+            amount: Uint128::from_str("285064690").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1cnzcqss00dv09kpwqmuxkqssevr7u77j75gyhd".to_string(),
@@ -163,39 +189,39 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1wv40aq6p9x2mfclt66wgznwefk298p53epr4hd".to_string(),
-            amount: Uint128::from_str("2987934087").unwrap(),
+            amount: Uint128::from_str("2966740248").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron136wrasqzaplzsakzf62g0czq3jeh6wxn9crmtj".to_string(),
-            amount: Uint128::from_str("34702933").unwrap(),
+            amount: Uint128::from_str("23939385").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1ej828l97c3jxd88vr8c26qy3lekpmsqyjpy3ll".to_string(),
-            amount: Uint128::from_str("95390285").unwrap(),
+            amount: Uint128::from_str("94651274").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1m2nlz3024wmpwmytmeawntdvglde2vx7nf8lpr".to_string(),
-            amount: Uint128::from_str("663261").unwrap(),
+            amount: Uint128::from_str("653714").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron10hvz04hh92xzct5hxnpsn5h2fp3p4ammcg425r".to_string(),
-            amount: Uint128::from_str("5104025").unwrap(),
+            amount: Uint128::from_str("5055266").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron10a70lpas3rkydmpnqs0dtr5my5kt8ggfem6u7z".to_string(),
-            amount: Uint128::from_str("500367330").unwrap(),
+            amount: Uint128::from_str("484123312").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1zf0836n2gjlevnc8jekurn939xn688ydp6a2au".to_string(),
-            amount: Uint128::from_str("1478564611").unwrap(),
+            amount: Uint128::from_str("1469629411").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron18thwcddjk76wkyytu0vym9z9sl3mkzhjm80wfh".to_string(),
-            amount: Uint128::from_str("167441204").unwrap(),
+            amount: Uint128::from_str("166108540").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1cgxsf2kt729a42eegqqw6q2el7g764hl0snjdm".to_string(),
-            amount: Uint128::from_str("648494986").unwrap(),
+            amount: Uint128::from_str("603704374").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1l0q6w9gemqhaml8e2s9ptw4su4svweax7k9g7a".to_string(),
@@ -203,15 +229,15 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1qms0znsxnagqr56welqdu90wu00fspc8gn7l4q".to_string(),
-            amount: Uint128::from_str("1736285612").unwrap(),
+            amount: Uint128::from_str("1727986776").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1lynr3f7zqhpcwacvatewcwj0ar5q9sgxxpy074".to_string(),
-            amount: Uint128::from_str("1880250038").unwrap(),
+            amount: Uint128::from_str("1860427034").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1la4nlstynp2wl0r236du0evjpqh8h9fq0m87w5".to_string(),
-            amount: Uint128::from_str("1020782170").unwrap(),
+            amount: Uint128::from_str("1011413811").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron18qqmyc57wemv4qkcmcwpvvwjnmpkv2w62c5dvs".to_string(),
@@ -219,27 +245,27 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1t3usy5x8xfggzspknnka02ny7u65u6k04uyew9".to_string(),
-            amount: Uint128::from_str("583857841").unwrap(),
+            amount: Uint128::from_str("580494816").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1sypqufzxkqqmul7g8f8xz0hjfkgsj9quwcujuk".to_string(),
-            amount: Uint128::from_str("4673392").unwrap(),
+            amount: Uint128::from_str("4655039").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1pyzxvfa7f8gr5x20n8kl0lu78jczuevn974805".to_string(),
-            amount: Uint128::from_str("176301616").unwrap(),
+            amount: Uint128::from_str("70816957").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1z4374xv43seaxh5r2gr03h990hfaj0564r89vu".to_string(),
-            amount: Uint128::from_str("131986384").unwrap(),
+            amount: Uint128::from_str("131664053").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron17rx4caclnlkqwlkq4hq3aq0cvj993pnfvkzsas".to_string(),
-            amount: Uint128::from_str("567324600").unwrap(),
+            amount: Uint128::from_str("402070823").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1u5gaduhhs0ht3aqj4u74wfpxrqn0nwuq362f46".to_string(),
-            amount: Uint128::from_str("57153061").unwrap(),
+            amount: Uint128::from_str("56455945").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1nzzdvyack8qv63d854g58ktm0xyxhq4skatrwq".to_string(),
@@ -247,7 +273,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1jp9hyv8sj9ucswsmwraydg54cxqvapsmkw4pwl".to_string(),
-            amount: Uint128::from_str("36312880").unwrap(),
+            amount: Uint128::from_str("36255359").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1y0t5g650jcn49v66ta4ueumkd6qwxp4qt7egl0".to_string(),
@@ -255,7 +281,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1q9t5fa4zhv9pn52snhyga4y54fceyhrdvxus3q".to_string(),
-            amount: Uint128::from_str("101028572").unwrap(),
+            amount: Uint128::from_str("99744046").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1ypprtuvnr38pa98ypffx4yg3p9jj77y427v4pm".to_string(),
@@ -263,7 +289,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1xn2lfrcm5nd3lf4s703pugfuvelxcf922r0924".to_string(),
-            amount: Uint128::from_str("29993718").unwrap(),
+            amount: Uint128::from_str("28267615").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron18ypcg06xvmjvwam5jxucaazanyn00g5jkv52f3".to_string(),
@@ -271,7 +297,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1g692jde5e7nqpml4rmxgge22m3qvft8utrcrph".to_string(),
-            amount: Uint128::from_str("37364220").unwrap(),
+            amount: Uint128::from_str("24379163").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron12sq9v0gmz3wvvye7zve45s03693hdmzwjwh5v4".to_string(),
@@ -279,7 +305,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1jj3xudkz3n60j9paq66xzejtmwzvrmn8as99nv".to_string(),
-            amount: Uint128::from_str("72926394").unwrap(),
+            amount: Uint128::from_str("72252030").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1rxdslevtdk4xgju50g4pa3ktf93x9gjvt45mrf".to_string(),
@@ -287,51 +313,51 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1l4y9c7y9esvnuw2ewgfc29f9sscur385wsrvg6".to_string(),
-            amount: Uint128::from_str("103928146").unwrap(),
+            amount: Uint128::from_str("74364945").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1xgx7ux8sw49nadsne8hcjemt55j7nkqtupj2jh".to_string(),
-            amount: Uint128::from_str("140817283").unwrap(),
+            amount: Uint128::from_str("138817566").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1kzu6yxgdag4r0y4h3fdsp9kzsrrmydnknc65ht".to_string(),
-            amount: Uint128::from_str("27023073").unwrap(),
+            amount: Uint128::from_str("24320470").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1qeu7uxxsthwcxcevzlwatjfnvew44tnlue2jc4".to_string(),
-            amount: Uint128::from_str("86331840").unwrap(),
+            amount: Uint128::from_str("57017442").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron145kvyy7njm970wu58ytpv38caxl7yvm544h4v4".to_string(),
-            amount: Uint128::from_str("892732497").unwrap(),
+            amount: Uint128::from_str("885680641").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1tveyveuc2t8arvj0lxac9mzagxl29tk33xyzs3".to_string(),
-            amount: Uint128::from_str("51139841").unwrap(),
+            amount: Uint128::from_str("14557084").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1zqlq0slcear0rggnvcgsxpv99mtlyck8heav28".to_string(),
-            amount: Uint128::from_str("246616797").unwrap(),
+            amount: Uint128::from_str("244870858").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1yen5f0ej9njg0d9pa8nn2hwjpqqm36zjr2p785".to_string(),
-            amount: Uint128::from_str("199699936").unwrap(),
+            amount: Uint128::from_str("196971644").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron18tnusz5r6emg8uk2a988zq685a5gpfxummzr7m".to_string(),
-            amount: Uint128::from_str("108042403").unwrap(),
+            amount: Uint128::from_str("107260588").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1vt2jalakgpvuln3nj698ss80nr8x4cmep40uv0".to_string(),
-            amount: Uint128::from_str("133690853").unwrap(),
+            amount: Uint128::from_str("126686699").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron18a3eyd0mfpruc6y9g60hljdx5jn2f5tra4ylrc".to_string(),
-            amount: Uint128::from_str("18203625").unwrap(),
+            amount: Uint128::from_str("18026137").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron10rdut36lnhsrudd3t4zqqgpvrmxam4led82zwa".to_string(),
-            amount: Uint128::from_str("518385313").unwrap(),
+            amount: Uint128::from_str("516103285").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1chncjjdkvcjah0f934lmdvqj94e549e9shhcsp".to_string(),
@@ -343,11 +369,11 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron17kauqk0hc5hut2af3e0a6t63n7f7hr6wma5hl2".to_string(),
-            amount: Uint128::from_str("57875428").unwrap(),
+            amount: Uint128::from_str("57077551").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron197nvjpgu79qsw27zzk0gyt9qh8cmq8wdyypwg4".to_string(),
-            amount: Uint128::from_str("22907047").unwrap(),
+            amount: Uint128::from_str("22694839").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1s3n42apstpdcqnyhc0cqavr78kgxl4x0k5n3sd".to_string(),
@@ -367,35 +393,35 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron19xaz6wwtypjh7292zwg35q932nztzxfa83s5fz".to_string(),
-            amount: Uint128::from_str("1430968734").unwrap(),
+            amount: Uint128::from_str("902418326").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron18mgj6w322m4agfekvdn5fynfypnn2mmeagcp6u".to_string(),
-            amount: Uint128::from_str("1182451361").unwrap(),
+            amount: Uint128::from_str("1110580763").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron12tpkd4ftz73a2ap8s9tmql7f9q9hrczn0283ty".to_string(),
-            amount: Uint128::from_str("397832362").unwrap(),
+            amount: Uint128::from_str("76491021").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron10l40z2kcd2fs8zvuxtr4m5wxqwzzr52ynkmyew".to_string(),
-            amount: Uint128::from_str("174076300").unwrap(),
+            amount: Uint128::from_str("113329877").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1trzmw63uq50r30c9rlrz766mxk76tx0fdlksnw".to_string(),
-            amount: Uint128::from_str("61255").unwrap(),
+            amount: Uint128::from_str("51440").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron16m4yxukw8sgd0k7w3mwa29kqejq4ym6xxg9ag6".to_string(),
-            amount: Uint128::from_str("2114776").unwrap(),
+            amount: Uint128::from_str("2084387").unwrap(),
+        },
+        UserAdjustRewards {
+            user: "neutron17w0jscv784knz238avr0dajzmdh2l5fqxunpat".to_string(),
+            amount: Uint128::from_str("43382148").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron17qg3pf85kj56z8lye25kpwvjx6cgftq05sw3jl".to_string(),
             amount: Uint128::from_str("7056").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron17w0jscv784knz238avr0dajzmdh2l5fqxunpat".to_string(),
-            amount: Uint128::from_str("44020403").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron13w44qxlgl7ued0w6jep6yca73htmrwas08znxf".to_string(),
@@ -403,27 +429,27 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1qf08dql0ufmq78rs9ecnk9cexm3aspre338czp".to_string(),
-            amount: Uint128::from_str("75841417").unwrap(),
+            amount: Uint128::from_str("8060038").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1f4w0hhfm6c6e9q80f3u8zf4fht2vm54veyt80n".to_string(),
-            amount: Uint128::from_str("62922022").unwrap(),
+            amount: Uint128::from_str("59601181").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1d2r0uw49jgfeg8rcs8dp9alfq5sqyht4wy9spt".to_string(),
-            amount: Uint128::from_str("17498476").unwrap(),
+            amount: Uint128::from_str("17396036").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1v8h45qelm6r7ucsdmex48ntkvnrnq9urkyptah".to_string(),
-            amount: Uint128::from_str("49306").unwrap(),
+            amount: Uint128::from_str("32455").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1najzatgap3dq92hk9uax69ymkdmx2qtyx2j94k".to_string(),
-            amount: Uint128::from_str("10384954").unwrap(),
+            amount: Uint128::from_str("10058921").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1haa2p9zsnklupq80a449ex0d5y0xqa39ycshap".to_string(),
-            amount: Uint128::from_str("30664").unwrap(),
+            amount: Uint128::from_str("20809").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1x5sms7rp44jqg8v9qgn92kal6ld38zqyzuk0v7".to_string(),
@@ -435,55 +461,51 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1up5xyleh6qrc0lnpnszp7tqnwqu4edkzg2qgs4".to_string(),
-            amount: Uint128::from_str("4536569").unwrap(),
+            amount: Uint128::from_str("4508285").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1uyphdztvh3r4jv23utrht7qtgf0ref34u607qd".to_string(),
-            amount: Uint128::from_str("35516").unwrap(),
+            amount: Uint128::from_str("34884").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1fs3pd75pgd0qjjz324fzmfxtrm9g2dcjtqae9e".to_string(),
-            amount: Uint128::from_str("7182148").unwrap(),
+            amount: Uint128::from_str("6890802").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1d68rccckj3zfgqayat5sexl6gvsrgy3x0ps09s".to_string(),
-            amount: Uint128::from_str("8052886").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron10pfvzsq22ylk30n2vt2mk8937jmpzggs9fjthy".to_string(),
-            amount: Uint128::from_str("87279736").unwrap(),
+            amount: Uint128::from_str("7792551").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1lxzzvjxsegryqs3k8jlghce2gmxg5dtr4tj0fy".to_string(),
             amount: Uint128::from_str("35754").unwrap(),
         },
         UserAdjustRewards {
+            user: "neutron10pfvzsq22ylk30n2vt2mk8937jmpzggs9fjthy".to_string(),
+            amount: Uint128::from_str("85797459").unwrap(),
+        },
+        UserAdjustRewards {
+            user: "neutron1y0r96xq4glwxpg0jgcauu3yufhn2l8dvpqj0kk".to_string(),
+            amount: Uint128::from_str("64069").unwrap(),
+        },
+        UserAdjustRewards {
+            user: "neutron1h82nvuc4gw53l58ccjlqy3wdlttnnkes4e9zza".to_string(),
+            amount: Uint128::from_str("147899192").unwrap(),
+        },
+        UserAdjustRewards {
             user: "neutron1kkwklh7kyr20ktq29uctagkxc7rc27ymr3mtfs".to_string(),
             amount: Uint128::from_str("2875976").unwrap(),
         },
         UserAdjustRewards {
-            user: "neutron1h82nvuc4gw53l58ccjlqy3wdlttnnkes4e9zza".to_string(),
-            amount: Uint128::from_str("164377993").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron1y0r96xq4glwxpg0jgcauu3yufhn2l8dvpqj0kk".to_string(),
-            amount: Uint128::from_str("76238").unwrap(),
-        },
-        UserAdjustRewards {
             user: "neutron10ns6fccrf7zdmmdsehrgng7grmqc2let56qr82".to_string(),
-            amount: Uint128::from_str("286").unwrap(),
+            amount: Uint128::from_str("225").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1m75uf4f0cn0qklwyxwaujmpd49xxhhuyzj9au2".to_string(),
-            amount: Uint128::from_str("49176069").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron1lwrna9hj3awewqr8ryx2wlpdc2dcgq7asd5na9".to_string(),
-            amount: Uint128::from_str("22").unwrap(),
+            amount: Uint128::from_str("49075382").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron16r5q7lef9nyv79djge3yw55l9x67g2yxl0v8sa".to_string(),
-            amount: Uint128::from_str("18734837").unwrap(),
+            amount: Uint128::from_str("18396552").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1estvx6e2fe49na58mn5yrmuxwxduyregp7j33d".to_string(),
@@ -491,11 +513,11 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron16he9gjnqghk0ljhx8v25w5y2wugnaddq6pnadp".to_string(),
-            amount: Uint128::from_str("226859661").unwrap(),
+            amount: Uint128::from_str("221892396").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1ez6r6jj0fgxauy3z9j8n85myjwnzt49nw3fkz2".to_string(),
-            amount: Uint128::from_str("4628412304").unwrap(),
+            amount: Uint128::from_str("4039200133").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron18r536pthsh6ya00298c37matrmhm5rcppz5k8u".to_string(),
@@ -503,19 +525,19 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1d6ytk5nmc64r6p3mjfdqg9g5rlm5ca3m75587t".to_string(),
-            amount: Uint128::from_str("14173147").unwrap(),
+            amount: Uint128::from_str("14110303").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1wsc62azzkuxl42au9et5x8j27mcfxm8vpt3zlw".to_string(),
-            amount: Uint128::from_str("2055011").unwrap(),
+            amount: Uint128::from_str("1883628").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1jml69sl5cur3qhrx0lk23q6jsslarwft9rh67l".to_string(),
-            amount: Uint128::from_str("75573966").unwrap(),
+            amount: Uint128::from_str("20325124").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron19e5lvf5lnkupj4x2hefjvw4486hnjpvwt5hpqw".to_string(),
-            amount: Uint128::from_str("43658459").unwrap(),
+            amount: Uint128::from_str("43623529").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1sp7t2x56z2dvut66lxtke0wf097tv8fpavn0sg".to_string(),
@@ -523,11 +545,11 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1nv4vn7hq4ln32jpe0qw0vsv8mmkp9durx0sm6k".to_string(),
-            amount: Uint128::from_str("3254513").unwrap(),
+            amount: Uint128::from_str("3250896").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1nlwft7nqz8cyytjkn3xhfdwalk8rdvpyauwe70".to_string(),
-            amount: Uint128::from_str("20426283").unwrap(),
+            amount: Uint128::from_str("20225707").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1uaux0dl3gh40y9czng2eqn2d52uu8afv5ujcdg".to_string(),
@@ -535,11 +557,11 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron13ukrwufmm4sgwgptvhz7ll34h5flqjnkva04um".to_string(),
-            amount: Uint128::from_str("976585530").unwrap(),
+            amount: Uint128::from_str("973993648").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1rqqzgxs8ty03rm5s7f9x94wj4tnx404wf23t0f".to_string(),
-            amount: Uint128::from_str("24063807").unwrap(),
+            amount: Uint128::from_str("23229344").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1xrrfdlh2tattd4rq8uz5s6d58rxz4xy8lm2cqp".to_string(),
@@ -551,7 +573,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1xvunup2m747gu6yr5qpmpehal5tr654cgv42q4".to_string(),
-            amount: Uint128::from_str("7872").unwrap(),
+            amount: Uint128::from_str("7708").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron14pk90lt7ecrglkr6fzkxzuxzuzcz5celhly53z".to_string(),
@@ -559,11 +581,11 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1aewp32snk3mapzzlfxc97xk64yhvduh8lxhxfs".to_string(),
-            amount: Uint128::from_str("5459912").unwrap(),
+            amount: Uint128::from_str("5306876").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1k9e3vvjwkuvmprf0808lzqanaq4s69fh0e2y8s".to_string(),
-            amount: Uint128::from_str("28852719").unwrap(),
+            amount: Uint128::from_str("27885671").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1xkn622n8u82uxymvjnaul478ywqd96ah2ewju8".to_string(),
@@ -571,11 +593,11 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1rxw8wng2cn0hkvq3yjc7nrgc7rfdffjafuq0vs".to_string(),
-            amount: Uint128::from_str("41575782").unwrap(),
+            amount: Uint128::from_str("41251471").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1qnm7vjlp06set0r9dxmlxlssz4l7l9qm89m0ml".to_string(),
-            amount: Uint128::from_str("8884057").unwrap(),
+            amount: Uint128::from_str("8295900").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1kkhhlxxdjk9dw0rjcx5yqzuwuhht0pwa7k5r35".to_string(),
@@ -587,7 +609,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1nnsmwlg0krhcjr3alt9e72pwlyt6fa4xg69sxd".to_string(),
-            amount: Uint128::from_str("1629948").unwrap(),
+            amount: Uint128::from_str("1613207").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron15fhr3305rajmmt8g48h9hnnnxt9qm4az2jwh0j".to_string(),
@@ -595,11 +617,11 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron13rez78f88wymvr954g4g8xr9kcqrlv33q8d2a8".to_string(),
-            amount: Uint128::from_str("514795856").unwrap(),
+            amount: Uint128::from_str("509708159").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron18m26lkjly2hkck25t7sdsrnu72x0g6gxujn99s".to_string(),
-            amount: Uint128::from_str("127934141").unwrap(),
+            amount: Uint128::from_str("2177170").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron19f7g0r7ptvxdns5456h3ypqgkp6gaa4kwzqtvw".to_string(),
@@ -607,15 +629,15 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1zkm7azc55ffvr82hct083t9gxt6qdyz67lew0u".to_string(),
-            amount: Uint128::from_str("249567").unwrap(),
+            amount: Uint128::from_str("249405").unwrap(),
+        },
+        UserAdjustRewards {
+            user: "neutron10lnxkvncgdxqv8z8aee9pvyf9h8ddcmlj2uh77".to_string(),
+            amount: Uint128::from_str("4211763").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1tk76yp96uztyvrupeqxq0h8uger6nttpl0zsek".to_string(),
             amount: Uint128::from_str("5145223").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron10lnxkvncgdxqv8z8aee9pvyf9h8ddcmlj2uh77".to_string(),
-            amount: Uint128::from_str("4350615").unwrap(),
         },
         UserAdjustRewards {
             user: "neutron1mzemvvz765vh3a5t6qxe88c2k2ts3x9zcgqxuk".to_string(),
@@ -631,45 +653,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         },
         UserAdjustRewards {
             user: "neutron1nfydcr6kp5tf69emnrhtaxwh7cmrxuzxew8yyv".to_string(),
-            amount: Uint128::from_str("2935304").unwrap(),
-        },
-    ];
-    let need_to_claim: Vec<UserAdjustRewards> = vec![
-        UserAdjustRewards {
-            user: "neutron1ez4ev32pznjc6lp7yakdc7yj2quqhjrf3y9dhx".to_string(),
-            amount: Uint128::from_str("11566236").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron1au342rrkx42rzz32k3tj23e9h76fxqfwzss8s6".to_string(),
-            amount: Uint128::from_str("14").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron1r5m978tlcuuuvmaw6xqdj2k2qpv5myxwxpssvt".to_string(),
-            amount: Uint128::from_str("560").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron1yxqajr79ldggu5w9tvd0tk8z5ux5qkn70fst67".to_string(),
-            amount: Uint128::from_str("256").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron15hy7ky6hs7aeg2wpxhkwqs7tzzvjt4qnpn8m3g".to_string(),
-            amount: Uint128::from_str("612622203").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron1up4w90c0zm672mh0euch77avtygun0yfq0vffx".to_string(),
-            amount: Uint128::from_str("13671998").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron12uq952unhc2m5l58lrvm9nnu7a3ag873cmunuq".to_string(),
-            amount: Uint128::from_str("7648").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron15u4qt7vp53h8jsm3caenyxskmp3ma3cg2mpddr".to_string(),
-            amount: Uint128::from_str("3348182306").unwrap(),
-        },
-        UserAdjustRewards {
-            user: "neutron1pr8sqns2srqktd0cq35tn8pvup9vaf5vrcpmlc".to_string(),
-            amount: Uint128::from_str("743389284").unwrap(),
+            amount: Uint128::from_str("2904938").unwrap(),
         },
     ];
 
@@ -709,7 +693,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         for lock_cfg in cfg.lock_configs.iter() {
             let user_staking = SINGLE_USER_LOCKUP_INFO
                 .load(deps.storage, (&rewards.user, lock_cfg.duration))
-                .unwrap();
+                .unwrap_or_default();
             total_unclaimed_rewards += user_staking.unclaimed_rewards.eclipastro;
             eclipastro_total_staked +=
                 user_staking.total_eclipastro_staked - user_staking.total_eclipastro_withdrawed;
@@ -719,7 +703,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         } else {
             Uint128::zero()
         };
-        let more_claimed = if total_unclaimed_rewards.lt(&rewards.amount) {
+        let more_claimed = if total_unclaimed_rewards.ge(&rewards.amount) {
             Uint128::zero()
         } else {
             rewards.amount - total_unclaimed_rewards
@@ -739,11 +723,14 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
             } else {
                 user_staking.unclaimed_rewards.eclipastro = Uint128::zero();
                 let amount = more_claimed * user_eclipastro / eclipastro_total_staked;
+                let adjust_rewards = ADJUST_REWARDS
+                    .load(deps.storage, &(rewards.user.clone(), lock_cfg.duration))
+                    .unwrap_or_default();
                 ADJUST_REWARDS
                     .save(
                         deps.storage,
                         &(rewards.user.clone(), lock_cfg.duration),
-                        &amount,
+                        &(adjust_rewards + amount),
                     )
                     .unwrap();
             }
