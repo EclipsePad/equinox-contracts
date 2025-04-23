@@ -21,7 +21,7 @@ cw-controllers = "1.0.1"
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks_1_0", features = [
     "cosmwasm_1_1",
 ] }
-speculoos = "0.11.0"
+pretty_assertions = "1.4.1"
 cw-storage-plus = "1.0.1"
 cw-utils = "1.0.1"
 schemars = "0.8.1"

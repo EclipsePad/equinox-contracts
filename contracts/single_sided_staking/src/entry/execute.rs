@@ -1,12 +1,17 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_std::{
-    attr, coins, ensure, ensure_eq, to_json_binary, BankMsg, Coin, CosmosMsg, Decimal256, DepsMut,
-    Env, MessageInfo, Order, Response, StdResult, Storage, Uint128, WasmMsg,
+    attr, coins, ensure, ensure_eq, to_json_binary, wasm_execute, BankMsg, Coin, CosmosMsg,
+    Decimal256, DepsMut, Env, MessageInfo, Order, Response, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw_storage_plus::Bound;
 use cw_utils::one_coin;
 use eclipse_base::{
-    staking::msg::ExecuteMsg as EclipStakingExecuteMsg, voter::msg::ExecuteMsg as VoterExecuteMsg,
+    converters::{str_to_dec, u128_to_dec},
+    staking::msg::ExecuteMsg as EclipStakingExecuteMsg,
+    voter::{
+        msg::{ExecuteMsg as VoterExecuteMsg, QueryMsg as VoterQueryMsg},
+        types::TokenConfig as VoterTokenConfig,
+    },
 };
 
 use crate::{
@@ -17,15 +22,16 @@ use crate::{
         RewardWeights, TotalStakingByDuration, UserStaked, ALLOWED_USERS, BLACK_LIST,
         BLACK_LIST_REWARDS, CONFIG, LAST_CLAIM_TIME, OWNER, OWNERSHIP_PROPOSAL,
         PENDING_ECLIPASTRO_REWARDS, REWARD, REWARD_WEIGHTS, STAKING_DURATION_BY_END_TIME,
-        TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED,
+        TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED, USER_UNBONDED,
     },
 };
 
 use equinox_msg::{
     single_sided_staking::{
-        CallbackMsg, OwnershipProposal, RestakeData, Reward, UpdateConfigMsg, UserReward,
+        CallbackMsg, OwnershipProposal, RestakeData, Reward, UnbondedItem, UpdateConfigMsg,
+        UserReward,
     },
-    utils::has_unique_elements,
+    utils::{check_unbonding_period, has_unique_elements, UNBONDING_FEE_RATE, UNBONDING_PERIOD_0},
 };
 
 use super::query::{
@@ -744,6 +750,143 @@ pub fn claim_blacklist_rewards(mut deps: DepsMut, env: Env) -> Result<Response, 
     _claim(deps, env, cfg.treasury.to_string(), blacklist_rewards)
 }
 
+pub fn unbond(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    duration: u64,
+    locked_at: u64,
+    period: u64,
+) -> Result<Response, ContractError> {
+    let sender = &info.sender;
+    let block_time = env.block.time.seconds();
+    let lock_ended = check_lock_ended(env.clone(), duration, locked_at)?;
+    check_unbonding_period(period, ContractError::IncorrectUnbondingPeriod)?;
+
+    if !lock_ended {
+        Err(ContractError::EarlyUnlockDisabled {})?;
+    }
+
+    let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
+    let reward_weights = update_reward_weights(deps.branch(), env.clone())?;
+    let (user_staking, response) = _claim_single(
+        deps.branch(),
+        env.clone(),
+        sender.to_string(),
+        duration,
+        locked_at,
+        reward_weights,
+        None,
+    )?;
+    let unlock_amount = user_staking.staked;
+    let is_allowed_user = ALLOWED_USERS
+        .load(deps.storage, &sender.to_string())
+        .unwrap_or_default();
+
+    if unlock_amount.is_zero() {
+        Err(ContractError::NoLockedAmount {})?;
+    }
+
+    if !is_allowed_user {
+        Err(ContractError::NotAllowed(sender.to_string()))?;
+    }
+
+    USER_UNBONDED.update(deps.storage, sender, |x| -> StdResult<_> {
+        let mut unbonded = x.unwrap_or_default();
+        let fee = if period == UNBONDING_PERIOD_0 {
+            (str_to_dec(UNBONDING_FEE_RATE) * u128_to_dec(unlock_amount)).to_uint_floor()
+        } else {
+            Uint128::zero()
+        };
+
+        unbonded.push(UnbondedItem {
+            amount: unlock_amount - fee,
+            fee,
+            release_date: block_time + period,
+        });
+
+        Ok(unbonded)
+    })?;
+
+    USER_STAKED.remove(deps.storage, (&sender.to_string(), duration, locked_at));
+
+    total_staking = total_staking.checked_sub(unlock_amount).unwrap();
+    TOTAL_STAKING.save(deps.storage, &total_staking)?;
+    TotalStakingByDuration::sub(deps.storage, unlock_amount, duration, locked_at, block_time)?;
+
+    Ok(response.add_attribute("action", "unbond"))
+}
+
+pub fn withdraw(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    recipient: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut response = Response::new().add_attribute("action", "withdraw");
+    let sender = &info.sender;
+    let recipient = &recipient
+        .map(|x| deps.api.addr_validate(&x))
+        .transpose()?
+        .unwrap_or(sender.to_owned());
+    let config = CONFIG.load(deps.storage)?;
+    let block_time = env.block.time.seconds();
+    let voter_config: VoterTokenConfig = deps
+        .querier
+        .query_wasm_smart(&config.voter, &VoterQueryMsg::TokenConfig {})?;
+
+    let unbonded = USER_UNBONDED.load(deps.storage, sender).unwrap_or_default();
+    let (amount_to_send, fee_to_send) = unbonded.iter().fold(
+        (Uint128::zero(), Uint128::zero()),
+        |(mut amount_acc, mut fee_acc), cur| {
+            if block_time >= cur.release_date {
+                amount_acc += cur.amount;
+                fee_acc += cur.fee;
+            }
+
+            (amount_acc, fee_acc)
+        },
+    );
+    let items_to_preserve: Vec<_> = unbonded
+        .into_iter()
+        .filter(|x| block_time < x.release_date)
+        .collect();
+
+    if amount_to_send.is_zero() {
+        Err(ContractError::EarlyWithdraw)?;
+    }
+
+    if items_to_preserve.is_empty() {
+        USER_UNBONDED.remove(deps.storage, sender);
+    } else {
+        USER_UNBONDED.save(deps.storage, sender, &items_to_preserve)?;
+    }
+
+    response = response
+        .add_message(wasm_execute(
+            &config.voter,
+            // TODO: check what's happening with astro, xastro, eclipAstro in voter
+            &VoterExecuteMsg::UnlockXastro {
+                amount: amount_to_send + fee_to_send,
+                recipient: None,
+            },
+            coins((amount_to_send + fee_to_send).u128(), config.token),
+        )?)
+        .add_message(CosmosMsg::Bank(BankMsg::Send {
+            to_address: recipient.to_string(),
+            amount: coins(amount_to_send.u128(), &voter_config.astro),
+        }));
+
+    if !fee_to_send.is_zero() {
+        response = response.add_message(CosmosMsg::Bank(BankMsg::Send {
+            to_address: config.treasury.to_string(),
+            amount: coins(fee_to_send.u128(), &voter_config.astro),
+        }));
+    }
+
+    Ok(response)
+}
+
 /// Unlock amount and claim rewards of user
 pub fn unstake(
     mut deps: DepsMut,
@@ -817,6 +960,7 @@ pub fn unstake(
     }
     Ok(response.add_messages(msgs))
 }
+
 // add reweards
 pub fn add_rewards(
     deps: DepsMut,

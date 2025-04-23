@@ -1,6 +1,14 @@
 use astroport::asset::AssetInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal, Env, StdResult, Uint128, WasmMsg};
+
+#[cw_serde]
+pub struct UnbondedItem {
+    pub amount: Uint128,
+    pub fee: Uint128,
+    pub release_date: u64,
+}
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
@@ -57,6 +65,14 @@ pub enum ExecuteMsg {
         amount: Option<Uint128>,
         recipient: Option<String>,
     },
+    Unbond {
+        duration: u64,
+        locked_at: u64,
+        period: u64,
+    },
+    Withdraw {
+        recipient: Option<String>,
+    },
     /// update locking period from short one to long one
     Restake {
         from_duration: u64,
@@ -99,6 +115,9 @@ pub enum QueryMsg {
     /// query user_staking
     #[returns(Vec<UserStaking>)]
     Staking { user: String },
+    /// query unbonded user positions
+    #[returns(Vec<UnbondedItem>)]
+    Unbonded { user: String },
     /// query pending_rewards
     #[returns(UserReward)]
     Reward {

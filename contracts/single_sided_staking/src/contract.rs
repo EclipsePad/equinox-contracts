@@ -10,7 +10,7 @@ use crate::{
         execute::{
             _handle_callback, add_rewards, allow_users, block_users, claim, claim_all,
             claim_blacklist_rewards, claim_ownership, drop_ownership_proposal, propose_new_owner,
-            restake, stake, unstake, update_config,
+            restake, stake, unbond, unstake, update_config, withdraw,
         },
         instantiate::try_instantiate,
         query::{
@@ -18,7 +18,7 @@ use crate::{
             query_calculate_penalty_amount, query_calculate_reward, query_config,
             query_eclipastro_rewards, query_owner, query_reward, query_reward_list,
             query_reward_schedule, query_staking, query_total_staking,
-            query_total_staking_by_duration,
+            query_total_staking_by_duration, query_unbonded,
         },
     },
     error::ContractError,
@@ -74,6 +74,15 @@ pub fn execute(
             amount,
             recipient,
         } => unstake(deps, env, info, duration, locked_at, amount, recipient),
+
+        ExecuteMsg::Unbond {
+            duration,
+            locked_at,
+            period,
+        } => unbond(deps, env, info, duration, locked_at, period),
+
+        ExecuteMsg::Withdraw { recipient } => withdraw(deps, env, info, recipient),
+
         ExecuteMsg::Restake {
             from_duration,
             locked_at,
@@ -118,6 +127,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::Staking { user } => Ok(to_json_binary(&query_staking(deps, env, user)?)?),
+
+        QueryMsg::Unbonded { user } => to_json_binary(&query_unbonded(deps, env, user)?),
+
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
         QueryMsg::TotalStakingByDuration { timestamp } => Ok(to_json_binary(
             &query_total_staking_by_duration(deps, env, timestamp)?,
