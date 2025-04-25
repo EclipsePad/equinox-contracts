@@ -3,8 +3,11 @@ use std::str::FromStr;
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_controllers::AdminError;
 use eclipse_base::{converters::str_to_dec, voter::msg::AstroStakingRewardResponse};
-use equinox_msg::single_sided_staking::{
-    TimeLockConfig, UpdateConfigMsg, UserReward, UserStaking, UserStakingByDuration,
+use equinox_msg::{
+    single_sided_staking::{
+        TimeLockConfig, UpdateConfigMsg, UserReward, UserStaking, UserStakingByDuration,
+    },
+    utils::UNBONDING_PERIOD_0,
 };
 use single_sided_staking::{config::ONE_DAY, error::ContractError};
 
@@ -579,15 +582,13 @@ fn stake_default() {
         }]
     );
 
-    // let block_time = suite.get_time();
-    // let block_time_n = ONE_DAY * (block_time / ONE_DAY);
-
-    // println!("block_time, block_time_n {:#?}", (block_time, block_time_n));
-
     suite.update_time(ONE_MONTH + ONE_DAY);
     suite
-        .single_sided_unstake(BOB, ONE_MONTH, block_time, None, None)
+        .single_sided_unbond(BOB, ONE_MONTH, block_time, UNBONDING_PERIOD_0)
         .unwrap();
+
+    suite.update_time(UNBONDING_PERIOD_0);
+    suite.single_sided_withdraw(BOB, None).unwrap();
 
     // -----------------------------------------------------------------------------------------
 

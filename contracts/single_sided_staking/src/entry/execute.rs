@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use astroport::asset::AssetInfo;
 use cosmwasm_std::{
     attr, coins, ensure, ensure_eq, to_json_binary, wasm_execute, BankMsg, Coin, CosmosMsg,
@@ -779,16 +781,9 @@ pub fn unbond(
         None,
     )?;
     let unlock_amount = user_staking.staked;
-    let is_allowed_user = ALLOWED_USERS
-        .load(deps.storage, &sender.to_string())
-        .unwrap_or_default();
 
     if unlock_amount.is_zero() {
         Err(ContractError::NoLockedAmount {})?;
-    }
-
-    if !is_allowed_user {
-        Err(ContractError::NotAllowed(sender.to_string()))?;
     }
 
     USER_UNBONDED.update(deps.storage, sender, |x| -> StdResult<_> {
@@ -862,25 +857,43 @@ pub fn withdraw(
         USER_UNBONDED.save(deps.storage, sender, &items_to_preserve)?;
     }
 
-    response = response
-        .add_message(wasm_execute(
-            &config.voter,
-            // TODO: check what's happening with astro, xastro, eclipAstro in voter
-            &VoterExecuteMsg::UnlockXastro {
-                amount: amount_to_send + fee_to_send,
-                recipient: None,
-            },
-            coins((amount_to_send + fee_to_send).u128(), config.token),
-        )?)
-        .add_message(CosmosMsg::Bank(BankMsg::Send {
-            to_address: recipient.to_string(),
-            amount: coins(amount_to_send.u128(), &voter_config.astro),
-        }));
+    // get astro
+    response = response.add_message(wasm_execute(
+        &config.voter,
+        &VoterExecuteMsg::SwapToAstro { recipient: None },
+        coins((amount_to_send + fee_to_send).u128(), config.token),
+    )?);
 
+    // amounts to send are limited by balance to avoid failing due to rounding error on astro amount
+    // return astro to user
+    response = response.add_message(CosmosMsg::Bank(BankMsg::Send {
+        to_address: recipient.to_string(),
+        amount: coins(
+            min(
+                amount_to_send,
+                deps.querier
+                    .query_balance(&env.contract.address, &voter_config.astro)?
+                    .amount,
+            )
+            .u128(),
+            &voter_config.astro,
+        ),
+    }));
+
+    // send fee to treasury
     if !fee_to_send.is_zero() {
         response = response.add_message(CosmosMsg::Bank(BankMsg::Send {
             to_address: config.treasury.to_string(),
-            amount: coins(fee_to_send.u128(), &voter_config.astro),
+            amount: coins(
+                min(
+                    fee_to_send,
+                    deps.querier
+                        .query_balance(&env.contract.address, &voter_config.astro)?
+                        .amount,
+                )
+                .u128(),
+                &voter_config.astro,
+            ),
         }));
     }
 

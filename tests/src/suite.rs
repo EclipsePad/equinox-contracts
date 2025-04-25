@@ -1125,7 +1125,7 @@ impl Suite {
                 self.voter_contract.clone(),
                 &eclipse_base::voter::msg::ExecuteMsg::UpdateAddressConfig {
                     admin: None,
-                    worker_list: None,
+                    worker_list: Some(vec![self.single_staking_contract.to_string()]),
                     eclipse_dao: None,
                     eclipsepad_foundry: None,
                     eclipsepad_minter: None,
@@ -1549,6 +1549,39 @@ impl Suite {
             &[],
         )
     }
+
+    pub fn single_sided_unbond(
+        &mut self,
+        sender: &str,
+        duration: u64,
+        locked_at: u64,
+        period: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::Unbond {
+                duration,
+                locked_at,
+                period,
+            },
+            &[],
+        )
+    }
+
+    pub fn single_sided_withdraw(
+        &mut self,
+        sender: &str,
+        recipient: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::Withdraw { recipient },
+            &[],
+        )
+    }
+
     pub fn single_sided_restake(
         &mut self,
         sender: &str,

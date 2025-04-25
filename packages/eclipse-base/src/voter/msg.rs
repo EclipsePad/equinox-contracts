@@ -140,6 +140,11 @@ pub enum ExecuteMsg {
     /// swap ASTRO -> xASTRO will be provided first if it's required
     SwapToEclipAstro {},
 
+    /// a whitelisted contract can burn eclipASTRO to send ASTRO to specified user
+    SwapToAstro {
+        recipient: Option<String>,
+    },
+
     UpdateAstroStakingRewardConfig {
         config: AstroStakingRewardConfig,
     },

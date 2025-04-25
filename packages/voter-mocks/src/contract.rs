@@ -104,6 +104,8 @@ pub fn execute(
 
         ExecuteMsg::SwapToEclipAstro {} => e::try_swap_to_eclip_astro(deps, env, info),
 
+        ExecuteMsg::SwapToAstro { recipient } => e::try_swap_to_astro(deps, env, info, recipient),
+
         ExecuteMsg::UpdateAstroStakingRewardConfig { config } => {
             e::try_update_astro_staking_reward_config(deps, env, info, config)
         }
