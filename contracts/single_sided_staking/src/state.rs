@@ -16,6 +16,10 @@ use crate::{
 pub const CONTRACT_NAME: &str = "single sided staking contract";
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub const SWAP_TO_ASTRO_REPLY_ID: u64 = 0;
+/// (recipient, amount_to_send, fee_to_send)
+pub const WITHDRAW_TEMP_DATA: Item<(Addr, Uint128, Uint128)> = Item::new("withdraw_temp_data");
+
 pub const OWNER: Admin = Admin::new("owner");
 pub const CONFIG: Item<Config> = Item::new("config");
 

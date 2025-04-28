@@ -327,11 +327,14 @@ fn store_lp_staking(app: &mut TestApp) -> u64 {
 }
 
 fn store_single_staking(app: &mut TestApp) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        single_sided_staking::contract::execute,
-        single_sided_staking::contract::instantiate,
-        single_sided_staking::contract::query,
-    ));
+    let contract = Box::new(
+        ContractWrapper::new_with_empty(
+            single_sided_staking::contract::execute,
+            single_sided_staking::contract::instantiate,
+            single_sided_staking::contract::query,
+        )
+        .with_reply(single_sided_staking::contract::reply),
+    );
 
     app.store_code(contract)
 }
@@ -1167,23 +1170,27 @@ impl Suite {
 
     pub fn mint_native(
         &mut self,
-        recipient: String,
+        recipient: impl ToString,
         denom: String,
         amount: u128,
     ) -> AnyResult<AppResponse> {
         self.app.sudo(cw_multi_test::SudoMsg::Bank(
             cw_multi_test::BankSudo::Mint {
-                to_address: recipient,
+                to_address: recipient.to_string(),
                 amount: vec![coin(amount, denom)],
             },
         ))
     }
 
-    pub fn query_balance_native(&mut self, recipient: String, denom: String) -> StdResult<u128> {
+    pub fn query_balance_native(
+        &mut self,
+        recipient: impl ToString,
+        denom: String,
+    ) -> StdResult<u128> {
         let balance = self
             .app
             .wrap()
-            .query_balance(recipient, denom)
+            .query_balance(recipient.to_string(), denom)
             .unwrap()
             .amount;
         Ok(balance.u128())
@@ -1195,6 +1202,15 @@ impl Suite {
             self.astro_staking_contract.clone(),
             &AstroStakingExecuteMsg::Enter { receiver: None },
             &[coin(amount, self.astro.clone())],
+        )
+    }
+
+    pub fn unstake_astro(&mut self, sender: &str, xastro_amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.astro_staking_contract.clone(),
+            &AstroStakingExecuteMsg::Leave {},
+            &[coin(xastro_amount, self.xastro())],
         )
     }
 

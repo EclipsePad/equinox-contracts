@@ -1,9 +1,10 @@
-use std::cmp::min;
+use std::{cmp::min, str::FromStr};
 
 use astroport::asset::AssetInfo;
 use cosmwasm_std::{
     attr, coins, ensure, ensure_eq, to_json_binary, wasm_execute, BankMsg, Coin, CosmosMsg,
-    Decimal256, DepsMut, Env, MessageInfo, Order, Response, StdResult, Storage, Uint128, WasmMsg,
+    Decimal256, DepsMut, Env, MessageInfo, Order, ReplyOn, Response, StdResult, Storage, SubMsg,
+    SubMsgResult, Uint128, WasmMsg,
 };
 use cw_storage_plus::Bound;
 use cw_utils::one_coin;
@@ -24,7 +25,8 @@ use crate::{
         RewardWeights, TotalStakingByDuration, UserStaked, ALLOWED_USERS, BLACK_LIST,
         BLACK_LIST_REWARDS, CONFIG, LAST_CLAIM_TIME, OWNER, OWNERSHIP_PROPOSAL,
         PENDING_ECLIPASTRO_REWARDS, REWARD, REWARD_WEIGHTS, STAKING_DURATION_BY_END_TIME,
-        TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED, USER_UNBONDED,
+        SWAP_TO_ASTRO_REPLY_ID, TOTAL_STAKING, TOTAL_STAKING_BY_DURATION, USER_STAKED,
+        USER_UNBONDED, WITHDRAW_TEMP_DATA,
     },
 };
 
@@ -818,18 +820,13 @@ pub fn withdraw(
     info: MessageInfo,
     recipient: Option<String>,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::new().add_attribute("action", "withdraw");
     let sender = &info.sender;
-    let recipient = &recipient
+    let recipient = recipient
         .map(|x| deps.api.addr_validate(&x))
         .transpose()?
         .unwrap_or(sender.to_owned());
-    let config = CONFIG.load(deps.storage)?;
     let block_time = env.block.time.seconds();
-    let voter_config: VoterTokenConfig = deps
-        .querier
-        .query_wasm_smart(&config.voter, &VoterQueryMsg::TokenConfig {})?;
-
+    let config = CONFIG.load(deps.storage)?;
     let unbonded = USER_UNBONDED.load(deps.storage, sender).unwrap_or_default();
     let (amount_to_send, fee_to_send) = unbonded.iter().fold(
         (Uint128::zero(), Uint128::zero()),
@@ -857,47 +854,71 @@ pub fn withdraw(
         USER_UNBONDED.save(deps.storage, sender, &items_to_preserve)?;
     }
 
-    // get astro
-    response = response.add_message(wasm_execute(
-        &config.voter,
-        &VoterExecuteMsg::SwapToAstro { recipient: None },
-        coins((amount_to_send + fee_to_send).u128(), config.token),
-    )?);
+    WITHDRAW_TEMP_DATA.save(deps.storage, &(recipient, amount_to_send, fee_to_send))?;
 
-    // amounts to send are limited by balance to avoid failing due to rounding error on astro amount
+    // get astro
+    let msg = SubMsg {
+        id: SWAP_TO_ASTRO_REPLY_ID,
+        msg: wasm_execute(
+            &config.voter,
+            &VoterExecuteMsg::SwapToAstro { recipient: None },
+            coins((amount_to_send + fee_to_send).u128(), config.token),
+        )?
+        .into(),
+        gas_limit: None,
+        reply_on: ReplyOn::Success,
+    };
+
+    return Ok(Response::new().add_submessage(msg));
+}
+
+pub fn handle_swap_to_astro_reply(
+    deps: DepsMut,
+    _env: Env,
+    result: &SubMsgResult,
+) -> Result<Response, ContractError> {
+    let mut response = Response::new().add_attribute("action", "withdraw");
+    let res = result
+        .to_owned()
+        .into_result()
+        .map_err(|_| ContractError::SwapToAstroError)?;
+
+    let mut astro_amount = Uint128::zero();
+    for event in res.events.iter() {
+        for attr in event.attributes.iter() {
+            if attr.key == "astro_amount" {
+                astro_amount = Uint128::from_str(&attr.value).unwrap();
+            }
+        }
+    }
+
+    let (recipient, mut amount_to_send, mut fee_to_send) = WITHDRAW_TEMP_DATA.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
+    let voter_config: VoterTokenConfig = deps
+        .querier
+        .query_wasm_smart(&config.voter, &VoterQueryMsg::TokenConfig {})?;
+
+    // limit amounts to send based on actual astro_amount
+    amount_to_send = min(amount_to_send, astro_amount);
+    fee_to_send = min(fee_to_send, astro_amount - amount_to_send);
+
     // return astro to user
     response = response.add_message(CosmosMsg::Bank(BankMsg::Send {
         to_address: recipient.to_string(),
-        amount: coins(
-            min(
-                amount_to_send,
-                deps.querier
-                    .query_balance(&env.contract.address, &voter_config.astro)?
-                    .amount,
-            )
-            .u128(),
-            &voter_config.astro,
-        ),
+        amount: coins(amount_to_send.u128(), &voter_config.astro),
     }));
 
     // send fee to treasury
     if !fee_to_send.is_zero() {
         response = response.add_message(CosmosMsg::Bank(BankMsg::Send {
             to_address: config.treasury.to_string(),
-            amount: coins(
-                min(
-                    fee_to_send,
-                    deps.querier
-                        .query_balance(&env.contract.address, &voter_config.astro)?
-                        .amount,
-                )
-                .u128(),
-                &voter_config.astro,
-            ),
+            amount: coins(fee_to_send.u128(), &voter_config.astro),
         }));
     }
 
-    Ok(response)
+    Ok(response
+        .add_attribute("amount_to_send", amount_to_send)
+        .add_attribute("fee_to_send", fee_to_send))
 }
 
 /// Unlock amount and claim rewards of user

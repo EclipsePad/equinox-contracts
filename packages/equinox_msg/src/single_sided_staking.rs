@@ -2,6 +2,7 @@ use astroport::asset::AssetInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal, Env, StdResult, Uint128, WasmMsg};
 
+/// we need fee here not to calculate it on the query
 #[cw_serde]
 pub struct UnbondedItem {
     pub amount: Uint128,

@@ -636,7 +636,8 @@ pub fn try_swap_to_astro(
 
     Ok(Response::new()
         .add_messages(msg_list)
-        .add_attribute("action", "try_swap_to_astro"))
+        .add_attribute("action", "try_swap_to_astro")
+        .add_attribute("astro_amount", astro_amount))
 }
 
 pub fn try_update_astro_staking_reward_config(

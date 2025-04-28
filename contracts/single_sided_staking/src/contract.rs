@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult,
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
+    Response, StdError, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use semver::Version;
@@ -9,8 +9,9 @@ use crate::{
     entry::{
         execute::{
             _handle_callback, add_rewards, allow_users, block_users, claim, claim_all,
-            claim_blacklist_rewards, claim_ownership, drop_ownership_proposal, propose_new_owner,
-            restake, stake, unbond, unstake, update_config, withdraw,
+            claim_blacklist_rewards, claim_ownership, drop_ownership_proposal,
+            handle_swap_to_astro_reply, propose_new_owner, restake, stake, unbond, unstake,
+            update_config, withdraw,
         },
         instantiate::try_instantiate,
         query::{
@@ -22,7 +23,7 @@ use crate::{
         },
     },
     error::ContractError,
-    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION, REWARD},
+    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION, REWARD, SWAP_TO_ASTRO_REPLY_ID},
 };
 use equinox_msg::single_sided_staking::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RestakeData,
@@ -177,6 +178,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => Ok(to_json_binary(&query_calculate_penalty_amount(
             deps, env, amount, duration, locked_at,
         )?)?),
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, ContractError> {
+    let Reply { id, result } = reply;
+
+    match id {
+        SWAP_TO_ASTRO_REPLY_ID => handle_swap_to_astro_reply(deps, env, &result),
+        _ => Err(ContractError::UnknownReplyId(id)),
     }
 }
 

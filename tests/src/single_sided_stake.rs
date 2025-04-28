@@ -570,6 +570,17 @@ fn stake_default() {
     // suite.update_time(offset);
     let block_time = suite.get_time();
 
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        9_000
+    );
+    assert_eq!(
+        suite
+            .query_balance_native(&BOB, suite.eclipastro())
+            .unwrap(),
+        1_000
+    );
+
     suite.single_sided_stake(BOB, 100, ONE_MONTH, None).unwrap();
     assert_eq!(
         suite.query_single_sided_staking(BOB).unwrap(),
@@ -581,14 +592,44 @@ fn stake_default() {
             }]
         }]
     );
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        9_000
+    );
+    assert_eq!(
+        suite
+            .query_balance_native(&BOB, suite.eclipastro())
+            .unwrap(),
+        900
+    );
 
     suite.update_time(ONE_MONTH + ONE_DAY);
     suite
         .single_sided_unbond(BOB, ONE_MONTH, block_time, UNBONDING_PERIOD_0)
         .unwrap();
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        9_000
+    );
+    assert_eq!(
+        suite
+            .query_balance_native(&BOB, suite.eclipastro())
+            .unwrap(),
+        900
+    );
 
     suite.update_time(UNBONDING_PERIOD_0);
     suite.single_sided_withdraw(BOB, None).unwrap();
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        9_095
+    );
+    assert_eq!(
+        suite
+            .query_balance_native(&BOB, suite.eclipastro())
+            .unwrap(),
+        900
+    );
 
     // -----------------------------------------------------------------------------------------
 
