@@ -754,6 +754,7 @@ pub fn claim_blacklist_rewards(mut deps: DepsMut, env: Env) -> Result<Response, 
     _claim(deps, env, cfg.treasury.to_string(), blacklist_rewards)
 }
 
+/// claim user rewards and start unbonding process
 pub fn unbond(
     mut deps: DepsMut,
     env: Env,
@@ -814,6 +815,7 @@ pub fn unbond(
     Ok(response.add_attribute("action", "unbond"))
 }
 
+/// withdraw all unbonded positions
 pub fn withdraw(
     deps: DepsMut,
     env: Env,
@@ -931,6 +933,9 @@ pub fn unstake(
     amount: Option<Uint128>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
+    // use unbond + withdraw instead
+    Err(ContractError::MessageIsDisabled)?;
+
     let locked_at = locked_at.unwrap_or_default();
     let sender = info.sender.to_string();
     let block_time = env.block.time.seconds();

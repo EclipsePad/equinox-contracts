@@ -97,6 +97,9 @@ pub enum ContractError {
 
     #[error("Unknown reply id: {0}")]
     UnknownReplyId(u64),
+
+    #[error("Msg is disabled!")]
+    MessageIsDisabled,
 }
 
 impl From<semver::Error> for ContractError {
