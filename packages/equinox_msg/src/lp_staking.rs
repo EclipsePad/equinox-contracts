@@ -2,6 +2,8 @@ use astroport::asset::{Asset, AssetInfo};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, Uint128, WasmMsg};
 
+use crate::single_sided_staking::UnbondedItem;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// contract owner
@@ -62,6 +64,15 @@ pub enum ExecuteMsg {
     Stake {
         recipient: Option<String>,
     },
+
+    Unbond {
+        amount: Uint128,
+        period: u64,
+    },
+    Withdraw {
+        recipient: Option<String>,
+    },
+
     AddRewards {
         from: Option<u64>,
         duration: Option<u64>,
@@ -95,6 +106,9 @@ pub enum QueryMsg {
     /// query user_staking
     #[returns(UserStaking)]
     Staking { user: String },
+    /// query unbonded user positions
+    #[returns(Vec<UnbondedItem>)]
+    Unbonded { user: String },
     /// query pending_rewards
     #[returns(Vec<RewardAmount>)]
     Reward { user: String },

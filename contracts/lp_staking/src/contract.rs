@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult,
+    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
+    Response, StdError, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use equinox_msg::lp_staking::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -10,18 +10,19 @@ use crate::{
     entry::{
         execute::{
             _handle_callback, add_rewards, allow_users, block_users, claim,
-            claim_blacklist_rewards, claim_ownership, drop_ownership_proposal, propose_new_owner,
-            stake, unstake, update_config, update_reward_distribution,
+            claim_blacklist_rewards, claim_ownership, drop_ownership_proposal,
+            handle_withdraw_liquidity_reply, propose_new_owner, stake, unbond, unstake,
+            update_config, update_reward_distribution, withdraw,
         },
         instantiate::try_instantiate,
         query::{
             query_blacklist, query_blacklist_rewards, query_config, query_owner, query_reward,
             query_reward_distribution, query_reward_schedule, query_reward_weights, query_staking,
-            query_total_staking, query_user_reward_weights,
+            query_total_staking, query_unbonded, query_user_reward_weights,
         },
     },
     error::ContractError,
-    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION, REWARD},
+    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION, REWARD, WITHDRAW_LIQUIDITY_REPLY_ID},
 };
 
 // make use of the custom errors
@@ -59,6 +60,10 @@ pub fn execute(
         }
         ExecuteMsg::Callback(msg) => _handle_callback(deps, env, info, msg),
         ExecuteMsg::Unstake { amount, recipient } => unstake(deps, env, info, amount, recipient),
+
+        ExecuteMsg::Unbond { amount, period } => unbond(deps, env, info, amount, period),
+        ExecuteMsg::Withdraw { recipient } => withdraw(deps, env, info, recipient),
+
         ExecuteMsg::AddRewards {
             from,
             duration,
@@ -81,6 +86,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::Staking { user } => Ok(to_json_binary(&query_staking(deps, env, user)?)?),
+
+        QueryMsg::Unbonded { user } => to_json_binary(&query_unbonded(deps, env, user)?),
+
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
         QueryMsg::Reward { user } => Ok(to_json_binary(&query_reward(deps, env, user)?)?),
         QueryMsg::RewardWeights {} => Ok(to_json_binary(&query_reward_weights(deps, env)?)?),
@@ -96,6 +104,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::RewardSchedule { from } => {
             Ok(to_json_binary(&query_reward_schedule(deps, env, from)?)?)
         }
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, ContractError> {
+    let Reply { id, result } = reply;
+
+    match id {
+        WITHDRAW_LIQUIDITY_REPLY_ID => handle_withdraw_liquidity_reply(deps, env, &result),
+        _ => Err(ContractError::UnknownReplyId(id)),
     }
 }
 

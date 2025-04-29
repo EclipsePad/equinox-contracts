@@ -5,7 +5,10 @@ use astroport::{
     vesting::{VestingAccount, VestingSchedule, VestingSchedulePoint},
 };
 use cosmwasm_std::{Addr, Decimal256, Uint128};
-use equinox_msg::lp_staking::{RewardAmount, RewardWeight};
+use equinox_msg::{
+    lp_staking::{RewardAmount, RewardWeight},
+    utils::UNBONDING_PERIOD_0,
+};
 use lp_staking::error::ContractError;
 
 use crate::suite::{Suite, SuiteBuilder, ALICE, BOB, CAROL, TREASURY};
@@ -523,4 +526,88 @@ fn blacklist() {
             .unwrap(),
         713333332u128
     );
+}
+
+#[test]
+fn unbond_default() {
+    let mut suite = instantiate();
+    // add funds to vault
+    suite
+        .add_lp_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
+    suite
+        .mint_native(BOB.to_string(), suite.astro(), 1_000_000_000)
+        .unwrap();
+    suite.convert_astro(BOB, 1_000).unwrap();
+
+    let bob_eclipastro_amount = suite.query_eclipastro_balance(BOB).unwrap();
+
+    suite.stake_astro(BOB, 1_000u128).unwrap();
+    let bob_xastro_amount = suite
+        .query_balance_native(BOB.to_string(), suite.xastro())
+        .unwrap();
+
+    suite
+        .provide_liquidity(
+            BOB,
+            Addr::unchecked(suite.eclipastro_xastro_lp_contract()),
+            vec![
+                Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: suite.eclipastro(),
+                    },
+                    amount: Uint128::from(bob_eclipastro_amount),
+                },
+                Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: suite.xastro(),
+                    },
+                    amount: Uint128::from(bob_xastro_amount),
+                },
+            ],
+            None,
+            None,
+        )
+        .unwrap();
+
+    suite.stake_lp_token(BOB, 100).unwrap();
+    let bob_lp_token_rewards = suite.query_user_lp_token_rewards(BOB).unwrap();
+    assert_eq!(
+        bob_lp_token_rewards,
+        [
+            RewardAmount {
+                info: AssetInfo::NativeToken {
+                    denom: suite.astro()
+                },
+                amount: Uint128::zero()
+            },
+            RewardAmount {
+                info: AssetInfo::Token {
+                    contract_addr: Addr::unchecked(suite.beclip())
+                },
+                amount: Uint128::zero()
+            },
+            RewardAmount {
+                info: AssetInfo::NativeToken {
+                    denom: suite.eclip()
+                },
+                amount: Uint128::zero()
+            },
+        ]
+    );
+
+    // update time againd
+    suite.update_time(86400);
+
+    // unstake
+    suite.unbond_lp_token(BOB, 100, UNBONDING_PERIOD_0).unwrap();
+
+    suite.update_time(UNBONDING_PERIOD_0);
+    suite.withdraw_lp_token(BOB, None).unwrap();
 }

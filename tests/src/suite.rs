@@ -317,11 +317,14 @@ fn instantiate_eclipsepad_staking(
 }
 
 fn store_lp_staking(app: &mut TestApp) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        lp_staking::contract::execute,
-        lp_staking::contract::instantiate,
-        lp_staking::contract::query,
-    ));
+    let contract = Box::new(
+        ContractWrapper::new_with_empty(
+            lp_staking::contract::execute,
+            lp_staking::contract::instantiate,
+            lp_staking::contract::query,
+        )
+        .with_reply(lp_staking::contract::reply),
+    );
 
     app.store_code(contract)
 }
@@ -2143,6 +2146,37 @@ impl Suite {
             &[coin(amount, self.eclipastro_xastro_lp_token.clone())],
         )
     }
+
+    pub fn unbond_lp_token(
+        &mut self,
+        sender: &str,
+        amount: u128,
+        period: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::Unbond {
+                amount: Uint128::new(amount),
+                period,
+            },
+            &[],
+        )
+    }
+
+    pub fn withdraw_lp_token(
+        &mut self,
+        sender: &str,
+        recipient: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::Withdraw { recipient },
+            &[],
+        )
+    }
+
     pub fn query_user_lp_token_staking(&self, user: &str) -> StdResult<LpStakingUserStaking> {
         let res: LpStakingUserStaking = self.app.wrap().query_wasm_smart(
             self.lp_staking_contract.clone(),

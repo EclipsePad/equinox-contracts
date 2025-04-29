@@ -82,6 +82,15 @@ pub enum ContractError {
 
     #[error("Token amount must not be zero")]
     ZeroAmount {},
+
+    #[error("Incorrect unbonding period")]
+    IncorrectUnbondingPeriod,
+
+    #[error("Early withdraw isn't allowed")]
+    EarlyWithdraw,
+
+    #[error("Unknown reply id: {0}")]
+    UnknownReplyId(u64),
 }
 
 impl From<semver::Error> for ContractError {
