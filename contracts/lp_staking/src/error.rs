@@ -89,8 +89,17 @@ pub enum ContractError {
     #[error("Early withdraw isn't allowed")]
     EarlyWithdraw,
 
+    #[error("Swap to ASTRO error")]
+    SwapToAstroError,
+
     #[error("Unknown reply id: {0}")]
     UnknownReplyId(u64),
+
+    #[error("Msg is disabled!")]
+    MessageIsDisabled,
+
+    #[error("Voter contract isn't found!")]
+    NoVoter,
 }
 
 impl From<semver::Error> for ContractError {

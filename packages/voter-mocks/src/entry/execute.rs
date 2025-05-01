@@ -546,6 +546,7 @@ pub fn try_swap_to_astro(
     info: MessageInfo,
     recipient: Option<String>,
 ) -> Result<Response, ContractError> {
+    let mut response = Response::new().add_attribute("action", "try_swap_to_astro");
     // don't allow unlock xastro when votes are in emissions_controller
     check_rewards_claim_stage(deps.storage)?;
     let (sender_address, asset_amount, asset_info) = check_funds(
@@ -580,64 +581,83 @@ pub fn try_swap_to_astro(
         Err(ContractError::Unauthorized)?;
     }
 
-    // check if eclipASTRO was sent
-    if token_in != eclip_astro {
+    // check if eclipASTRO or xAstro was sent
+    if token_in != eclip_astro && token_in != xastro {
         Err(ContractError::WrongToken)?;
     }
 
+    // calculate xASTRO and ASTRO amounts
+    let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps.as_ref())?;
+    let xastro_amount = if token_in == xastro {
+        asset_amount
+    } else {
+        calc_xastro_for_eclip_astro(asset_amount, astro_supply, xastro_supply)
+    };
+    let eclip_astro_for_xastro =
+        calc_eclip_astro_for_xastro(xastro_amount, astro_supply, xastro_supply);
+    let eclip_astro_amount = if token_in == xastro {
+        eclip_astro_for_xastro
+    } else {
+        asset_amount
+    };
+
+    let astro_amount = if token_in == xastro {
+        eclip_astro_for_xastro
+    } else {
+        // get astro amount considering rounding error
+        if eclip_astro_for_xastro == asset_amount {
+            asset_amount
+        } else {
+            asset_amount - Uint128::one()
+        }
+    };
+
     // check if amount isn't zero
-    if asset_amount.is_zero() {
+    if astro_amount.is_zero() || xastro_amount.is_zero() || eclip_astro_amount.is_zero() {
         Err(ContractError::ZeroAmount)?;
     }
 
-    // calculate xASTRO amount
-    let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps.as_ref())?;
-    let xastro_amount = calc_xastro_for_eclip_astro(asset_amount, astro_supply, xastro_supply);
-    // get astro amount considering rounding error
-    let astro_amount = if calc_eclip_astro_for_xastro(xastro_amount, astro_supply, xastro_supply)
-        == asset_amount
-    {
-        asset_amount
-    } else {
-        asset_amount - Uint128::one()
-    };
-
-    ECLIP_ASTRO_MINTED_BY_VOTER
-        .update(deps.storage, |x| -> StdResult<_> { Ok(x - asset_amount) })?;
+    ECLIP_ASTRO_MINTED_BY_VOTER.update(deps.storage, |x| -> StdResult<_> {
+        Ok(x - eclip_astro_amount)
+    })?;
 
     total_convert_info.total_xastro -= xastro_amount;
-    total_convert_info.total_astro_deposited -= asset_amount;
+    total_convert_info.total_astro_deposited -= astro_amount;
     TOTAL_CONVERT_INFO.save(deps.storage, &total_convert_info)?;
 
-    let msg_list = vec![
-        // burn eclipAstro
-        CosmosMsg::Wasm(wasm_execute(
+    // burn eclipAstro
+    if token_in == eclip_astro {
+        response = response.add_message(CosmosMsg::Wasm(wasm_execute(
             eclipsepad_minter,
             &eclipse_base::minter::msg::ExecuteMsg::Burn {},
             coins(asset_amount.u128(), eclip_astro),
-        )?),
-        // unlock xAstro instantly
-        // CosmosMsg::Wasm(wasm_execute(
-        //     astroport_voting_escrow,
-        //     &astroport_governance::voting_escrow::ExecuteMsg::InstantUnlock {
-        //         amount: xastro_amount,
-        //     },
-        //     vec![],
-        // )?),
-        // unstake astro
-        CosmosMsg::Wasm(wasm_execute(
-            astroport_staking,
-            &astroport::staking::ExecuteMsg::Leave {},
-            coins(xastro_amount.u128(), xastro),
-        )?),
-        // send astro to user
-        get_transfer_msg(recipient, astro_amount, &Token::new_native(&astro))?,
-    ];
+        )?));
+    }
 
-    Ok(Response::new()
-        .add_messages(msg_list)
-        .add_attribute("action", "try_swap_to_astro")
-        .add_attribute("astro_amount", astro_amount))
+    // // unlock xAstro instantly
+    // response = response.add_message(CosmosMsg::Wasm(wasm_execute(
+    //     astroport_voting_escrow,
+    //     &astroport_governance::voting_escrow::ExecuteMsg::InstantUnlock {
+    //         amount: xastro_amount,
+    //     },
+    //     vec![],
+    // )?));
+
+    // unstake astro
+    response = response.add_message(CosmosMsg::Wasm(wasm_execute(
+        astroport_staking,
+        &astroport::staking::ExecuteMsg::Leave {},
+        coins(xastro_amount.u128(), xastro),
+    )?));
+
+    // send astro to user
+    response = response.add_message(get_transfer_msg(
+        recipient,
+        astro_amount,
+        &Token::new_native(&astro),
+    )?);
+
+    Ok(response.add_attribute("astro_amount", astro_amount))
 }
 
 pub fn try_update_astro_staking_reward_config(

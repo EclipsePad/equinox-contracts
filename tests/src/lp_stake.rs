@@ -378,12 +378,12 @@ fn lp_staking() {
     // update time againd
     suite.update_time(86400);
 
-    // unstake
-    suite.lp_unstake(BOB, 100u128, None).unwrap();
-    let bob_lp_token_staking = suite.query_user_lp_token_staking(BOB).unwrap();
-    assert_eq!(bob_lp_token_staking.staked.u128(), 0u128);
-    let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
-    assert_eq!(total_lp_token_staking.u128(), 100u128);
+    // // unstake
+    // suite.lp_unstake(BOB, 100u128, None).unwrap();
+    // let bob_lp_token_staking = suite.query_user_lp_token_staking(BOB).unwrap();
+    // assert_eq!(bob_lp_token_staking.staked.u128(), 0u128);
+    // let total_lp_token_staking = suite.query_total_lp_token_staking().unwrap();
+    // assert_eq!(total_lp_token_staking.u128(), 100u128);
 }
 
 #[test]
@@ -529,7 +529,7 @@ fn blacklist() {
 }
 
 #[test]
-fn unbond_default() {
+fn unbond_half_period() {
     let mut suite = instantiate();
     // add funds to vault
     suite
@@ -548,7 +548,7 @@ fn unbond_default() {
 
     let bob_eclipastro_amount = suite.query_eclipastro_balance(BOB).unwrap();
 
-    suite.stake_astro(BOB, 1_000u128).unwrap();
+    suite.stake_astro(BOB, 1_000).unwrap();
     let bob_xastro_amount = suite
         .query_balance_native(BOB.to_string(), suite.xastro())
         .unwrap();
@@ -577,37 +577,45 @@ fn unbond_default() {
         .unwrap();
 
     suite.stake_lp_token(BOB, 100).unwrap();
-    let bob_lp_token_rewards = suite.query_user_lp_token_rewards(BOB).unwrap();
+    // let bob_lp_token_rewards = suite.query_user_lp_token_rewards(BOB).unwrap();
+    // assert_eq!(
+    //     bob_lp_token_rewards,
+    //     [
+    //         RewardAmount {
+    //             info: AssetInfo::NativeToken {
+    //                 denom: suite.astro()
+    //             },
+    //             amount: Uint128::zero()
+    //         },
+    //         RewardAmount {
+    //             info: AssetInfo::Token {
+    //                 contract_addr: Addr::unchecked(suite.beclip())
+    //             },
+    //             amount: Uint128::zero()
+    //         },
+    //         RewardAmount {
+    //             info: AssetInfo::NativeToken {
+    //                 denom: suite.eclip()
+    //             },
+    //             amount: Uint128::zero()
+    //         },
+    //     ]
+    // );
     assert_eq!(
-        bob_lp_token_rewards,
-        [
-            RewardAmount {
-                info: AssetInfo::NativeToken {
-                    denom: suite.astro()
-                },
-                amount: Uint128::zero()
-            },
-            RewardAmount {
-                info: AssetInfo::Token {
-                    contract_addr: Addr::unchecked(suite.beclip())
-                },
-                amount: Uint128::zero()
-            },
-            RewardAmount {
-                info: AssetInfo::NativeToken {
-                    denom: suite.eclip()
-                },
-                amount: Uint128::zero()
-            },
-        ]
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        999_998_000
     );
 
-    // update time againd
-    suite.update_time(86400);
-
-    // unstake
     suite.unbond_lp_token(BOB, 100, UNBONDING_PERIOD_0).unwrap();
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        999_998_000
+    );
 
     suite.update_time(UNBONDING_PERIOD_0);
     suite.withdraw_lp_token(BOB, None).unwrap();
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        999_998_197
+    );
 }

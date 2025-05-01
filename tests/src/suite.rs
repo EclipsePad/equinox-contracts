@@ -1131,7 +1131,10 @@ impl Suite {
                 self.voter_contract.clone(),
                 &eclipse_base::voter::msg::ExecuteMsg::UpdateAddressConfig {
                     admin: None,
-                    worker_list: Some(vec![self.single_staking_contract.to_string()]),
+                    worker_list: Some(vec![
+                        self.single_staking_contract.to_string(),
+                        self.lp_staking_contract.to_string(),
+                    ]),
                     eclipse_dao: None,
                     eclipsepad_foundry: None,
                     eclipsepad_minter: None,

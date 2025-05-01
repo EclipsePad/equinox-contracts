@@ -1,23 +1,32 @@
+use std::str::FromStr;
+
 use astroport::{
     asset::{Asset, AssetInfo, AssetInfoExt},
     incentives::ExecuteMsg as IncentivesExecuteMsg,
     staking::ExecuteMsg as StakingExecuteMsg,
 };
 use cosmwasm_std::{
-    attr, coin, coins, ensure, ensure_eq, to_json_binary, wasm_execute, CosmosMsg, Decimal256,
-    DepsMut, Env, MessageInfo, Order, ReplyOn, Response, StdResult, SubMsg, SubMsgResult, Uint128,
-    WasmMsg,
+    attr, coin, coins, ensure, ensure_eq, to_json_binary, wasm_execute, BankMsg, CosmosMsg,
+    Decimal256, DepsMut, Env, MessageInfo, Order, ReplyOn, Response, StdResult, SubMsg,
+    SubMsgResult, Uint128, WasmMsg,
 };
 use cw_storage_plus::Bound;
 use cw_utils::{one_coin, ParseReplyError};
 use eclipse_base::{
     converters::{str_to_dec, u128_to_dec},
-    staking::msg::ExecuteMsg as EclipStakingExecuteMsg,
+    staking::{
+        msg::{ExecuteMsg as EclipStakingExecuteMsg, QueryMsg as EclipStakingQueryMsg},
+        types::Config as EclipStakingConfig,
+    },
+    voter::{
+        msg::{ExecuteMsg as VoterExecuteMsg, QueryMsg as VoterQueryMsg},
+        types::TokenConfig as VoterTokenConfig,
+    },
 };
 use equinox_msg::{
     lp_staking::{
-        CallbackMsg, OwnershipProposal, Reward, RewardDistribution, RewardWeight, UpdateConfigMsg,
-        UserStaking,
+        CallbackMsg, Config, OwnershipProposal, Reward, RewardDistribution, RewardWeight,
+        UpdateConfigMsg, UserStaking,
     },
     single_sided_staking::UnbondedItem,
     utils::{check_unbonding_period, has_unique_elements, UNBONDING_FEE_RATE, UNBONDING_PERIOD_0},
@@ -31,9 +40,10 @@ use crate::{
     },
     error::ContractError,
     state::{
-        ALLOWED_USERS, BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LAST_CLAIMED, OWNER,
-        OWNERSHIP_PROPOSAL, REWARD, REWARD_DISTRIBUTION, REWARD_WEIGHTS, STAKING, TOTAL_STAKING,
-        USER_UNBONDED, WITHDRAW_LIQUIDITY_REPLY_ID, WITHDRAW_TEMP_DATA,
+        ALLOWED_USERS, BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, ECLIP_ASTRO_TO_ASTRO_REPLY_ID,
+        LAST_CLAIMED, OWNER, OWNERSHIP_PROPOSAL, REWARD, REWARD_DISTRIBUTION, REWARD_WEIGHTS,
+        STAKING, TOTAL_STAKING, USER_UNBONDED, WITHDRAW_LIQUIDITY_REPLY_ID, WITHDRAW_TEMP_DATA,
+        XASTRO_TO_ASTRO_REPLY_ID,
     },
 };
 
@@ -595,7 +605,8 @@ pub fn withdraw(
         USER_UNBONDED.save(deps.storage, sender, &items_to_preserve)?;
     }
 
-    WITHDRAW_TEMP_DATA.save(deps.storage, &(recipient, amount_to_send, fee_to_send))?;
+    let fee_rate = u128_to_dec(fee_to_send) / u128_to_dec(amount_to_send + fee_to_send);
+    WITHDRAW_TEMP_DATA.save(deps.storage, &(recipient, Uint128::zero(), fee_rate))?;
 
     // withdraw liquidity from pair contract
     let submsg = SubMsg {
@@ -608,7 +619,7 @@ pub fn withdraw(
             },
             coins(
                 (amount_to_send + fee_to_send).u128(),
-                config.lp_token.to_string(), // TODO: check if it will work
+                config.lp_token.to_string(),
             ),
         )?),
         gas_limit: None,
@@ -623,19 +634,11 @@ pub fn handle_withdraw_liquidity_reply(
     _env: Env,
     result: &SubMsgResult,
 ) -> Result<Response, ContractError> {
-    let mut response = Response::new().add_attribute("action", "withdraw");
+    let mut response = Response::new();
     let res = result
         .to_owned()
         .into_result()
         .map_err(|e| ContractError::ParseReplyError(ParseReplyError::SubMsgFailure(e)))?;
-
-    println!("{:#?}", &res.events);
-
-    // TODO: parse properly
-    // Attribute {
-    //     key: "refund_assets",
-    //     value: "104factory/wasm1_contract6/eclipASTRO, 95factory/wasm1_contract1/xASTRO",
-    // },
 
     // parse received lp token amount
     let mut refund_assets = String::default();
@@ -647,58 +650,107 @@ pub fn handle_withdraw_liquidity_reply(
         }
     }
 
-    let amount_list: Vec<u128> = refund_assets.split(", ").map(parse_number).collect();
-    let eclipastro_amount = amount_list
-        .first()
-        .map(|x| Uint128::new(*x))
-        .unwrap_or_default();
-    let xastro_amount = amount_list
-        .get(1)
-        .map(|x| Uint128::new(*x))
-        .unwrap_or_default();
+    let Config {
+        xastro,
+        eclip_staking,
+        ..
+    } = &CONFIG.load(deps.storage)?;
+    let EclipStakingConfig { equinox_voter, .. } = deps
+        .querier
+        .query_wasm_smart(eclip_staking, &EclipStakingQueryMsg::QueryConfig {})?;
+    let equinox_voter = equinox_voter.ok_or(ContractError::NoVoter)?;
+    let VoterTokenConfig { eclip_astro, .. } = &deps
+        .querier
+        .query_wasm_smart(&equinox_voter, &VoterQueryMsg::TokenConfig {})?;
 
-    if eclipastro_amount.is_zero() || xastro_amount.is_zero() {
-        Err(ContractError::ZeroAmount {})?;
-    }
+    let eclip_astro_amount = get_token_amount(&refund_assets, eclip_astro);
+    let xastro_amount = get_token_amount(&refund_assets, xastro);
 
-    // let (recipient, mut amount_to_send, mut fee_to_send) = WITHDRAW_TEMP_DATA.load(deps.storage)?;
-    // let config = CONFIG.load(deps.storage)?;
-    // let voter_config: VoterTokenConfig = deps
-    //     .querier
-    //     .query_wasm_smart(&config.voter, &VoterQueryMsg::TokenConfig {})?;
+    // swap eclipAstro to astro
+    response = response.add_submessage(SubMsg {
+        id: ECLIP_ASTRO_TO_ASTRO_REPLY_ID,
+        msg: wasm_execute(
+            &equinox_voter,
+            &VoterExecuteMsg::SwapToAstro { recipient: None },
+            coins(eclip_astro_amount.u128(), eclip_astro),
+        )?
+        .into(),
+        gas_limit: None,
+        reply_on: ReplyOn::Success,
+    });
 
-    // // limit amounts to send based on actual astro_amount
-    // amount_to_send = min(amount_to_send, astro_amount);
-    // fee_to_send = min(fee_to_send, astro_amount - amount_to_send);
-
-    // // return astro to user
-    // response = response.add_message(CosmosMsg::Bank(BankMsg::Send {
-    //     to_address: recipient.to_string(),
-    //     amount: coins(amount_to_send.u128(), &voter_config.astro),
-    // }));
-
-    // // send fee to treasury
-    // if !fee_to_send.is_zero() {
-    //     response = response.add_message(CosmosMsg::Bank(BankMsg::Send {
-    //         to_address: config.treasury.to_string(),
-    //         amount: coins(fee_to_send.u128(), &voter_config.astro),
-    //     }));
-    // }
-
-    // Ok(response
-    //     .add_attribute("amount_to_send", amount_to_send)
-    //     .add_attribute("fee_to_send", fee_to_send))
+    // swap xAstro to astro
+    response = response.add_submessage(SubMsg {
+        id: XASTRO_TO_ASTRO_REPLY_ID,
+        msg: wasm_execute(
+            &equinox_voter,
+            &VoterExecuteMsg::SwapToAstro { recipient: None },
+            coins(xastro_amount.u128(), xastro),
+        )?
+        .into(),
+        gas_limit: None,
+        reply_on: ReplyOn::Success,
+    });
 
     Ok(response)
 }
 
-pub fn parse_number(input: &str) -> u128 {
-    input
-        .chars()
-        .take_while(|x| x.is_ascii_digit())
-        .fold(0, |acc, cur| {
-            acc * 10 + cur.to_digit(10).unwrap_or_default() as u128
-        })
+pub fn handle_swap_to_astro_reply(
+    deps: DepsMut,
+    _env: Env,
+    result: &SubMsgResult,
+) -> Result<Response, ContractError> {
+    let mut response = Response::new();
+    let res = result
+        .to_owned()
+        .into_result()
+        .map_err(|_| ContractError::SwapToAstroError)?;
+
+    let mut astro_amount = Uint128::zero();
+    for event in res.events.iter() {
+        for attr in event.attributes.iter() {
+            if attr.key == "astro_amount" {
+                astro_amount = Uint128::from_str(&attr.value).unwrap();
+            }
+        }
+    }
+
+    let (recipient, mut amount, fee_rate) = WITHDRAW_TEMP_DATA.load(deps.storage)?;
+
+    // 1st time only update amount info
+    if amount.is_zero() {
+        WITHDRAW_TEMP_DATA.save(deps.storage, &(recipient, astro_amount, fee_rate))?;
+
+        return Ok(response);
+    }
+
+    // 2nd time send tokens
+    amount += astro_amount;
+    let fee_to_send = (fee_rate * u128_to_dec(amount)).to_uint_floor();
+    let amount_to_send = amount - fee_to_send;
+
+    let Config {
+        astro, treasury, ..
+    } = CONFIG.load(deps.storage)?;
+
+    // return astro to user
+    response = response.add_message(CosmosMsg::Bank(BankMsg::Send {
+        to_address: recipient.to_string(),
+        amount: coins(amount_to_send.u128(), &astro),
+    }));
+
+    // send fee to treasury
+    if !fee_to_send.is_zero() {
+        response = response.add_message(CosmosMsg::Bank(BankMsg::Send {
+            to_address: treasury.to_string(),
+            amount: coins(fee_to_send.u128(), &astro),
+        }));
+    }
+
+    Ok(response
+        .add_attribute("action", "withdraw")
+        .add_attribute("amount_to_send", amount_to_send)
+        .add_attribute("fee_to_send", fee_to_send))
 }
 
 /// Unstake amount and claim rewards of user
@@ -710,6 +762,9 @@ pub fn unstake(
     amount: Uint128,
     recipient: Option<String>,
 ) -> Result<Response, ContractError> {
+    // use unbond + withdraw instead
+    Err(ContractError::MessageIsDisabled)?;
+
     let cfg = CONFIG.load(deps.storage)?;
     let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
 
@@ -854,4 +909,23 @@ pub fn distribute_eclipse_rewards(
         }
     }
     Ok(Response::new().add_messages(msgs))
+}
+
+fn get_token_amount(input: &str, target_token: &str) -> Uint128 {
+    for token_part in input.split(',').map(|s| s.trim()) {
+        if token_part.contains(target_token) {
+            let numeric_prefix = token_part
+                .chars()
+                .take_while(|c| c.is_digit(10))
+                .collect::<String>();
+
+            if !numeric_prefix.is_empty() {
+                if let Ok(amount) = numeric_prefix.parse::<u128>() {
+                    return Uint128::new(amount);
+                }
+            }
+        }
+    }
+
+    Uint128::zero()
 }

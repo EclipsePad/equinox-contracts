@@ -1,5 +1,5 @@
-// #[cfg(test)]
-// pub mod lockdrop;
+#[cfg(test)]
+pub mod lockdrop;
 #[cfg(test)]
 pub mod lp_stake;
 #[cfg(test)]

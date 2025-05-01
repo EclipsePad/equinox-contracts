@@ -11,8 +11,8 @@ use crate::{
         execute::{
             _handle_callback, add_rewards, allow_users, block_users, claim,
             claim_blacklist_rewards, claim_ownership, drop_ownership_proposal,
-            handle_withdraw_liquidity_reply, propose_new_owner, stake, unbond, unstake,
-            update_config, update_reward_distribution, withdraw,
+            handle_swap_to_astro_reply, handle_withdraw_liquidity_reply, propose_new_owner, stake,
+            unbond, unstake, update_config, update_reward_distribution, withdraw,
         },
         instantiate::try_instantiate,
         query::{
@@ -22,7 +22,10 @@ use crate::{
         },
     },
     error::ContractError,
-    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION, REWARD, WITHDRAW_LIQUIDITY_REPLY_ID},
+    state::{
+        ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION, ECLIP_ASTRO_TO_ASTRO_REPLY_ID, REWARD,
+        WITHDRAW_LIQUIDITY_REPLY_ID, XASTRO_TO_ASTRO_REPLY_ID,
+    },
 };
 
 // make use of the custom errors
@@ -113,6 +116,9 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, Contract
 
     match id {
         WITHDRAW_LIQUIDITY_REPLY_ID => handle_withdraw_liquidity_reply(deps, env, &result),
+        ECLIP_ASTRO_TO_ASTRO_REPLY_ID..=XASTRO_TO_ASTRO_REPLY_ID => {
+            handle_swap_to_astro_reply(deps, env, &result)
+        }
         _ => Err(ContractError::UnknownReplyId(id)),
     }
 }

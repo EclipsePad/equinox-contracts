@@ -19,7 +19,6 @@ pub mod staking {
     pub mod msg;
     pub mod state;
     pub mod types;
-    pub mod types_prev;
 }
 
 pub mod tribute_market {
