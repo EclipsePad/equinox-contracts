@@ -507,7 +507,7 @@ pub fn unbond(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    amount: Uint128,
+    amount: Option<Uint128>,
     period: u64,
 ) -> Result<Response, ContractError> {
     let sender = &info.sender;
@@ -515,33 +515,34 @@ pub fn unbond(
     let config = CONFIG.load(deps.storage)?;
     check_unbonding_period(period, ContractError::IncorrectUnbondingPeriod)?;
 
-    if amount.is_zero() {
+    let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
+    let (mut user_staking, _, response) = _claim(deps.branch(), env, sender.to_string(), None)?;
+    let amount_to_unstake = amount.unwrap_or(user_staking.staked);
+
+    if amount_to_unstake.is_zero() {
         Err(ContractError::ZeroAmount {})?;
     }
 
-    let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
-    let (mut user_staking, _, response) = _claim(deps.branch(), env, sender.to_string(), None)?;
-
-    if amount > user_staking.staked {
+    if amount_to_unstake > user_staking.staked {
         Err(ContractError::ExeedingUnstakeAmount {
-            got: amount.u128(),
+            got: amount_to_unstake.u128(),
             expected: user_staking.staked.u128(),
         })?;
     }
 
-    total_staking = total_staking.checked_sub(amount).unwrap();
-    user_staking.staked = user_staking.staked.checked_sub(amount).unwrap();
+    total_staking = total_staking.checked_sub(amount_to_unstake).unwrap();
+    user_staking.staked = user_staking.staked.checked_sub(amount_to_unstake).unwrap();
 
     USER_UNBONDED.update(deps.storage, sender, |x| -> StdResult<_> {
         let mut unbonded = x.unwrap_or_default();
         let fee = if period == UNBONDING_PERIOD_0 {
-            (str_to_dec(UNBONDING_FEE_RATE) * u128_to_dec(amount)).to_uint_floor()
+            (str_to_dec(UNBONDING_FEE_RATE) * u128_to_dec(amount_to_unstake)).to_uint_floor()
         } else {
             Uint128::zero()
         };
 
         unbonded.push(UnbondedItem {
-            amount: amount - fee,
+            amount: amount_to_unstake - fee,
             fee,
             release_date: block_time + period,
         });
@@ -557,7 +558,7 @@ pub fn unbond(
         config.astroport_incentives,
         &IncentivesExecuteMsg::Withdraw {
             lp_token: config.lp_token.to_string(),
-            amount,
+            amount: amount_to_unstake,
         },
         vec![],
     )?);
@@ -709,7 +710,7 @@ pub fn handle_swap_to_astro_reply(
     let mut astro_amount = Uint128::zero();
     for event in res.events.iter() {
         for attr in event.attributes.iter() {
-            if attr.key == "astro_amount" {
+            if attr.key == "exchanged_astro" {
                 astro_amount = Uint128::from_str(&attr.value).unwrap();
             }
         }

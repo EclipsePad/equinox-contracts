@@ -11,6 +11,8 @@ use super::types::{
 pub const CONTRACT_NAME: &str = "eclipse-equinox-voter";
 
 pub const STAKE_ASTRO_REPLY_ID: u64 = 1;
+pub const UNLOCK_XASTRO_REPLY_ID: u64 = 2;
+pub const UNSTAKE_ASTRO_REPLY_ID: u64 = 3;
 pub const SWAP_REWARDS_REPLY_ID_MIN: u64 = 10;
 pub const SWAP_REWARDS_REPLY_ID_MAX: u64 = SWAP_REWARDS_REPLY_ID_MIN + u8::MAX as u64;
 pub const SWAP_REWARDS_REPLY_ID_CNT: Item<u8> = Item::new("swap_rewards_reply_cnt");

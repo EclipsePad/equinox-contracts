@@ -9,7 +9,7 @@ use eclipse_base::{
         msg::{ExecuteMsg, InstantiateMsg, QueryMsg, SudoMsg},
         state::{
             REWARDS_CLAIM_STAGE, STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_MAX,
-            SWAP_REWARDS_REPLY_ID_MIN,
+            SWAP_REWARDS_REPLY_ID_MIN, UNLOCK_XASTRO_REPLY_ID, UNSTAKE_ASTRO_REPLY_ID,
         },
         types::RewardsClaimStage,
     },
@@ -208,6 +208,8 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, Contract
 
     match id {
         STAKE_ASTRO_REPLY_ID => e::handle_stake_astro_reply(deps, env, &result),
+        UNLOCK_XASTRO_REPLY_ID => e::handle_unlock_xastro_reply(deps, env, &result),
+        UNSTAKE_ASTRO_REPLY_ID => e::handle_unstake_astro_reply(deps, env, &result),
         SWAP_REWARDS_REPLY_ID_MIN..=SWAP_REWARDS_REPLY_ID_MAX => {
             e::handle_swap_reply(deps, env, &result)
         }

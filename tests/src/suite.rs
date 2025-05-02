@@ -2153,14 +2153,14 @@ impl Suite {
     pub fn unbond_lp_token(
         &mut self,
         sender: &str,
-        amount: u128,
+        amount: Option<u128>,
         period: u64,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked(sender),
             self.lp_staking_contract.clone(),
             &LpStakingExecuteMsg::Unbond {
-                amount: Uint128::new(amount),
+                amount: amount.map(Uint128::new),
                 period,
             },
             &[],

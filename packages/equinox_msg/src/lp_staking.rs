@@ -66,7 +66,7 @@ pub enum ExecuteMsg {
     },
 
     Unbond {
-        amount: Uint128,
+        amount: Option<Uint128>,
         period: u64,
     },
     Withdraw {
