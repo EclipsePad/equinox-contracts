@@ -11,8 +11,9 @@ use crate::{
         execute::{
             _handle_callback, add_rewards, allow_users, block_users, claim,
             claim_blacklist_rewards, claim_ownership, drop_ownership_proposal,
-            handle_swap_to_astro_reply, handle_withdraw_liquidity_reply, propose_new_owner, stake,
-            unbond, unstake, update_config, update_reward_distribution, withdraw,
+            handle_swap_to_astro_reply, handle_withdraw_liquidity_reply, propose_new_owner,
+            remove_from_blacklist, stake, unbond, unstake, update_config,
+            update_reward_distribution, withdraw,
         },
         instantiate::try_instantiate,
         query::{
@@ -76,6 +77,8 @@ pub fn execute(
         ExecuteMsg::ClaimBlacklistRewards {} => claim_blacklist_rewards(deps, env),
         ExecuteMsg::AllowUsers { users } => allow_users(deps, info, users),
         ExecuteMsg::BlockUsers { users } => block_users(deps, info, users),
+
+        ExecuteMsg::RemoveFromBlacklist { user } => remove_from_blacklist(deps, env, info, user),
     }
 }
 

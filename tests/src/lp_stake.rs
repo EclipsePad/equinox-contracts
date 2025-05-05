@@ -7,9 +7,12 @@ use astroport::{
 use cosmwasm_std::{Addr, Decimal256, Uint128};
 use equinox_msg::{
     lp_staking::{RewardAmount, RewardWeight},
+    single_sided_staking::UnbondedItem,
     utils::{UNBONDING_PERIOD_0, UNBONDING_PERIOD_1},
 };
 use lp_staking::error::ContractError;
+
+use pretty_assertions::assert_eq;
 
 use crate::suite::{Suite, SuiteBuilder, ALICE, BOB, CAROL, TREASURY};
 
@@ -850,10 +853,7 @@ fn unbond_multiple_positions() {
         suite.update_time(1);
     }
 
-    assert_eq!(
-        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
-        999_800_018
-    );
+    let bob_astro_before = suite.query_balance_native(&BOB, suite.astro()).unwrap();
     assert_eq!(suite.query_balance_native(&BOB, suite.xastro()).unwrap(), 0);
     assert_eq!(
         suite
@@ -864,17 +864,33 @@ fn unbond_multiple_positions() {
 
     // withdraw each unbonded position separately
     for _ in 1..=2 {
+        suite.update_time(1);
         suite
             .unbond_lp_token(BOB, Some(lp_amount / 4), UNBONDING_PERIOD_1)
             .unwrap();
     }
 
+    assert_eq!(
+        suite.query_user_lp_token_unbonded(BOB).unwrap(),
+        vec![
+            UnbondedItem {
+                amount: Uint128::new(23_836),
+                fee: Uint128::zero(),
+                release_date: 1699229205
+            },
+            UnbondedItem {
+                amount: Uint128::new(23_836),
+                fee: Uint128::zero(),
+                release_date: 1699229206
+            }
+        ]
+    );
+
     suite.update_time(UNBONDING_PERIOD_1);
     suite.withdraw_lp_token(BOB, None).unwrap();
-    assert_eq!(
-        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
-        999_899_981
-    );
+    let bob_astro_after = suite.query_balance_native(&BOB, suite.astro()).unwrap();
+
+    assert_eq!(bob_astro_after - bob_astro_before, 99_977);
     assert_eq!(suite.query_balance_native(&BOB, suite.xastro()).unwrap(), 0);
     assert_eq!(
         suite
@@ -882,18 +898,31 @@ fn unbond_multiple_positions() {
             .unwrap(),
         0
     );
+    assert_eq!(suite.query_user_lp_token_unbonded(BOB).unwrap(), vec![]);
+
+    suite.lp_staking_claim_rewards(BOB).unwrap();
+    let bob_astro_before = suite.query_balance_native(&BOB, suite.astro()).unwrap();
 
     // withdraw multiple unbonded positions at once
     suite
         .unbond_lp_token(BOB, None, UNBONDING_PERIOD_1)
         .unwrap();
 
+    assert_eq!(
+        suite.query_user_lp_token_unbonded(BOB).unwrap(),
+        vec![UnbondedItem {
+            amount: Uint128::new(47_672),
+            fee: Uint128::zero(),
+            release_date: 1701648406
+        },]
+    );
+
     suite.update_time(UNBONDING_PERIOD_1);
     suite.withdraw_lp_token(BOB, None).unwrap();
-    assert_eq!(
-        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
-        1_000_000_000
-    );
+    let bob_astro_after = suite.query_balance_native(&BOB, suite.astro()).unwrap();
+
+    assert_eq!(suite.query_user_lp_token_unbonded(BOB).unwrap(), vec![]);
+    assert_eq!(bob_astro_after - bob_astro_before, 99_957);
     assert_eq!(suite.query_balance_native(&BOB, suite.xastro()).unwrap(), 0);
     assert_eq!(
         suite
@@ -903,96 +932,120 @@ fn unbond_multiple_positions() {
     );
 }
 
-// #[test]
-// fn unbond_multiple_users() {
-//     let mut suite = SuiteBuilder::new().build();
-//     suite.update_config();
+#[test]
+fn unbond_multiple_users() {
+    let mut suite = instantiate();
+    // add funds to vault
+    suite
+        .add_lp_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
 
-//     // add funds to vault
-//     suite
-//         .add_single_sided_vault_reward(
-//             &suite.admin(),
-//             None,
-//             None,
-//             12_800_000_000u128,
-//             8_600_000_000u128,
-//         )
-//         .unwrap();
+    // remove carol from blacklist
+    suite.lp_remove_from_blacklist(CAROL).unwrap();
 
-//     for user in [ALICE, BOB] {
-//         suite
-//             .mint_native(user.to_string(), suite.astro(), 10_000)
-//             .unwrap();
-//     }
+    const AMOUNT: u128 = 100_000;
 
-//     // ready astro_staking_pool
-//     suite.stake_astro(&suite.admin(), 1_000_000).unwrap();
+    for user in [BOB, CAROL] {
+        suite
+            .mint_native(user.to_string(), suite.astro(), 1_000_000_000)
+            .unwrap();
+        suite.convert_astro(user, AMOUNT).unwrap();
+        suite.stake_astro(user, AMOUNT).unwrap();
 
-//     for user in [ALICE, BOB] {
-//         suite.convert_astro(user, 10_000).unwrap();
-//     }
+        let user_eclipastro_amount = suite.query_eclipastro_balance(user).unwrap();
+        let user_xastro_amount = suite
+            .query_balance_native(user.to_string(), suite.xastro())
+            .unwrap();
 
-//     let block_time = suite.get_time();
-//     suite
-//         .single_sided_stake(ALICE, 500, ONE_MONTH, None)
-//         .unwrap();
-//     suite
-//         .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
-//         .unwrap();
+        suite
+            .provide_liquidity(
+                user,
+                Addr::unchecked(suite.eclipastro_xastro_lp_contract()),
+                vec![
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: suite.eclipastro(),
+                        },
+                        amount: Uint128::from(user_eclipastro_amount),
+                    },
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: suite.xastro(),
+                        },
+                        amount: Uint128::from(user_xastro_amount),
+                    },
+                ],
+                None,
+                None,
+            )
+            .unwrap();
 
-//     assert_eq!(
-//         suite.query_single_sided_staking(ALICE).unwrap(),
-//         vec![UserStaking {
-//             duration: ONE_MONTH,
-//             staking: vec![UserStakingByDuration {
-//                 amount: Uint128::new(500),
-//                 locked_at: block_time
-//             },]
-//         },]
-//     );
-//     assert_eq!(
-//         suite.query_single_sided_staking(BOB).unwrap(),
-//         vec![UserStaking {
-//             duration: ONE_MONTH,
-//             staking: vec![UserStakingByDuration {
-//                 amount: Uint128::new(1_000),
-//                 locked_at: block_time
-//             },]
-//         },]
-//     );
-//     assert_eq!(
-//         suite.query_balance_native(&ALICE, suite.astro()).unwrap(),
-//         0
-//     );
-//     assert_eq!(suite.query_balance_native(&BOB, suite.astro()).unwrap(), 0);
+        let lp_amount = suite.query_lp_token_balance(user).unwrap().u128();
+        suite.stake_lp_token(user, lp_amount).unwrap();
 
-//     suite.update_time(ONE_MONTH + ONE_DAY);
-//     for user in [ALICE, BOB] {
-//         suite
-//             .single_sided_unbond(user, ONE_MONTH, block_time, UNBONDING_PERIOD_1)
-//             .unwrap();
-//     }
+        assert_eq!(
+            suite.query_balance_native(user, suite.astro()).unwrap(),
+            999_800_000
+        );
+        assert_eq!(suite.query_balance_native(user, suite.xastro()).unwrap(), 0);
+        assert_eq!(
+            suite
+                .query_balance_native(user, suite.eclipastro())
+                .unwrap(),
+            0
+        );
+    }
 
-//     assert_eq!(
-//         suite.query_balance_native(&ALICE, suite.astro()).unwrap(),
-//         0
-//     );
-//     assert_eq!(suite.query_balance_native(&BOB, suite.astro()).unwrap(), 0);
+    // claim rewards and unbond
+    suite.update_time(UNBONDING_PERIOD_1);
+    for user in [BOB, CAROL] {
+        suite.lp_staking_claim_rewards(user).unwrap();
+        suite
+            .unbond_lp_token(user, None, UNBONDING_PERIOD_1)
+            .unwrap();
+    }
 
-//     suite.update_time(UNBONDING_PERIOD_1);
+    let bob_astro_before = suite.query_balance_native(BOB, suite.astro()).unwrap();
+    let carol_astro_before = suite.query_balance_native(CAROL, suite.astro()).unwrap();
 
-//     for user in [BOB, ALICE] {
-//         suite.single_sided_withdraw(user, None).unwrap();
-//     }
-//     assert_eq!(
-//         suite.query_balance_native(&ALICE, suite.astro()).unwrap(),
-//         499
-//     );
-//     assert_eq!(
-//         suite.query_balance_native(&BOB, suite.astro()).unwrap(),
-//         999
-//     );
-// }
+    // withdraw positions
+    suite.update_time(UNBONDING_PERIOD_1);
+    for user in [CAROL, BOB] {
+        suite.withdraw_lp_token(user, None).unwrap();
+    }
+
+    let bob_astro_after = suite.query_balance_native(BOB, suite.astro()).unwrap();
+    let carol_astro_after = suite.query_balance_native(CAROL, suite.astro()).unwrap();
+
+    assert_eq!(suite.query_user_lp_token_unbonded(BOB).unwrap(), vec![]);
+    assert_eq!(bob_astro_after - bob_astro_before, 199_930);
+    assert_eq!(suite.query_balance_native(&BOB, suite.xastro()).unwrap(), 0);
+    assert_eq!(
+        suite
+            .query_balance_native(&BOB, suite.eclipastro())
+            .unwrap(),
+        0
+    );
+
+    assert_eq!(suite.query_user_lp_token_unbonded(CAROL).unwrap(), vec![]);
+    assert_eq!(carol_astro_after - carol_astro_before, 199_930);
+    assert_eq!(
+        suite.query_balance_native(&CAROL, suite.xastro()).unwrap(),
+        0
+    );
+    assert_eq!(
+        suite
+            .query_balance_native(&CAROL, suite.eclipastro())
+            .unwrap(),
+        0
+    );
+}
 
 // #[test]
 // fn unbond_twice() {
@@ -1039,5 +1092,3 @@ fn unbond_multiple_positions() {
 //     let res = suite.single_sided_withdraw(BOB, None).unwrap_err();
 //     assert_eq!(ContractError::EarlyWithdraw, res.downcast().unwrap());
 // }
-
-// TODO: test query

@@ -49,7 +49,7 @@ use equinox_msg::{
     single_sided_staking::{
         Config as SingleStakingConfig, ExecuteMsg as SingleSidedStakingExecuteMsg,
         InstantiateMsg as SingleSidedStakingInstantiateMsg, QueryMsg as SingleStakingQueryMsg,
-        TimeLockConfig, UpdateConfigMsg as SingleStakingUpdateConfigMsg, UserReward,
+        TimeLockConfig, UnbondedItem, UpdateConfigMsg as SingleStakingUpdateConfigMsg, UserReward,
         UserStaking as SingleSidedUserStaking,
     },
 };
@@ -2189,6 +2189,16 @@ impl Suite {
         )?;
         Ok(res)
     }
+
+    pub fn query_user_lp_token_unbonded(&self, user: &str) -> StdResult<Vec<UnbondedItem>> {
+        self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::Unbonded {
+                user: user.to_string(),
+            },
+        )
+    }
+
     pub fn query_user_lp_token_rewards(&self, user: &str) -> StdResult<Vec<LpStakingRewardAmount>> {
         let res: Vec<LpStakingRewardAmount> = self.app.wrap().query_wasm_smart(
             self.lp_staking_contract.clone(),
@@ -2255,6 +2265,18 @@ impl Suite {
             &[],
         )
     }
+
+    pub fn lp_remove_from_blacklist(&mut self, user: impl ToString) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(self.admin()),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::RemoveFromBlacklist {
+                user: user.to_string(),
+            },
+            &[],
+        )
+    }
+
     pub fn lp_unstake(
         &mut self,
         sender: &str,

@@ -503,6 +503,25 @@ pub fn block_users(
     Ok(Response::new().add_attribute("action", "update allowed users"))
 }
 
+/// it's only way to remove user from bl after instantiation
+pub fn remove_from_blacklist(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    user: String,
+) -> Result<Response, ContractError> {
+    OWNER.assert_admin(deps.as_ref(), &info.sender)?;
+    deps.api.addr_validate(&user)?;
+
+    BLACK_LIST.update(deps.storage, |mut x| -> StdResult<_> {
+        x.retain(|y| y != &user);
+
+        Ok(x)
+    })?;
+
+    Ok(Response::new().add_attribute("action", "remove_from_blacklist"))
+}
+
 pub fn unbond(
     mut deps: DepsMut,
     env: Env,
@@ -616,7 +635,7 @@ pub fn withdraw(
             config.lp_contract,
             &astroport::pair::ExecuteMsg::WithdrawLiquidity {
                 assets: vec![],
-                min_assets_to_receive: None, // TODO: check if it will work
+                min_assets_to_receive: None,
             },
             coins(
                 (amount_to_send + fee_to_send).u128(),

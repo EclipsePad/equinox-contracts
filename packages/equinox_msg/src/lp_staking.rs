@@ -86,6 +86,10 @@ pub enum ExecuteMsg {
     BlockUsers {
         users: Vec<String>,
     },
+
+    RemoveFromBlacklist {
+        user: String,
+    },
 }
 
 #[cw_serde]
