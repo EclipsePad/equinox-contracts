@@ -34,7 +34,7 @@ pub fn try_instantiate(
             eclip: msg.eclip,
             beclip: deps.api.addr_validate(&msg.beclip)?,
             init_early_unlock_penalty: msg.init_early_unlock_penalty.unwrap_or(
-                Decimal::from_str(&DEFAULT_INIT_EARLY_UNLOCK_PENALTY).unwrap_or_default(),
+                Decimal::from_str(DEFAULT_INIT_EARLY_UNLOCK_PENALTY).unwrap_or_default(),
             ),
         },
     )?;

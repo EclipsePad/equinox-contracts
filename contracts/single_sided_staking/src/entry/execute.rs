@@ -871,7 +871,7 @@ pub fn withdraw(
         reply_on: ReplyOn::Success,
     };
 
-    return Ok(Response::new().add_submessage(msg));
+    Ok(Response::new().add_submessage(msg))
 }
 
 pub fn handle_swap_to_astro_reply(

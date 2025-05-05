@@ -620,7 +620,7 @@ pub fn query_blacklist_rewards(deps: Deps, env: Env) -> StdResult<UserReward> {
     for user in blacklist.iter() {
         for timelock_config in &config.timelock_config {
             let duration = timelock_config.duration;
-            for s in USER_STAKED.prefix((&user, duration)).range(
+            for s in USER_STAKED.prefix((user, duration)).range(
                 deps.storage,
                 None,
                 None,

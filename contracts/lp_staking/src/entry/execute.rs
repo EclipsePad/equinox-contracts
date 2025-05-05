@@ -646,7 +646,7 @@ pub fn withdraw(
         reply_on: ReplyOn::Success,
     };
 
-    return Ok(Response::new().add_submessage(submsg));
+    Ok(Response::new().add_submessage(submsg))
 }
 
 pub fn handle_withdraw_liquidity_reply(
@@ -936,7 +936,7 @@ fn get_token_amount(input: &str, target_token: &str) -> Uint128 {
         if token_part.contains(target_token) {
             let numeric_prefix = token_part
                 .chars()
-                .take_while(|c| c.is_digit(10))
+                .take_while(|c| c.is_ascii_digit())
                 .collect::<String>();
 
             if !numeric_prefix.is_empty() {
