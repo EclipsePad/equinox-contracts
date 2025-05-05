@@ -1047,48 +1047,67 @@ fn unbond_multiple_users() {
     );
 }
 
-// #[test]
-// fn unbond_twice() {
-//     let mut suite = SuiteBuilder::new().build();
-//     suite.update_config();
+#[test]
+fn unbond_twice() {
+    let mut suite = instantiate();
+    // add funds to vault
+    suite
+        .add_lp_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
+    suite
+        .mint_native(BOB.to_string(), suite.astro(), 1_000_000_000)
+        .unwrap();
+    suite.convert_astro(BOB, 100_000).unwrap();
 
-//     // add funds to vault
-//     suite
-//         .add_single_sided_vault_reward(
-//             &suite.admin(),
-//             None,
-//             None,
-//             12_800_000_000u128,
-//             8_600_000_000u128,
-//         )
-//         .unwrap();
+    let bob_eclipastro_amount = suite.query_eclipastro_balance(BOB).unwrap();
 
-//     suite
-//         .mint_native(BOB.to_string(), suite.astro(), 10_000)
-//         .unwrap();
+    suite.stake_astro(BOB, 100_000).unwrap();
+    let bob_xastro_amount = suite
+        .query_balance_native(BOB.to_string(), suite.xastro())
+        .unwrap();
 
-//     // ready astro_staking_pool
-//     suite.stake_astro(&suite.admin(), 1_000_000).unwrap();
+    suite
+        .provide_liquidity(
+            BOB,
+            Addr::unchecked(suite.eclipastro_xastro_lp_contract()),
+            vec![
+                Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: suite.eclipastro(),
+                    },
+                    amount: Uint128::from(bob_eclipastro_amount),
+                },
+                Asset {
+                    info: AssetInfo::NativeToken {
+                        denom: suite.xastro(),
+                    },
+                    amount: Uint128::from(bob_xastro_amount),
+                },
+            ],
+            None,
+            None,
+        )
+        .unwrap();
+    let lp_amount = suite.query_lp_token_balance(BOB).unwrap().u128();
 
-//     suite.convert_astro(BOB, 10_000).unwrap();
+    suite.stake_lp_token(BOB, lp_amount).unwrap();
 
-//     let block_time = suite.get_time();
-//     suite
-//         .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
-//         .unwrap();
+    suite
+        .unbond_lp_token(BOB, None, UNBONDING_PERIOD_1)
+        .unwrap();
+    let res = suite
+        .unbond_lp_token(BOB, None, UNBONDING_PERIOD_1)
+        .unwrap_err();
+    assert_eq!(ContractError::ZeroAmount {}, res.downcast().unwrap());
 
-//     suite.update_time(ONE_MONTH + ONE_DAY);
-//     suite
-//         .single_sided_unbond(BOB, ONE_MONTH, block_time, UNBONDING_PERIOD_1)
-//         .unwrap();
-
-//     let res = suite
-//         .single_sided_unbond(BOB, ONE_MONTH, block_time, UNBONDING_PERIOD_1)
-//         .unwrap_err();
-//     assert_eq!(ContractError::NoLockedAmount {}, res.downcast().unwrap());
-
-//     suite.update_time(UNBONDING_PERIOD_1);
-//     suite.single_sided_withdraw(BOB, None).unwrap();
-//     let res = suite.single_sided_withdraw(BOB, None).unwrap_err();
-//     assert_eq!(ContractError::EarlyWithdraw, res.downcast().unwrap());
-// }
+    suite.update_time(UNBONDING_PERIOD_1);
+    suite.withdraw_lp_token(BOB, None).unwrap();
+    let res = suite.withdraw_lp_token(BOB, None).unwrap_err();
+    assert_eq!(ContractError::EarlyWithdraw, res.downcast().unwrap());
+}

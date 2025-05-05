@@ -10,7 +10,7 @@ use equinox_msg::lockdrop::{
 };
 // use equinox_msg::lockdrop::UpdateConfigMsg;
 use lockdrop::error::ContractError;
-use single_sided_staking::error::ContractError as SingleSidedStakingError;
+// use single_sided_staking::error::ContractError as SingleSidedStakingError;
 
 use crate::suite::{Suite, SuiteBuilder, ALICE, CAROL, TREASURY};
 
@@ -1846,13 +1846,13 @@ fn restake_and_unlock() {
     assert_eq!(ContractError::NotStaked {}, err.downcast().unwrap());
 
     suite.update_time(86400u64);
-    let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    let _prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     suite
         .single_lockdrop_claim_rewards(ALICE, 2592000, None)
         .unwrap();
     // let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     // assert_eq!(user_info, vec![]);
-    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    let _alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
 
     let user_eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
     assert_eq!(user_eclipastro_balance, 0);
