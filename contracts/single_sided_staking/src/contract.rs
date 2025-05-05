@@ -1,9 +1,7 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
-    Response, StdError, StdResult,
+    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response,
+    StdResult,
 };
-use cw2::{get_contract_version, set_contract_version};
-use semver::Version;
 
 use crate::{
     entry::{
@@ -14,6 +12,7 @@ use crate::{
             update_config, withdraw,
         },
         instantiate::try_instantiate,
+        migrate::migrate_contract,
         query::{
             calculate_penalty, query_blacklist, query_blacklist_rewards,
             query_calculate_penalty_amount, query_calculate_reward, query_config,
@@ -23,7 +22,7 @@ use crate::{
         },
     },
     error::ContractError,
-    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION, REWARD, SWAP_TO_ASTRO_REPLY_ID},
+    state::{ALLOWED_USERS, SWAP_TO_ASTRO_REPLY_ID},
 };
 use equinox_msg::single_sided_staking::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RestakeData,
@@ -191,45 +190,7 @@ pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, Contract
     }
 }
 
-/// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    let version: Version = CONTRACT_VERSION.parse()?;
-    let storage_version: Version = get_contract_version(deps.storage)?.version.parse()?;
-    let contract_name = get_contract_version(deps.storage)?.contract;
-
-    match msg.update_contract_name {
-        Some(true) => {}
-        _ => {
-            ensure_eq!(
-                contract_name,
-                CONTRACT_NAME,
-                ContractError::ContractNameErr(contract_name)
-            );
-        }
-    }
-
-    ensure_eq!(
-        (version > storage_version),
-        true,
-        ContractError::VersionErr(storage_version.to_string())
-    );
-
-    if version > storage_version {
-        set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    }
-
-    if let Some(update_rewards) = msg.update_rewards {
-        let (time_config, new_reward) = update_rewards;
-        REWARD.update(deps.storage, time_config, |reward| -> StdResult<_> {
-            if let Some(old_reward) = reward {
-                if old_reward.eclip + old_reward.beclip == new_reward.eclip + new_reward.beclip {
-                    return Ok(new_reward);
-                }
-            }
-            Err(StdError::generic_err("Update Rewards error"))
-        })?;
-    }
-
-    Ok(Response::new().add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    migrate_contract(deps, env, msg)
 }

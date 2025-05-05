@@ -4,6 +4,17 @@ use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, 
 
 use crate::single_sided_staking::UnbondedItem;
 
+// #[cw_serde]
+// pub struct MigrateMsg {
+//     pub update_contract_name: Option<bool>,
+//     pub update_rewards: Option<((u64, u64), Reward)>,
+// }
+
+#[cw_serde]
+pub struct MigrateMsg {
+    pub version: String,
+}
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// contract owner
@@ -134,12 +145,6 @@ pub enum QueryMsg {
 
     #[returns(Vec<((u64, u64), Reward)>)]
     RewardSchedule { from: Option<u64> },
-}
-
-#[cw_serde]
-pub struct MigrateMsg {
-    pub update_contract_name: Option<bool>,
-    pub update_rewards: Option<((u64, u64), Reward)>,
 }
 
 #[cw_serde]

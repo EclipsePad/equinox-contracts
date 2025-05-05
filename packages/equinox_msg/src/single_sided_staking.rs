@@ -10,6 +10,17 @@ pub struct UnbondedItem {
     pub release_date: u64,
 }
 
+// #[cw_serde]
+// pub struct MigrateMsg {
+//     pub update_contract_name: Option<bool>,
+//     pub update_rewards: Option<((u64, u64), Reward)>,
+// }
+
+#[cw_serde]
+pub struct MigrateMsg {
+    pub version: String,
+}
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner for updating
@@ -166,12 +177,6 @@ pub enum QueryMsg {
         duration: u64,
         locked_at: Option<u64>,
     },
-}
-
-#[cw_serde]
-pub struct MigrateMsg {
-    pub update_contract_name: Option<bool>,
-    pub update_rewards: Option<((u64, u64), Reward)>,
 }
 
 #[cw_serde]
