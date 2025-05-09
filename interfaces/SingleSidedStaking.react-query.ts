@@ -7,7 +7,7 @@
 import { UseQueryOptions, useQuery, useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee, Coin } from "@cosmjs/amino";
-import { Decimal, InstantiateMsg, TimeLockConfig, ExecuteMsg, AssetInfo, Addr, CallbackMsg, Uint128, UpdateConfigMsg, QueryMsg, ArrayOfString, UserReward, Config, ArrayOfTupleOfUint64AndUint128, Boolean, ArrayOfTupleOfUint64Anduint64AndUserReward, ArrayOfTupleOfTupleOfUint64Anduint64AndReward, Reward, ArrayOfUserStaking, UserStaking, UserStakingByDuration, ArrayOfStakingWithDuration, StakingWithDuration, ArrayOfUnbondedItem, UnbondedItem } from "./SingleSidedStaking.types";
+import { Decimal, InstantiateMsg, TimeLockConfig, ExecuteMsg, AssetInfo, Addr, CallbackMsg, Uint128, UpdateConfigMsg, QueryMsg, MigrateMsg, ArrayOfString, UserReward, Config, ArrayOfTupleOfUint64AndUint128, Boolean, ArrayOfTupleOfUint64Anduint64AndUserReward, ArrayOfTupleOfTupleOfUint64Anduint64AndReward, Reward, ArrayOfUserStaking, UserStaking, UserStakingByDuration, ArrayOfStakingWithDuration, StakingWithDuration, ArrayOfUnbondedItem, UnbondedItem } from "./SingleSidedStaking.types";
 import { SingleSidedStakingQueryClient, SingleSidedStakingClient } from "./SingleSidedStaking.client";
 export const singleSidedStakingQueryKeys = {
   contract: ([{

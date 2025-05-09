@@ -153,6 +153,9 @@ export type QueryMsg = "blacklist_rewards" | {
     from?: number | null;
   };
 };
+export interface MigrateMsg {
+  version: string;
+}
 export type ArrayOfString = string[];
 export type ArrayOfRewardAmount = RewardAmount[];
 export interface RewardAmount {

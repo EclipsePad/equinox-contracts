@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { AssetInfo, Addr, InstantiateMsg, ExecuteMsg, CallbackMsg, Uint128, UpdateConfigMsg, RewardDistribution, Asset, QueryMsg, ArrayOfString, ArrayOfRewardAmount, RewardAmount, Config, Boolean, Reward, ArrayOfTupleOfTupleOfUint64Anduint64AndReward, Decimal256, ArrayOfRewardWeight, RewardWeight, UserStaking, ArrayOfUnbondedItem, UnbondedItem } from "./LpStaking.types";
+import { AssetInfo, Addr, InstantiateMsg, ExecuteMsg, CallbackMsg, Uint128, UpdateConfigMsg, RewardDistribution, Asset, QueryMsg, MigrateMsg, ArrayOfString, ArrayOfRewardAmount, RewardAmount, Config, Boolean, Reward, ArrayOfTupleOfTupleOfUint64Anduint64AndReward, Decimal256, ArrayOfRewardWeight, RewardWeight, UserStaking, ArrayOfUnbondedItem, UnbondedItem } from "./LpStaking.types";
 export interface LpStakingReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<Config>;

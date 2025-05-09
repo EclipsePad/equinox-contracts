@@ -184,6 +184,9 @@ export type QueryMsg = "blacklist_rewards" | {
     locked_at?: number | null;
   };
 };
+export interface MigrateMsg {
+  version: string;
+}
 export type ArrayOfString = string[];
 export interface UserReward {
   beclip: Uint128;

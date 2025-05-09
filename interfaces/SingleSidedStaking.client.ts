@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
-import { Decimal, InstantiateMsg, TimeLockConfig, ExecuteMsg, AssetInfo, Addr, CallbackMsg, Uint128, UpdateConfigMsg, QueryMsg, ArrayOfString, UserReward, Config, ArrayOfTupleOfUint64AndUint128, Boolean, ArrayOfTupleOfUint64Anduint64AndUserReward, ArrayOfTupleOfTupleOfUint64Anduint64AndReward, Reward, ArrayOfUserStaking, UserStaking, UserStakingByDuration, ArrayOfStakingWithDuration, StakingWithDuration, ArrayOfUnbondedItem, UnbondedItem } from "./SingleSidedStaking.types";
+import { Decimal, InstantiateMsg, TimeLockConfig, ExecuteMsg, AssetInfo, Addr, CallbackMsg, Uint128, UpdateConfigMsg, QueryMsg, MigrateMsg, ArrayOfString, UserReward, Config, ArrayOfTupleOfUint64AndUint128, Boolean, ArrayOfTupleOfUint64Anduint64AndUserReward, ArrayOfTupleOfTupleOfUint64Anduint64AndReward, Reward, ArrayOfUserStaking, UserStaking, UserStakingByDuration, ArrayOfStakingWithDuration, StakingWithDuration, ArrayOfUnbondedItem, UnbondedItem } from "./SingleSidedStaking.types";
 export interface SingleSidedStakingReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<Config>;
