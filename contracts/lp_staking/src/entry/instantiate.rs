@@ -39,6 +39,11 @@ pub fn try_instantiate(
             xastro: msg.xastro,
             astro_staking: deps.api.addr_validate(msg.astro_staking.as_str())?,
             eclip_staking: deps.api.addr_validate(msg.eclip_staking.as_str())?,
+            lockdrop: msg
+                .lockdrop
+                .map(|x| deps.api.addr_validate(&x))
+                .transpose()?
+                .unwrap_or(info.sender.clone()),
             astroport_incentives: deps.api.addr_validate(msg.astroport_incentives.as_str())?,
             treasury: deps.api.addr_validate(msg.treasury.as_str())?,
             funding_dao: deps.api.addr_validate(msg.funding_dao.as_str())?,

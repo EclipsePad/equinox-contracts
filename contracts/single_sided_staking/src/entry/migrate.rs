@@ -1,10 +1,13 @@
-use cosmwasm_std::{DepsMut, Env, Response, Storage};
+use cosmwasm_std::{Addr, DepsMut, Env, Response, Storage};
 use cw2::{get_contract_version, set_contract_version};
 use semver::Version;
 
-use equinox_msg::single_sided_staking::MigrateMsg;
+use equinox_msg::single_sided_staking::{Config, ConfigPre, MigrateMsg};
 
-use crate::{error::ContractError, state::CONTRACT_NAME};
+use crate::{
+    error::ContractError,
+    state::{CONFIG, CONTRACT_NAME},
+};
 
 pub fn migrate_contract(
     deps: DepsMut,
@@ -17,6 +20,33 @@ pub fn migrate_contract(
         set_contract_version(deps.storage, CONTRACT_NAME, version_new.to_string())?;
 
         // migration logic
+        let ConfigPre {
+            token,
+            timelock_config,
+            voter,
+            treasury,
+            eclip_staking,
+            eclip,
+            beclip,
+            init_early_unlock_penalty,
+        } = cw_storage_plus::Item::new("config").load(deps.storage)?;
+
+        CONFIG.save(
+            deps.storage,
+            &Config {
+                token,
+                timelock_config,
+                voter,
+                lockdrop: Addr::unchecked(
+                    "neutron1zh097hf7pz3d0pz3jnt3urhyw03kmcpxfs4as6sqz4cyfjkyyzmqpvd2n5",
+                ),
+                treasury,
+                eclip_staking,
+                eclip,
+                beclip,
+                init_early_unlock_penalty,
+            },
+        )?;
     }
 
     Ok(Response::new())

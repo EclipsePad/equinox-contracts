@@ -23,6 +23,7 @@ export interface InstantiateMsg {
   eclip: string;
   eclip_staking: string;
   funding_dao: string;
+  lockdrop?: string | null;
   lp_contract: string;
   lp_token: AssetInfo;
   owner?: string | null;
@@ -103,6 +104,7 @@ export interface UpdateConfigMsg {
   beclip?: string | null;
   eclip?: string | null;
   funding_dao?: string | null;
+  lockdrop?: string | null;
   lp_contract?: string | null;
   lp_token?: AssetInfo | null;
   treasury?: string | null;
@@ -170,6 +172,7 @@ export interface Config {
   eclip: string;
   eclip_staking: Addr;
   funding_dao: Addr;
+  lockdrop: Addr;
   lp_contract: Addr;
   lp_token: AssetInfo;
   treasury: Addr;

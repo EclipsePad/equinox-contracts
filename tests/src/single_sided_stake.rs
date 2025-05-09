@@ -44,6 +44,7 @@ fn update_config() {
             reward_multiplier: 1,
         }]),
         voter: Some("wasm1_voter".to_string()),
+        lockdrop: Some(suite.lockdrop_contract()),
         treasury: Some("wasm1_treasury".to_string()),
         eclip: None,
         beclip: None,
