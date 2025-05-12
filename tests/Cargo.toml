@@ -1,0 +1,49 @@
+[package]
+name = "tests"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "tests for equinox contracts"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dependencies]
+anyhow = { workspace = true }
+cosmwasm-std = { workspace = true }
+cosmwasm-schema = { workspace = true }
+cw-controllers = { workspace = true }
+cw-multi-test = { workspace = true }
+pretty_assertions = { workspace = true }
+cw20 = { workspace = true }
+cw20-base = { workspace = true }
+itertools = { workspace = true }
+neutron-sdk = { workspace = true }
+osmosis-std = { workspace = true }
+derivative = { workspace = true }
+strum = { workspace = true }
+strum_macros = { workspace = true }
+
+equinox-msg = { workspace = true }
+eclipse-base = { workspace = true }
+minter-mocks = { workspace = true }
+voter-mocks = { workspace = true }
+single-sided-staking = { workspace = true }
+lp-staking = { workspace = true }
+lockdrop = { workspace = true }
+astroport-incentives = { workspace = true }
+astroport-factory = { workspace = true }
+astroport-pair = { workspace = true }
+astroport-staking = { workspace = true }
+astroport-vesting = { workspace = true }
+astroport = { workspace = true }
+
+eclipsepad-staking = { workspace = true }
+astroport-tokenfactory-tracker = { workspace = true }

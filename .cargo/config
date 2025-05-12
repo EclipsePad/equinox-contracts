@@ -1,7 +1,9 @@
 [alias]
 wasm = "build --release --target wasm32-unknown-unknown"
 wasm-debug = "build --target wasm32-unknown-unknown"
-unit-test = "test --lib"
-integration-test = "test --test integration"
+
 schema = "run --example schema"
-lint = "clippy --all-targets -- --D warnings --no-deps"
+lint = "clippy --all-targets -- --D warnings"
+lint2 = "clippy --all-targets -- --D warnings --no-deps"
+show = "test -- --show-output"
+coverage = "tarpaulin -v"

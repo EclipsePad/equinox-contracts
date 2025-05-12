@@ -9,13 +9,16 @@ use cosmwasm_std::{
     SupplyResponse, Uint128,
 };
 use cw_storage_plus::Bound;
-use equinox_msg::lp_staking::{
-    Config, Reward, RewardAmount, RewardDistribution, RewardWeight, UserStaking, VaultRewards,
+use equinox_msg::{
+    lp_staking::{
+        Config, Reward, RewardAmount, RewardDistribution, RewardWeight, UserStaking, VaultRewards,
+    },
+    single_sided_staking::UnbondedItem,
 };
 
 use crate::state::{
     BLACK_LIST, BLACK_LIST_REWARDS, CONFIG, LAST_CLAIMED, OWNER, REWARD, REWARD_DISTRIBUTION,
-    REWARD_WEIGHTS, STAKING, TOTAL_STAKING,
+    REWARD_WEIGHTS, STAKING, TOTAL_STAKING, USER_UNBONDED,
 };
 
 /// query owner
@@ -40,6 +43,11 @@ pub fn query_reward_distribution(deps: Deps, _env: Env) -> StdResult<RewardDistr
 pub fn query_staking(deps: Deps, _env: Env, user: String) -> StdResult<UserStaking> {
     let user_staking = STAKING.load(deps.storage, &user).unwrap_or_default();
     Ok(user_staking)
+}
+
+pub fn query_unbonded(deps: Deps, _env: Env, user: String) -> StdResult<Vec<UnbondedItem>> {
+    let user = deps.api.addr_validate(&user)?;
+    Ok(USER_UNBONDED.load(deps.storage, &user).unwrap_or_default())
 }
 
 /// query total staking

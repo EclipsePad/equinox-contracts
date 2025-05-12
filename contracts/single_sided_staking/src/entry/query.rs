@@ -13,13 +13,13 @@ use crate::{
     state::{
         RewardWeights, TotalStakingByDuration, BLACK_LIST, BLACK_LIST_REWARDS, CONFIG,
         LAST_CLAIM_TIME, OWNER, PENDING_ECLIPASTRO_REWARDS, REWARD, STAKING_DURATION_BY_END_TIME,
-        TOTAL_STAKING, USER_STAKED,
+        TOTAL_STAKING, USER_STAKED, USER_UNBONDED,
     },
 };
 use eclipse_base::voter::msg::{AstroStakingRewardResponse, QueryMsg as VoterQueryMsg};
 use equinox_msg::single_sided_staking::{
-    Config, Reward, StakingWithDuration, UserReward, UserRewardByDuration, UserRewardByLockedAt,
-    UserStaking, UserStakingByDuration,
+    Config, Reward, StakingWithDuration, UnbondedItem, UserReward, UserRewardByDuration,
+    UserRewardByLockedAt, UserStaking, UserStakingByDuration,
 };
 
 /// query owner
@@ -137,6 +137,11 @@ pub fn query_staking(deps: Deps, _env: Env, user: String) -> StdResult<Vec<UserS
         }
     }
     Ok(staking_lists)
+}
+
+pub fn query_unbonded(deps: Deps, _env: Env, user: String) -> StdResult<Vec<UnbondedItem>> {
+    let user = deps.api.addr_validate(&user)?;
+    Ok(USER_UNBONDED.load(deps.storage, &user).unwrap_or_default())
 }
 
 /// query user reward
@@ -615,7 +620,7 @@ pub fn query_blacklist_rewards(deps: Deps, env: Env) -> StdResult<UserReward> {
     for user in blacklist.iter() {
         for timelock_config in &config.timelock_config {
             let duration = timelock_config.duration;
-            for s in USER_STAKED.prefix((&user, duration)).range(
+            for s in USER_STAKED.prefix((user, duration)).range(
                 deps.storage,
                 None,
                 None,

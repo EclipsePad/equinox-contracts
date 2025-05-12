@@ -2,6 +2,19 @@ use astroport::asset::{Asset, AssetInfo};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, Decimal256, Env, StdResult, Uint128, WasmMsg};
 
+use crate::single_sided_staking::UnbondedItem;
+
+// #[cw_serde]
+// pub struct MigrateMsg {
+//     pub update_contract_name: Option<bool>,
+//     pub update_rewards: Option<((u64, u64), Reward)>,
+// }
+
+#[cw_serde]
+pub struct MigrateMsg {
+    pub version: String,
+}
+
 #[cw_serde]
 pub struct InstantiateMsg {
     /// contract owner
@@ -24,6 +37,7 @@ pub struct InstantiateMsg {
     pub eclip_staking: String,
     /// Astroport incentives
     pub astroport_incentives: String,
+    pub lockdrop: Option<String>,
     /// Eclipse treasury
     pub treasury: String,
     /// funding DAO
@@ -62,6 +76,15 @@ pub enum ExecuteMsg {
     Stake {
         recipient: Option<String>,
     },
+
+    Unbond {
+        amount: Option<Uint128>,
+        period: u64,
+    },
+    Withdraw {
+        recipient: Option<String>,
+    },
+
     AddRewards {
         from: Option<u64>,
         duration: Option<u64>,
@@ -74,6 +97,10 @@ pub enum ExecuteMsg {
     },
     BlockUsers {
         users: Vec<String>,
+    },
+
+    RemoveFromBlacklist {
+        user: String,
     },
 }
 
@@ -95,6 +122,9 @@ pub enum QueryMsg {
     /// query user_staking
     #[returns(UserStaking)]
     Staking { user: String },
+    /// query unbonded user positions
+    #[returns(Vec<UnbondedItem>)]
+    Unbonded { user: String },
     /// query pending_rewards
     #[returns(Vec<RewardAmount>)]
     Reward { user: String },
@@ -116,12 +146,6 @@ pub enum QueryMsg {
 
     #[returns(Vec<((u64, u64), Reward)>)]
     RewardSchedule { from: Option<u64> },
-}
-
-#[cw_serde]
-pub struct MigrateMsg {
-    pub update_contract_name: Option<bool>,
-    pub update_rewards: Option<((u64, u64), Reward)>,
 }
 
 #[cw_serde]
@@ -149,11 +173,36 @@ impl CallbackMsg {
 pub struct UpdateConfigMsg {
     pub lp_token: Option<AssetInfo>,
     pub lp_contract: Option<String>,
+    pub lockdrop: Option<String>,
     pub astroport_incentives: Option<String>,
     pub treasury: Option<String>,
     pub funding_dao: Option<String>,
     pub eclip: Option<String>,
     pub beclip: Option<String>,
+}
+
+#[cw_serde]
+pub struct ConfigPre {
+    /// lp token
+    pub lp_token: AssetInfo,
+    /// lp contract
+    pub lp_contract: Addr,
+    /// ASTRO token
+    pub astro: String,
+    /// xASTRO token
+    pub xastro: String,
+    /// ECLIP token
+    pub eclip: String,
+    /// bECLIP token
+    pub beclip: Addr,
+    /// ASTRO staking contract
+    pub astro_staking: Addr,
+    /// ECLIP staking
+    pub eclip_staking: Addr,
+    /// Astroport incentives
+    pub astroport_incentives: Addr,
+    pub treasury: Addr,
+    pub funding_dao: Addr,
 }
 
 #[cw_serde]
@@ -174,6 +223,7 @@ pub struct Config {
     pub astro_staking: Addr,
     /// ECLIP staking
     pub eclip_staking: Addr,
+    pub lockdrop: Addr,
     /// Astroport incentives
     pub astroport_incentives: Addr,
     pub treasury: Addr,

@@ -1,28 +1,28 @@
 use cosmwasm_std::{
-    ensure_eq, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult,
+    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response,
+    StdResult,
 };
-use cw2::{get_contract_version, set_contract_version};
-use semver::Version;
 
 use crate::{
     entry::{
         execute::{
             _handle_callback, add_rewards, allow_users, block_users, claim, claim_all,
-            claim_blacklist_rewards, claim_ownership, drop_ownership_proposal, propose_new_owner,
-            restake, stake, unstake, update_config,
+            claim_blacklist_rewards, claim_ownership, drop_ownership_proposal,
+            handle_swap_to_astro_reply, propose_new_owner, restake, stake, unbond, unstake,
+            update_config, withdraw,
         },
         instantiate::try_instantiate,
+        migrate::migrate_contract,
         query::{
             calculate_penalty, query_blacklist, query_blacklist_rewards,
             query_calculate_penalty_amount, query_calculate_reward, query_config,
             query_eclipastro_rewards, query_owner, query_reward, query_reward_list,
             query_reward_schedule, query_staking, query_total_staking,
-            query_total_staking_by_duration,
+            query_total_staking_by_duration, query_unbonded,
         },
     },
     error::ContractError,
-    state::{ALLOWED_USERS, CONTRACT_NAME, CONTRACT_VERSION, REWARD},
+    state::{ALLOWED_USERS, SWAP_TO_ASTRO_REPLY_ID},
 };
 use equinox_msg::single_sided_staking::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RestakeData,
@@ -74,6 +74,15 @@ pub fn execute(
             amount,
             recipient,
         } => unstake(deps, env, info, duration, locked_at, amount, recipient),
+
+        ExecuteMsg::Unbond {
+            duration,
+            locked_at,
+            period,
+        } => unbond(deps, env, info, duration, locked_at, period),
+
+        ExecuteMsg::Withdraw { recipient } => withdraw(deps, env, info, recipient),
+
         ExecuteMsg::Restake {
             from_duration,
             locked_at,
@@ -118,6 +127,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
         QueryMsg::Owner {} => Ok(to_json_binary(&query_owner(deps, env)?)?),
         QueryMsg::Staking { user } => Ok(to_json_binary(&query_staking(deps, env, user)?)?),
+
+        QueryMsg::Unbonded { user } => to_json_binary(&query_unbonded(deps, env, user)?),
+
         QueryMsg::TotalStaking {} => Ok(to_json_binary(&query_total_staking(deps, env)?)?),
         QueryMsg::TotalStakingByDuration { timestamp } => Ok(to_json_binary(
             &query_total_staking_by_duration(deps, env, timestamp)?,
@@ -168,45 +180,17 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    let version: Version = CONTRACT_VERSION.parse()?;
-    let storage_version: Version = get_contract_version(deps.storage)?.version.parse()?;
-    let contract_name = get_contract_version(deps.storage)?.contract;
+pub fn reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response, ContractError> {
+    let Reply { id, result } = reply;
 
-    match msg.update_contract_name {
-        Some(true) => {}
-        _ => {
-            ensure_eq!(
-                contract_name,
-                CONTRACT_NAME,
-                ContractError::ContractNameErr(contract_name)
-            );
-        }
+    match id {
+        SWAP_TO_ASTRO_REPLY_ID => handle_swap_to_astro_reply(deps, env, &result),
+        _ => Err(ContractError::UnknownReplyId(id)),
     }
+}
 
-    ensure_eq!(
-        (version > storage_version),
-        true,
-        ContractError::VersionErr(storage_version.to_string())
-    );
-
-    if version > storage_version {
-        set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    }
-
-    if let Some(update_rewards) = msg.update_rewards {
-        let (time_config, new_reward) = update_rewards;
-        REWARD.update(deps.storage, time_config, |reward| -> StdResult<_> {
-            if let Some(old_reward) = reward {
-                if old_reward.eclip + old_reward.beclip == new_reward.eclip + new_reward.beclip {
-                    return Ok(new_reward);
-                }
-            }
-            Err(StdError::generic_err("Update Rewards error"))
-        })?;
-    }
-
-    Ok(Response::new().add_attribute("new_contract_version", CONTRACT_VERSION))
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    migrate_contract(deps, env, msg)
 }

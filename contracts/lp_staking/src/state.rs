@@ -1,16 +1,28 @@
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map};
-use equinox_msg::lp_staking::{
-    Config, OwnershipProposal, Reward, RewardAmount, RewardDistribution, RewardWeight, UserStaking,
+use equinox_msg::{
+    lp_staking::{
+        Config, OwnershipProposal, Reward, RewardAmount, RewardDistribution, RewardWeight,
+        UserStaking,
+    },
+    single_sided_staking::UnbondedItem,
 };
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = "lp staking contract";
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub const WITHDRAW_LIQUIDITY_REPLY_ID: u64 = 0;
+pub const ECLIP_ASTRO_TO_ASTRO_REPLY_ID: u64 = 1;
+pub const XASTRO_TO_ASTRO_REPLY_ID: u64 = 2;
+/// (recipient, amount_to_send, fee_rate)
+pub const WITHDRAW_TEMP_DATA: Item<(Addr, Uint128, Decimal)> = Item::new("withdraw_temp_data");
+
 pub const OWNER: Admin = Admin::new("owner");
 pub const CONFIG: Item<Config> = Item::new("config");
+/// unbonded items by user_address
+pub const USER_UNBONDED: Map<&Addr, Vec<UnbondedItem>> = Map::new("user_unbonded");
 pub const STAKING: Map<&String, UserStaking> = Map::new("staking");
 pub const TOTAL_STAKING: Item<Uint128> = Item::new("total_staking");
 pub const REWARD_WEIGHTS: Item<Vec<RewardWeight>> = Item::new("reward_weights");

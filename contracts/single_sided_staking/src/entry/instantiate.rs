@@ -16,7 +16,7 @@ use equinox_msg::{
 pub fn try_instantiate(
     mut deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -29,12 +29,17 @@ pub fn try_instantiate(
                 .timelock_config
                 .unwrap_or(DEFAULT_TIMELOCK_CONFIG.to_vec()),
             voter: deps.api.addr_validate(&msg.voter)?,
+            lockdrop: msg
+                .lockdrop
+                .map(|x| deps.api.addr_validate(&x))
+                .transpose()?
+                .unwrap_or(info.sender),
             treasury: deps.api.addr_validate(&msg.treasury)?,
             eclip_staking: deps.api.addr_validate(&msg.eclip_staking)?,
             eclip: msg.eclip,
             beclip: deps.api.addr_validate(&msg.beclip)?,
             init_early_unlock_penalty: msg.init_early_unlock_penalty.unwrap_or(
-                Decimal::from_str(&DEFAULT_INIT_EARLY_UNLOCK_PENALTY).unwrap_or_default(),
+                Decimal::from_str(DEFAULT_INIT_EARLY_UNLOCK_PENALTY).unwrap_or_default(),
             ),
         },
     )?;

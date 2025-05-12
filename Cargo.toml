@@ -1,66 +1,64 @@
 [workspace]
-members = [
-    "contracts/*",
-    "packages/*",
-    "multitests",
-]
+members = ["contracts/*", "packages/*", "tests"]
 
 resolver = "2"
 
 [workspace.package]
-version    = "0.2.3"
-edition    = "2021"
+version = "0.2.4"
+edition = "2021"
 repository = "https://github.com/EclipsePad/equinox-contracts"
-authors    = ["Tadao Fukuda", "M. Daeva"]
-license    = "Apache-2.0"
+authors = ["Tadao Fukuda", "M. Daeva"]
+license = "Apache-2.0"
 
 [workspace.dependencies]
-anyhow                  = "1"
-cosmwasm-schema         = "1.1"
-cosmwasm-std            = "1.1"
-cw2                     = "1.1.0"
-cw20                    = "1.1.0"
-cw20-base               = { version = "1.1.0", features = ["library"] }
-cw-controllers          = "1.0.1"
-cw-multi-test           = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks_1_0", features = ["cosmwasm_1_1"] }
-speculoos               = "0.11.0"
-cw-storage-plus         = "1.0.1"
-cw-utils                = "1.0.1"
-schemars                = "0.8.1"
-semver                  = "1.0.20"
-serde                   = { version = "1.0.103", default-features = false, features = ["derive"] }
-thiserror               = "1.0.23"
-neutron-sdk             = "0.10.0"
-osmosis-std             = "0.21.0"
-derivative              = "2.2"
-itertools               = "0.12"
-strum                   = "0.24.1"
-strum_macros            = "0.24.3"
+anyhow = "1"
+cosmwasm-schema = "1.1"
+cosmwasm-std = "1.1"
+cw2 = "1.1.0"
+cw20 = "1.1.0"
+cw20-base = { version = "1.1.0", features = ["library"] }
+cw-controllers = "1.0.1"
+cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks_1_0", features = [
+    "cosmwasm_1_1",
+] }
+pretty_assertions = "1.4.1"
+cw-storage-plus = "1.0.1"
+cw-utils = "1.0.1"
+schemars = "0.8.1"
+semver = "1.0.20"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = "1.0.23"
+neutron-sdk = "0.10.0"
+osmosis-std = "0.21.0"
+derivative = "2.2"
+itertools = "0.12"
+strum = "0.24.1"
+strum_macros = "0.24.3"
 
-equinox-msg             = { path = "./packages/equinox_msg" }
-eclipse-base            = { path = "./packages/eclipse-base" }
-eclipsepad-staking      = { path = "./packages/eclipsepad-staking" }
-minter-mocks            = { path = "./packages/minter-mocks" }
-voter-mocks             = { path = "./packages/voter-mocks" }
+equinox-msg = { path = "./packages/equinox_msg" }
+eclipse-base = { path = "./packages/eclipse-base" }
+eclipsepad-staking = { path = "./packages/eclipsepad-staking" }
+minter-mocks = { path = "./packages/minter-mocks" }
+voter-mocks = { path = "./packages/voter-mocks" }
 
-single-sided-staking    = { path = "./contracts/single_sided_staking" }
-lp-staking              = { path = "./contracts/lp_staking" }
-lockdrop                = { path = "./contracts/lockdrop" }
-astro-generator         = { path = "./contracts/astro_generator_test_purpose" }
+single-sided-staking = { path = "./contracts/single_sided_staking" }
+lp-staking = { path = "./contracts/lp_staking" }
+lockdrop = { path = "./contracts/lockdrop" }
+astro-generator = { path = "./contracts/astro_generator_test_purpose" }
 
 # astroport-core
 # https://github.com/astroport-fi/hidden_astroport_core/tree/feat/incentivize_many
 #
 # packages
-astroport               = { path = "./packages/astroport" }
+astroport = { path = "./packages/astroport" }
 astroport-circular-buffer = { path = "./packages/circular_buffer" }
 #
 # contracts
-astroport-factory       = { path = "./packages/factory" }
-astroport-incentives    = { path = "./packages/incentives" } # formerly Generator
-astroport-pair          = { path = "./packages/pair" }
-astroport-staking       = { path = "./packages/staking" }
-astroport-vesting       = { path = "./packages/vesting" }
+astroport-factory = { path = "./packages/factory" }
+astroport-incentives = { path = "./packages/incentives" }                     # formerly Generator
+astroport-pair = { path = "./packages/pair" }
+astroport-staking = { path = "./packages/staking" }
+astroport-vesting = { path = "./packages/vesting" }
 astroport-tokenfactory-tracker = { path = "./packages/tokenfactory_tracker" }
 
 

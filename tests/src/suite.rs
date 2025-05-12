@@ -49,7 +49,7 @@ use equinox_msg::{
     single_sided_staking::{
         Config as SingleStakingConfig, ExecuteMsg as SingleSidedStakingExecuteMsg,
         InstantiateMsg as SingleSidedStakingInstantiateMsg, QueryMsg as SingleStakingQueryMsg,
-        TimeLockConfig, UpdateConfigMsg as SingleStakingUpdateConfigMsg, UserReward,
+        TimeLockConfig, UnbondedItem, UpdateConfigMsg as SingleStakingUpdateConfigMsg, UserReward,
         UserStaking as SingleSidedUserStaking,
     },
 };
@@ -317,21 +317,27 @@ fn instantiate_eclipsepad_staking(
 }
 
 fn store_lp_staking(app: &mut TestApp) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        lp_staking::contract::execute,
-        lp_staking::contract::instantiate,
-        lp_staking::contract::query,
-    ));
+    let contract = Box::new(
+        ContractWrapper::new_with_empty(
+            lp_staking::contract::execute,
+            lp_staking::contract::instantiate,
+            lp_staking::contract::query,
+        )
+        .with_reply(lp_staking::contract::reply),
+    );
 
     app.store_code(contract)
 }
 
 fn store_single_staking(app: &mut TestApp) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        single_sided_staking::contract::execute,
-        single_sided_staking::contract::instantiate,
-        single_sided_staking::contract::query,
-    ));
+    let contract = Box::new(
+        ContractWrapper::new_with_empty(
+            single_sided_staking::contract::execute,
+            single_sided_staking::contract::instantiate,
+            single_sided_staking::contract::query,
+        )
+        .with_reply(single_sided_staking::contract::reply),
+    );
 
     app.store_code(contract)
 }
@@ -818,6 +824,7 @@ impl SuiteBuilder {
                         },
                     ]),
                     voter: voter_contract.to_string(),
+                    lockdrop: None,
                     treasury: TREASURY.to_string(),
                     blacklist: Some(vec![CAROL.to_string()]),
                     init_early_unlock_penalty: None,
@@ -908,6 +915,7 @@ impl SuiteBuilder {
                         denom: eclipastro_xastro_lp_token.clone(),
                     },
                     lp_contract: eclipastro_xastro_lp_contract.to_string(),
+                    lockdrop: None,
                     eclip: eclip.clone(),
                     eclip_staking: eclipsepad_staking_contract.to_string(),
                     beclip: beclip.to_string(),
@@ -1125,7 +1133,10 @@ impl Suite {
                 self.voter_contract.clone(),
                 &eclipse_base::voter::msg::ExecuteMsg::UpdateAddressConfig {
                     admin: None,
-                    worker_list: None,
+                    worker_list: Some(vec![
+                        self.single_staking_contract.to_string(),
+                        self.lp_staking_contract.to_string(),
+                    ]),
                     eclipse_dao: None,
                     eclipsepad_foundry: None,
                     eclipsepad_minter: None,
@@ -1167,23 +1178,27 @@ impl Suite {
 
     pub fn mint_native(
         &mut self,
-        recipient: String,
+        recipient: impl ToString,
         denom: String,
         amount: u128,
     ) -> AnyResult<AppResponse> {
         self.app.sudo(cw_multi_test::SudoMsg::Bank(
             cw_multi_test::BankSudo::Mint {
-                to_address: recipient,
+                to_address: recipient.to_string(),
                 amount: vec![coin(amount, denom)],
             },
         ))
     }
 
-    pub fn query_balance_native(&mut self, recipient: String, denom: String) -> StdResult<u128> {
+    pub fn query_balance_native(
+        &mut self,
+        recipient: impl ToString,
+        denom: String,
+    ) -> StdResult<u128> {
         let balance = self
             .app
             .wrap()
-            .query_balance(recipient, denom)
+            .query_balance(recipient.to_string(), denom)
             .unwrap()
             .amount;
         Ok(balance.u128())
@@ -1195,6 +1210,15 @@ impl Suite {
             self.astro_staking_contract.clone(),
             &AstroStakingExecuteMsg::Enter { receiver: None },
             &[coin(amount, self.astro.clone())],
+        )
+    }
+
+    pub fn unstake_astro(&mut self, sender: &str, xastro_amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.astro_staking_contract.clone(),
+            &AstroStakingExecuteMsg::Leave {},
+            &[coin(xastro_amount, self.xastro())],
         )
     }
 
@@ -1549,6 +1573,39 @@ impl Suite {
             &[],
         )
     }
+
+    pub fn single_sided_unbond(
+        &mut self,
+        sender: &str,
+        duration: u64,
+        locked_at: u64,
+        period: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::Unbond {
+                duration,
+                locked_at,
+                period,
+            },
+            &[],
+        )
+    }
+
+    pub fn single_sided_withdraw(
+        &mut self,
+        sender: &str,
+        recipient: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.single_staking_contract.clone(),
+            &SingleSidedStakingExecuteMsg::Withdraw { recipient },
+            &[],
+        )
+    }
+
     pub fn single_sided_restake(
         &mut self,
         sender: &str,
@@ -2094,6 +2151,37 @@ impl Suite {
             &[coin(amount, self.eclipastro_xastro_lp_token.clone())],
         )
     }
+
+    pub fn unbond_lp_token(
+        &mut self,
+        sender: &str,
+        amount: Option<u128>,
+        period: u64,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::Unbond {
+                amount: amount.map(Uint128::new),
+                period,
+            },
+            &[],
+        )
+    }
+
+    pub fn withdraw_lp_token(
+        &mut self,
+        sender: &str,
+        recipient: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(sender),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::Withdraw { recipient },
+            &[],
+        )
+    }
+
     pub fn query_user_lp_token_staking(&self, user: &str) -> StdResult<LpStakingUserStaking> {
         let res: LpStakingUserStaking = self.app.wrap().query_wasm_smart(
             self.lp_staking_contract.clone(),
@@ -2103,6 +2191,16 @@ impl Suite {
         )?;
         Ok(res)
     }
+
+    pub fn query_user_lp_token_unbonded(&self, user: &str) -> StdResult<Vec<UnbondedItem>> {
+        self.app.wrap().query_wasm_smart(
+            self.lp_staking_contract.clone(),
+            &LpStakingQueryMsg::Unbonded {
+                user: user.to_string(),
+            },
+        )
+    }
+
     pub fn query_user_lp_token_rewards(&self, user: &str) -> StdResult<Vec<LpStakingRewardAmount>> {
         let res: Vec<LpStakingRewardAmount> = self.app.wrap().query_wasm_smart(
             self.lp_staking_contract.clone(),
@@ -2169,6 +2267,18 @@ impl Suite {
             &[],
         )
     }
+
+    pub fn lp_remove_from_blacklist(&mut self, user: impl ToString) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked(self.admin()),
+            self.lp_staking_contract.clone(),
+            &LpStakingExecuteMsg::RemoveFromBlacklist {
+                user: user.to_string(),
+            },
+            &[],
+        )
+    }
+
     pub fn lp_unstake(
         &mut self,
         sender: &str,

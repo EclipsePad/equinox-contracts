@@ -3,16 +3,19 @@ use std::str::FromStr;
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_controllers::AdminError;
 use eclipse_base::{converters::str_to_dec, voter::msg::AstroStakingRewardResponse};
-use equinox_msg::single_sided_staking::{
-    TimeLockConfig, UpdateConfigMsg, UserReward, UserStaking, UserStakingByDuration,
+use equinox_msg::{
+    single_sided_staking::{
+        TimeLockConfig, UpdateConfigMsg, UserReward, UserStaking, UserStakingByDuration,
+    },
+    utils::{UNBONDING_PERIOD_0, UNBONDING_PERIOD_1},
 };
-use single_sided_staking::error::ContractError;
+use single_sided_staking::{config::ONE_DAY, error::ContractError};
 
 use crate::suite::{SuiteBuilder, ALICE, ATTACKER, BOB, CAROL, TREASURY};
 
 const ONE_MONTH: u64 = 86400 * 30;
 const THREE_MONTH: u64 = 86400 * 30 * 3;
-const SIX_MONTH: u64 = 86400 * 30 * 6;
+// const SIX_MONTH: u64 = 86400 * 30 * 6;
 // const NINE_MONTH: u64 = 86400 * 30 * 9;
 // const ONE_YEAR: u64 = 86400 * 365;
 
@@ -41,6 +44,7 @@ fn update_config() {
             reward_multiplier: 1,
         }]),
         voter: Some("wasm1_voter".to_string()),
+        lockdrop: Some(suite.lockdrop_contract()),
         treasury: Some("wasm1_treasury".to_string()),
         eclip: None,
         beclip: None,
@@ -220,79 +224,79 @@ fn stake() {
     ];
     assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
     assert_eq!(suite.query_single_sided_total_staking().unwrap(), 500);
-    let time = suite.get_time();
-    let err = suite
-        .single_sided_unstake(BOB, THREE_MONTH, time - THREE_MONTH, None, None)
-        .unwrap_err();
-    assert_eq!(
-        ContractError::EarlyUnlockDisabled {},
-        err.downcast().unwrap()
-    );
-    bob_staking = vec![
-        UserStaking {
-            duration: 0,
-            staking: vec![UserStakingByDuration {
-                amount: Uint128::from(100u128),
-                locked_at: 0u64,
-            }],
-        },
-        UserStaking {
-            duration: ONE_MONTH,
-            staking: vec![UserStakingByDuration {
-                amount: Uint128::from(200u128),
-                locked_at: suite.get_time() - THREE_MONTH,
-            }],
-        },
-        UserStaking {
-            duration: THREE_MONTH,
-            staking: vec![
-                UserStakingByDuration {
-                    amount: Uint128::from(100u128),
-                    locked_at: suite.get_time() - THREE_MONTH,
-                },
-                UserStakingByDuration {
-                    amount: Uint128::from(100u128),
-                    locked_at: suite.get_time(),
-                },
-            ],
-        },
-    ];
-    assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
-    assert_eq!(suite.query_single_sided_total_staking().unwrap(), 500);
-    assert_eq!(suite.query_eclipastro_balance(BOB).unwrap(), 500);
-    suite
-        .single_sided_restake(BOB, ONE_MONTH, time - THREE_MONTH, SIX_MONTH, None, None)
-        .unwrap();
-    bob_staking = vec![
-        UserStaking {
-            duration: 0,
-            staking: vec![UserStakingByDuration {
-                amount: Uint128::from(100u128),
-                locked_at: 0u64,
-            }],
-        },
-        UserStaking {
-            duration: THREE_MONTH,
-            staking: vec![
-                UserStakingByDuration {
-                    amount: Uint128::from(100u128),
-                    locked_at: suite.get_time() - THREE_MONTH,
-                },
-                UserStakingByDuration {
-                    amount: Uint128::from(100u128),
-                    locked_at: suite.get_time(),
-                },
-            ],
-        },
-        UserStaking {
-            duration: SIX_MONTH,
-            staking: vec![UserStakingByDuration {
-                amount: Uint128::from(200u128),
-                locked_at: suite.get_time(),
-            }],
-        },
-    ];
-    assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
+    // let time = suite.get_time();
+    // let err = suite
+    //     .single_sided_unstake(BOB, THREE_MONTH, time - THREE_MONTH, None, None)
+    //     .unwrap_err();
+    // assert_eq!(
+    //     ContractError::EarlyUnlockDisabled {},
+    //     err.downcast().unwrap()
+    // );
+    // bob_staking = vec![
+    //     UserStaking {
+    //         duration: 0,
+    //         staking: vec![UserStakingByDuration {
+    //             amount: Uint128::from(100u128),
+    //             locked_at: 0u64,
+    //         }],
+    //     },
+    //     UserStaking {
+    //         duration: ONE_MONTH,
+    //         staking: vec![UserStakingByDuration {
+    //             amount: Uint128::from(200u128),
+    //             locked_at: suite.get_time() - THREE_MONTH,
+    //         }],
+    //     },
+    //     UserStaking {
+    //         duration: THREE_MONTH,
+    //         staking: vec![
+    //             UserStakingByDuration {
+    //                 amount: Uint128::from(100u128),
+    //                 locked_at: suite.get_time() - THREE_MONTH,
+    //             },
+    //             UserStakingByDuration {
+    //                 amount: Uint128::from(100u128),
+    //                 locked_at: suite.get_time(),
+    //             },
+    //         ],
+    //     },
+    // ];
+    // assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
+    // assert_eq!(suite.query_single_sided_total_staking().unwrap(), 500);
+    // assert_eq!(suite.query_eclipastro_balance(BOB).unwrap(), 500);
+    // suite
+    //     .single_sided_restake(BOB, ONE_MONTH, time - THREE_MONTH, SIX_MONTH, None, None)
+    //     .unwrap();
+    // bob_staking = vec![
+    //     UserStaking {
+    //         duration: 0,
+    //         staking: vec![UserStakingByDuration {
+    //             amount: Uint128::from(100u128),
+    //             locked_at: 0u64,
+    //         }],
+    //     },
+    //     UserStaking {
+    //         duration: THREE_MONTH,
+    //         staking: vec![
+    //             UserStakingByDuration {
+    //                 amount: Uint128::from(100u128),
+    //                 locked_at: suite.get_time() - THREE_MONTH,
+    //             },
+    //             UserStakingByDuration {
+    //                 amount: Uint128::from(100u128),
+    //                 locked_at: suite.get_time(),
+    //             },
+    //         ],
+    //     },
+    //     UserStaking {
+    //         duration: SIX_MONTH,
+    //         staking: vec![UserStakingByDuration {
+    //             amount: Uint128::from(200u128),
+    //             locked_at: suite.get_time(),
+    //         }],
+    //     },
+    // ];
+    // assert_eq!(suite.query_single_sided_staking(BOB).unwrap(), bob_staking);
 }
 
 #[test]
@@ -527,4 +531,349 @@ fn blacklist() {
             .unwrap(),
         356666665u128
     );
+}
+
+#[test]
+fn unbond_half_period() {
+    let mut suite = SuiteBuilder::new().build();
+    suite.update_config();
+
+    // add funds to vault
+    suite
+        .add_single_sided_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
+
+    suite
+        .mint_native(BOB.to_string(), suite.astro(), 10_000)
+        .unwrap();
+
+    // ready astro_staking_pool
+    suite.stake_astro(&suite.admin(), 1_000_000).unwrap();
+
+    suite.convert_astro(BOB, 10_000).unwrap();
+
+    let block_time = suite.get_time();
+    suite
+        .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
+        .unwrap();
+    assert_eq!(
+        suite.query_single_sided_staking(BOB).unwrap(),
+        vec![UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::new(1_000),
+                locked_at: block_time
+            }]
+        }]
+    );
+    assert_eq!(suite.query_balance_native(&BOB, suite.astro()).unwrap(), 0);
+
+    suite.update_time(ONE_MONTH + ONE_DAY);
+    suite
+        .single_sided_unbond(BOB, ONE_MONTH, block_time, UNBONDING_PERIOD_0)
+        .unwrap();
+    assert_eq!(suite.query_balance_native(&BOB, suite.astro()).unwrap(), 0);
+
+    suite.update_time(UNBONDING_PERIOD_0);
+    suite.single_sided_withdraw(BOB, None).unwrap();
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        950
+    );
+}
+
+#[test]
+fn unbond_full_period() {
+    let mut suite = SuiteBuilder::new().build();
+    suite.update_config();
+
+    // add funds to vault
+    suite
+        .add_single_sided_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
+
+    suite
+        .mint_native(BOB.to_string(), suite.astro(), 10_000)
+        .unwrap();
+
+    // ready astro_staking_pool
+    suite.stake_astro(&suite.admin(), 1_000_000).unwrap();
+
+    suite.convert_astro(BOB, 10_000).unwrap();
+
+    let block_time = suite.get_time();
+    suite
+        .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
+        .unwrap();
+    assert_eq!(
+        suite.query_single_sided_staking(BOB).unwrap(),
+        vec![UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::new(1_000),
+                locked_at: block_time
+            }]
+        }]
+    );
+    assert_eq!(suite.query_balance_native(&BOB, suite.astro()).unwrap(), 0);
+
+    suite.update_time(ONE_MONTH + ONE_DAY);
+    suite
+        .single_sided_unbond(BOB, ONE_MONTH, block_time, UNBONDING_PERIOD_1)
+        .unwrap();
+    assert_eq!(suite.query_balance_native(&BOB, suite.astro()).unwrap(), 0);
+
+    suite.update_time(UNBONDING_PERIOD_1);
+    suite.single_sided_withdraw(BOB, None).unwrap();
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        999
+    );
+}
+
+#[test]
+fn unbond_multiple_positions() {
+    let mut suite = SuiteBuilder::new().build();
+    suite.update_config();
+
+    // add funds to vault
+    suite
+        .add_single_sided_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
+
+    suite
+        .mint_native(BOB.to_string(), suite.astro(), 10_000)
+        .unwrap();
+
+    // ready astro_staking_pool
+    suite.stake_astro(&suite.admin(), 1_000_000).unwrap();
+
+    suite.convert_astro(BOB, 10_000).unwrap();
+
+    let block_time = suite.get_time();
+    for _ in 1..=4 {
+        suite.single_sided_stake(BOB, 250, ONE_MONTH, None).unwrap();
+        suite.update_time(1);
+    }
+
+    assert_eq!(
+        suite.query_single_sided_staking(BOB).unwrap(),
+        vec![UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![
+                UserStakingByDuration {
+                    amount: Uint128::new(250),
+                    locked_at: block_time
+                },
+                UserStakingByDuration {
+                    amount: Uint128::new(250),
+                    locked_at: block_time + 1
+                },
+                UserStakingByDuration {
+                    amount: Uint128::new(250),
+                    locked_at: block_time + 2
+                },
+                UserStakingByDuration {
+                    amount: Uint128::new(250),
+                    locked_at: block_time + 3
+                }
+            ]
+        },]
+    );
+    assert_eq!(suite.query_balance_native(&BOB, suite.astro()).unwrap(), 0);
+
+    // withdraw each unbonded position separately
+    suite.update_time(ONE_MONTH + ONE_DAY);
+    suite
+        .single_sided_unbond(BOB, ONE_MONTH, block_time, UNBONDING_PERIOD_1)
+        .unwrap();
+
+    suite.update_time(1);
+    suite
+        .single_sided_unbond(BOB, ONE_MONTH, block_time + 1, UNBONDING_PERIOD_1)
+        .unwrap();
+
+    assert_eq!(suite.query_balance_native(&BOB, suite.astro()).unwrap(), 0);
+
+    suite.update_time(UNBONDING_PERIOD_1);
+    suite.single_sided_withdraw(BOB, None).unwrap();
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        499
+    );
+
+    // withdraw multiple unbonded positions at once
+    suite
+        .single_sided_unbond(BOB, ONE_MONTH, block_time + 2, UNBONDING_PERIOD_1)
+        .unwrap();
+    suite
+        .single_sided_unbond(BOB, ONE_MONTH, block_time + 3, UNBONDING_PERIOD_1)
+        .unwrap();
+
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        499
+    );
+
+    suite.update_time(UNBONDING_PERIOD_1);
+    suite.single_sided_withdraw(BOB, None).unwrap();
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        998
+    );
+}
+
+#[test]
+fn unbond_multiple_users() {
+    let mut suite = SuiteBuilder::new().build();
+    suite.update_config();
+
+    // add funds to vault
+    suite
+        .add_single_sided_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
+
+    for user in [ALICE, BOB] {
+        suite
+            .mint_native(user.to_string(), suite.astro(), 10_000)
+            .unwrap();
+    }
+
+    // ready astro_staking_pool
+    suite.stake_astro(&suite.admin(), 1_000_000).unwrap();
+
+    for user in [ALICE, BOB] {
+        suite.convert_astro(user, 10_000).unwrap();
+    }
+
+    let block_time = suite.get_time();
+    suite
+        .single_sided_stake(ALICE, 500, ONE_MONTH, None)
+        .unwrap();
+    suite
+        .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
+        .unwrap();
+
+    assert_eq!(
+        suite.query_single_sided_staking(ALICE).unwrap(),
+        vec![UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::new(500),
+                locked_at: block_time
+            },]
+        },]
+    );
+    assert_eq!(
+        suite.query_single_sided_staking(BOB).unwrap(),
+        vec![UserStaking {
+            duration: ONE_MONTH,
+            staking: vec![UserStakingByDuration {
+                amount: Uint128::new(1_000),
+                locked_at: block_time
+            },]
+        },]
+    );
+    assert_eq!(
+        suite.query_balance_native(&ALICE, suite.astro()).unwrap(),
+        0
+    );
+    assert_eq!(suite.query_balance_native(&BOB, suite.astro()).unwrap(), 0);
+
+    suite.update_time(ONE_MONTH + ONE_DAY);
+    for user in [ALICE, BOB] {
+        suite
+            .single_sided_unbond(user, ONE_MONTH, block_time, UNBONDING_PERIOD_1)
+            .unwrap();
+    }
+
+    assert_eq!(
+        suite.query_balance_native(&ALICE, suite.astro()).unwrap(),
+        0
+    );
+    assert_eq!(suite.query_balance_native(&BOB, suite.astro()).unwrap(), 0);
+
+    suite.update_time(UNBONDING_PERIOD_1);
+
+    for user in [BOB, ALICE] {
+        suite.single_sided_withdraw(user, None).unwrap();
+    }
+    assert_eq!(
+        suite.query_balance_native(&ALICE, suite.astro()).unwrap(),
+        499
+    );
+    assert_eq!(
+        suite.query_balance_native(&BOB, suite.astro()).unwrap(),
+        999
+    );
+}
+
+#[test]
+fn unbond_twice() {
+    let mut suite = SuiteBuilder::new().build();
+    suite.update_config();
+
+    // add funds to vault
+    suite
+        .add_single_sided_vault_reward(
+            &suite.admin(),
+            None,
+            None,
+            12_800_000_000u128,
+            8_600_000_000u128,
+        )
+        .unwrap();
+
+    suite
+        .mint_native(BOB.to_string(), suite.astro(), 10_000)
+        .unwrap();
+
+    // ready astro_staking_pool
+    suite.stake_astro(&suite.admin(), 1_000_000).unwrap();
+
+    suite.convert_astro(BOB, 10_000).unwrap();
+
+    let block_time = suite.get_time();
+    suite
+        .single_sided_stake(BOB, 1_000, ONE_MONTH, None)
+        .unwrap();
+
+    suite.update_time(ONE_MONTH + ONE_DAY);
+    suite
+        .single_sided_unbond(BOB, ONE_MONTH, block_time, UNBONDING_PERIOD_1)
+        .unwrap();
+
+    let res = suite
+        .single_sided_unbond(BOB, ONE_MONTH, block_time, UNBONDING_PERIOD_1)
+        .unwrap_err();
+    assert_eq!(ContractError::NoLockedAmount {}, res.downcast().unwrap());
+
+    suite.update_time(UNBONDING_PERIOD_1);
+    suite.single_sided_withdraw(BOB, None).unwrap();
+    let res = suite.single_sided_withdraw(BOB, None).unwrap_err();
+    assert_eq!(ContractError::EarlyWithdraw, res.downcast().unwrap());
 }

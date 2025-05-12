@@ -37,6 +37,19 @@ pub fn calc_eclip_astro_for_xastro(
     xastro_amount.multiply_ratio(astro_supply, xastro_supply)
 }
 
+/// xastro_amount = eclip_astro_amount * xastro_supply / astro_supply
+pub fn calc_xastro_for_eclip_astro(
+    eclip_astro_amount: Uint128,
+    astro_supply: Uint128,
+    xastro_supply: Uint128,
+) -> Uint128 {
+    if astro_supply.is_zero() {
+        return Uint128::zero();
+    }
+
+    eclip_astro_amount.multiply_ratio(xastro_supply, astro_supply)
+}
+
 /// voter_to_tribute_voting_power_ratio = voter_voting_power_decimal * applied_votes_weights_item / tribute_market_voting_power
 pub fn calc_voter_to_tribute_voting_power_ratio(
     applied_votes_weights_item: &Decimal,

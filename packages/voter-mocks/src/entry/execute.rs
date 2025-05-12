@@ -1,14 +1,16 @@
-use std::str::FromStr;
+use std::{cmp::min, str::FromStr};
 
 use cosmwasm_std::{
-    coin, coins, ensure_eq, ensure_ne, to_json_binary, Addr, BankMsg, CosmosMsg, Decimal, DepsMut,
-    Env, MessageInfo, ReplyOn, Response, StdResult, SubMsg, SubMsgResult, Uint128, WasmMsg,
+    coin, coins, ensure_eq, ensure_ne, to_json_binary, wasm_execute, Addr, BankMsg, CosmosMsg,
+    Decimal, DepsMut, Env, MessageInfo, ReplyOn, Response, StdResult, SubMsg, SubMsgResult,
+    Uint128, WasmMsg,
 };
 
 use eclipse_base::{
+    assets::Token,
     converters::str_to_dec,
     error::ContractError,
-    utils::{check_funds, unwrap_field, FundsType},
+    utils::{check_funds, get_transfer_msg, unwrap_field, FundsType},
     voter::{
         msg::AstroStakingRewardResponse,
         state::{
@@ -20,7 +22,8 @@ use eclipse_base::{
             RECIPIENT_AND_AMOUNT, REWARDS_CLAIM_STAGE, ROUTE_CONFIG, SLACKER_ESSENCE_ACC,
             STAKE_ASTRO_REPLY_ID, SWAP_REWARDS_REPLY_ID_CNT, SWAP_REWARDS_REPLY_ID_MIN,
             TEMPORARY_REWARDS, TOKEN_CONFIG, TOTAL_CONVERT_INFO, TRANSFER_ADMIN_STATE,
-            TRANSFER_ADMIN_TIMEOUT, USER_ESSENCE, USER_REWARDS, VOTE_RESULTS,
+            TRANSFER_ADMIN_TIMEOUT, UNLOCK_XASTRO_REPLY_ID, UNSTAKE_ASTRO_REPLY_ID, USER_ESSENCE,
+            USER_REWARDS, VOTE_RESULTS,
         },
         types::{
             AddressConfig, AstroStakingRewardConfig, ConvertInfo, DateConfig, EssenceInfo,
@@ -41,7 +44,7 @@ use crate::{
     math::{
         calc_eclip_astro_for_xastro, calc_essence_allocation, calc_splitted_user_essence_info,
         calc_updated_essence_allocation, calc_weights_from_essence_allocation,
-        split_dao_eclip_rewards, split_rewards,
+        calc_xastro_for_eclip_astro, split_dao_eclip_rewards, split_rewards,
     },
 };
 
@@ -536,6 +539,184 @@ fn lock_xastro(
         .add_messages(msg_list)
         .add_attribute("action", "try_swap_to_eclip_astro")
         .add_attribute("eclip_astro_amount", eclip_astro_amount))
+}
+
+pub fn try_swap_to_astro(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    recipient: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut response = Response::new();
+    // don't allow unlock xastro when votes are in emissions_controller
+    check_rewards_claim_stage(deps.storage)?;
+    let (sender_address, asset_amount, asset_info) = check_funds(
+        deps.as_ref(),
+        &info,
+        FundsType::Single {
+            sender: None,
+            amount: None,
+        },
+    )?;
+    let recipient = recipient
+        .map(|x| deps.api.addr_validate(&x))
+        .transpose()?
+        .unwrap_or(sender_address.to_owned());
+    let token_in = asset_info.try_get_native()?;
+    let AddressConfig {
+        eclipsepad_minter,
+        worker_list,
+        ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
+    let TokenConfig {
+        xastro,
+        eclip_astro,
+        ..
+    } = TOKEN_CONFIG.load(deps.storage)?;
+
+    if !worker_list.contains(&sender_address) {
+        Err(ContractError::Unauthorized)?;
+    }
+
+    // check if eclipASTRO or xAstro was sent
+    if token_in != eclip_astro && token_in != xastro {
+        Err(ContractError::WrongToken)?;
+    }
+
+    // calculate xASTRO and ASTRO amounts
+    let (astro_supply, xastro_supply) = get_astro_and_xastro_supply(deps.as_ref())?;
+    let xastro_amount = if token_in == xastro {
+        asset_amount
+    } else {
+        calc_xastro_for_eclip_astro(asset_amount, astro_supply, xastro_supply)
+    };
+    let eclip_astro_amount = if token_in == xastro {
+        calc_eclip_astro_for_xastro(xastro_amount, astro_supply, xastro_supply)
+    } else {
+        asset_amount
+    };
+
+    // check if amount isn't zero
+    if xastro_amount.is_zero() || eclip_astro_amount.is_zero() {
+        Err(ContractError::ZeroAmount)?;
+    }
+
+    ECLIP_ASTRO_MINTED_BY_VOTER.update(deps.storage, |x| -> StdResult<_> {
+        Ok(x - min(eclip_astro_amount, x))
+    })?;
+
+    // store xastro_amount for voter-mocks where astroport_voting_escrow isn't available
+    RECIPIENT_AND_AMOUNT.save(deps.storage, &(recipient, Some(xastro_amount)))?;
+
+    // burn eclipAstro
+    if token_in == eclip_astro {
+        response = response.add_message(CosmosMsg::Wasm(wasm_execute(
+            eclipsepad_minter,
+            &eclipse_base::minter::msg::ExecuteMsg::Burn {},
+            coins(eclip_astro_amount.u128(), eclip_astro),
+        )?));
+    }
+
+    // replaced with useless msg
+    // unlock xAstro instantly
+    let msg = SubMsg {
+        id: UNLOCK_XASTRO_REPLY_ID,
+        msg: get_transfer_msg(
+            &env.contract.address,
+            Uint128::one(),
+            &Token::new_native(&xastro),
+        )?,
+        gas_limit: None,
+        reply_on: ReplyOn::Success,
+    };
+
+    Ok(response.add_submessage(msg))
+}
+
+pub fn handle_unlock_xastro_reply(
+    deps: DepsMut,
+    _env: Env,
+    result: &SubMsgResult,
+) -> Result<Response, ContractError> {
+    let _res = result
+        .to_owned()
+        .into_result()
+        .map_err(|_| ContractError::StakeError)?;
+
+    // let mut unlocked_xastro = Uint128::zero();
+    // for event in res.events.iter() {
+    //     for attr in event.attributes.iter() {
+    //         if attr.key == "unlocked_amount" {
+    //             unlocked_xastro = Uint128::from_str(&attr.value).unwrap();
+    //         }
+    //     }
+    // }
+
+    let (_recipient, unlocked_xastro) = RECIPIENT_AND_AMOUNT.load(deps.storage)?;
+    let unlocked_xastro = unlocked_xastro.unwrap_or_default();
+
+    let AddressConfig {
+        astroport_staking, ..
+    } = ADDRESS_CONFIG.load(deps.storage)?;
+    let TokenConfig { xastro, .. } = TOKEN_CONFIG.load(deps.storage)?;
+
+    TOTAL_CONVERT_INFO.update(deps.storage, |mut x| -> StdResult<_> {
+        x.total_xastro -= min(unlocked_xastro, x.total_xastro);
+
+        Ok(x)
+    })?;
+
+    //  unstake astro
+    let msg = SubMsg {
+        id: UNSTAKE_ASTRO_REPLY_ID,
+        msg: wasm_execute(
+            astroport_staking,
+            &astroport::staking::ExecuteMsg::Leave {},
+            coins(unlocked_xastro.u128(), xastro),
+        )?
+        .into(),
+        gas_limit: None,
+        reply_on: ReplyOn::Success,
+    };
+
+    Ok(Response::new().add_submessage(msg))
+}
+
+pub fn handle_unstake_astro_reply(
+    deps: DepsMut,
+    _env: Env,
+    result: &SubMsgResult,
+) -> Result<Response, ContractError> {
+    let res = result
+        .to_owned()
+        .into_result()
+        .map_err(|_| ContractError::StakeError)?;
+
+    let mut unstaked_astro = Uint128::zero();
+    for event in res.events.iter() {
+        for attr in event.attributes.iter() {
+            if attr.key == "astro_amount" {
+                unstaked_astro = Uint128::from_str(&attr.value).unwrap();
+            }
+        }
+    }
+
+    let TokenConfig { astro, .. } = TOKEN_CONFIG.load(deps.storage)?;
+    let (recipient, _) = RECIPIENT_AND_AMOUNT.load(deps.storage)?;
+
+    TOTAL_CONVERT_INFO.update(deps.storage, |mut x| -> StdResult<_> {
+        x.total_astro_deposited -= min(unstaked_astro, x.total_astro_deposited);
+
+        Ok(x)
+    })?;
+
+    // send astro to user
+    let msg = get_transfer_msg(&recipient, unstaked_astro, &Token::new_native(&astro))?;
+
+    Ok(Response::new()
+        .add_message(msg)
+        .add_attribute("action", "try_swap_to_astro")
+        .add_attribute("exchanged_astro", unstaked_astro))
 }
 
 pub fn try_update_astro_staking_reward_config(

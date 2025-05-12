@@ -1,9 +1,11 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Decimal256, StdResult, Storage, Uint128, Uint256};
+use cosmwasm_std::{Addr, Decimal256, StdResult, Storage, Uint128, Uint256};
 use cw_controllers::Admin;
 use cw_storage_plus::{Item, Map, SnapshotItem, SnapshotMap, Strategy};
 
-use equinox_msg::single_sided_staking::{Config, OwnershipProposal, Reward, UserReward};
+use equinox_msg::single_sided_staking::{
+    Config, OwnershipProposal, Reward, UnbondedItem, UserReward,
+};
 
 use crate::{
     config::{BPS_DENOMINATOR, ONE_DAY},
@@ -14,10 +16,18 @@ use crate::{
 pub const CONTRACT_NAME: &str = "single sided staking contract";
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub const SWAP_TO_ASTRO_REPLY_ID: u64 = 0;
+/// (recipient, amount_to_send, fee_to_send)
+pub const WITHDRAW_TEMP_DATA: Item<(Addr, Uint128, Uint128)> = Item::new("withdraw_temp_data");
+
 pub const OWNER: Admin = Admin::new("owner");
 pub const CONFIG: Item<Config> = Item::new("config");
+
+/// unbonded items by user_address
+pub const USER_UNBONDED: Map<&Addr, Vec<UnbondedItem>> = Map::new("user_unbonded");
 // user staking info (address, duration, start_time)
 pub const USER_STAKED: Map<(&String, u64, u64), UserStaked> = Map::new("user_staking");
+
 pub const TOTAL_STAKING: Item<Uint128> = Item::new("total_staking");
 pub const TOTAL_STAKING_BY_DURATION: SnapshotMap<u64, TotalStakingByDuration> = SnapshotMap::new(
     "total_staking_by_duration",

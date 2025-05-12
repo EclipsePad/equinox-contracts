@@ -87,6 +87,7 @@ pub fn try_instantiate(
             astro: msg.astro,
             xastro: msg.xastro,
             eclip_astro: msg.eclip_astro,
+            is_eclip_rewards_required: false,
         },
     )?;
 

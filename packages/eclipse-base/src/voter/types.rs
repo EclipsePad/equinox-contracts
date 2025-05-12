@@ -303,6 +303,8 @@ pub struct TokenConfig {
     pub xastro: String,
     /// eclipASTRO denom
     pub eclip_astro: String,
+    /// if set then delegation rewards will be swapped to ECLIP
+    pub is_eclip_rewards_required: bool,
 }
 
 #[cw_serde]
