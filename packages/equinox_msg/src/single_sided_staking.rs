@@ -31,6 +31,7 @@ pub struct InstantiateMsg {
     pub eclip: String,
     /// ECLIP staking
     pub eclip_staking: String,
+    pub lockdrop: Option<String>,
     /// bECLIP token
     pub beclip: String,
     /// timelock config
@@ -187,6 +188,7 @@ pub struct UpdateConfigMsg {
     pub eclip: Option<String>,
     pub beclip: Option<String>,
     pub eclip_staking: Option<String>,
+    pub lockdrop: Option<String>,
     pub init_early_unlock_penalty: Option<Decimal>,
 }
 
@@ -211,6 +213,21 @@ impl CallbackMsg {
 }
 
 #[cw_serde]
+pub struct ConfigPre {
+    /// eclipASTRO token
+    pub token: String,
+    /// lock config
+    pub timelock_config: Vec<TimeLockConfig>,
+    /// ASTRO/eclipASTRO converter contract
+    pub voter: Addr,
+    pub treasury: Addr,
+    pub eclip_staking: Addr,
+    pub eclip: String,
+    pub beclip: Addr,
+    pub init_early_unlock_penalty: Decimal,
+}
+
+#[cw_serde]
 pub struct Config {
     /// eclipASTRO token
     pub token: String,
@@ -218,6 +235,7 @@ pub struct Config {
     pub timelock_config: Vec<TimeLockConfig>,
     /// ASTRO/eclipASTRO converter contract
     pub voter: Addr,
+    pub lockdrop: Addr,
     pub treasury: Addr,
     pub eclip_staking: Addr,
     pub eclip: String,

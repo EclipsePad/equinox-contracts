@@ -58,6 +58,10 @@ pub fn update_config(
         config.voter = deps.api.addr_validate(&voter)?;
         res = res.add_attribute("voter", voter);
     }
+    if let Some(lockdrop) = new_config.lockdrop {
+        config.lockdrop = deps.api.addr_validate(&lockdrop)?;
+        res = res.add_attribute("lockdrop", lockdrop);
+    }
     if let Some(treasury) = new_config.treasury {
         config.treasury = deps.api.addr_validate(&treasury)?;
         res = res.add_attribute("treasury", treasury);
@@ -933,9 +937,6 @@ pub fn unstake(
     amount: Option<Uint128>,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
-    // use unbond + withdraw instead
-    Err(ContractError::MessageIsDisabled)?;
-
     let locked_at = locked_at.unwrap_or_default();
     let sender = info.sender.to_string();
     let block_time = env.block.time.seconds();
@@ -948,6 +949,12 @@ pub fn unstake(
         .load(deps.storage, &sender)
         .unwrap_or_default();
     let config = CONFIG.load(deps.storage)?;
+
+    if sender != config.lockdrop {
+        // use unbond + withdraw instead
+        Err(ContractError::MessageIsDisabled)?;
+    }
+
     let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
     let reward_weights = update_reward_weights(deps.branch(), env.clone())?;
     let (mut user_staking, mut response) = _claim_single(

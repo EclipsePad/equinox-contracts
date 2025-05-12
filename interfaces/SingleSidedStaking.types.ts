@@ -11,6 +11,7 @@ export interface InstantiateMsg {
   eclip: string;
   eclip_staking: string;
   init_early_unlock_penalty?: Decimal | null;
+  lockdrop?: string | null;
   owner: string;
   timelock_config?: TimeLockConfig[] | null;
   token: string;
@@ -119,6 +120,7 @@ export interface UpdateConfigMsg {
   eclip?: string | null;
   eclip_staking?: string | null;
   init_early_unlock_penalty?: Decimal | null;
+  lockdrop?: string | null;
   timelock_config?: TimeLockConfig[] | null;
   treasury?: string | null;
   voter?: string | null;
@@ -184,6 +186,9 @@ export type QueryMsg = "blacklist_rewards" | {
     locked_at?: number | null;
   };
 };
+export interface MigrateMsg {
+  version: string;
+}
 export type ArrayOfString = string[];
 export interface UserReward {
   beclip: Uint128;
@@ -195,6 +200,7 @@ export interface Config {
   eclip: string;
   eclip_staking: Addr;
   init_early_unlock_penalty: Decimal;
+  lockdrop: Addr;
   timelock_config: TimeLockConfig[];
   token: string;
   treasury: Addr;

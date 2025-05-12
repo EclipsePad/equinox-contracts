@@ -71,6 +71,10 @@ pub fn update_config(
         config.astroport_incentives = deps.api.addr_validate(astroport_incentives.as_str())?;
         res = res.add_attribute("astroport_incentives", astroport_incentives.to_string());
     }
+    if let Some(lockdrop) = new_config.lockdrop {
+        config.lockdrop = deps.api.addr_validate(&lockdrop)?;
+        res = res.add_attribute("lockdrop", lockdrop);
+    }
     if let Some(treasury) = new_config.treasury {
         config.treasury = deps.api.addr_validate(&treasury)?;
         res = res.add_attribute("treasury", treasury);
@@ -782,11 +786,13 @@ pub fn unstake(
     amount: Uint128,
     recipient: Option<String>,
 ) -> Result<Response, ContractError> {
-    // use unbond + withdraw instead
-    Err(ContractError::MessageIsDisabled)?;
-
     let cfg = CONFIG.load(deps.storage)?;
     let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
+
+    if info.sender != cfg.lockdrop {
+        // use unbond + withdraw instead
+        Err(ContractError::MessageIsDisabled)?;
+    }
 
     let receiver = recipient.unwrap_or(info.sender.to_string());
     let mut msgs = vec![];

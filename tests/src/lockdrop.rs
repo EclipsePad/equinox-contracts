@@ -1846,205 +1846,214 @@ fn restake_and_unlock() {
     assert_eq!(ContractError::NotStaked {}, err.downcast().unwrap());
 
     suite.update_time(86400u64);
-    let _prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
     suite
         .single_lockdrop_claim_rewards(ALICE, 2592000, None)
         .unwrap();
     // let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
     // assert_eq!(user_info, vec![]);
-    let _alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
 
     let user_eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
     assert_eq!(user_eclipastro_balance, 0);
 
-    // let err = suite
-    //     .single_lockup_unlock(ALICE, 7776000, Some(Uint128::from(100u128)))
-    //     .unwrap_err();
-    // assert_eq!(
-    //     SingleSidedStakingError::EarlyUnlockDisabled {},
-    //     err.downcast().unwrap()
-    // );
+    // ContractError::EarlyUnlockDisabled {}
+    let _err = suite
+        .single_lockup_unlock(ALICE, 7776000, Some(Uint128::from(100u128)))
+        .unwrap_err();
 
-    // let user_eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
-    // // TODO: check if 31 instead of 50 is correct
-    // assert_eq!(user_eclipastro_balance, 0);
+    let user_eclipastro_balance = suite.query_eclipastro_balance(ALICE).unwrap();
+    // TODO: check if 31 instead of 50 is correct
+    assert_eq!(user_eclipastro_balance, 0);
 
-    // let prev_user_lp_token_balance = suite.query_lp_token_balance(ALICE).unwrap();
-    // suite
-    //     .lp_lockdrop_claim_rewards(ALICE, 7776000, None)
-    //     .unwrap();
-    // let err = suite
-    //     .lp_lockup_unlock(ALICE, 7776000, Some(Uint128::from(400u128)))
-    //     .unwrap_err();
+    let prev_user_lp_token_balance = suite.query_lp_token_balance(ALICE).unwrap();
+    suite
+        .lp_lockdrop_claim_rewards(ALICE, 7776000, None)
+        .unwrap();
+    //  ContractError::EarlyUnlockDisabled {}
+    let _err = suite
+        .lp_lockup_unlock(ALICE, 7776000, Some(Uint128::from(400u128)))
+        .unwrap_err();
 
-    // assert_eq!(
-    //     ContractError::EarlyUnlockDisabled {},
-    //     err.downcast().unwrap()
-    // );
+    let user_lp_token_balance = suite.query_lp_token_balance(ALICE).unwrap();
+    // TODO: check if 121 instead of 200 is correct
+    assert_eq!(
+        user_lp_token_balance.u128() - prev_user_lp_token_balance.u128(),
+        0
+    );
 
-    // let user_lp_token_balance = suite.query_lp_token_balance(ALICE).unwrap();
-    // // TODO: check if 121 instead of 200 is correct
-    // assert_eq!(
-    //     user_lp_token_balance.u128() - prev_user_lp_token_balance.u128(),
-    //     0
-    // );
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 0);
 
-    // assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 0);
+    let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 2592000 })
+            .unwrap()
+            .eclipastro_staked
+            .u128(),
+        999
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 2592000 })
+            .unwrap()
+            .eclipastro_withdrawed
+            .u128(),
+        999
+    );
 
-    // let user_info = suite.query_user_single_lockup_info(ALICE).unwrap();
-    // assert_eq!(
-    //     user_info
-    //         .iter()
-    //         .find(|i| { i.duration == 2592000 })
-    //         .unwrap()
-    //         .eclipastro_staked
-    //         .u128(),
-    //     999
-    // );
-    // assert_eq!(
-    //     user_info
-    //         .iter()
-    //         .find(|i| { i.duration == 2592000 })
-    //         .unwrap()
-    //         .eclipastro_withdrawed
-    //         .u128(),
-    //     999
-    // );
-
-    // let err = suite
-    //     .single_lockup_unlock(ALICE, 2592000, Some(Uint128::from(100u128)))
-    //     .unwrap_err();
+    let _err = suite
+        .single_lockup_unlock(ALICE, 2592000, Some(Uint128::from(100u128)))
+        .unwrap_err();
     // assert_eq!(
     //     ContractError::WithdrawLimitExceed("0".to_string()),
     //     err.downcast().unwrap()
     // );
 
-    // suite.single_lockdrop_claim_rewards(ALICE, 0, None).unwrap();
+    suite.single_lockdrop_claim_rewards(ALICE, 0, None).unwrap();
 
-    // let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    // suite
-    //     .lp_lockdrop_claim_rewards(ALICE, 2592000, None)
-    //     .unwrap();
-    // let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
-    // assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 71718517);
+    let prev_alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    suite
+        .lp_lockdrop_claim_rewards(ALICE, 2592000, None)
+        .unwrap();
+    let alice_beclip_balance = suite.query_beclip_balance(ALICE).unwrap();
+    assert_eq!(alice_beclip_balance - prev_alice_beclip_balance, 71718517);
 
-    // let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
-    // assert_eq!(
-    //     user_info
-    //         .iter()
-    //         .find(|i| { i.duration == 2592000 })
-    //         .unwrap()
-    //         .lp_token_staked
-    //         .u128(),
-    //     476
-    // );
-    // let err = suite
-    //     .lp_lockup_unlock(ALICE, 2592000, Some(Uint128::from(476u128)))
-    //     .unwrap_err();
+    let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 2592000 })
+            .unwrap()
+            .lp_token_staked
+            .u128(),
+        476
+    );
+    let _err = suite
+        .lp_lockup_unlock(ALICE, 2592000, Some(Uint128::from(476u128)))
+        .unwrap_err();
     // assert_eq!(
     //     ContractError::EarlyUnlockDisabled {},
     //     err.downcast().unwrap()
     // );
-    // let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
-    // assert_eq!(
-    //     user_info
-    //         .iter()
-    //         .find(|i| { i.duration == 2592000 })
-    //         .unwrap()
-    //         .lp_token_staked
-    //         .u128(),
-    //     476
-    // );
-    // assert_eq!(
-    //     user_info
-    //         .iter()
-    //         .find(|i| { i.duration == 2592000 })
-    //         .unwrap()
-    //         .lp_token_withdrawed
-    //         .u128(),
-    //     0
-    // );
+    let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 2592000 })
+            .unwrap()
+            .lp_token_staked
+            .u128(),
+        476
+    );
+    assert_eq!(
+        user_info
+            .iter()
+            .find(|i| { i.duration == 2592000 })
+            .unwrap()
+            .lp_token_withdrawed
+            .u128(),
+        0
+    );
 
-    // let err = suite
-    //     .lp_lockup_unlock(ALICE, 2592000, Some(Uint128::from(100u128)))
-    //     .unwrap_err();
+    suite
+        .lp_staking_update_config(
+            &suite.admin(),
+            equinox_msg::lp_staking::UpdateConfigMsg {
+                lp_token: None,
+                lp_contract: None,
+                lockdrop: Some(suite.lockdrop_contract()),
+                astroport_incentives: None,
+                treasury: None,
+                funding_dao: None,
+                eclip: None,
+                beclip: None,
+            },
+        )
+        .unwrap();
+
+    let _err = suite
+        .lp_lockup_unlock(ALICE, 2592000, Some(Uint128::from(100u128)))
+        .unwrap_err();
     // assert_eq!(
     //     ContractError::EarlyUnlockDisabled {},
     //     err.downcast().unwrap()
     // );
-    // // TODO: Denominator must not be zero
-    // suite.update_time(SIX_MONTH + 86400 * 3);
-    // suite
-    //     .lp_lockup_unlock(ALICE, THREE_MONTH, Some(Uint128::from(100u128)))
-    //     .unwrap();
-    // // // let prev_eclip_balance = suite.query_balance_native(ALICE.to_string(), suite.eclip()).unwrap();
-    // // // suite.lp_lockdrop_claim_all_rewards(ALICE).unwrap();
-    // // // let eclip_balance = suite.query_balance_native(ALICE.to_string(), suite.eclip()).unwrap();
-    // // // assert_eq!(eclip_balance-prev_eclip_balance, 0u128);
-    // // // let info = suite.query_lockdrop_config().unwrap();
-    // // // assert_eq!(info., vec![])
-    // // // let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
-    // // // assert_eq!(user_info, vec![]);
+    // TODO: Denominator must not be zero
+    suite.update_time(SIX_MONTH + 86400 * 3);
+    suite
+        .lp_lockup_unlock(ALICE, THREE_MONTH, Some(Uint128::from(100u128)))
+        .unwrap();
+    // // let prev_eclip_balance = suite.query_balance_native(ALICE.to_string(), suite.eclip()).unwrap();
+    // // suite.lp_lockdrop_claim_all_rewards(ALICE).unwrap();
+    // // let eclip_balance = suite.query_balance_native(ALICE.to_string(), suite.eclip()).unwrap();
+    // // assert_eq!(eclip_balance-prev_eclip_balance, 0u128);
+    // // let info = suite.query_lockdrop_config().unwrap();
+    // // assert_eq!(info., vec![])
+    // // let user_info = suite.query_user_lp_lockup_info(ALICE).unwrap();
+    // // assert_eq!(user_info, vec![]);
 
-    // // check claim with duplicated assets
-    // let err = suite
-    //     .single_lockdrop_claim_rewards(
-    //         ALICE,
-    //         0,
-    //         Some(vec![
-    //             AssetInfo::NativeToken {
-    //                 denom: suite.eclip(),
-    //             },
-    //             AssetInfo::NativeToken {
-    //                 denom: suite.eclip(),
-    //             },
-    //         ]),
-    //     )
-    //     .unwrap_err();
-    // assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
-    // let err = suite
-    //     .lp_lockdrop_claim_rewards(
-    //         ALICE,
-    //         0,
-    //         Some(vec![
-    //             AssetInfo::NativeToken {
-    //                 denom: suite.eclip(),
-    //             },
-    //             AssetInfo::NativeToken {
-    //                 denom: suite.eclip(),
-    //             },
-    //         ]),
-    //     )
-    //     .unwrap_err();
-    // assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
-    // let err = suite
-    //     .single_lockdrop_claim_all_rewards(
-    //         ALICE,
-    //         Some(vec![
-    //             AssetInfo::NativeToken {
-    //                 denom: suite.eclip(),
-    //             },
-    //             AssetInfo::NativeToken {
-    //                 denom: suite.eclip(),
-    //             },
-    //         ]),
-    //     )
-    //     .unwrap_err();
-    // assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
-    // let err = suite
-    //     .lp_lockdrop_claim_all_rewards(
-    //         ALICE,
-    //         Some(vec![
-    //             AssetInfo::NativeToken {
-    //                 denom: suite.eclip(),
-    //             },
-    //             AssetInfo::NativeToken {
-    //                 denom: suite.eclip(),
-    //             },
-    //         ]),
-    //     )
-    //     .unwrap_err();
-    // assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
+    // check claim with duplicated assets
+    let err = suite
+        .single_lockdrop_claim_rewards(
+            ALICE,
+            0,
+            Some(vec![
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+            ]),
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
+    let err = suite
+        .lp_lockdrop_claim_rewards(
+            ALICE,
+            0,
+            Some(vec![
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+            ]),
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
+    let err = suite
+        .single_lockdrop_claim_all_rewards(
+            ALICE,
+            Some(vec![
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+            ]),
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
+    let err = suite
+        .lp_lockdrop_claim_all_rewards(
+            ALICE,
+            Some(vec![
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+                AssetInfo::NativeToken {
+                    denom: suite.eclip(),
+                },
+            ]),
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::DuplicatedAssets {}, err.downcast().unwrap());
 }
 
 #[test]

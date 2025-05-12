@@ -37,6 +37,7 @@ pub struct InstantiateMsg {
     pub eclip_staking: String,
     /// Astroport incentives
     pub astroport_incentives: String,
+    pub lockdrop: Option<String>,
     /// Eclipse treasury
     pub treasury: String,
     /// funding DAO
@@ -172,11 +173,36 @@ impl CallbackMsg {
 pub struct UpdateConfigMsg {
     pub lp_token: Option<AssetInfo>,
     pub lp_contract: Option<String>,
+    pub lockdrop: Option<String>,
     pub astroport_incentives: Option<String>,
     pub treasury: Option<String>,
     pub funding_dao: Option<String>,
     pub eclip: Option<String>,
     pub beclip: Option<String>,
+}
+
+#[cw_serde]
+pub struct ConfigPre {
+    /// lp token
+    pub lp_token: AssetInfo,
+    /// lp contract
+    pub lp_contract: Addr,
+    /// ASTRO token
+    pub astro: String,
+    /// xASTRO token
+    pub xastro: String,
+    /// ECLIP token
+    pub eclip: String,
+    /// bECLIP token
+    pub beclip: Addr,
+    /// ASTRO staking contract
+    pub astro_staking: Addr,
+    /// ECLIP staking
+    pub eclip_staking: Addr,
+    /// Astroport incentives
+    pub astroport_incentives: Addr,
+    pub treasury: Addr,
+    pub funding_dao: Addr,
 }
 
 #[cw_serde]
@@ -197,6 +223,7 @@ pub struct Config {
     pub astro_staking: Addr,
     /// ECLIP staking
     pub eclip_staking: Addr,
+    pub lockdrop: Addr,
     /// Astroport incentives
     pub astroport_incentives: Addr,
     pub treasury: Addr,
