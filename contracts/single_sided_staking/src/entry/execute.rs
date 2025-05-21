@@ -950,10 +950,10 @@ pub fn unstake(
         .unwrap_or_default();
     let config = CONFIG.load(deps.storage)?;
 
-    if sender != config.lockdrop {
-        // use unbond + withdraw instead
-        Err(ContractError::MessageIsDisabled)?;
-    }
+    // if sender != config.lockdrop {
+    //     // use unbond + withdraw instead
+    //     Err(ContractError::MessageIsDisabled)?;
+    // }
 
     let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
     let reward_weights = update_reward_weights(deps.branch(), env.clone())?;

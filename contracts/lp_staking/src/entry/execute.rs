@@ -789,10 +789,10 @@ pub fn unstake(
     let cfg = CONFIG.load(deps.storage)?;
     let mut total_staking = TOTAL_STAKING.load(deps.storage)?;
 
-    if info.sender != cfg.lockdrop {
-        // use unbond + withdraw instead
-        Err(ContractError::MessageIsDisabled)?;
-    }
+    // if info.sender != cfg.lockdrop {
+    //     // use unbond + withdraw instead
+    //     Err(ContractError::MessageIsDisabled)?;
+    // }
 
     let receiver = recipient.unwrap_or(info.sender.to_string());
     let mut msgs = vec![];
